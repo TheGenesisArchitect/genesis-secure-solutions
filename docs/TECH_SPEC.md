@@ -1,10 +1,10 @@
-# IGNYT by Genesis Secure Solutions: Technical Specification
+# Genovus by Genesis Secure Solutions: Technical Specification
 
 Oct 5, 2026 · @Anthony
 
 ## Overview
 
-IGNYT, by Genesis Secure Solutions, is a turnkey growth platform for local agencies: one validated agent record goes in, and a launched, measured and continuously improved local-growth program comes out. Insurance agents are the first market. Mendez Hollis (JAVA Agency, LLC, Columbus GA) is the live proof client.
+Genovus, by Genesis Secure Solutions, is a turnkey growth platform for local agencies: one validated agent record goes in, and a launched, measured and continuously improved local-growth program comes out. Insurance agents are the first market. Mendez Hollis (JAVA Agency, LLC, Columbus GA) is the live proof client.
 
 The platform has three faces that share one data model and one agentic layer:
 
@@ -151,7 +151,7 @@ One site engine serves every client website: it looks up the agent record by the
 - Metadata, structured data (InsuranceAgency) and the link-preview image are generated per agent.
 - Search indexing, analytics IDs and the Meta pixel are per-agent fields, so launching one client never changes another.
 - Every callback is stored as a lead with its source tags and consent, then emailed to the office through a verified sending domain.
-- Domains: an IGNYT subdomain or the agent's own domain, attached through the Vercel domains API and managed from the back office and the console (see Domains and tracked links).
+- Domains: a Genovus subdomain or the agent's own domain, attached through the Vercel domains API and managed from the back office and the console (see Domains and tracked links).
 
 **The Genesis funnel.** The public site opens with the commercial and hands the visitor the live demo: they type a name and office and get a private preview of their own site plus a presence score. Previews are marked as concepts, never published or indexed, carry no carrier logo, and use only what the visitor typed.
 
@@ -224,7 +224,7 @@ Home leads with what needs the agent (approvals and next actions), then shows th
 | Concierge | Questions the AI answered and the ones handed to staff | Premium |
 | Billing | Plan, invoices, payment method, upgrade price with credit for what was paid | All |
 | Documents | Agreement, approvals record, brand kit, monthly reports | All |
-| Domains | Connect their own domain or use an IGNYT subdomain; see each domain's status and SSL; see every tracked link to outside resources and its clicks | All |
+| Domains | Connect their own domain or use a Genovus subdomain; see each domain's status and SSL; see every tracked link to outside resources and its clicks | All |
 | Team | Invite office staff and set what they can do | All |
 | Support | Requests to the Genesis team and their status | All |
 
@@ -326,7 +326,7 @@ Each integration has one owner module and one set of server-side credentials, an
 | Vercel (Pro) | Hosting, deploys, domains API, cron, Blob storage | Live; upgrade to Pro before client launches |
 | Vercel Blob | Private files and setup progress | Live (private store connected to the platform) |
 | Supabase | System of record: Postgres with row-level security, plus auth | Decided; project to create |
-| GoHighLevel Agency Pro | Per-agent calendars, booking, pipelines, texting and email workflows, white-labeled as IGNYT | Decided; account and A2P 10DLC registration to set up |
+| GoHighLevel Agency Pro | Per-agent calendars, booking, pipelines, texting and email workflows, white-labeled as Genovus | Decided; account and A2P 10DLC registration to set up |
 | Calendly | Booking for agents who already use it | Supported as bring-your-own |
 | Dub | Tracked, branded links to third-party resources on client domains | Decided; account to set up |
 | Entri Connect | One-click DNS setup for clients | Later, once signups are self-serve |
@@ -388,11 +388,11 @@ Every open choice is now made except pricing for the new modules. The spec is fi
 | Decision | Choice | What it means for the build |
 | --- | --- | --- |
 | Database and auth | Supabase | Postgres with row-level security and Supabase Auth; the system of record for every tenant |
-| Product name | IGNYT, by Genesis Secure Solutions | Rename the platform surfaces after a trademark and domain-availability check |
-| Client domains | Custom domains and IGNYT subdomains, managed from the back office and the console | Vercel domains API for sites, Dub for tracked links to third-party resources, Entri when self-serve volume justifies it |
+| Product name | Genovus, by Genesis Secure Solutions | Preliminary trademark screen clear on Oct 5, 2026: no live US mark for GENOVUS. Attorney clearance next, then rename the site, films and deck |
+| Client domains | Custom domains and Genovus subdomains, managed from the back office and the console | Vercel domains API for sites, Dub for tracked links to third-party resources, Entri when self-serve volume justifies it |
 | Vercel plan | Pro | Upgrade in the Vercel dashboard before client launches |
 | Booking (Growth) | GoHighLevel calendars; Calendly supported for agents who already use it | One sub-account per agent, set up inside the CRM |
-| CRM (Premium) | GoHighLevel Agency Pro, white-labeled as IGNYT | Messaging and workflow layer only; Supabase stays the record |
+| CRM (Premium) | GoHighLevel Agency Pro, white-labeled as Genovus | Messaging and workflow layer only; Supabase stays the record |
 | Error tracking | Sentry | Errors, performance, uptime and cron checks; masked session replay |
 | Standard deposit split | 70/30 | 70% deposit to start, 30% balance at launch; Mendez keeps his existing terms |
 | Support response times | Per plan | Times below |
@@ -407,33 +407,33 @@ Three services together let any client run their own domain and still track ever
 
 | Need | Service | Why it fits |
 | --- | --- | --- |
-| Client websites on a custom domain or an IGNYT subdomain | Vercel domains API (Pro) | Unlimited custom domains per project on Pro, with a soft limit of 100,000; SSL issued automatically for every verified domain |
+| Client websites on a custom domain or a Genovus subdomain | Vercel domains API (Pro) | Unlimited custom domains per project on Pro, with a soft limit of 100,000; SSL issued automatically for every verified domain |
 | Tracked links to third-party resources (carrier quote pages, booking pages, outside landing pages, social bios) | Dub | Branded short links on the client's own domain, click and conversion tracking, and a REST API to create links in bulk |
 | One-click DNS setup for clients | Entri Connect (later) | Applies the records for the site, the CRM, the link subdomain and email in one client consent, across 70+ DNS providers |
-| Buying a domain inside IGNYT | Vercel or Entri Sell | Decided when self-serve signup ships |
+| Buying a domain inside Genovus | Vercel or Entri Sell | Decided when self-serve signup ships |
 
-**How it works for a client.** The back office gets a Domains area: connect a domain the agent owns, or use an IGNYT subdomain; see each domain's status and SSL; and see every tracked link with its clicks. The console gets the same view across all clients. A carrier quote link becomes a branded short link (for example go.agencyname.com/quote) that records the click before forwarding.
+**How it works for a client.** The back office gets a Domains area: connect a domain the agent owns, or use a Genovus subdomain; see each domain's status and SSL; and see every tracked link with its clicks. The console gets the same view across all clients. A carrier quote link becomes a branded short link (for example go.agencyname.com/quote) that records the click before forwarding.
 
-**Constraints.** Wildcard subdomains need the IGNYT domain on Vercel's nameservers or delegated certificate validation, so the IGNYT domain is chosen first. Vercel limits domain additions to 100 an hour and verifications to 50 an hour per team, which shapes bulk onboarding. Dub's Business plan ($90 a month: 100 custom domains, 250,000 tracked events) covers the first 100 clients; the Advanced plan ($300 a month, 250 domains) is the next step. Entri Startup is $249 a month for 600 connections a year, so it waits until signups are self-serve.
+**Constraints.** Wildcard subdomains need the Genovus domain on Vercel's nameservers or delegated certificate validation, so the Genovus domain is chosen first: getgenovus.com and genovus.io are open, and genovus.com is registered but unused. Vercel limits domain additions to 100 an hour and verifications to 50 an hour per team, which shapes bulk onboarding. Dub's Business plan ($90 a month: 100 custom domains, 250,000 tracked events) covers the first 100 clients; the Advanced plan ($300 a month, 250 domains) is the next step. Entri Startup is $249 a month for 600 connections a year, so it waits until signups are self-serve.
 
 ## Booking and CRM
 
-GoHighLevel Agency Pro is the recommended engine for both booking and CRM: one $497-a-month agency account gives unlimited sub-accounts, so every agent gets their own calendars, pipelines, texting and email workflows under the IGNYT brand, and the cost does not grow with each client.
+GoHighLevel Agency Pro is the recommended engine for both booking and CRM: one $497-a-month agency account gives unlimited sub-accounts, so every agent gets their own calendars, pipelines, texting and email workflows under the Genovus brand, and the cost does not grow with each client.
 
-| Option | Fit for IGNYT | Cost |
+| Option | Fit for Genovus | Cost |
 | --- | --- | --- |
 | **GoHighLevel Agency Pro (recommended)** | Unlimited sub-accounts, SaaS mode for white-label reselling and automatic sub-account creation, advanced API, built-in calendars and booking | $497 a month for the agency |
 | GoHighLevel Unlimited | Same sub-accounts and calendars, basic API, no SaaS mode | $297 a month |
 | Calendly (bring your own) | Familiar to agents; SMS reminders and routing forms on Standard; API, webhooks, round robin and branding removal on Teams | From $10 per seat a month (Standard), $16 (Teams) |
-| Cal.com | API-first scheduling that can live natively inside IGNYT's own interface later | Teams $12 per user a month; platform pricing by quote |
+| Cal.com | API-first scheduling that can live natively inside Genovus's own interface later | Teams $12 per user a month; platform pricing by quote |
 
-**How it sits behind IGNYT**
+**How it sits behind Genovus**
 
-- **Supabase stays the system of record.** Leads land in IGNYT first with their consent record, then sync one way to the agent's GoHighLevel sub-account for follow-up. Outcomes sync back.
+- **Supabase stays the system of record.** Leads land in Genovus first with their consent record, then sync one way to the agent's GoHighLevel sub-account for follow-up. Outcomes sync back.
 - **Tiers map to sub-account features.** Growth turns on calendars, booking reminders and intake forms; Premium adds pipelines and follow-up workflows.
 - **Texting needs A2P 10DLC registration** for each agent's sub-account before any business text is sent, and only to people who consented.
-- **Calendly stays supported.** An agent who already uses it connects their booking link, and IGNYT wraps it in a tracked Dub link.
-- **Insurance-native CRMs** such as AgencyZoom suit independent agencies with fewer than 25 producers; captive agents get less from them, because much of their value is multi-carrier workflow. They connect as an integration rather than replacing the IGNYT record.
+- **Calendly stays supported.** An agent who already uses it connects their booking link, and Genovus wraps it in a tracked Dub link.
+- **Insurance-native CRMs** such as AgencyZoom suit independent agencies with fewer than 25 producers; captive agents get less from them, because much of their value is multi-carrier workflow. They connect as an integration rather than replacing the Genovus record.
 
 **Test on Mendez:** set up his sub-account, a 20-minute consultation calendar and booking reminders, then compare against Calendly on time to book and no-show rate.
 
@@ -501,16 +501,16 @@ Requests come in through the back office's Support area, and the console times e
 
 ## Carrier rules checklist
 
-The agency owner is responsible for their carrier's rules, so they review and approve a checklist of generic carrier prompts while setting up their marketing profile, before any Phase 1 marketing. Their answers configure what IGNYT does for them; it is their attestation, not a legal determination by Genesis.
+The agency owner is responsible for their carrier's rules, so they review and approve a checklist of generic carrier prompts while setting up their marketing profile, before any Phase 1 marketing. Their answers configure what Genovus does for them; it is their attestation, not a legal determination by Genesis.
 
-| Prompt the owner answers | What it controls in IGNYT |
+| Prompt the owner answers | What it controls in Genovus |
 | --- | --- |
 | Does my carrier require approval of my website, social posts or ads before they go live? Who approves them? | Adds a carrier approval step to the Required lane, routed to the named approver |
 | May I use my carrier's name, logo or trademarks, and under what rules? | Whether brand assets appear on the site and in posts |
 | May my website and posts link to my carrier's quote page, and may those links be tracked? | Whether quote links become tracked Dub links |
 | May my leads be stored in a third-party CRM? | Whether leads sync to the agent's GoHighLevel sub-account |
 | May my office send marketing text messages, and to whom? | Whether texting and SMS reminders are switched on |
-| May my site show a “site by” credit or a referral link for a vendor? | Whether the IGNYT credit appears on the site |
+| May my site show a “site by” credit or a referral link for a vendor? | Whether the Genovus credit appears on the site |
 | Are there required disclaimers, licence numbers or wording? | Adds them to the site footer, posts and ads automatically |
 | Are there products, states or claims I must not advertise? | Adds them to the compliance rules every draft is checked against |
 
@@ -529,6 +529,7 @@ Vendor prices and limits were checked on these pages as of Oct 5, 2026; they cha
 - [Dub pricing](https://dub.co/pricing)
 - [Meta ads management cost guide (a vendor's guide citing WebFX data; indicative only)](https://superscale.ai/learn/meta-ads-management-cost/)
 - [Best CRM for insurance agencies, 2026 (third-party roundup, for the AgencyZoom positioning)](https://www.appliedaijax.com/ai-insurance-news/best-crm-for-insurance-agencies/)
+- [Trademarkia search for GENOVUS](https://www.trademarkia.com/search/trademarks?query=genovus) (preliminary screen, not legal clearance)
 
 ## Decision log, as answered
 
@@ -537,7 +538,7 @@ The team's answers as typed on Oct 5, 2026, kept for the record. The Decisions s
 | Decision | Options | Proposed |
 | --- | --- | --- |
 | Database and auth | Supabase, or another Postgres with a separate auth provider | Supabase: row-level security and auth in one, already in the stack : Let's Use Supabase |
-| Product name and domain | Working title “Business in a Box” under Genesis Secure Solutions | Team to choose - IGNYT is the Name |
+| Product name and domain | Working title “Business in a Box” under Genesis Secure Solutions | Team to choose - IGNYT is the Name (changed to Genovus on Oct 5, 2026, after the trademark screen) |
 | Client domains | Agent-owned domain, or a subdomain on ours | Subdomain first, custom domain as an option - We need custom domain options built into the client and enterprise side so that any third party resources can still be launched and tracked from one platform.  let's choose the best services for this |
 | Vercel plan | Hobby or Pro | Pro, since this is commercial hosting - Pro |
 | Booking tool (Growth) | Any tool with one account per agent | Shortlist two, test on Mendez - I need best suggestion for the booking service.  Calendy and maybe something more comprehensive for agents.&#32; |

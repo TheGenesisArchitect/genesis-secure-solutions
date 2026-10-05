@@ -1,4 +1,4 @@
-# IGNYT (by Genesis Secure Solutions)
+# Genovus (by Genesis Secure Solutions)
 
 Build to `docs/TECH_SPEC.md`, the final spec as of 2026-10-05. The live, editable copy with diagrams:
 https://claude.ai/code/artifact/c02ccb41-0342-4b1e-8013-488c892ba02a
