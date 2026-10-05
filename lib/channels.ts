@@ -89,7 +89,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
           ],
           link: { label: 'Facebook: how two-factor authentication works', url: 'https://www.facebook.com/help/148233965247823' },
           say: 'Your Page will run through your personal login, so we protect that first. This takes two minutes and stops most account takeovers.',
-          watch: ['If he has no Facebook account, he signs up with his own name; a business name on a personal profile breaks the rules.', 'Have him save the backup codes somewhere he can find them.'],
+          watch: ['If the client has no Facebook account, they sign up with their own name; a business name on a personal profile breaks the rules.', 'Have them save the backup codes somewhere they can find them.'],
         },
         {
           id: 'fb-page',
@@ -108,7 +108,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
             { type: 'link', channel: 'facebook' },
           ],
           say: 'Pick the name your approver signed off on. Once the Page is created it is public, so we only do this after the copy review.',
-          watch: ['Check the copy review is approved before he presses Create.', 'If Facebook suggests a different category, the closest insurance one is fine.'],
+          watch: ['Check the copy review is approved before they press Create.', 'If Facebook suggests a different category, the closest insurance one is fine.'],
         },
         {
           id: 'fb-details',
@@ -126,7 +126,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
             { type: 'tip', text: 'Leave the website empty for now. We add it once your site is approved and live.' },
           ],
           say: 'Everything here is copy and paste. Matching details everywhere is what makes Google and customers trust the Page.',
-          watch: ['Hours: type exactly what he says into the hours box so the Google listing matches later.'],
+          watch: ['Hours: type exactly what they say into the hours box so the Google listing matches later.'],
         },
         {
           id: 'fb-photos',
@@ -142,7 +142,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
             { type: 'asset', key: 'mark', label: 'Brand mark', note: 'For the profile picture until your portrait is ready. It fits the circle crop.' },
           ],
           say: 'This is the header we designed to match your website. On a phone Facebook trims the sides, and we kept every word in the middle.',
-          watch: ['If the cover looks zoomed, he should drag it back to centre before saving.'],
+          watch: ['If the cover looks zoomed, drag it back to centre before saving.'],
         },
         {
           id: 'fb-portfolio',
@@ -155,7 +155,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
           ],
           link: { label: 'Meta: create a business portfolio', url: 'https://www.facebook.com/business/help/1710077379203657' },
           say: 'Think of the portfolio as the folder that holds your Page and Instagram. It is what lets you give us access without a password.',
-          watch: ['Meta may ask him to confirm the email before Accounts shows up. Wait for it rather than starting a second portfolio.'],
+          watch: ['Meta may ask them to confirm the email before Accounts shows up. Wait for it rather than starting a second portfolio.'],
         },
       ],
     },
@@ -179,7 +179,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
           link: { label: 'Instagram: set up a business account', url: 'https://help.instagram.com/502981923235522' },
           kit: [{ type: 'tip', text: 'A private account becomes public when you switch, so check old posts first if this is a personal account you already use.' }],
           say: 'A professional account is free. It unlocks scheduling and the numbers we report to you each month.',
-          watch: ['If he uses this account personally, suggest a fresh account for the office instead of switching his own.'],
+          watch: ['If the client uses this account personally, suggest a fresh account for the office instead of switching their own.'],
         },
         {
           id: 'ig-profile',
@@ -210,7 +210,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
             'One Instagram account connects to one Page.',
           ],
           say: 'This joins the two, so a post can go to both and messages land in one inbox.',
-          watch: ['If Linked accounts is missing, he is in his personal profile; switch into the Page first.'],
+          watch: ['If Linked accounts is missing, they are in their personal profile; switch into the Page first.'],
         },
       ],
     },
@@ -256,7 +256,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
           why: 'Some carriers manage their agents’ listings, so we check before changing anything.',
           how: ['Search your office name on Google Maps. If a listing shows up, think about who set it up.'],
           say: 'Before we touch Google, who manages your listing today? If your carrier does, we leave it alone.',
-          watch: ['If he is unsure, pick Not sure and move on; we check with the approver after the call.'],
+          watch: ['If the client is unsure, pick Not sure and move on; we check with the approver after the call.'],
         },
         {
           id: 'g-claim',

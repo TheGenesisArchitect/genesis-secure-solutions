@@ -15,12 +15,12 @@ const safeJson = (v: unknown) =>
 const FIXED_TALK: Record<string, Pick<Step, 'say' | 'watch'>> = {
   start: {
     say: 'Today we set up your Facebook Page, Instagram and Google listing together. You own every account; I walk you through each click and your screen fills in as we go.',
-    watch: ['Confirm he has his phone for security codes.', 'If welcome step 2 (who approves marketing) is still open, settle it now.'],
+    watch: ['Confirm the client has their phone for security codes.', 'If welcome step 2 (who approves marketing) is still open, settle it now.'],
   },
   review: {
     say: 'Before anything goes public, let’s read the copy together. Your marketing approver signs off here.',
     watch: [
-      'The facts list his GEICO email address; confirm the approver is happy to show it publicly.',
+      'The facts list the client’s work email address; confirm the approver is happy to show it publicly.',
       'Page names may need to follow carrier naming rules. Let the approver choose between the two.',
     ],
   },
@@ -36,7 +36,8 @@ export function renderSocialPage(c: Client, role: Role): string {
   const pick = (s: Step) => (role === 'operator' ? s : clientStep(s));
   const config = {
     role,
-    api: role === 'operator' ? `/api/console/social/${c.slug}` : `/api/social/${c.token}`,
+    // The console API sits under the console page so the browser sends the console sign-in with every call.
+    api: role === 'operator' ? `/console/social/${c.slug}/api` : `/api/social/${c.token}`,
     storageKey: `gss-social-${c.slug}-v2`,
     clientFirst: c.firstName,
     operatorFirst: c.contactName.split(' ')[0] || 'Genesis',

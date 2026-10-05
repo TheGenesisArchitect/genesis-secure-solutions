@@ -220,7 +220,7 @@ input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);o
   const titleOf = (id) => FIXED[id] || (STEP[id] && STEP[id].title) || id;
   function progress() { const ids = stepScreens(); const d = ids.filter(isDone).length; return { done: d, total: ids.length, pct: ids.length ? Math.round(d / ids.length * 100) : 0 }; }
   const ago = (iso) => { const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000)); return s < 60 ? s + 's ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; };
-  const peerActive = () => !!peer && Date.now() - Date.parse(peer.at) < 45000;
+  const peerActive = () => !!peer && Date.now() - Date.parse(peer.at) < 75000;
 
   // ---------- tiny DOM helper: text always goes in as text ----------
   function el(tag, attrs) {
@@ -239,9 +239,10 @@ input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);o
   function writeLocal() { try { localStorage.setItem(CFG.storageKey, JSON.stringify(S)); } catch (e) {} }
 
   function adopt(d, source) {
-    if (!d || !d.progress) return;
-    if (d.peer !== undefined) peer = d.peer;
+    if (!d) return;
     if (d.operator) opData = d.operator;
+    if (!d.progress) return;
+    if (d.peer !== undefined) peer = d.peer;
     const next = normalize(d.progress);
     if (next.rev < S.rev) return;
     const prev = S; S = next;
@@ -278,7 +279,7 @@ input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);o
 
   async function load() {
     try {
-      const r = await fetch(CFG.api, { cache: 'no-store' });
+      const r = await fetch(CFG.api + (OP ? '?full=1' : ''), { cache: 'no-store' });
       if (!r.ok) throw new Error('status ' + r.status);
       adopt(await r.json(), 'load'); mode = 'shared';
     } catch (e) { mode = 'local'; S = readLocal() || blank(); }
@@ -288,15 +289,22 @@ input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);o
     lastLeadSeen = S.lead ? S.lead.at : null;
     go(start, { noLead: true, first: true });
     schedule();
-    setInterval(() => { if (document.visibilityState === 'visible' && mode === 'shared') send({ op: 'here', step: current, following }, true); }, 15000);
+    // Presence heartbeat. Every Blob read and write is billed, so it is slow and stops while the page sleeps.
+    setInterval(() => { if (document.visibilityState === 'visible' && mode === 'shared' && !sleeping) send({ op: 'here', step: current, following }, true); }, 30000);
   }
 
+  // Poll every 3 seconds while the other person is here, every 15 seconds alone, and not at all after
+  // 15 quiet minutes or while the tab is hidden. Any click, key or focus wakes it.
+  let sleeping = false;
   function schedule() {
     clearTimeout(timer);
     if (document.visibilityState !== 'visible' || mode !== 'shared') return;
-    const fast = peerActive() || Date.now() - lastActivity < 60000;
-    timer = setTimeout(poll, fast ? 2000 : 8000);
+    if (!peerActive() && Date.now() - lastActivity > 15 * 60000) { sleeping = true; return; }
+    sleeping = false;
+    timer = setTimeout(poll, peerActive() ? 3000 : 15000);
   }
+  function wake() { lastActivity = Date.now(); if (sleeping && mode === 'shared') { sleeping = false; send({ op: 'here', step: current, following }, true); poll(); } }
+  ['pointerdown', 'keydown', 'focus'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
   async function poll() {
     if (pending === 0) {
       try {

@@ -1,8 +1,9 @@
 // Shared state for the social setup wizard, edited live by the client and the Genesis operator.
-// Three kinds of data, three private Blob files per client:
-//   session  - steps, answers, fields, links, requests, approval, lead. Version-checked writes; bumps rev.
-//   presence - one file per role (client, operator): where each person is. Never conflicts, never bumps rev.
+// Two private Blob files per client, kept small because every read and write is a billed Blob operation:
+//   session  - steps, answers, fields, links, requests, approval, lead, and where each person is (presence).
+//              Version-checked writes. Edits bump rev; presence updates do not, so they never look like edits.
 //   operator - notes and our-side ticks. Only the console API reads it, so the client can never receive it.
+// A poll is one read of the session file.
 import { createHash } from 'node:crypto';
 import { get, put } from '@vercel/blob';
 import type { Client } from './clients';
@@ -21,6 +22,7 @@ export type Session = {
   other: string;
   approval: { by: string; at: string } | null;
   lead: { step: string; at: string } | null;
+  presence: { client: Presence | null; operator: Presence | null };
   updatedAt?: string;
   updatedBy?: Role;
 };
@@ -44,6 +46,7 @@ export const blankSession = (): Session => ({
   other: '',
   approval: null,
   lead: null,
+  presence: { client: null, operator: null },
 });
 const blankOperator = (): OperatorData => ({ notes: '', ours: [] });
 
@@ -51,7 +54,6 @@ function keys(c: Client) {
   const h = createHash('sha256').update(c.token).digest('hex').slice(0, 16);
   return {
     session: `progress/social-${c.slug}-${h}.json`,
-    presence: (r: Role) => `progress/social-presence-${r}-${c.slug}-${h}.json`,
     operator: `progress/social-operator-${c.slug}-${h}.json`,
   };
 }
@@ -118,6 +120,11 @@ export function normalizeSession(raw: unknown, setup: Setup): Session {
   const lead = o.lead as Record<string, unknown> | null | undefined;
   if (lead && typeof lead === 'object' && typeof lead.step === 'string' && setup.screens.includes(lead.step) && typeof lead.at === 'string') {
     s.lead = { step: lead.step, at: lead.at };
+  }
+  const pr = o.presence as Record<string, unknown> | undefined;
+  if (pr && typeof pr === 'object') {
+    s.presence.client = normalizePresence(pr.client, setup);
+    s.presence.operator = normalizePresence(pr.operator, setup);
   }
   if (typeof o.updatedAt === 'string') s.updatedAt = o.updatedAt;
   if (o.updatedBy === 'client' || o.updatedBy === 'operator') s.updatedBy = o.updatedBy;
@@ -194,7 +201,11 @@ export function parseOp(input: unknown, role: Role, setup: Setup): Op | null {
 }
 
 function applySessionOp(s: Session, op: Op, role: Role): Session {
-  const next: Session = { ...s, fields: { ...s.fields }, links: { ...s.links }, done: [...s.done], wants: [...s.wants] };
+  const next: Session = { ...s, fields: { ...s.fields }, links: { ...s.links }, done: [...s.done], wants: [...s.wants], presence: { ...s.presence } };
+  if (op.op === 'here') {
+    next.presence[role] = { step: op.step, at: new Date().toISOString(), following: op.following };
+    return next;
+  }
   const toggle = (list: string[], id: string, on: boolean) => (on ? (list.includes(id) ? list : [...list, id]) : list.filter((x) => x !== id));
   switch (op.op) {
     case 'tick':
@@ -269,9 +280,6 @@ function normalizePresence(raw: unknown, setup: Setup): Presence | null {
   return { step: o.step, at: o.at, following: o.following !== false };
 }
 
-export async function readPresence(c: Client, role: Role, setup: Setup): Promise<Presence | null> {
-  return normalizePresence((await readJson(keys(c).presence(role))).data, setup);
-}
 
 function normalizeOperator(raw: unknown, setup: Setup): OperatorData {
   const d = blankOperator();
@@ -288,25 +296,20 @@ export async function readOperator(c: Client, setup: Setup): Promise<OperatorDat
   return normalizeOperator((await readJson(keys(c).operator)).data, setup);
 }
 
-/** Applies one validated op to the right file for this role. */
-export async function applyOp(c: Client, role: Role, op: Op, setup: Setup): Promise<void> {
+/** Applies one validated op to the right file for this role and returns what was written (no extra read). */
+export async function applyOp(c: Client, role: Role, op: Op, setup: Setup): Promise<{ session?: Session; operator?: OperatorData }> {
   const k = keys(c);
-  if (op.op === 'here') {
-    const p: Presence = { step: op.step, at: new Date().toISOString(), following: op.following };
-    await put(k.presence(role), JSON.stringify(p), { ...writeOpts, allowOverwrite: true });
-    return;
-  }
   if (op.op === 'ours' || op.op === 'notes') {
-    await updateJson(k.operator, (raw) => normalizeOperator(raw, setup), (cur) => {
+    const operator = await updateJson(k.operator, (raw) => normalizeOperator(raw, setup), (cur) => {
       const next = { ...cur, ours: [...cur.ours] };
       if (op.op === 'notes') next.notes = op.value;
       else next.ours = op.value ? [...new Set([...next.ours, op.step])] : next.ours.filter((x) => x !== op.step);
       next.updatedAt = new Date().toISOString();
       return next;
     });
-    return;
+    return { operator };
   }
-  await updateJson(k.session, (raw) => normalizeSession(raw, setup), (cur) => applySessionOp(cur, op, role));
+  return { session: await updateJson(k.session, (raw) => normalizeSession(raw, setup), (cur) => applySessionOp(cur, op, role)) };
 }
 
 export function summary(s: Session, plan: Channel[]) {
