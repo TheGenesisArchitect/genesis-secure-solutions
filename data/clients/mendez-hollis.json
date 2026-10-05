@@ -20,5 +20,6 @@
     ["Callback delivery", "Setting up email so callback requests reach your inbox automatically."],
     ["Lead tracking", "Every request arrives tagged with where the person found you."],
     ["Four launch posts", "Drafted for Facebook and Instagram, ready for your approval."]
-  ]
+  ],
+  "social": { "plan": ["facebook", "instagram", "meta-partner", "google"] }
 }

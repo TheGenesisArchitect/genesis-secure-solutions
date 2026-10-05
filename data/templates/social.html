@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>{{FIRST}} Social Setup · Genesis Secure Solutions</title>
+<style>
+/*@base*/
+/* Social walkthrough: same letter-style column as the welcome page; one section per channel, then optional channels. */
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+.rules div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:15px;color:#c9d4e6}
+.rules b{display:block;color:var(--ink);font:700 15px var(--display);margin-bottom:4px}
+.rules ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
+.channel{display:grid;gap:12px}
+.channel>header{display:grid;gap:4px}
+.channel>header h2{margin:0}
+.access{color:var(--muted);font-size:15px;max-width:68ch}
+.src{display:inline-block;margin-top:8px;font-size:14px}
+.ask{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
+.ask .q{font:700 17px/1.3 var(--display)}
+.ask .note{min-height:1em}
+.linkfield{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 20px}
+.linkfield input[type=url]{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+.linkfield .err{color:var(--amber);font-size:13px;min-height:1em}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px;list-style:none;margin:0;padding:0}
+.opt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:grid;gap:6px;align-content:start}
+.opt.on{border-color:rgba(242,169,59,.6)}
+.opt h3{margin:0;font:700 17px/1.3 var(--display)}
+.opt p{font-size:15px;color:#c9d4e6}
+.opt .access{font-size:14px}
+.opt .toggle{justify-self:start;margin-top:6px}
+.opt .toggle[aria-pressed="true"]{background:var(--amber);border-color:var(--amber);color:var(--on-amber)}
+.other{margin-top:12px}
+.other textarea{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0;min-height:72px;resize:vertical}
+textarea:focus-visible,input[type=url]:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.back{font-size:15px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">Genesis Secure Solutions · Social setup</div>
+    <h1>Your social accounts, {{FIRST}}.</h1>
+    <p class="lede">You own every account. We get partner access to post, reply and report for you, so you never share a password. Plan on about 30 minutes, or we can do it with you on your kickoff call.</p>
+  </header>
+
+  <section class="progress" aria-live="polite">
+    <div class="row"><div class="count" id="count">0 of 0 <span>steps done</span></div><div class="saved" id="saved">Loading your progress…</div></div>
+    <div class="bar" aria-hidden="true"><i id="bar"></i></div>
+  </section>
+
+  <section class="rules" aria-label="Before you start">
+    <div><b>Have these ready</b><ul><li>Your personal Facebook login and your phone for security codes</li><li>Your office name, address, phone and hours, exactly as on your site</li><li>Your portrait and logo files</li></ul></div>
+    <div><b>Our promises</b><ul><li>We never ask for your password</li><li>Nothing posts until your marketing approver signs off</li><li>You can remove our access at any time</li></ul></div>
+  </section>
+
+  {{PLAN_SECTIONS}}
+
+  <section>
+    <h2>Add more channels</h2>
+    <p class="access">Tell us what you’d like next. We confirm the scope and any cost with you before setting anything up.</p>
+    <ul class="opts" id="opts">{{OPTIONAL_CARDS}}</ul>
+    <div class="field other"><label for="other">Something else? Name the platform or idea.</label><textarea id="other" maxlength="300" placeholder="Example: a WhatsApp Business number for Spanish-speaking customers"></textarea></div>
+  </section>
+
+  <p class="back"><a href="/welcome/{{TOKEN}}">Back to your welcome page</a></p>
+  <p class="note">Stuck on a step? Reply to your welcome email and {{CONTACT}} at Genesis Secure Solutions will walk you through it. Menu names were checked on Oct 5, 2026; platforms sometimes move them.</p>
+</main>
+
+<script id="cfg" type="application/json">{{CONFIG}}</script>
+<script>
+(function () {
+  const CFG = JSON.parse(document.getElementById('cfg').textContent);
+  const API = '/api/social/{{TOKEN}}';
+  const LOCAL = 'gss-social-{{SLUG}}-v1';
+  const OWNERS = ['me', 'carrier', 'none', 'unsure'];
+  const NOTES = {
+    '': 'Answer this first so we know which steps apply.',
+    carrier: 'Then we leave your listing as it is and link to it from your site. Tell us if that changes.',
+    unsure: 'We’ll check together on your kickoff call. Searching your office name on Google Maps shows whether a listing exists.',
+    me: '', none: '',
+  };
+  let state = blank(), mode = 'pending', note = '', chain = Promise.resolve();
+  const $ = (id) => document.getElementById(id);
+
+  function blank() { return { done: [], googleOwner: '', links: {}, wants: [], other: '' }; }
+  function normalize(d) {
+    const s = blank();
+    if (!d || typeof d !== 'object') return s;
+    if (Array.isArray(d.done)) s.done = d.done.filter((id) => CFG.allSteps.includes(id));
+    if (OWNERS.includes(d.googleOwner)) s.googleOwner = d.googleOwner;
+    if (d.links && typeof d.links === 'object') for (const k of Object.keys(CFG.hosts)) if (typeof d.links[k] === 'string') s.links[k] = d.links[k];
+    if (Array.isArray(d.wants)) s.wants = d.wants.filter((id) => CFG.optional.includes(id));
+    if (typeof d.other === 'string') s.other = d.other.slice(0, 300);
+    return s;
+  }
+  function readLocal() { try { const v = localStorage.getItem(LOCAL); return v ? normalize(JSON.parse(v)) : null; } catch (e) { return null; } }
+  function writeLocal() { try { localStorage.setItem(LOCAL, JSON.stringify(state)); } catch (e) {} }
+  const googleApplies = () => state.googleOwner === 'me' || state.googleOwner === 'none';
+  const applicable = () => CFG.allSteps.filter((id) => !CFG.googleSteps.includes(id) || googleApplies());
+  function validLink(id, v) {
+    if (!v) return true;
+    try { const u = new URL(v); return u.protocol === 'https:' && CFG.hosts[id].includes(u.hostname.toLowerCase()) && v.length <= 200; } catch (e) { return false; }
+  }
+
+  function render() {
+    const steps = applicable(), done = steps.filter((id) => state.done.includes(id)).length;
+    $('count').textContent = done + ' of ' + steps.length + ' ';
+    const sp = document.createElement('span'); sp.textContent = 'steps done'; $('count').append(sp);
+    $('bar').style.width = (steps.length ? done / steps.length * 100 : 0) + '%';
+    $('saved').textContent = note || { pending: 'Loading your progress…', shared: 'Saved for you and the Genesis team', local: 'Saved on this device. Reply to your welcome email as you finish each step.' }[mode];
+    document.querySelectorAll('li.step').forEach((li) => {
+      const id = li.dataset.step, isDone = state.done.includes(id);
+      li.classList.toggle('done', isDone);
+      li.querySelector('.num').textContent = isDone ? '✓' : li.dataset.n;
+      const box = li.querySelector('.actions');
+      let b = box.querySelector('button.toggle');
+      if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'toggle'; b.dataset.step = id; box.prepend(b); }
+      b.setAttribute('aria-pressed', String(isDone)); b.textContent = isDone ? 'Done' : 'Mark as done'; b.disabled = mode === 'pending';
+    });
+    const gSteps = $('google-steps');
+    if (gSteps) {
+      gSteps.hidden = !googleApplies();
+      $('g-note').textContent = NOTES[state.googleOwner];
+      document.querySelectorAll('input[name=googleOwner]').forEach((r) => { r.checked = r.value === state.googleOwner; r.disabled = mode === 'pending'; });
+    }
+    document.querySelectorAll('input[data-link]').forEach((inp) => {
+      const id = inp.dataset.link;
+      if (document.activeElement !== inp) inp.value = state.links[id] || '';
+      inp.disabled = mode === 'pending';
+    });
+    document.querySelectorAll('li.opt').forEach((li) => {
+      const on = state.wants.includes(li.dataset.channel), b = li.querySelector('button.toggle');
+      li.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'Requested' : 'I’d like this'; b.disabled = mode === 'pending';
+    });
+    const other = $('other');
+    if (document.activeElement !== other) other.value = state.other;
+    other.disabled = mode === 'pending';
+  }
+
+  function save() {
+    writeLocal();
+    if (mode !== 'shared') return;
+    const body = JSON.stringify(state);
+    chain = chain.then(() => fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, cache: 'no-store' }))
+      .then((r) => { note = r && r.ok ? '' : 'Couldn’t save just now. Reply to your welcome email instead.'; render(); })
+      .catch(() => { note = 'Couldn’t save just now. Reply to your welcome email instead.'; render(); });
+  }
+
+  async function load() {
+    try {
+      const r = await fetch(API, { cache: 'no-store' });
+      if (!r.ok) throw new Error('status ' + r.status);
+      state = normalize((await r.json()).progress); mode = 'shared'; note = '';
+    } catch (e) { mode = 'local'; state = readLocal() || blank(); }
+    render();
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button.toggle'); if (!b || b.disabled) return;
+    if (b.dataset.step) {
+      const id = b.dataset.step, i = state.done.indexOf(id);
+      if (i >= 0) state.done.splice(i, 1); else state.done.push(id);
+    } else if (b.dataset.want) {
+      const id = b.dataset.want, i = state.wants.indexOf(id);
+      if (i >= 0) state.wants.splice(i, 1); else state.wants.push(id);
+    } else return;
+    render(); save();
+  });
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.name === 'googleOwner') { state.googleOwner = t.value; render(); save(); return; }
+    if (t.dataset && t.dataset.link) {
+      const id = t.dataset.link, v = t.value.trim(), err = document.getElementById('err-' + id);
+      if (!validLink(id, v)) { err.textContent = 'That doesn’t look like a ' + t.dataset.name + ' link. Copy it from your browser’s address bar.'; return; }
+      err.textContent = ''; if (v) state.links[id] = v; else delete state.links[id]; render(); save(); return;
+    }
+    if (t.id === 'other') { state.other = t.value.trim().slice(0, 300); render(); save(); }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && mode === 'shared') load(); });
+
+  render(); load();
+})();
+</script>
+</body>
+</html>
