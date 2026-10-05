@@ -20,3 +20,8 @@ export function findClientByToken(token: string): Client | undefined {
 export function progressKey(c: Client): string {
   return `progress/${c.slug}-${createHash('sha256').update(c.token).digest('hex').slice(0, 16)}.json`;
 }
+
+/** Console lookup by slug. Only call after the operator has signed in. */
+export function findClientBySlug(slug: string): Client | undefined {
+  return CLIENTS.find((c) => c.slug === slug);
+}

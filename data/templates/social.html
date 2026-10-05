@@ -4,183 +4,668 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>{{FIRST}} Social Setup · Genesis Secure Solutions</title>
+<title>{{TITLE}}</title>
 <style>
 /*@base*/
-/* Social walkthrough: same letter-style column as the welcome page; one section per channel, then optional channels. */
-.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
-.rules div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:15px;color:#c9d4e6}
-.rules b{display:block;color:var(--ink);font:700 15px var(--display);margin-bottom:4px}
-.rules ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
-.channel{display:grid;gap:12px}
-.channel>header{display:grid;gap:4px}
-.channel>header h2{margin:0}
-.access{color:var(--muted);font-size:15px;max-width:68ch}
-.src{display:inline-block;margin-top:8px;font-size:14px}
-.ask{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
-.ask .q{font:700 17px/1.3 var(--display)}
-.ask .note{min-height:1em}
-.linkfield{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 20px}
-.linkfield input[type=url]{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
-.linkfield .err{color:var(--amber);font-size:13px;min-height:1em}
-.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px;list-style:none;margin:0;padding:0}
-.opt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:grid;gap:6px;align-content:start}
-.opt.on{border-color:rgba(242,169,59,.6)}
-.opt h3{margin:0;font:700 17px/1.3 var(--display)}
-.opt p{font-size:15px;color:#c9d4e6}
-.opt .access{font-size:14px}
-.opt .toggle{justify-self:start;margin-top:6px}
-.opt .toggle[aria-pressed="true"]{background:var(--amber);border-color:var(--amber);color:var(--on-amber)}
-.other{margin-top:12px}
-.other textarea{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0;min-height:72px;resize:vertical}
-textarea:focus-visible,input[type=url]:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-.back{font-size:15px}
+/* Social setup wizard. Three zones on wide screens: step list, the current step, and a live preview of the
+   profiles taking shape. Narrow screens stack them: step list folds away, preview follows the step. The
+   preview mocks are light like the real platforms but carry no platform logos. */
+body{padding-block:0 48px}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(5,11,23,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-inline:-16px;padding:10px 16px}
+.top .in{max-width:1400px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.brandline{font:600 11px/1.2 var(--body);letter-spacing:.24em;color:var(--amber);text-transform:uppercase}
+.live{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:13px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:#46536b;display:inline-block;margin-right:6px;vertical-align:1px}
+.dot.on{background:var(--teal);box-shadow:0 0 0 4px rgba(25,195,174,.18)}
+.pillbtn{font:600 13px var(--body);border-radius:999px;padding:6px 12px;border:1px solid var(--line);background:var(--raise);color:var(--ink);cursor:pointer}
+.pillbtn.amber{border-color:var(--amber);color:var(--amber);background:transparent}
+.switch{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink);cursor:pointer}
+.switch input{accent-color:var(--teal);width:16px;height:16px;flex-shrink:0}
+.app{max-width:1400px;margin:20px auto 0;display:grid;grid-template-columns:240px minmax(0,1fr) 380px;gap:24px;align-items:start}
+.rail{position:sticky;top:76px;display:grid;gap:14px;max-height:calc(100vh - 96px);overflow:auto;padding-right:4px}
+.railbox>summary{display:none}
+#rail{display:grid;gap:14px}
+#bannerhost:empty{display:none}
+.group b{display:block;font:600 11px/1.2 var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 6px 10px}
+.group ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ritem{width:100%;display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;text-align:left;background:none;border:0;border-radius:10px;padding:7px 10px;color:#c9d4e6;font:500 14px/1.3 var(--body);cursor:pointer}
+.ritem:hover{background:var(--surface)}
+.ritem.cur{background:var(--surface);color:var(--ink);box-shadow:inset 3px 0 0 var(--amber)}
+.ritem .st{width:20px;height:20px;border-radius:50%;border:2px solid #3a4862;display:grid;place-items:center;font:800 11px var(--display);color:#04201c}
+.ritem.done .st{background:var(--teal);border-color:var(--teal)}
+.ritem.cur:not(.done) .st{border-color:var(--amber)}
+.peerpin{font:700 10px/1 var(--body);background:var(--amber);color:var(--on-amber);border-radius:999px;padding:3px 6px}
+.stage{display:grid;gap:16px;min-width:0}
+.talk{border:1px dashed rgba(242,169,59,.55);background:rgba(242,169,59,.06);border-radius:14px;padding:14px 16px;display:grid;gap:8px;font-size:14px}
+.talk .lab{font:600 11px/1.2 var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--amber)}
+.talk q{font-size:15px;color:var(--ink);quotes:'“' '”'}
+.talk ul{margin:0;padding-left:18px;color:#c9d4e6;display:grid;gap:3px}
+.screen{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;display:grid;gap:16px;min-width:0}
+.screen:focus{outline:none}
+.kicker{display:flex;flex-wrap:wrap;gap:6px 14px;font:600 12px/1.2 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+.kicker span+span{color:var(--muted)}
+.screen h1{font-size:clamp(26px,3.4vw,38px);margin:0}
+.why{color:#c9d4e6;font-size:16px;max-width:62ch}
+.do{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.do h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-family:var(--body);font-weight:600}
+.do ol{margin:0;padding-left:20px;display:grid;gap:6px;color:#dbe4f2}
+.src{display:inline-block;margin-top:10px;font-size:14px}
+.kit{display:grid;gap:12px}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--raise);display:grid;gap:8px;min-width:0}
+.card .hd{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between}
+.card .lb{font:700 15px/1.3 var(--display)}
+.card ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.chip{font:600 12px/1 var(--body);border-radius:999px;padding:5px 9px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{border-color:rgba(25,195,174,.6);color:var(--teal)}
+.chip.wait{border-color:rgba(242,169,59,.6);color:var(--amber);background:none;cursor:pointer}
+.txt{white-space:pre-wrap;font-size:15px;color:var(--ink);background:var(--bg);border-radius:8px;padding:10px 12px;overflow-wrap:anywhere}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cnt{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.btn{font:600 14px var(--body);border-radius:999px;padding:10px 18px;cursor:pointer;border:1px solid var(--line);background:var(--raise);color:var(--ink);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn.pri{background:var(--amber);border-color:var(--amber);color:var(--on-amber)}
+.btn.ghost{background:none}
+.btn.sm{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.facts{display:grid;gap:6px;margin:0}
+.facts div{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:15px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.opts{display:grid;gap:8px}
+.opt{display:flex;gap:10px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:15px;min-width:0}
+.opt>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.opt input{accent-color:var(--amber);width:18px;height:18px;flex-shrink:0}
+.opt.sel{border-color:var(--amber)}
+.opt small{display:block;color:var(--muted);font-size:13px}
+input.in,textarea.in{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+textarea.in{min-height:84px;resize:vertical}
+input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.err{color:var(--amber);font-size:13px;min-height:1em}
+.asset{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:14px;align-items:center}
+.asset img{width:100%;max-width:100%;border-radius:8px;border:1px solid var(--line);background:#000;display:block}
+.asset .meta{display:grid;gap:6px;font-size:14px;color:#c9d4e6;justify-items:start}
+.tip{border-left:3px solid var(--teal);padding:8px 12px;color:#c9d4e6;font-size:14px;background:rgba(25,195,174,.06);border-radius:0 8px 8px 0}
+.nav{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--line)}
+.nav .r{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-left:auto}
+.donebadge{color:var(--teal);font-weight:600;font-size:14px}
+.cards3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px}
+.cards3 div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;color:#c9d4e6}
+.cards3 b{display:block;color:var(--ink);font:700 15px var(--display);margin-bottom:4px}
+.lists{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+.lists div{font-size:14px;color:#c9d4e6}
+.lists b{display:block;color:var(--ink);font:700 15px var(--display);margin-bottom:4px}
+.lists ul{margin:0;padding-left:18px;display:grid;gap:3px}
+.approve{border:1px solid rgba(242,169,59,.55);border-radius:12px;padding:16px;display:grid;gap:10px;background:rgba(242,169,59,.05)}
+.approve.ok{border-color:rgba(25,195,174,.6);background:rgba(25,195,174,.06)}
+.optgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px}
+.ocard{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:6px;align-content:start;justify-items:start}
+.ocard.on{border-color:var(--amber)}
+.ocard b{font:700 16px var(--display)}
+.ocard p{font-size:14px;color:#c9d4e6}
+.ocard .ac{font-size:13px;color:var(--muted)}
+.banner{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:rgba(242,169,59,.1);border:1px solid rgba(242,169,59,.5);border-radius:12px;padding:10px 14px;font-size:14px}
+.preview{position:sticky;top:76px;display:grid;gap:12px;max-height:calc(100vh - 96px);overflow:auto}
+.meter{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.meter svg{width:72px;height:72px}
+.meter b{display:block;font:800 22px var(--display)}
+.meter span{font-size:13px;color:var(--muted)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:600 13px var(--body);border-radius:999px;padding:7px 12px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mock{--m-bg:#f0f2f5;--m-card:#fff;--m-ink:#1c1e21;--m-mut:#65676b;--m-line:#dadde1;--m-acc:#075cf3;background:var(--m-bg);color:var(--m-ink);border-radius:14px;overflow:hidden;font:14px/1.45 var(--body);transition:box-shadow .3s}
+.mock.pulse{box-shadow:0 0 0 3px var(--amber)}
+.mock .cover{aspect-ratio:1640/624;background:#e4e6eb;display:grid;place-items:center;color:var(--m-mut);font-size:13px;border-bottom:1px solid var(--m-line);overflow:hidden}
+.mock .cover img{width:100%;height:100%;object-fit:cover;display:block}
+.mock .body{background:var(--m-card);padding:0 16px 16px;display:grid;gap:8px}
+.mock .av{width:84px;height:84px;border-radius:50%;border:4px solid var(--m-card);background:#e4e6eb;margin-top:-42px;overflow:hidden;display:grid;place-items:center;color:var(--m-mut);font-size:11px;text-align:center;line-height:1.2}
+.mock .av img{width:100%;height:100%;object-fit:cover}
+.mock .av.sq{border-radius:12px;margin-top:0}
+.mock h3{margin:0;font:800 20px/1.2 var(--display);color:var(--m-ink);overflow-wrap:anywhere}
+.mock .sub{color:var(--m-mut);font-size:13px;overflow-wrap:anywhere}
+.mock .ph{color:#8a8d91;font-style:italic;font-weight:400}
+.mock .pill{display:inline-block;font:600 12px/1 var(--body);border-radius:6px;padding:7px 10px;background:var(--m-acc);color:#fff}
+.mock .tag{display:inline-block;font:600 11px/1 var(--body);border-radius:999px;padding:4px 8px;background:#e7f3ff;color:#0b4fa8;margin:0 6px 4px 0}
+.mock .tag.g{background:#e6f6ee;color:#11653a}
+.mock .dl{display:grid;gap:4px;font-size:13px;border-top:1px solid var(--m-line);padding-top:8px}
+.mock .dl span{color:var(--m-mut)}
+.mock .igtop{display:grid;grid-template-columns:84px minmax(0,1fr);gap:14px;align-items:center;padding:16px 16px 0;background:var(--m-card)}
+.mock .igtop .av{margin:0}
+.mock .bio{white-space:pre-wrap}
+.mock .gtop{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:center;padding:16px;background:var(--m-card)}
+.mock .gtop .av{width:64px;height:64px;margin:0}
+.mock .empty{padding:24px 16px;background:var(--m-card);color:var(--m-mut)}
+.mocknote{font-size:12px;color:var(--muted)}
+.notes{display:grid;gap:6px}
+.notes label{font:600 11px/1.2 var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--amber)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);font:600 14px var(--body);border-radius:999px;padding:10px 16px;box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:calc(100% - 32px);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s}
+.toast.show{opacity:1}
+.peek{display:none}
+@media (max-width:1180px){.peek{display:block;position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;font:700 13px var(--body);border-radius:999px;padding:10px 14px;border:1px solid var(--teal);background:var(--bg);color:var(--teal);box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer}.peek[hidden]{display:none}.toast{bottom:calc(70px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:1180px){
+  .app{grid-template-columns:minmax(0,1fr);max-width:820px}
+  .rail,.preview{position:static;max-height:none;overflow:visible}
+  .railbox>summary{display:flex;justify-content:space-between;gap:10px;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-weight:600;list-style:none}
+  .railbox>summary::-webkit-details-marker{display:none}
+  .railbox[open]>summary{margin-bottom:10px}
+}
+@media (max-width:520px){
+  .screen{padding:18px}
+  .asset{grid-template-columns:minmax(0,1fr)}
+  .asset img{max-width:220px}
+  .facts div{grid-template-columns:minmax(0,1fr) auto}
+  .facts dt{grid-column:1/-1;margin-bottom:-6px;font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){.toast,.mock{transition:none}}
 </style>
 </head>
-<body>
-<main class="wrap">
-  <header>
-    <div class="eyebrow">Genesis Secure Solutions · Social setup</div>
-    <h1>Your social accounts, {{FIRST}}.</h1>
-    <p class="lede">You own every account. We get partner access to post, reply and report for you, so you never share a password. Plan on about 30 minutes, or we can do it with you on your kickoff call.</p>
-  </header>
-
-  <section class="progress" aria-live="polite">
-    <div class="row"><div class="count" id="count">0 of 0 <span>steps done</span></div><div class="saved" id="saved">Loading your progress…</div></div>
-    <div class="bar" aria-hidden="true"><i id="bar"></i></div>
-  </section>
-
-  <section class="rules" aria-label="Before you start">
-    <div><b>Have these ready</b><ul><li>Your personal Facebook login and your phone for security codes</li><li>Your office name, address, phone and hours, exactly as on your site</li><li>Your portrait and logo files</li></ul></div>
-    <div><b>Our promises</b><ul><li>We never ask for your password</li><li>Nothing posts until your marketing approver signs off</li><li>You can remove our access at any time</li></ul></div>
-  </section>
-
-  {{PLAN_SECTIONS}}
-
-  <section>
-    <h2>Add more channels</h2>
-    <p class="access">Tell us what you’d like next. We confirm the scope and any cost with you before setting anything up.</p>
-    <ul class="opts" id="opts">{{OPTIONAL_CARDS}}</ul>
-    <div class="field other"><label for="other">Something else? Name the platform or idea.</label><textarea id="other" maxlength="300" placeholder="Example: a WhatsApp Business number for Spanish-speaking customers"></textarea></div>
-  </section>
-
-  <p class="back"><a href="/welcome/{{TOKEN}}">Back to your welcome page</a></p>
-  <p class="note">Stuck on a step? Reply to your welcome email and {{CONTACT}} at Genesis Secure Solutions will walk you through it. Menu names were checked on Oct 5, 2026; platforms sometimes move them.</p>
-</main>
-
+<body class="role-{{ROLE}}">
+<header class="top"><div class="in"><div class="brandline" id="brandline"></div><div class="live" id="live" aria-live="polite"></div></div></header>
+<div class="app">
+  <nav class="rail" aria-label="Setup steps"><details class="railbox" id="railbox"><summary id="railsum"></summary><div id="rail"></div></details></nav>
+  <main class="stage" id="stage"><div id="bannerhost"></div><div id="stagebody" class="stage"></div></main>
+  <aside class="preview" id="preview" aria-label="Live preview"></aside>
+</div>
+<button class="peek" id="peek" type="button"></button>
+<div class="toast" id="toast" role="status"></div>
 <script id="cfg" type="application/json">{{CONFIG}}</script>
 <script>
 (function () {
+  'use strict';
   const CFG = JSON.parse(document.getElementById('cfg').textContent);
-  const API = '/api/social/{{TOKEN}}';
-  const LOCAL = 'gss-social-{{SLUG}}-v1';
-  const OWNERS = ['me', 'carrier', 'none', 'unsure'];
-  const NOTES = {
-    '': 'Answer this first so we know which steps apply.',
-    carrier: 'Then we leave your listing as it is and link to it from your site. Tell us if that changes.',
-    unsure: 'We’ll check together on your kickoff call. Searching your office name on Google Maps shows whether a listing exists.',
-    me: '', none: '',
-  };
-  let state = blank(), mode = 'pending', note = '', chain = Promise.resolve();
+  const OP = CFG.role === 'operator';
+  const PEER = OP ? CFG.clientFirst : CFG.operatorFirst;
+  const KIT = CFG.kit;
   const $ = (id) => document.getElementById(id);
+  const STEP = {}, CHAN = {};
+  CFG.channels.forEach((ch) => ch.steps.forEach((s) => { STEP[s.id] = s; CHAN[s.id] = ch; }));
+  const FIXED = { start: 'Welcome', review: 'Review your copy', more: 'More channels', finish: 'All set' };
+  const OWNERS = [
+    ['me', 'I do', 'I set it up, or I can log in to it.'],
+    ['carrier', 'My carrier does', 'Corporate manages it for me.'],
+    ['none', 'There isn’t one yet', 'Nothing shows on Google Maps.'],
+    ['unsure', 'Not sure', 'We check together after the call.'],
+  ];
+  const FIELD_LABEL = { pageName: 'the Page name', igUsername: 'the Instagram username', hours: 'the office hours' };
+  const WIDE = window.matchMedia('(min-width:1181px)');
 
-  function blank() { return { done: [], googleOwner: '', links: {}, wants: [], other: '' }; }
+  // ---------- state ----------
+  const blank = () => ({ v: 2, rev: 0, done: [], googleOwner: '', fields: { pageName: '', igUsername: '', hours: '' }, links: {}, wants: [], other: '', approval: null, lead: null });
+  let S = blank(), peer = null, opData = { notes: '', ours: [] };
+  let mode = 'pending', saveNote = '', pending = 0, timer = 0;
+  let current = 'start', lastNav = 0, lastActivity = Date.now(), lastLeadSeen = null;
+  let following = true, leadMode = OP, tab = null, stageDirty = false, banner = null;
+
   function normalize(d) {
     const s = blank();
     if (!d || typeof d !== 'object') return s;
-    if (Array.isArray(d.done)) s.done = d.done.filter((id) => CFG.allSteps.includes(id));
-    if (OWNERS.includes(d.googleOwner)) s.googleOwner = d.googleOwner;
-    if (d.links && typeof d.links === 'object') for (const k of Object.keys(CFG.hosts)) if (typeof d.links[k] === 'string') s.links[k] = d.links[k];
-    if (Array.isArray(d.wants)) s.wants = d.wants.filter((id) => CFG.optional.includes(id));
-    if (typeof d.other === 'string') s.other = d.other.slice(0, 300);
+    Object.assign(s, d);
+    s.fields = Object.assign(blank().fields, d.fields || {});
+    s.links = Object.assign({}, d.links || {}); s.done = (d.done || []).slice(); s.wants = (d.wants || []).slice();
     return s;
   }
-  function readLocal() { try { const v = localStorage.getItem(LOCAL); return v ? normalize(JSON.parse(v)) : null; } catch (e) { return null; } }
-  function writeLocal() { try { localStorage.setItem(LOCAL, JSON.stringify(state)); } catch (e) {} }
-  const googleApplies = () => state.googleOwner === 'me' || state.googleOwner === 'none';
-  const applicable = () => (CFG.googleSteps.length ? ['g-owner'] : []).concat(CFG.allSteps.filter((id) => !CFG.googleSteps.includes(id) || googleApplies()));
-  function validLink(id, v) {
-    if (!v) return true;
-    try { const u = new URL(v); return u.protocol === 'https:' && CFG.hosts[id].includes(u.hostname.toLowerCase()) && v.length <= 200; } catch (e) { return false; }
+  const googleApplies = (o) => o === 'me' || o === 'none';
+  function applies(id) {
+    if (!CFG.screens.includes(id)) return false;
+    const s = STEP[id];
+    if (s && CHAN[id].id === 'google' && s.kind !== 'question') return googleApplies(S.googleOwner);
+    return true;
   }
+  const screens = () => CFG.screens.filter(applies);
+  const stepScreens = () => screens().filter((id) => STEP[id]);
+  const isDone = (id) => {
+    if (id === 'review') return !!S.approval;
+    if (id === 'more') return S.wants.length > 0 || !!S.other;
+    const s = STEP[id]; if (!s) return false;
+    return s.kind === 'question' ? S.googleOwner !== '' : S.done.includes(id);
+  };
+  const titleOf = (id) => FIXED[id] || (STEP[id] && STEP[id].title) || id;
+  function progress() { const ids = stepScreens(); const d = ids.filter(isDone).length; return { done: d, total: ids.length, pct: ids.length ? Math.round(d / ids.length * 100) : 0 }; }
+  const ago = (iso) => { const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000)); return s < 60 ? s + 's ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; };
+  const peerActive = () => !!peer && Date.now() - Date.parse(peer.at) < 45000;
 
-  function render() {
-    const steps = applicable(), done = steps.filter((id) => (id === 'g-owner' ? state.googleOwner !== '' : state.done.includes(id))).length;
-    $('count').textContent = done + ' of ' + steps.length + ' ';
-    const sp = document.createElement('span'); sp.textContent = 'steps done'; $('count').append(sp);
-    $('bar').style.width = (steps.length ? done / steps.length * 100 : 0) + '%';
-    $('saved').textContent = note || { pending: 'Loading your progress…', shared: 'Saved for you and the Genesis team', local: 'Saved on this device. Reply to your welcome email as you finish each step.' }[mode];
-    document.querySelectorAll('li.step').forEach((li) => {
-      const id = li.dataset.step, isDone = state.done.includes(id);
-      li.classList.toggle('done', isDone);
-      li.querySelector('.num').textContent = isDone ? '✓' : li.dataset.n;
-      const box = li.querySelector('.actions');
-      let b = box.querySelector('button.toggle');
-      if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'toggle'; b.dataset.step = id; box.prepend(b); }
-      b.setAttribute('aria-pressed', String(isDone)); b.textContent = isDone ? 'Done' : 'Mark as done'; b.disabled = mode === 'pending';
-    });
-    const gSteps = $('google-steps');
-    if (gSteps) {
-      gSteps.hidden = !googleApplies();
-      $('g-note').textContent = NOTES[state.googleOwner];
-      document.querySelectorAll('input[name=googleOwner]').forEach((r) => { r.checked = r.value === state.googleOwner; r.disabled = mode === 'pending'; });
+  // ---------- tiny DOM helper: text always goes in as text ----------
+  function el(tag, attrs) {
+    const n = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? '' : v);
     }
-    document.querySelectorAll('input[data-link]').forEach((inp) => {
-      const id = inp.dataset.link;
-      if (document.activeElement !== inp) inp.value = state.links[id] || '';
-      inp.disabled = mode === 'pending';
-    });
-    document.querySelectorAll('li.opt').forEach((li) => {
-      const on = state.wants.includes(li.dataset.channel), b = li.querySelector('button.toggle');
-      li.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'Requested' : 'I’d like this'; b.disabled = mode === 'pending';
-    });
-    const other = $('other');
-    if (document.activeElement !== other) other.value = state.other;
-    other.disabled = mode === 'pending';
+    const kids = Array.prototype.slice.call(arguments, 2).flat(2);
+    for (const k of kids) if (k != null && k !== false && k !== '') n.append(k.nodeType ? k : document.createTextNode(String(k)));
+    return n;
   }
 
-  function save() {
-    writeLocal();
+  // ---------- network ----------
+  function readLocal() { try { const v = localStorage.getItem(CFG.storageKey); return v ? normalize(JSON.parse(v)) : null; } catch (e) { return null; } }
+  function writeLocal() { try { localStorage.setItem(CFG.storageKey, JSON.stringify(S)); } catch (e) {} }
+
+  function adopt(d, source) {
+    if (!d || !d.progress) return;
+    if (d.peer !== undefined) peer = d.peer;
+    if (d.operator) opData = d.operator;
+    const next = normalize(d.progress);
+    if (next.rev < S.rev) return;
+    const prev = S; S = next;
+    if (source === 'poll' && next.rev > prev.rev) announce(prev, next);
+  }
+
+  function applyLocal(op) {
+    const t = (list, id, on) => (on ? (list.includes(id) ? list : list.concat(id)) : list.filter((x) => x !== id));
+    if (op.op === 'tick') S.done = t(S.done, op.step, op.value);
+    else if (op.op === 'owner') S.googleOwner = op.value;
+    else if (op.op === 'field') S.fields[op.field] = op.value;
+    else if (op.op === 'link') { if (op.value) S.links[op.channel] = op.value; else delete S.links[op.channel]; }
+    else if (op.op === 'want') S.wants = t(S.wants, op.channel, op.value);
+    else if (op.op === 'other') S.other = op.value;
+    else if (op.op === 'approve') S.approval = op.value ? { by: op.by, at: new Date().toISOString() } : null;
+    else if (op.op === 'ours') opData.ours = t(opData.ours, op.step, op.value);
+    else if (op.op === 'notes') opData.notes = op.value;
+  }
+
+  async function send(op, quiet) {
+    if (op.op !== 'here' && op.op !== 'lead') { applyLocal(op); lastActivity = Date.now(); }
+    if (mode === 'local') { if (op.op !== 'here' && op.op !== 'lead') writeLocal(); if (!quiet) render(); return; }
     if (mode !== 'shared') return;
-    const body = JSON.stringify(state);
-    chain = chain.then(() => fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, cache: 'no-store' }))
-      .then((r) => { note = r && r.ok ? '' : 'Couldn’t save just now. Reply to your welcome email instead.'; render(); })
-      .catch(() => { note = 'Couldn’t save just now. Reply to your welcome email instead.'; render(); });
+    pending++;
+    if (!quiet) render();
+    try {
+      const r = await fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op), cache: 'no-store' });
+      if (r.ok) { adopt(await r.json(), 'post'); saveNote = ''; }
+      else saveNote = r.status === 400 ? 'That change wasn’t accepted. Check the value and try again.' : 'Couldn’t save just now. Try again in a moment.';
+    } catch (e) { saveNote = 'Couldn’t save just now. Check your connection.'; }
+    pending--;
+    if (pending === 0) { if (quiet && !saveNote) { renderLive(); renderRail(); } else render(); }
   }
 
   async function load() {
     try {
-      const r = await fetch(API, { cache: 'no-store' });
+      const r = await fetch(CFG.api, { cache: 'no-store' });
       if (!r.ok) throw new Error('status ' + r.status);
-      state = normalize((await r.json()).progress); mode = 'shared'; note = '';
-    } catch (e) { mode = 'local'; state = readLocal() || blank(); }
-    render();
+      adopt(await r.json(), 'load'); mode = 'shared';
+    } catch (e) { mode = 'local'; S = readLocal() || blank(); }
+    const hash = decodeURIComponent(location.hash.slice(1));
+    let start = applies(hash) ? hash : 'start';
+    if (!OP && S.lead && Date.now() - Date.parse(S.lead.at) < 600000 && applies(S.lead.step)) start = S.lead.step;
+    lastLeadSeen = S.lead ? S.lead.at : null;
+    go(start, { noLead: true, first: true });
+    schedule();
+    setInterval(() => { if (document.visibilityState === 'visible' && mode === 'shared') send({ op: 'here', step: current, following }, true); }, 15000);
   }
 
-  document.addEventListener('click', (e) => {
-    const b = e.target.closest('button.toggle'); if (!b || b.disabled) return;
-    if (b.dataset.step) {
-      const id = b.dataset.step, i = state.done.indexOf(id);
-      if (i >= 0) state.done.splice(i, 1); else state.done.push(id);
-    } else if (b.dataset.want) {
-      const id = b.dataset.want, i = state.wants.indexOf(id);
-      if (i >= 0) state.wants.splice(i, 1); else state.wants.push(id);
-    } else return;
-    render(); save();
-  });
-  document.addEventListener('change', (e) => {
-    const t = e.target;
-    if (t.name === 'googleOwner') { state.googleOwner = t.value; render(); save(); return; }
-    if (t.dataset && t.dataset.link) {
-      const id = t.dataset.link, v = t.value.trim(), err = document.getElementById('err-' + id);
-      if (!validLink(id, v)) { err.textContent = 'That doesn’t look like a ' + t.dataset.name + ' link. Copy it from your browser’s address bar.'; return; }
-      err.textContent = ''; if (v) state.links[id] = v; else delete state.links[id]; render(); save(); return;
+  function schedule() {
+    clearTimeout(timer);
+    if (document.visibilityState !== 'visible' || mode !== 'shared') return;
+    const fast = peerActive() || Date.now() - lastActivity < 60000;
+    timer = setTimeout(poll, fast ? 2000 : 8000);
+  }
+  async function poll() {
+    if (pending === 0) {
+      try {
+        const r = await fetch(CFG.api, { cache: 'no-store' });
+        if (r.ok && pending === 0) { const before = S.rev; adopt(await r.json(), 'poll'); followLead(); if (S.rev !== before) render(); else { renderLive(); renderRail(); } }
+      } catch (e) {}
     }
-    if (t.id === 'other') { state.other = t.value.trim().slice(0, 300); render(); save(); }
-  });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && mode === 'shared') load(); });
+    schedule();
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { lastActivity = Date.now(); poll(); } else clearTimeout(timer); });
 
-  render(); load();
+  // ---------- live behaviour ----------
+  function announce(prev, next) {
+    if (next.updatedBy === CFG.role) return;
+    const msgs = [];
+    next.done.filter((id) => !prev.done.includes(id)).forEach((id) => msgs.push(PEER + ' finished “' + titleOf(id) + '”'));
+    if (next.googleOwner !== prev.googleOwner && next.googleOwner) msgs.push(PEER + ' answered the Google question');
+    for (const k of Object.keys(FIELD_LABEL)) if (next.fields[k] !== prev.fields[k] && next.fields[k]) msgs.push(PEER + ' updated ' + FIELD_LABEL[k]);
+    if (!!next.approval !== !!prev.approval) msgs.push(next.approval ? 'Copy approved by ' + next.approval.by : 'Copy approval withdrawn');
+    if (msgs.length) { toast(msgs[msgs.length - 1]); setTimeout(pulse, 50); }
+  }
+  function isTyping() { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' && a.type !== 'radio' && a.type !== 'checkbox' || a.tagName === 'TEXTAREA') && ($('stage').contains(a) || $('preview').contains(a)); }
+  function followLead() {
+    if (OP || !S.lead || S.lead.at === lastLeadSeen) return;
+    lastLeadSeen = S.lead.at;
+    if (!following || S.lead.step === current || !applies(S.lead.step)) return;
+    if (isTyping() || Date.now() - lastNav < 4000) { banner = S.lead.step; renderBanner(); return; }
+    go(S.lead.step, { noLead: true, byLead: true });
+    toast(CFG.operatorFirst + ' brought you to “' + titleOf(S.lead.step) + '”');
+  }
+  let toastTimer = 0;
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
+  function pulse() { const m = document.querySelector('.mock'); if (!m) return; m.classList.add('pulse'); setTimeout(() => m.classList.remove('pulse'), 1200); }
+
+  // ---------- navigation ----------
+  function go(id, o) {
+    o = o || {};
+    if (!applies(id)) id = 'start';
+    current = id; if (!o.byLead) lastNav = Date.now(); banner = null; renderBanner();
+    try { history.replaceState(null, '', '#' + id); } catch (e) {}
+    const ch = CHAN[id]; if (ch) tab = ch.id === 'meta-partner' ? 'facebook' : ch.id;
+    stageDirty = false;
+    renderLive(); renderRail(); renderStage(); renderPreview();
+    if (!o.first) { window.scrollTo({ top: 0, behavior: 'smooth' }); const s = document.querySelector('.screen'); if (s) s.focus({ preventScroll: true }); }
+    if (mode === 'shared') {
+      send({ op: 'here', step: id, following }, true);
+      if (OP && leadMode && !o.noLead) send({ op: 'lead', step: id }, true);
+    }
+  }
+  const neighbour = (id, d) => { const l = screens(); const i = l.indexOf(id); return i < 0 ? null : l[i + d] || null; };
+
+  // ---------- render ----------
+  function render() { renderLive(); renderRail(); if (isTyping()) stageDirty = true; else renderStage(); if (!isTyping() || !$('preview').contains(document.activeElement)) renderPreview(); }
+  document.addEventListener('focusout', () => setTimeout(() => { if (stageDirty && !isTyping()) { stageDirty = false; renderStage(); renderPreview(); } }, 0));
+
+  function renderLive() {
+    $('brandline').textContent = OP ? 'Genesis console · ' + CFG.clientFirst + '’s social setup' : 'Genesis Secure Solutions · Social setup';
+    const box = $('live'); box.replaceChildren();
+    const p = progress();
+    if (mode === 'pending') { box.append('Loading…'); return; }
+    if (mode === 'local') { box.append('Saved on this device only. Reply to your welcome email as you finish.'); return; }
+    if (OP) {
+      if (peerActive()) {
+        box.append(el('span', null, el('i', { class: 'dot on' }), CFG.clientFirst + ' is here · on “' + titleOf(peer.step) + '”' + (peer.following ? '' : ' · not following')));
+        if (peer.step !== current) box.append(el('button', { class: 'pillbtn', type: 'button', onclick: () => go(peer.step, { noLead: true }) }, 'Go to ' + CFG.clientFirst));
+      } else box.append(el('span', null, el('i', { class: 'dot' }), peer ? CFG.clientFirst + ' last seen ' + ago(peer.at) : CFG.clientFirst + ' hasn’t opened the guide yet'));
+      box.append(el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: leadMode, onchange: (e) => { leadMode = e.target.checked; if (leadMode) send({ op: 'lead', step: current }, true); renderLive(); } }), 'Lead: ' + CFG.clientFirst + ' follows me'));
+      box.append(el('button', { class: 'pillbtn amber', type: 'button', onclick: () => { send({ op: 'lead', step: current }, true); toast('Brought ' + CFG.clientFirst + ' to “' + titleOf(current) + '”'); } }, 'Bring ' + CFG.clientFirst + ' here'));
+    } else {
+      if (peerActive()) {
+        box.append(el('span', null, el('i', { class: 'dot on' }), CFG.operatorFirst + ' is here with you'));
+        box.append(el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: following, onchange: (e) => { following = e.target.checked; send({ op: 'here', step: current, following }, true); } }), 'Follow ' + CFG.operatorFirst));
+      } else box.append(el('span', null, el('i', { class: 'dot' }), 'Saved for you and the Genesis team'));
+    }
+    box.append(el('span', null, p.done + ' of ' + p.total + ' steps'));
+    if (saveNote) box.append(el('span', { style: 'color:var(--amber)' }, saveNote));
+  }
+
+  function railGroups() {
+    const g = [{ name: 'Getting started', ids: ['start', 'review'] }];
+    CFG.channels.forEach((ch) => g.push({ name: ch.name, ids: ch.steps.map((s) => s.id) }));
+    g.push({ name: 'Wrap up', ids: ['more', 'finish'] });
+    return g.map((x) => ({ name: x.name, ids: x.ids.filter(applies) })).filter((x) => x.ids.length);
+  }
+  function renderRail() {
+    const p = progress();
+    $('peek').textContent = 'See your preview · ' + p.pct + '%';
+    $('railsum').replaceChildren(el('span', null, 'All steps · now: ' + titleOf(current)), el('span', { style: 'color:var(--muted);white-space:nowrap' }, p.done + ' of ' + p.total));
+    const rb = $('railbox'); if (WIDE.matches) rb.open = true;
+    const wrap = $('rail'); wrap.replaceChildren();
+    railGroups().forEach((g) => {
+      wrap.append(el('div', { class: 'group' }, el('b', null, g.name), el('ol', null, g.ids.map((id) => {
+        const done = isDone(id), cur = id === current;
+        const pin = peerActive() && peer.step === id ? el('span', { class: 'peerpin', title: PEER + ' is here' }, PEER.slice(0, 1)) : '';
+        return el('li', null, el('button', { type: 'button', class: 'ritem' + (done ? ' done' : '') + (cur ? ' cur' : ''), 'aria-current': cur ? 'step' : null, onclick: () => { go(id); if (!WIDE.matches) rb.open = false; } },
+          el('span', { class: 'st', 'aria-hidden': 'true' }, done ? '✓' : ''), el('span', null, titleOf(id)), pin));
+      }))));
+    });
+  }
+
+  function approvalChip() {
+    if (!KIT) return '';
+    return S.approval ? el('span', { class: 'chip ok' }, 'Approved by ' + S.approval.by) : el('button', { class: 'chip wait', type: 'button', onclick: () => go('review') }, 'Needs approval');
+  }
+  function copyBtn(text, label) {
+    return el('button', { class: 'btn sm', type: 'button', onclick: async (e) => {
+      const b = e.currentTarget;
+      try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; } catch (err) { b.textContent = 'Select and copy'; }
+      setTimeout(() => (b.textContent = label || 'Copy'), 1600);
+    } }, label || 'Copy');
+  }
+  function factsBlock() {
+    const dl = el('dl', { class: 'facts' });
+    KIT.facts.forEach(([k, v]) => dl.append(el('div', null, el('dt', null, k), el('dd', null, v), copyBtn(v))));
+    if (S.fields.hours) dl.append(el('div', null, el('dt', null, 'Hours'), el('dd', null, S.fields.hours), copyBtn(S.fields.hours)));
+    dl.append(el('div', null, el('dt', null, 'Website'), el('dd', { style: 'color:var(--muted)' }, KIT.website), el('span')));
+    return el('div', { class: 'card' }, el('div', { class: 'hd' }, el('span', { class: 'lb' }, 'Contact details'), approvalChip()), dl);
+  }
+  function textInput(o) {
+    const err = el('p', { class: 'err', 'aria-live': 'polite' });
+    const inp = el('input', { class: 'in', type: o.type || 'text', id: o.id, placeholder: o.placeholder || '', maxlength: o.max || 200, autocomplete: 'off', inputmode: o.inputmode || null });
+    inp.value = o.value || '';
+    inp.addEventListener('change', () => { const v = inp.value.trim(); const bad = o.check ? o.check(v) : ''; err.textContent = bad || ''; if (!bad) o.save(v); });
+    return el('div', { class: 'card' }, el('label', { class: 'lb', for: o.id }, o.label), o.extra || '', inp, err);
+  }
+  function kitBlock(b) {
+    if (!KIT && b.type !== 'tip' && b.type !== 'link' && !(b.type === 'field' && b.field === 'hours')) return '';
+    if (b.type === 'tip') return el('p', { class: 'tip' }, b.text);
+    if (b.type === 'facts') return factsBlock();
+    if (b.type === 'copy') {
+      const text = KIT[b.key] || '';
+      return el('div', { class: 'card' }, el('div', { class: 'hd' }, el('span', { class: 'lb' }, b.label), approvalChip()), el('div', { class: 'txt' }, text),
+        el('div', { class: 'row' }, copyBtn(text), b.limit ? el('span', { class: 'cnt' }, [...text].length + ' of ' + b.limit + ' characters') : ''));
+    }
+    if (b.type === 'pick') {
+      const val = S.fields.pageName;
+      const custom = val && !KIT.pageNames.includes(val);
+      const list = el('div', { class: 'opts', role: 'radiogroup', 'aria-label': b.label });
+      KIT.pageNames.forEach((n) => list.append(el('label', { class: 'opt' + (val === n ? ' sel' : '') }, el('input', { type: 'radio', name: 'pn', checked: val === n, onchange: () => send({ op: 'field', field: 'pageName', value: n }) }), el('span', null, n), copyBtn(n))));
+      const other = el('input', { class: 'in', type: 'text', maxlength: 80, placeholder: 'Or type the name your approver chose', 'aria-label': 'Another Page name' });
+      other.value = custom ? val : '';
+      other.addEventListener('change', () => { const v = other.value.trim(); if (v) send({ op: 'field', field: 'pageName', value: v }); });
+      return el('div', { class: 'card' }, el('div', { class: 'hd' }, el('span', { class: 'lb' }, b.label), approvalChip()), list, other);
+    }
+    if (b.type === 'field') {
+      if (b.field === 'igUsername') {
+        const sug = KIT ? el('div', { class: 'row' }, el('span', { class: 'cnt' }, 'Ideas:'), KIT.igUsernames.map((u) => el('button', { class: 'btn sm ghost', type: 'button', onclick: () => send({ op: 'field', field: 'igUsername', value: u }) }, '@' + u))) : '';
+        return textInput({ id: 'f-ig', label: b.label, placeholder: b.placeholder, value: S.fields.igUsername ? '@' + S.fields.igUsername : '', max: 31, extra: sug,
+          check: (v) => (!v || /^@?[A-Za-z0-9._]{1,30}$/.test(v) ? '' : 'Letters, numbers, periods and underscores only, up to 30.'), save: (v) => send({ op: 'field', field: 'igUsername', value: v.replace(/^@/, '') }) });
+      }
+      return textInput({ id: 'f-' + b.field, label: b.label, placeholder: b.placeholder, value: S.fields[b.field], max: 160, save: (v) => send({ op: 'field', field: b.field, value: v }) });
+    }
+    if (b.type === 'asset') {
+      const a = KIT.assets[b.key];
+      return el('div', { class: 'card' }, el('div', { class: 'hd' }, el('span', { class: 'lb' }, b.label), approvalChip()),
+        el('div', { class: 'asset' }, el('img', { src: a.url, alt: b.label + ' preview', loading: 'lazy' }),
+          el('div', { class: 'meta' }, el('span', null, b.note), el('span', { class: 'cnt' }, a.size + ' pixels, PNG'), el('a', { class: 'btn sm pri', href: a.url, download: a.file }, 'Download'))));
+    }
+    if (b.type === 'link') {
+      const ch = CFG.channels.find((c) => c.id === b.channel); if (!ch || !ch.profileLink) return '';
+      const pl = ch.profileLink;
+      return textInput({ id: 'l-' + ch.id, type: 'url', inputmode: 'url', label: pl.label + ', once it exists', placeholder: pl.placeholder, value: S.links[ch.id] || '', max: 200,
+        check: (v) => { if (!v) return ''; try { const u = new URL(v); return u.protocol === 'https:' && pl.hosts.includes(u.hostname.toLowerCase()) ? '' : 'Copy the link from your browser’s address bar while you’re on your ' + ch.name + '.'; } catch (e) { return 'That doesn’t look like a link yet.'; } },
+        save: (v) => send({ op: 'link', channel: ch.id, value: v }) });
+    }
+    return '';
+  }
+
+  function talkPanel() {
+    if (!OP) return '';
+    const s = STEP[current] || CFG.talk[current] || {};
+    const box = el('section', { class: 'talk', 'aria-label': 'Talk track' });
+    if (s.say) box.append(el('div', { class: 'lab' }, 'Say'), el('q', null, s.say));
+    if (s.watch && s.watch.length) box.append(el('div', { class: 'lab' }, 'Watch for'), el('ul', null, s.watch.map((w) => el('li', null, w))));
+    if (s.ours) box.append(el('div', { class: 'lab' }, 'Our side'), el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: opData.ours.includes(current), onchange: (e) => send({ op: 'ours', step: current, value: e.target.checked }) }), s.ours));
+    return box.childNodes.length ? box : '';
+  }
+
+  function navBar(o) {
+    const prev = neighbour(current, -1), next = neighbour(current, 1);
+    const right = el('div', { class: 'r' });
+    if (o.done) right.append(el('span', { class: 'donebadge' }, '✓ Done'), el('button', { class: 'btn sm ghost', type: 'button', onclick: () => send({ op: 'tick', step: current, value: false }) }, 'Undo'));
+    if (o.skip && next) right.append(el('button', { class: 'btn ghost', type: 'button', onclick: () => go(next) }, 'Skip for now'));
+    if (o.primary) right.append(o.primary);
+    else if (next) right.append(el('button', { class: 'btn pri', type: 'button', disabled: o.lock || null, onclick: () => { if (o.onNext) o.onNext(); go(neighbour(current, 1) || next); } }, o.label || 'Next'));
+    return el('div', { class: 'nav' }, prev ? el('button', { class: 'btn ghost', type: 'button', onclick: () => go(prev) }, '← Back') : el('span'), right);
+  }
+
+  function header(kicker, title, why) {
+    const l = stepScreens(); const i = l.indexOf(current) + 1;
+    return [el('div', { class: 'kicker' }, el('span', null, kicker), i ? el('span', null, 'Step ' + i + ' of ' + l.length) : ''), el('h1', null, title), why ? el('p', { class: 'why' }, why) : ''];
+  }
+
+  function screenStart() {
+    const items = [];
+    if (CFG.channels.some((c) => c.id === 'facebook')) items.push(['A Facebook Page', 'With the header that matches your website, your bio and contact details.']);
+    if (CFG.channels.some((c) => c.id === 'instagram')) items.push(['Instagram, linked', 'A professional account joined to your Page, so one post reaches both.']);
+    if (CFG.channels.some((c) => c.id === 'google')) items.push(['Your Google listing', 'Checked, matched to your site, and ready for reviews.']);
+    return [
+      ...header('Getting started', 'Let’s set up your social accounts, ' + CFG.clientFirst + '.', 'We go one step at a time. As you finish each one, the preview fills in, so you can watch your profiles take shape. Plan on about 45 minutes, or do it with ' + CFG.operatorFirst + ' on your kickoff call.'),
+      el('div', { class: 'cards3' }, items.map(([t, d]) => el('div', null, el('b', null, t), d))),
+      el('div', { class: 'lists' },
+        el('div', null, el('b', null, 'Have these ready'), el('ul', null, el('li', null, 'Your phone, for security codes'), el('li', null, 'Your Facebook login, or a few minutes to create one'), el('li', null, 'Your office hours'))),
+        el('div', null, el('b', null, 'Our promises'), el('ul', null, el('li', null, 'You own every account'), el('li', null, 'We never ask for your password'), el('li', null, 'Nothing posts until your marketing approver signs off')))),
+      navBar({ label: 'Let’s start' }),
+    ];
+  }
+
+  function screenReview() {
+    const blocks = [];
+    blocks.push(kitBlock({ type: 'pick', field: 'pageName', label: 'Facebook Page name' }));
+    blocks.push(kitBlock({ type: 'copy', key: 'fbBio', label: 'Facebook bio', limit: 100 }));
+    if (CFG.channels.some((c) => c.id === 'instagram')) { blocks.push(kitBlock({ type: 'copy', key: 'igName', label: 'Instagram name' })); blocks.push(kitBlock({ type: 'copy', key: 'igBio', label: 'Instagram bio', limit: 150 })); }
+    if (CFG.channels.some((c) => c.id === 'google')) blocks.push(kitBlock({ type: 'copy', key: 'gDescription', label: 'Google description', limit: 750 }));
+    blocks.push(factsBlock());
+    blocks.push(kitBlock({ type: 'asset', key: 'cover', label: 'Facebook cover', note: 'The header that matches your website, with your tagline, office name and service area.' }));
+    const by = el('input', { class: 'in', type: 'text', id: 'approver', maxlength: 80, placeholder: 'Your approver’s name' });
+    by.value = S.approval ? S.approval.by : '';
+    const ap = S.approval
+      ? el('div', { class: 'approve ok' }, el('b', null, '✓ Approved by ' + S.approval.by + ' on ' + new Date(S.approval.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })), el('div', { class: 'row' }, el('button', { class: 'btn sm ghost', type: 'button', onclick: () => send({ op: 'approve', by: S.approval.by, value: false }) }, 'Withdraw approval')))
+      : el('div', { class: 'approve' }, el('b', null, 'Has your marketing approver OK’d this copy and the cover?'),
+          el('p', { class: 'cnt' }, 'Your carrier’s rules apply to your public profiles. If anything needs changing, tell us and we update it before you post. The contact details include your work email address, so check you’re happy to show it publicly.'),
+          el('label', { for: 'approver', class: 'cnt' }, 'Approver’s name'), by,
+          el('div', { class: 'row' }, el('button', { class: 'btn pri', type: 'button', onclick: () => { const v = by.value.trim(); if (!v) { by.focus(); toast('Add your approver’s name first'); return; } send({ op: 'approve', by: v, value: true }); } }, 'Approved by my marketing approver')));
+    return [...header('Getting started', 'Review your profile copy', 'This is everything that goes on your profiles. Read it once with your approver before anything goes public.'), ap, el('div', { class: 'kit' }, blocks), navBar({})];
+  }
+
+  function screenStep(s) {
+    const ch = CHAN[s.id];
+    const out = header(ch.name, s.title, s.why);
+    if (s.kind === 'question') {
+      const list = el('div', { class: 'opts', role: 'radiogroup', 'aria-label': s.title });
+      OWNERS.forEach(([v, t, d]) => list.append(el('label', { class: 'opt' + (S.googleOwner === v ? ' sel' : '') }, el('input', { type: 'radio', name: 'owner', checked: S.googleOwner === v, onchange: () => send({ op: 'owner', value: v }) }), el('span', null, t, el('small', null, d)))));
+      out.push(el('div', { class: 'do' }, el('h2', null, 'Check first'), el('ol', null, s.how.map((h) => el('li', null, h)))), list);
+      if (S.googleOwner === 'carrier') out.push(el('p', { class: 'tip' }, 'Then we leave your listing as it is and link to it from your website. Tell us if that changes.'));
+      if (S.googleOwner === 'unsure') out.push(el('p', { class: 'tip' }, 'No problem. We check with your approver after the call and pick this up then.'));
+      out.push(navBar({ lock: !S.googleOwner }));
+      return out;
+    }
+    out.push(el('div', { class: 'do' }, el('h2', null, 'Do this'), el('ol', null, s.how.map((h) => el('li', null, h))), s.link ? el('a', { class: 'src', href: s.link.url, target: '_blank', rel: 'noreferrer' }, s.link.label + ' ↗') : ''));
+    if (s.kit && s.kit.length) out.push(el('div', { class: 'kit' }, s.kit.map(kitBlock)));
+    const done = S.done.includes(s.id);
+    out.push(done ? navBar({ done: true }) : navBar({ skip: true, label: 'Done, next step', onNext: () => send({ op: 'tick', step: s.id, value: true }, true) }));
+    return out;
+  }
+
+  function screenMore() {
+    const grid = el('div', { class: 'optgrid' }, CFG.optional.map((c) => {
+      const on = S.wants.includes(c.id);
+      return el('div', { class: 'ocard' + (on ? ' on' : '') }, el('b', null, c.name), el('p', null, c.summary), el('span', { class: 'ac' }, c.access),
+        el('button', { class: 'btn sm' + (on ? ' pri' : ''), type: 'button', 'aria-pressed': String(on), onclick: () => send({ op: 'want', channel: c.id, value: !on }) }, on ? 'Requested' : 'I’d like this'));
+    }));
+    const other = el('textarea', { class: 'in', id: 'other', maxlength: 300, placeholder: 'Example: a WhatsApp Business number for Spanish-speaking customers' });
+    other.value = S.other;
+    other.addEventListener('change', () => send({ op: 'other', value: other.value.trim() }));
+    return [...header('Wrap up', 'Want more channels later?', 'Tell us what you’d like next. We confirm the scope and any cost with you before setting anything up.'), grid,
+      el('div', { class: 'card' }, el('label', { class: 'lb', for: 'other' }, 'Something else? Name the platform or idea.'), other), navBar({ label: 'Finish' })];
+  }
+
+  function screenFinish() {
+    const p = progress();
+    const open = stepScreens().filter((id) => !isDone(id));
+    const links = CFG.channels.filter((c) => S.links[c.id]).map((c) => el('li', null, c.name + ': ', el('a', { href: S.links[c.id], target: '_blank', rel: 'noreferrer' }, S.links[c.id])));
+    return [
+      ...header('Wrap up', p.done === p.total ? 'Your profiles are set up.' : 'Nice work. A few steps are still open.', p.done + ' of ' + p.total + ' steps are done. Everything is saved, and ' + (OP ? CFG.clientFirst : CFG.operatorFirst) + ' sees it too.'),
+      open.length ? el('div', { class: 'card' }, el('span', { class: 'lb' }, 'Still to do'), el('div', { class: 'row' }, open.map((id) => el('button', { class: 'btn sm', type: 'button', onclick: () => go(id) }, titleOf(id))))) : '',
+      links.length ? el('div', { class: 'card' }, el('span', { class: 'lb' }, 'Your profile links'), el('ul', null, links)) : '',
+      el('div', { class: 'lists' }, el('div', null, el('b', null, 'What happens next'), el('ul', null, el('li', null, 'We confirm our access to your Page, Instagram and Google listing.'), el('li', null, 'We prepare your launch posts for your approval.'), el('li', null, 'Your profile links go on your website once it is approved and live.')))),
+      navBar({ primary: CFG.back ? el('a', { class: 'btn pri', href: CFG.back }, 'Back to your welcome page') : el('span') }),
+    ];
+  }
+
+  function renderBanner() {
+    const host = $('bannerhost'); host.replaceChildren();
+    if (banner && banner !== current) host.append(el('div', { class: 'banner', role: 'status' }, el('span', null, CFG.operatorFirst + ' is on “' + titleOf(banner) + '”'), el('span', { class: 'row' }, el('button', { class: 'btn sm pri', type: 'button', onclick: () => go(banner, { noLead: true }) }, 'Go there'), el('button', { class: 'btn sm ghost', type: 'button', onclick: () => { banner = null; renderBanner(); } }, 'Stay here'))));
+  }
+  function renderStage() {
+    const st = $('stagebody'); st.replaceChildren();
+    const tp = talkPanel(); if (tp) st.append(tp);
+    let body;
+    if (current === 'start') body = screenStart();
+    else if (current === 'review') body = screenReview();
+    else if (current === 'more') body = screenMore();
+    else if (current === 'finish') body = screenFinish();
+    else body = screenStep(STEP[current]);
+    const art = el('article', { class: 'screen', tabindex: '-1' }, body);
+    const h = art.querySelector('h1'); if (h) { h.id = 'h-' + current; art.setAttribute('aria-labelledby', h.id); }
+    st.append(art);
+  }
+
+  // ---------- live preview ----------
+  const has = (id) => S.done.includes(id);
+  const ph = (t) => el('span', { class: 'ph' }, t);
+  const img = (src, alt) => el('img', { src, alt });
+  const pageName = () => S.fields.pageName || (has('fb-page') && KIT ? KIT.pageNames[0] : '');
+  function avatar(ready, sq) {
+    const a = el('div', { class: 'av' + (sq ? ' sq' : '') });
+    if (ready && KIT) a.append(img(KIT.assets.mark.url, 'Profile picture')); else a.append('Profile picture');
+    return a;
+  }
+  function details() {
+    const dl = el('div', { class: 'dl' });
+    if (KIT) KIT.facts.slice(0, 2).forEach(([k, v]) => dl.append(el('div', null, el('span', null, k + ': '), v)));
+    dl.append(el('div', null, el('span', null, 'Hours: '), S.fields.hours || ph('add on the call')));
+    return dl;
+  }
+  function tags(list) { const t = el('div'); list.filter(Boolean).forEach(([c, s]) => t.append(el('span', { class: 'tag' + c }, s))); return t.childNodes.length ? t : ''; }
+  function mockFacebook() {
+    const m = el('div', { class: 'mock' });
+    m.append(el('div', { class: 'cover' }, has('fb-photos') && KIT ? img(KIT.assets.cover.url, 'Cover photo') : 'Cover photo'));
+    const b = el('div', { class: 'body' }, avatar(has('fb-photos')), el('h3', null, pageName() || ph('Your Page name')), el('div', { class: 'sub' }, has('fb-page') && KIT ? KIT.category : ph('Category')),
+      tags([has('fb-2fa') && [' g', 'Login protected'], has('fb-portfolio') && ['', 'In your business portfolio'], has('mp-access') && [' g', 'Genesis has partner access']]),
+      el('div', { class: 'bio' }, has('fb-details') && KIT ? KIT.fbBio : ph('Your bio appears here')));
+    if (has('fb-details')) b.append(el('div', null, el('span', { class: 'pill' }, 'Call now')), details());
+    if (S.links.facebook) b.append(el('div', { class: 'sub' }, S.links.facebook));
+    m.append(b);
+    return m;
+  }
+  function mockInstagram() {
+    const m = el('div', { class: 'mock' });
+    m.append(el('div', { class: 'igtop' }, avatar(has('ig-profile')), el('div', null, el('h3', null, S.fields.igUsername ? '@' + S.fields.igUsername : ph('@username')), el('div', { class: 'sub' }, has('ig-pro') ? 'Professional account' : ph('Personal account')))));
+    m.append(el('div', { class: 'body', style: 'padding-top:12px' }, el('b', null, has('ig-profile') && KIT ? KIT.igName : ph('Name')), el('div', { class: 'bio' }, has('ig-profile') && KIT ? KIT.igBio : ph('Your bio appears here')),
+      tags([has('ig-link') && ['', 'Linked to your Facebook Page'], has('mp-access') && [' g', 'Genesis has partner access']]), S.links.instagram ? el('div', { class: 'sub' }, S.links.instagram) : ''));
+    return m;
+  }
+  function mockGoogle() {
+    const m = el('div', { class: 'mock' });
+    const o = S.googleOwner;
+    if (!googleApplies(o)) {
+      m.append(el('div', { class: 'empty' }, o === 'carrier' ? 'Your carrier manages this listing. We link to it from your website.' : o === 'unsure' ? 'We check who manages your listing after the call.' : 'Answer the Google question to see this preview.'));
+      return m;
+    }
+    m.append(el('div', { class: 'gtop' }, avatar(has('g-photos'), true), el('div', null, el('h3', null, pageName() || ph('Business name')), el('div', { class: 'sub' }, 'Insurance agency'))));
+    const b = el('div', { class: 'body', style: 'padding-top:4px' }, tags([has('g-claim') && [' g', 'Verification started'], has('g-manager') && ['', 'Genesis is a manager']]),
+      el('div', { class: 'bio' }, has('g-match') && KIT ? KIT.gDescription : ph('Your description appears here')));
+    if (has('g-match')) b.append(details());
+    m.append(b);
+    return m;
+  }
+  function renderPreview() {
+    const pv = $('preview'); pv.replaceChildren();
+    const p = progress();
+    const c = 2 * Math.PI * 30;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 72 72'); ring.setAttribute('aria-hidden', 'true');
+    ring.innerHTML = '<circle cx="36" cy="36" r="30" fill="none" stroke="#101c33" stroke-width="8"/><circle cx="36" cy="36" r="30" fill="none" stroke="#19c3ae" stroke-width="8" stroke-linecap="round" transform="rotate(-90 36 36)" stroke-dasharray="' + (c * p.pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '"/>';
+    pv.append(el('div', { class: 'meter' }, ring, el('div', null, el('span', null, (OP ? CFG.clientFirst + '’s' : 'Your') + ' online presence'), el('b', null, p.pct + '% complete'), el('span', null, p.done + ' of ' + p.total + ' steps done'))));
+    const tabs = CFG.channels.filter((c) => c.id === 'facebook' || c.id === 'instagram' || c.id === 'google');
+    if (!tab || !tabs.some((t) => t.id === tab)) tab = tabs.length ? tabs[0].id : null;
+    if (tab) {
+      pv.append(el('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Preview' }, tabs.map((t) => el('button', { class: 'tab', type: 'button', role: 'tab', 'aria-selected': String(t.id === tab), onclick: () => { tab = t.id; renderPreview(); } }, t.id === 'facebook' ? 'Facebook Page' : t.id === 'instagram' ? 'Instagram' : 'Google listing'))));
+      pv.append(tab === 'facebook' ? mockFacebook() : tab === 'instagram' ? mockInstagram() : mockGoogle());
+      pv.append(el('p', { class: 'mocknote' }, 'Preview, not your live page. It fills in as each step is done' + (KIT ? '. The profile picture shows your brand mark until your portrait arrives.' : '.')));
+    }
+    if (OP) {
+      const ta = el('textarea', { class: 'in', id: 'notes', maxlength: 4000, placeholder: 'Call notes, follow-ups, anything to remember' });
+      ta.value = opData.notes || '';
+      ta.addEventListener('change', () => send({ op: 'notes', value: ta.value }, true));
+      pv.append(el('section', { class: 'notes' }, el('label', { for: 'notes' }, 'Call notes · only Genesis sees these'), ta));
+    }
+  }
+
+  window.addEventListener('hashchange', () => { const id = decodeURIComponent(location.hash.slice(1)); if (id && id !== current && applies(id)) go(id); });
+  WIDE.addEventListener('change', () => { $('railbox').open = WIDE.matches; renderRail(); });
+  // Phones: the preview sits below the step, so a floating button jumps to it.
+  $('peek').addEventListener('click', () => $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  if ('IntersectionObserver' in window) new IntersectionObserver((es) => { $('peek').hidden = es[0].isIntersecting; }).observe($('preview'));
+  renderLive(); renderRail(); renderPreview();
+  load();
 })();
 </script>
 </body>

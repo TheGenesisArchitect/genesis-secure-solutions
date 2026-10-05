@@ -1,0 +1,63 @@
+{
+  "note": "Draft profile copy and assets for the social wizard. Written from the JAVA Agency landing page; needs the marketing approver's OK before anything is posted.",
+  "pageNames": [
+    "JAVA Agency - Mendez Hollis",
+    "Mendez Hollis - Columbus Insurance Agent"
+  ],
+  "category": "Insurance Agent",
+  "fbBio": "Local insurance help, right here at home. Auto, home and renters for Columbus and Phenix City.",
+  "igUsernames": [
+    "javaagency.columbus",
+    "mendezhollis.agent",
+    "javaagency_mendez"
+  ],
+  "igName": "Mendez Hollis | JAVA Agency",
+  "igBio": "Your neighbor in insurance.\nAuto · Home · Renters\nColumbus, GA & Phenix City, AL\nHablamos Español",
+  "gDescription": "JAVA Agency is The Columbus Local Office of Mendez Hollis, a licensed insurance agent serving Columbus, Georgia, Phenix City, Alabama, and the surrounding communities. Mendez and his team help neighbors explore auto, home and renters coverage and find a clear next step through a real local conversation. The office is licensed in Georgia and Alabama, and the team speaks English and Spanish. Please call the office to confirm hours before visiting.",
+  "services": "Auto insurance, Home insurance, Renters insurance",
+  "facts": [
+    [
+      "Phone",
+      "(706) 689-2787"
+    ],
+    [
+      "Address",
+      "6053 Veterans Parkway, Suite 201, Columbus, GA 31909"
+    ],
+    [
+      "Email",
+      "menhollis@geico.com"
+    ],
+    [
+      "Service area",
+      "Columbus, GA and Phenix City, AL"
+    ],
+    [
+      "Languages",
+      "English, Spanish"
+    ]
+  ],
+  "website": "Add your website once it is approved and live. We send you the address.",
+  "assets": {
+    "cover": {
+      "url": "/w/yu5LZvNPI2D1odHG09O-pA/social/facebook-cover.png",
+      "file": "JAVA-Agency-facebook-cover.png",
+      "size": "1640 × 624"
+    },
+    "mark": {
+      "url": "/w/yu5LZvNPI2D1odHG09O-pA/social/profile-mark.png",
+      "file": "JAVA-Agency-profile-mark.png",
+      "size": "1080 × 1080"
+    },
+    "googleLogo": {
+      "url": "/w/yu5LZvNPI2D1odHG09O-pA/social/google-logo.png",
+      "file": "JAVA-Agency-google-logo.png",
+      "size": "720 × 720"
+    },
+    "portrait": {
+      "url": "/w/yu5LZvNPI2D1odHG09O-pA/social/portrait-placeholder.png",
+      "file": "",
+      "size": ""
+    }
+  }
+}

@@ -1,0 +1,31 @@
+// Builds a client's wizard: their plan channels, optional channels, screen order and profile kit.
+import type { Client } from './clients';
+import { channelRegistry, channelsForClient, partnerDetailsFromEnv, type KitAssetKey, type KitTextKey } from './channels';
+import type { Setup } from './social-session';
+import mendezKit from '@/data/kits/mendez-hollis.json';
+
+export type Kit = {
+  pageNames: string[];
+  igUsernames: string[];
+  facts: [string, string][];
+  website: string;
+  assets: Record<KitAssetKey | 'portrait', { url: string; file: string; size: string }>;
+} & Record<KitTextKey, string>;
+
+const KITS: Record<string, Kit> = { 'mendez-hollis': mendezKit as unknown as Kit };
+
+/** Screens around the channel steps: a start page, the copy review, optional channels and a finish page. */
+export const FIXED_SCREENS = { start: 'start', review: 'review', more: 'more', finish: 'finish' } as const;
+
+export function setupFor(c: Client): Setup & { kit: Kit | null } {
+  const { plan, optional } = channelsForClient(channelRegistry(partnerDetailsFromEnv()), c.social?.plan ?? []);
+  const kit = KITS[c.slug] ?? null;
+  const screens = [
+    FIXED_SCREENS.start,
+    ...(kit ? [FIXED_SCREENS.review] : []),
+    ...plan.flatMap((ch) => ch.steps.map((s) => s.id)),
+    ...(optional.length ? [FIXED_SCREENS.more] : []),
+    FIXED_SCREENS.finish,
+  ];
+  return { plan, optional, screens, kit };
+}
