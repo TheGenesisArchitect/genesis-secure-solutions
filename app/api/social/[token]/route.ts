@@ -1,5 +1,5 @@
 import { findClientByToken, type Client } from '@/lib/clients';
-import { applicableStepIds, channelRegistry, channelsForClient, partnerDetailsFromEnv } from '@/lib/channels';
+import { applicableStepIds, channelRegistry, channelsForClient, countDone, partnerDetailsFromEnv } from '@/lib/channels';
 import { MAX_BODY, parseSocial, readSocial, writeSocial, type SocialProgress } from '@/lib/social-progress';
 import { storageConfigured } from '@/lib/progress';
 
@@ -12,7 +12,7 @@ const setupFor = (c: Client) => channelsForClient(channelRegistry(partnerDetails
 /** Progress plus a count the welcome page can show without knowing the channel list. */
 function withSummary(p: SocialProgress, plan: ReturnType<typeof setupFor>['plan']) {
   const ids = applicableStepIds(plan, p.googleOwner);
-  return { progress: p, steps: { done: ids.filter((id) => p.done.includes(id)).length, total: ids.length } };
+  return { progress: p, steps: { done: countDone(ids, p.done, p.googleOwner), total: ids.length } };
 }
 
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {

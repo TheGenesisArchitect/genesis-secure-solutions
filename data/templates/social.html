@@ -98,14 +98,14 @@ textarea:focus-visible,input[type=url]:focus-visible{outline:2px solid var(--tea
   function readLocal() { try { const v = localStorage.getItem(LOCAL); return v ? normalize(JSON.parse(v)) : null; } catch (e) { return null; } }
   function writeLocal() { try { localStorage.setItem(LOCAL, JSON.stringify(state)); } catch (e) {} }
   const googleApplies = () => state.googleOwner === 'me' || state.googleOwner === 'none';
-  const applicable = () => CFG.allSteps.filter((id) => !CFG.googleSteps.includes(id) || googleApplies());
+  const applicable = () => (CFG.googleSteps.length ? ['g-owner'] : []).concat(CFG.allSteps.filter((id) => !CFG.googleSteps.includes(id) || googleApplies()));
   function validLink(id, v) {
     if (!v) return true;
     try { const u = new URL(v); return u.protocol === 'https:' && CFG.hosts[id].includes(u.hostname.toLowerCase()) && v.length <= 200; } catch (e) { return false; }
   }
 
   function render() {
-    const steps = applicable(), done = steps.filter((id) => state.done.includes(id)).length;
+    const steps = applicable(), done = steps.filter((id) => (id === 'g-owner' ? state.googleOwner !== '' : state.done.includes(id))).length;
     $('count').textContent = done + ' of ' + steps.length + ' ';
     const sp = document.createElement('span'); sp.textContent = 'steps done'; $('count').append(sp);
     $('bar').style.width = (steps.length ? done / steps.length * 100 : 0) + '%';

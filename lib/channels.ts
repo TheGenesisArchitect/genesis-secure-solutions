@@ -217,9 +217,19 @@ export type GoogleOwner = (typeof GOOGLE_OWNERS)[number];
 /** Google steps only apply when the agent runs the listing or there isn't one yet. */
 export const googleStepsApply = (o: GoogleOwner | '') => o === 'me' || o === 'none';
 
+/** Answering "who looks after your Google listing" counts as a step of its own. */
+export const GOOGLE_QUESTION = 'g-owner';
+
 /** The step ids that count toward this client's progress, given their answer about Google. */
 export function applicableStepIds(plan: Channel[], owner: GoogleOwner | ''): string[] {
-  return plan.flatMap((c) => (c.id === 'google' && !googleStepsApply(owner) ? [] : c.steps.map((s) => s.id)));
+  return plan.flatMap((c) =>
+    c.id === 'google' ? [GOOGLE_QUESTION, ...(googleStepsApply(owner) ? c.steps.map((s) => s.id) : [])] : c.steps.map((s) => s.id),
+  );
+}
+
+/** How many applicable steps are done; the Google question is done once it has any answer. */
+export function countDone(ids: string[], done: string[], owner: GoogleOwner | ''): number {
+  return ids.filter((id) => (id === GOOGLE_QUESTION ? owner !== '' : done.includes(id))).length;
 }
 
 /** Split the registry into the client's plan channels and the optional ones they can ask for. */
