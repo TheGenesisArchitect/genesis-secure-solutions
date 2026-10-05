@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>{{FIRST}} Setup Guide · Genesis Secure Solutions</title>
+<style>
+/* Layout: one column like a letter. Film first, progress, five steps, then what we handle, timeline and plan. Single committed dark look matching the welcome film. */
+@font-face{font-family:Sora;font-weight:700;font-display:swap;src:url(/fonts/sora-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:Sora;font-weight:800;font-display:swap;src:url(/fonts/sora-latin-800-normal.woff2) format('woff2')}
+@font-face{font-family:Inter;font-weight:400;font-display:swap;src:url(/fonts/inter-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:Inter;font-weight:500;font-display:swap;src:url(/fonts/inter-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:Inter;font-weight:600;font-display:swap;src:url(/fonts/inter-latin-600-normal.woff2) format('woff2')}
+:root{
+  --bg:#050b17; --surface:#0b1527; --raise:#101c33; --line:rgba(170,195,235,.16); --ink:#eef3fb; --muted:#93a3bd;
+  --teal:#19c3ae; --amber:#f2a93b; --done:#19c3ae; --on-amber:#1a1405;
+  --display:Sora,"Segoe UI",system-ui,sans-serif; --body:Inter,"Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:28px 56px}
+.wrap{max-width:860px;margin:0 auto;display:grid;gap:28px}
+.eyebrow{font:600 12px/1.2 var(--body);letter-spacing:.3em;color:var(--amber);text-transform:uppercase}
+h1{font:800 clamp(34px,6vw,58px)/1.02 var(--display);letter-spacing:-.03em;margin:10px 0 12px;text-wrap:balance}
+h2{font:700 clamp(20px,3vw,26px)/1.2 var(--display);letter-spacing:-.01em;margin:0 0 14px;text-wrap:balance}
+p{margin:0}
+a{color:var(--teal)}
+.lede{color:#c9d4e6;font-size:17px;max-width:62ch}
+.film{width:100%;max-width:100%;aspect-ratio:16/9;border-radius:14px;background:#000;display:block;box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px var(--line)}
+.preview{font-size:15px;color:var(--muted);margin-top:-14px}
+.progress{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:12px}
+.progress .row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.count{font:800 22px var(--display)}
+.count span{color:var(--muted);font:500 15px var(--body)}
+.bar{height:10px;border-radius:99px;background:var(--raise);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--teal),var(--amber));transition:width .6s ease}
+.saved{font-size:13px;color:var(--muted)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px}
+.step.done{border-color:rgba(25,195,174,.55)}
+.num{grid-row:span 3;width:40px;height:40px;border-radius:50%;background:var(--amber);color:var(--on-amber);display:grid;place-items:center;font:800 17px var(--display)}
+.step.done .num{background:var(--done);color:#04201c}
+.step h3{margin:0;font:700 19px/1.3 var(--display);min-width:0}
+.why{color:#c9d4e6;min-width:0}
+.how{color:var(--muted);font-size:15px;min-width:0}
+.how ol{margin:6px 0 0;padding-left:20px;display:grid;gap:4px}
+.actions{grid-column:2;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.toggle{font:600 14px var(--body);border-radius:999px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--raise);color:var(--ink)}
+.toggle[aria-pressed="true"]{background:var(--done);border-color:var(--done);color:#04201c}
+.field{display:grid;gap:6px;width:100%}
+.field label{font-size:13px;color:var(--muted)}
+.field input[type=text]{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+.choices{display:flex;flex-wrap:wrap;gap:8px}
+.choices label{display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink);background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}
+button:focus-visible,input:focus-visible,.choices label:focus-within,a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.handled{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px;list-style:none;margin:0;padding:0}
+.handled li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:15px;color:#c9d4e6}
+.handled b{display:block;color:var(--ink);font:700 15px var(--display);margin-bottom:4px}
+.timeline{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px}
+.timeline li{border-top:3px solid var(--raise);padding-top:12px}
+.timeline li.here{border-top-color:var(--amber)}
+.timeline b{display:block;font:700 17px var(--display)}
+.timeline span{font-size:14px;color:var(--muted)}
+.plan{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.plan dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;margin:0}
+.plan dt{color:#c9d4e6}
+.plan dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.note{font-size:13px;color:var(--muted);max-width:68ch}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">Genesis Secure Solutions · Welcome package</div>
+    <h1>Welcome, {{FIRST}}.</h1>
+    <p class="lede">Your {{PLAN}} plan for {{OFFICE}} is underway. Watch the one-minute welcome, then work through the five steps below. Most take a few minutes.</p>
+  </header>
+
+  <video class="film" controls playsinline preload="metadata" poster="{{POSTER}}" src="{{FILM}}"></video>
+  {{PREVIEW}}
+
+  <section class="progress" aria-live="polite">
+    <div class="row"><div class="count" id="count">0 of 5 <span>steps done</span></div><div class="saved" id="saved">Loading your progress…</div></div>
+    <div class="bar" aria-hidden="true"><i id="bar"></i></div>
+  </section>
+
+  <section>
+    <h2>Your five steps</h2>
+    <ol class="steps" id="steps">
+      <li class="step" data-key="portrait">
+        <div class="num">1</div>
+        <h3>Send your full-size portrait</h3>
+        <p class="why">The photo on your draft is small. The original file keeps your site and profiles sharp.</p>
+        <div class="how">Reply to your welcome email with the original photo file attached. Please use a photo you have the right to use.</div>
+        <div class="actions"></div>
+      </li>
+      <li class="step" data-key="approval">
+        <div class="num">2</div>
+        <h3>Tell us who approves your marketing</h3>
+        <p class="why">Your carrier’s brand rules apply to your site and posts, so we line up approval before anything goes public.</p>
+        <div class="how">Reply with the name and email of the person who signs off on copy and branding for your office. If that is you, just say so.</div>
+        <div class="actions"></div>
+      </li>
+      <li class="step" data-key="social">
+        <div class="num">3</div>
+        <h3>Set up Facebook and Instagram access</h3>
+        <p class="why">Your agency owns these accounts. We only get partner access to manage them for you.</p>
+        <div class="how">We do this together on a short guided call:
+          <ol><li>Create or claim your Facebook Business Page.</li><li>Switch Instagram to a professional account and link it to the Page.</li><li>Add Genesis Secure Solutions as a partner in Meta Business Suite. We give you our business ID on the call.</li></ol>
+        </div>
+        <div class="actions"></div>
+      </li>
+      <li class="step" data-key="domain">
+        <div class="num">4</div>
+        <h3>Choose your web address</h3>
+        <p class="why">This is where your site lives once you approve it.</p>
+        <div class="how">Use a domain you already own, or we help you pick and register one. Domain costs are separate, as in your agreement.</div>
+        <div class="actions"><div class="choices" role="radiogroup" aria-label="Web address choice">
+          <label><input type="radio" name="domain" id="domain-own" value="own"> I already own one</label>
+          <label><input type="radio" name="domain" id="domain-help" value="help"> Help me choose one</label>
+        </div></div>
+      </li>
+      <li class="step" data-key="kickoff">
+        <div class="num">5</div>
+        <h3>Book your kickoff call</h3>
+        <p class="why">About 20 minutes. We cover your accounts, your photos and your review dates.</p>
+        <div class="how">Share two or three times that work for you this week.</div>
+        <div class="actions"><div class="field"><label for="kickoff-times">Times that work</label><input type="text" id="kickoff-times" maxlength="200" placeholder="Example: Tue 10am, Wed after 2pm"></div></div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>What we’re handling</h2>
+    <ul class="handled">{{HANDLED}}</ul>
+  </section>
+
+  <section>
+    <h2>What happens next</h2>
+    <ol class="timeline">
+      <li class="here"><b>Setup</b><span>You are here</span></li>
+      <li><b>Review</b><span>Two rounds of changes included</span></li>
+      <li><b>Launch</b><span>Site and social go live together</span></li>
+      <li><b>Care</b><span>Fresh posts and a monthly report, if you choose it</span></li>
+    </ol>
+  </section>
+
+  <section class="plan">
+    <h2>Your plan at a glance</h2>
+    <dl>{{PRICING}}</dl>
+  </section>
+
+  <p class="note">Domain, hosting, software and advertising are billed separately. Questions? Reply to your welcome email and {{CONTACT}} at Genesis Secure Solutions will get back to you.</p>
+</main>
+
+<script>
+(function () {
+  const API = '/api/progress/{{TOKEN}}';
+  const KEYS = ['portrait', 'approval', 'social', 'domain', 'kickoff'];
+  const LOCAL = 'gss-setup-{{SLUG}}-v1';
+  let state = blank();
+  let mode = 'pending'; // 'shared' | 'local'
+  let note = '';
+  let chain = Promise.resolve();
+  const $ = (id) => document.getElementById(id);
+
+  function blank() { return { steps: Object.fromEntries(KEYS.map((k) => [k, false])), domainChoice: '', kickoffTimes: '' }; }
+  function normalize(d) {
+    const s = blank();
+    if (d && typeof d === 'object') {
+      for (const k of KEYS) s.steps[k] = !!(d.steps && d.steps[k]);
+      if (d.domainChoice === 'own' || d.domainChoice === 'help') s.domainChoice = d.domainChoice;
+      if (typeof d.kickoffTimes === 'string') s.kickoffTimes = d.kickoffTimes.slice(0, 200);
+    }
+    return s;
+  }
+  function readLocal() { try { const v = localStorage.getItem(LOCAL); return v ? normalize(JSON.parse(v)) : null; } catch (e) { return null; } }
+  function writeLocal() { try { localStorage.setItem(LOCAL, JSON.stringify(state)); } catch (e) {} }
+
+  function render() {
+    const done = KEYS.filter((k) => state.steps[k]).length;
+    $('count').innerHTML = done + ' of 5 <span>steps done</span>';
+    $('bar').style.width = (done / 5 * 100) + '%';
+    $('saved').textContent = note || {
+      pending: 'Loading your progress…',
+      shared: 'Saved for you and the Genesis team',
+      local: 'Saved on this device. Reply to your welcome email as you finish each step.',
+    }[mode];
+    document.querySelectorAll('.step').forEach((li) => {
+      const k = li.dataset.key, isDone = state.steps[k];
+      li.classList.toggle('done', isDone);
+      li.querySelector('.num').textContent = isDone ? '✓' : String(KEYS.indexOf(k) + 1);
+      const box = li.querySelector('.actions');
+      let b = box.querySelector('button.toggle');
+      if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'toggle'; b.dataset.key = k; box.prepend(b); }
+      b.setAttribute('aria-pressed', String(isDone));
+      b.textContent = isDone ? 'Done' : 'Mark as done';
+      b.disabled = mode === 'pending';
+    });
+    document.querySelectorAll('input[name=domain]').forEach((r) => { r.checked = r.value === state.domainChoice; r.disabled = mode === 'pending'; });
+    const kt = $('kickoff-times');
+    if (document.activeElement !== kt) kt.value = state.kickoffTimes;
+    kt.disabled = mode === 'pending';
+  }
+
+  function save() {
+    writeLocal();
+    if (mode !== 'shared') return;
+    const body = JSON.stringify({ steps: state.steps, domainChoice: state.domainChoice, kickoffTimes: state.kickoffTimes });
+    chain = chain.then(() => fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, cache: 'no-store' }))
+      .then((r) => { note = r && r.ok ? '' : 'Couldn’t save just now. Reply to your welcome email instead.'; render(); })
+      .catch(() => { note = 'Couldn’t save just now. Reply to your welcome email instead.'; render(); });
+  }
+
+  async function load() {
+    try {
+      const r = await fetch(API, { cache: 'no-store' });
+      if (!r.ok) throw new Error('status ' + r.status);
+      state = normalize(await r.json()); mode = 'shared'; note = '';
+    } catch (e) {
+      mode = 'local'; state = readLocal() || blank();
+    }
+    render();
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button.toggle'); if (!b || b.disabled) return;
+    state.steps[b.dataset.key] = !state.steps[b.dataset.key]; render(); save();
+  });
+  document.addEventListener('change', (e) => {
+    if (e.target.name === 'domain') { state.domainChoice = e.target.value; state.steps.domain = true; render(); save(); }
+  });
+  const kt = $('kickoff-times');
+  kt.addEventListener('change', () => { state.kickoffTimes = kt.value.trim().slice(0, 200); if (state.kickoffTimes) state.steps.kickoff = true; render(); save(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && mode === 'shared') load(); });
+
+  render(); load();
+})();
+</script>
+</body>
+</html>

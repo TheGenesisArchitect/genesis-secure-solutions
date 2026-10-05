@@ -1,0 +1,26 @@
+{
+  "name": "genesis-secure-solutions",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "template": "node scripts/build-template.mjs",
+    "predev": "node scripts/build-template.mjs",
+    "dev": "next dev",
+    "prebuild": "node scripts/build-template.mjs",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.0.0",
+    "next": "16.3.8",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "typescript": "5.9.3"
+  }
+}
