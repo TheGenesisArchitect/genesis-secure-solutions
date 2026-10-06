@@ -25,7 +25,7 @@ Anyone holding a client's link can view the guide and tick steps.
 Edit `data/templates/welcome.html`, `social.html` or the shared `base.css`; `npm run build` bakes them into `lib/templates.ts`.
 
 ## Social channels
-The wizard keeps two private Blob files per client: the shared session (steps, answers and where each person is; version-checked writes, so two people editing at once never overwrite each other) and operator notes that only the console API reads. Every Blob read and write is billed (Hobby includes 10,000 reads and 2,000 writes a month), so each screen reads the session once every 3 seconds while the other person is there, every 15 seconds alone, and not at all after 15 quiet minutes or in a hidden tab. Presence is refreshed every 30 seconds.
+The wizard keeps two private Blob files per client: the shared session (steps, answers and where each person is; version-checked writes, so two people editing at once never overwrite each other) and operator notes that only the console API reads. Every Blob read and write is billed (on Pro, usage-based and fractions of a cent per call), so each screen reads the session once every 2 seconds while the other person is there, every 5 seconds alone, and not at all after 15 quiet minutes or in a hidden tab. Presence is refreshed every 15 seconds.
 
 Profile copy and images for each client live in `data/kits/<slug>.json` and `public/w/<folder>/social/`. The client's approver signs off on the copy in the wizard's review step before the Page is created.
 
