@@ -1,4 +1,4 @@
-import { findClientByToken } from '@/lib/clients';
+import { findClientByToken, hasWelcome } from '@/lib/clients';
 import { parseProgress, readProgress, storageConfigured, writeProgress } from '@/lib/progress';
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,7 @@ const notFound = () => Response.json({ error: 'Not found' }, { status: 404, head
 
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   const client = findClientByToken((await ctx.params).token);
-  if (!client) return notFound();
+  if (!hasWelcome(client)) return notFound();
   if (!storageConfigured()) return Response.json({ error: 'Progress storage is not connected yet.' }, { status: 503, headers: HEADERS });
   try {
     return Response.json(await readProgress(client), { headers: HEADERS });
@@ -18,7 +18,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const client = findClientByToken((await ctx.params).token);
-  if (!client) return notFound();
+  if (!hasWelcome(client)) return notFound();
   const origin = req.headers.get('origin');
   if (origin && origin !== new URL(req.url).origin) return Response.json({ error: 'Request not permitted.' }, { status: 403, headers: HEADERS });
   if (Number(req.headers.get('content-length') || 0) > 2000) return Response.json({ error: 'Too large.' }, { status: 413, headers: HEADERS });

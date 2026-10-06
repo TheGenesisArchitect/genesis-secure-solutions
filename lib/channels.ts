@@ -345,7 +345,8 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
 /** Split the registry into the client's plan channels and the optional ones they can ask for. */
 export function channelsForClient(all: Channel[], planIds: readonly string[]) {
   const plan = planIds.map((id) => all.find((c) => c.id === id)).filter((c): c is Channel => Boolean(c));
-  const optional = all.filter((c) => !planIds.includes(c.id));
+  // Partner access only makes sense alongside the client's own Facebook Page, so it is never offered on its own.
+  const optional = all.filter((c) => !planIds.includes(c.id) && c.id !== 'meta-partner');
   return { plan, optional };
 }
 

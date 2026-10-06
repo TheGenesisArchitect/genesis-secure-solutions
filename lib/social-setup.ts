@@ -3,6 +3,7 @@ import type { Client } from './clients';
 import { channelRegistry, channelsForClient, partnerDetailsFromEnv, type KitAssetKey, type KitTextKey } from './channels';
 import type { Setup } from './social-session';
 import mendezKit from '@/data/kits/mendez-hollis.json';
+import genovusKit from '@/data/kits/genovus.json';
 
 export type Kit = {
   pageNames: string[];
@@ -10,9 +11,11 @@ export type Kit = {
   facts: [string, string][];
   website: string;
   assets: Record<KitAssetKey | 'portrait', { url: string; file: string; size: string }>;
+  /** Optional per-client notes shown at the top of a step, keyed by step id. */
+  stepTips?: Record<string, string>;
 } & Record<KitTextKey, string>;
 
-const KITS: Record<string, Kit> = { 'mendez-hollis': mendezKit as unknown as Kit };
+const KITS: Record<string, Kit> = { 'mendez-hollis': mendezKit as unknown as Kit, genovus: genovusKit as unknown as Kit };
 
 /** Screens around the channel steps: a start page, the copy review, optional channels and a finish page. */
 export const FIXED_SCREENS = { start: 'start', review: 'review', more: 'more', finish: 'finish' } as const;

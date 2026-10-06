@@ -1,4 +1,4 @@
-import { findClientByToken } from '@/lib/clients';
+import { findClientByToken, hasWelcome } from '@/lib/clients';
 import { WELCOME_TEMPLATE } from '@/lib/templates';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   const c = findClientByToken((await ctx.params).token);
   const headers = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' };
-  if (!c) return new Response('<!doctype html><meta charset="utf-8"><title>Not found</title><p>This link is not valid.</p>', { status: 404, headers });
+  if (!hasWelcome(c)) return new Response('<!doctype html><meta charset="utf-8"><title>Not found</title><p>This link is not valid.</p>', { status: 404, headers });
   const fill: Record<string, string> = {
     FIRST: esc(c.firstName),
     PLAN: esc(c.plan),

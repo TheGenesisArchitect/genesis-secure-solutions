@@ -550,6 +550,7 @@ input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);o
       out.push(navBar({ lock: !S.googleOwner }));
       return out;
     }
+    if (KIT && KIT.stepTips && KIT.stepTips[s.id]) out.push(el('p', { class: 'tip' }, KIT.stepTips[s.id]));
     out.push(el('div', { class: 'do' }, el('h2', null, 'Do this'), el('ol', null, s.how.map((h) => el('li', null, h))), s.link ? el('a', { class: 'src', href: s.link.url, target: '_blank', rel: 'noreferrer' }, s.link.label + ' ↗') : ''));
     if (s.kit && s.kit.length) out.push(el('div', { class: 'kit' }, s.kit.map(kitBlock)));
     const done = S.done.includes(s.id);
@@ -657,7 +658,7 @@ input.in:focus-visible,textarea.in:focus-visible{outline:2px solid var(--teal);o
     const c = 2 * Math.PI * 30;
     const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     ring.setAttribute('viewBox', '0 0 72 72'); ring.setAttribute('aria-hidden', 'true');
-    ring.innerHTML = '<circle cx="36" cy="36" r="30" fill="none" stroke="#101c33" stroke-width="8"/><circle cx="36" cy="36" r="30" fill="none" stroke="#19c3ae" stroke-width="8" stroke-linecap="round" transform="rotate(-90 36 36)" stroke-dasharray="' + (c * p.pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '"/>';
+    ring.innerHTML = '<circle cx="36" cy="36" r="30" fill="none" stroke="#101c33" stroke-width="8"/>' + (p.pct ? '<circle cx="36" cy="36" r="30" fill="none" stroke="#19c3ae" stroke-width="8" stroke-linecap="round" transform="rotate(-90 36 36)" stroke-dasharray="' + (c * p.pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '"/>' : '') + '';
     pv.append(el('div', { class: 'meter' }, ring, el('div', null, el('span', null, (OP ? CFG.clientFirst + '’s' : 'Your') + ' online presence'), el('b', null, p.pct + '% complete'), el('span', null, p.done + ' of ' + p.total + ' steps done'))));
     const tabs = CFG.channels.filter((c) => c.id === 'facebook' || c.id === 'instagram' || c.id === 'google');
     if (!tab || !tabs.some((t) => t.id === tab)) tab = tabs.length ? tabs[0].id : null;

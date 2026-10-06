@@ -1,6 +1,6 @@
 // Renders the social setup wizard for either side of the call. Both get the same steps and kit;
 // only the operator's copy carries the talk track, our-side tasks and the console API.
-import type { Client } from './clients';
+import { hasWelcome, type Client } from './clients';
 import { clientStep, type Step } from './channels';
 import type { Role } from './social-session';
 import { setupFor } from './social-setup';
@@ -42,7 +42,7 @@ export function renderSocialPage(c: Client, role: Role): string {
     clientFirst: c.firstName,
     operatorFirst: c.contactName.split(' ')[0] || 'Genesis',
     operatorName: c.contactName,
-    back: role === 'client' ? `/welcome/${c.token}` : '',
+    back: role === 'client' && hasWelcome(c) ? `/welcome/${c.token}` : '',
     channels: setup.plan.map((ch) => ({
       id: ch.id,
       name: ch.name,

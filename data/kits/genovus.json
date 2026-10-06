@@ -1,0 +1,24 @@
+{
+  "note": "Draft profile copy for Genovus's own social accounts, written from the Genovus logo and the platform spec. Anthony approves it in the wizard's review step before the Page is created.",
+  "pageNames": ["Genovus"],
+  "category": "Software Company",
+  "fbBio": "Turnkey websites, social and leads for local insurance agents. A Genesis Secure Solutions brand.",
+  "igUsernames": ["genovus", "genovushq", "getgenovus"],
+  "igName": "Genovus | Turnkey Agency Platform",
+  "igBio": "Turnkey agency platform\nWebsites · Social · Leads · Reporting\nBuilt for local insurance agents\nA Genesis Secure Solutions brand",
+  "gDescription": "Genovus is the turnkey agency platform from Genesis Secure Solutions. One agent profile becomes a professional website, connected social accounts, tracked leads and a monthly results report, set up and cared for by our team. We start with local insurance agents and their offices. Every public page and post is approved by the agent before it goes live.",
+  "services": "Agency websites, Social media setup and care, Lead tracking, Monthly reporting",
+  "facts": [],
+  "website": "Add once the Genovus domain and business email are set up. Leave phone and address empty until then.",
+  "stepTips": {
+    "fb-page": "Name the Page Genovus. The business behind it is Genesis Secure Solutions LLC, which goes on the business portfolio, not the Page.",
+    "fb-portfolio": "Create this portfolio as Genesis Secure Solutions LLC, the legal name. Meta checks the legal name during business verification, and this portfolio's ID is the business ID every client enters at their partner access step.",
+    "fb-details": "Genovus has no public phone or office yet. Paste the bio, add the business email once it exists, and skip phone, address and hours for now."
+  },
+  "assets": {
+    "cover": { "url": "/brand/genovus/genovus-facebook-cover.png", "file": "Genovus-facebook-cover.png", "size": "1640 × 624" },
+    "mark": { "url": "/brand/genovus/genovus-avatar.png", "file": "Genovus-avatar.png", "size": "1080 × 1080" },
+    "googleLogo": { "url": "/brand/genovus/genovus-app-icon.png", "file": "Genovus-app-icon.png", "size": "1024 × 1024" },
+    "portrait": { "url": "/brand/genovus/genovus-avatar.png", "file": "", "size": "" }
+  }
+}

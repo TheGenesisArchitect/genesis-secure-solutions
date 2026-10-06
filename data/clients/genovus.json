@@ -1,0 +1,16 @@
+{
+  "slug": "genovus",
+  "token": "qJZ7_fnSF6bcO6obiXVf5A",
+  "internal": true,
+  "firstName": "Genovus team",
+  "fullName": "Genovus (Genesis Secure Solutions LLC)",
+  "office": "Genesis Secure Solutions",
+  "plan": "Internal",
+  "contactName": "Anthony Beedles",
+  "social": {
+    "plan": [
+      "facebook",
+      "instagram"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Meta Connection · Genesis Console</title>
+<style>
+/*@base*/
+/* Operator page: where Genovus stands with Meta. Status first, then what to paste into Meta, then the ordered checklist. */
+body{padding-block:28px 56px}
+.wrap{max-width:1000px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.st{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:4px;min-width:0}
+.st b{font:700 15px var(--display)}
+.st span{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.st.ok{border-color:rgba(25,195,174,.55)}
+.st.ok b::before{content:'✓ ';color:var(--teal)}
+.st.no b::before{content:'○ ';color:var(--amber)}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.tbl td code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;overflow-wrap:anywhere;font-size:13px}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.check{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:c}
+.check li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;counter-increment:c}
+.check li::before{content:counter(c);grid-row:span 3;width:30px;height:30px;border-radius:50%;background:var(--raise);display:grid;place-items:center;font:800 14px var(--display)}
+.check li.done{border-color:rgba(25,195,174,.55)}
+.check li.done::before{content:'✓';background:var(--teal);color:#04201c}
+.check b{font:700 16px var(--display)}
+.check p{color:#c9d4e6;font-size:14px}
+.check a{font-size:14px}
+.perm{display:flex;flex-wrap:wrap;gap:6px}
+.perm code{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 8px}
+.muted{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">Genesis console · Meta connection</div>
+    <h1>Genovus on Meta</h1>
+    <p class="lede">Where our Meta setup stands. Read-only: nothing on this page posts, replies or spends. Graph API {{VERSION}}.</p>
+  </header>
+  <section><h2>Status</h2><div class="grid">{{STATUS}}</div></section>
+  <section><h2>Paste these into Meta</h2><div class="scroll"><table class="tbl"><thead><tr><th>App Dashboard field</th><th>Value</th></tr></thead><tbody>{{PASTE}}</tbody></table></div></section>
+  <section><h2>Our Pages and Instagram</h2>{{PAGES}}</section>
+  <section><h2>Recent webhook events</h2>{{EVENTS}}</section>
+  <section><h2>Setup checklist</h2><ol class="check">{{CHECKLIST}}</ol></section>
+  <section><h2>Permissions to request in App Review</h2><div class="scroll"><table class="tbl"><thead><tr><th>Capability</th><th>Permissions</th><th>Source</th></tr></thead><tbody>{{PERMS}}</tbody></table></div>
+  <p class="muted" style="margin-top:10px">Each needs Advanced Access for client accounts, approved permission by permission, after business verification. Our own Page and Instagram work with Standard Access while we build.</p></section>
+</main>
+</body>
+</html>
