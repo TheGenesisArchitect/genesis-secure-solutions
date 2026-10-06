@@ -340,6 +340,30 @@ Each integration has one owner module and one set of server-side credentials, an
 | Sentry | Errors, performance, uptime and cron monitoring | Decided; Team plan to start |
 | Analytics (Vercel Analytics, GA4, Meta Pixel) | Site traffic and conversion events | Code ready; IDs set per client at launch |
 
+## Meta integration
+
+Genovus connects to Meta as a verified Tech Provider with one Meta app: clients connect through Facebook Login for Business, and our own Genovus Page proves the connector first. As of Oct 5, 2026 the read-only groundwork is live: the webhook endpoint, the data deletion callback and the operator page at `/console/meta`.
+
+| Phase | What happens | Gate |
+| --- | --- | --- |
+| 1. Our own Page | Genovus Page and Instagram set up through our own social wizard; a system user token reads our Page, insights and webhooks with Standard Access | Business portfolio created as Genesis Secure Solutions LLC; Meta app created |
+| 2. Verification | [Business verification](https://developers.facebook.com/docs/development/release/business-verification), then access verification to become a [Tech Provider](https://developers.facebook.com/docs/development/release/tech-providers) | Legal name, address, phone and a matching website |
+| 3. App Review | [Advanced Access](https://developers.facebook.com/docs/graph-api/overview/access-levels), approved permission by permission with a screencast each | Phase 2 done; privacy policy and terms published |
+| 4. Client onboarding | A [Facebook Login for Business](https://developers.facebook.com/docs/facebook-login/facebook-login-for-business) configuration with a system-user access token: the client picks their Page, Instagram and ad account on one consent screen; the token does not expire by default | Phase 3 approvals |
+
+Until phase 4, clients keep using partner access, which lets our team work in Meta Business Suite but not through the API.
+
+**Permissions to request.** Client Pages: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `pages_manage_metadata`, `read_insights` ([Pages API](https://developers.facebook.com/docs/pages-api/overview)). Instagram through the linked Page: `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`, `instagram_manage_insights` ([Instagram Platform](https://developers.facebook.com/docs/instagram-platform/overview)). Lead ads: `leads_retrieval`, `pages_manage_ads`, `ads_management` ([lead retrieval](https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving)). Client assets: `business_management`.
+
+**Rules.** The connector is read-only; posting, replies and ad spend go through the approval lanes. Webhook events are stored as identifiers only until the consent-tracked lead pipeline in Supabase ships. Graph API is pinned to v26.0 (released Jul 29, 2026).
+
+**Open questions**
+
+- Can a system user in our portfolio act on assets a client shares through partner access? Meta's [system user docs](https://developers.facebook.com/docs/marketing-api/system-users/overview) do not say; Facebook Login for Business is the documented route.
+- Meta verification and the published privacy policy need a website we control. The vercel.app address is an internal preview, so a Genovus domain comes first.
+- Meta publishes no timing for business verification or App Review; plan for weeks.
+- Insurance ads likely fall under Meta's special ad category for financial products, which limits targeting (see Content, social and ads engine).
+
 ## Infrastructure and delivery
 
 Everything ships through git and Vercel: every change gets a protected preview deployment, and production moves only on an approved merge.
