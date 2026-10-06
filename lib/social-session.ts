@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { get, put } from '@vercel/blob';
 import type { Client } from './clients';
 import { GOOGLE_OWNERS, applicableStepIds, countDone, tickableStepIds, type Channel, type GoogleOwner } from './channels';
+import { COPY_KEYS, cleanCopy, isCopyKey, type CopyKey } from './copy-rules';
 
 export type Role = 'client' | 'operator';
 export type Fields = { pageName: string; igUsername: string; hours: string };
@@ -17,6 +18,8 @@ export type Session = {
   done: string[];
   googleOwner: GoogleOwner | '';
   fields: Fields;
+  /** The client's own wording for profile copy; anything missing falls back to the kit. */
+  copy: Partial<Record<CopyKey, string>>;
   links: Record<string, string>;
   wants: string[];
   other: string;
@@ -41,6 +44,7 @@ export const blankSession = (): Session => ({
   done: [],
   googleOwner: '',
   fields: { pageName: '', igUsername: '', hours: '' },
+  copy: {},
   links: {},
   wants: [],
   other: '',
@@ -102,6 +106,11 @@ export function normalizeSession(raw: unknown, setup: Setup): Session {
     const v = cleanField(k, f[k]);
     if (v) s.fields[k] = v;
   }
+  const cp = (o.copy && typeof o.copy === 'object' && !Array.isArray(o.copy) ? o.copy : {}) as Record<string, unknown>;
+  for (const k of COPY_KEYS) {
+    const c = cp[k] !== undefined ? cleanCopy(k, cp[k]) : null;
+    if (c && 'text' in c && c.text) s.copy[k] = c.text;
+  }
   if (o.links && typeof o.links === 'object' && !Array.isArray(o.links)) {
     for (const [id, v] of Object.entries(o.links as Record<string, unknown>)) {
       const ch = setup.plan.find((c) => c.id === id && c.profileLink);
@@ -142,7 +151,8 @@ export type Op =
   | { op: 'lead'; step: string }
   | { op: 'here'; step: string; following: boolean }
   | { op: 'ours'; step: string; value: boolean }
-  | { op: 'notes'; value: string };
+  | { op: 'notes'; value: string }
+  | { op: 'copy'; key: CopyKey; value: string };
 
 const OPERATOR_ONLY = new Set(['lead', 'ours', 'notes']);
 
@@ -195,13 +205,19 @@ export function parseOp(input: unknown, role: Role, setup: Setup): Op | null {
       if (typeof o.value !== 'string' || o.value.length > LIMITS.notes) return null;
       return { op: 'notes', value: o.value };
     }
+    case 'copy': {
+      if (!isCopyKey(o.key)) return null;
+      if (o.value === '') return { op: 'copy', key: o.key, value: '' };
+      const c = cleanCopy(o.key, o.value);
+      return 'text' in c && c.text ? { op: 'copy', key: o.key, value: c.text } : null;
+    }
     default:
       return null;
   }
 }
 
 function applySessionOp(s: Session, op: Op, role: Role): Session {
-  const next: Session = { ...s, fields: { ...s.fields }, links: { ...s.links }, done: [...s.done], wants: [...s.wants], presence: { ...s.presence } };
+  const next: Session = { ...s, fields: { ...s.fields }, links: { ...s.links }, done: [...s.done], wants: [...s.wants], presence: { ...s.presence }, copy: { ...s.copy } };
   if (op.op === 'here') {
     next.presence[role] = { step: op.step, at: new Date().toISOString(), following: op.following };
     return next;
@@ -215,7 +231,15 @@ function applySessionOp(s: Session, op: Op, role: Role): Session {
       next.googleOwner = op.value;
       break;
     case 'field':
+      // A new Page name is new public copy, so the approver signs off again.
+      if (op.field === 'pageName' && op.value !== s.fields.pageName) next.approval = null;
       next.fields[op.field] = op.value;
+      break;
+    case 'copy':
+      if (op.value) next.copy[op.key] = op.value;
+      else delete next.copy[op.key];
+      // Approval covers specific wording; any change sends it back to the approver.
+      if ((s.copy[op.key] || '') !== op.value) next.approval = null;
       break;
     case 'link':
       if (op.value) next.links[op.channel] = op.value;
@@ -255,7 +279,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Read, apply one op, write back only if nobody wrote in between; retry with jitter if they did. */
 async function updateJson<T>(key: string, load: (raw: unknown) => T, change: (cur: T) => T): Promise<T> {
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const { data, etag } = await readJson(key);
     const next = change(load(data));
     try {
@@ -263,7 +287,8 @@ async function updateJson<T>(key: string, load: (raw: unknown) => T, change: (cu
       else await put(key, JSON.stringify(next), { ...writeOpts, allowOverwrite: false });
       return next;
     } catch {
-      await pause(40 + Math.random() * 120 * (attempt + 1));
+      // Exponential backoff with jitter: two people saving at the same moment settle within a second or two.
+      await pause(Math.min(1500, 60 * 2 ** attempt) * (0.5 + Math.random()));
     }
   }
   throw new Error('Too many concurrent edits; try again.');

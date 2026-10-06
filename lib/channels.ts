@@ -216,18 +216,19 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
     },
     {
       id: 'meta-partner',
-      name: 'Partner access for Genesis',
+      name: 'Partner access for Genovus',
       summary: 'One step gives us access to your Page and Instagram. You can remove it any time.',
       access: 'Partner access in your business portfolio. You keep full control.',
       steps: [
         {
           id: 'mp-access',
-          title: 'Give Genesis Secure Solutions partner access',
+          title: 'Give Genovus partner access',
           why: 'This is what lets us post, reply and report for you without your password.',
           how: [
             'Go to business.facebook.com/settings and pick your business portfolio.',
             'Under Users, choose Partners, then Add, then Give a partner access to your assets.',
             metaId,
+            'Our business portfolio shows up as Genesis Secure Solutions LLC, the company behind Genovus.',
             'Select your Page and Instagram account. Choose partial access for content, messages, comments and insights. Leave full control off.',
             'If Instagram is missing from the list, add it first under Accounts, then Instagram accounts.',
           ],
@@ -298,7 +299,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
         },
         {
           id: 'g-manager',
-          title: 'Add Genesis as a Manager',
+          title: 'Add Genovus as a Manager',
           why: 'This lets us post updates and answer reviews for you.',
           how: [
             'Open your Business Profile, then More, then Business Profile settings, then People and access.',

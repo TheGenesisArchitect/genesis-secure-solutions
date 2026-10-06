@@ -5,6 +5,8 @@ import { clientStep, type Step } from './channels';
 import type { Role } from './social-session';
 import { setupFor } from './social-setup';
 import { SOCIAL_TEMPLATE } from './templates';
+import { aiProvider } from './copy-ai';
+import { COPY_RULES, COPY_WARNINGS } from './copy-rules';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** JSON inside a <script> block: escape anything that could close the tag. */
@@ -38,6 +40,9 @@ export function renderSocialPage(c: Client, role: Role): string {
     role,
     // The console API sits under the console page so the browser sends the console sign-in with every call.
     api: role === 'operator' ? `/console/social/${c.slug}/api` : `/api/social/${c.token}`,
+    // Editable profile copy: limits and warnings mirror lib/copy-rules.ts; the server enforces the hard rules.
+    copyRules: { fields: COPY_RULES, warnings: COPY_WARNINGS },
+    suggestApi: aiProvider() && setup.kit ? (role === 'operator' ? `/console/social/${c.slug}/api/suggest` : `/api/social/${c.token}/suggest`) : '',
     storageKey: `gss-social-${c.slug}-v2`,
     clientFirst: c.firstName,
     operatorFirst: c.contactName.split(' ')[0] || 'Genesis',
@@ -56,7 +61,7 @@ export function renderSocialPage(c: Client, role: Role): string {
     kit: setup.kit,
     talk: role === 'operator' ? FIXED_TALK : {},
   };
-  const title = role === 'operator' ? `Console · ${c.fullName} social setup` : `${c.firstName} Social Setup · Genesis Secure Solutions`;
+  const title = role === 'operator' ? `Console · ${c.fullName} social setup` : `${c.firstName} Social Setup · Genovus`;
   const fill: Record<string, string> = { TITLE: esc(title), ROLE: role, CONFIG: safeJson(config) };
   return SOCIAL_TEMPLATE.replace(/\{\{([A-Z_]+)\}\}/g, (m, k: string) => (k in fill ? fill[k] : m));
 }
