@@ -45,6 +45,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
           title: 'Oversee',
           items: [
             { href: '/console/audit', label: 'Audit log' },
+            ...(v.staff.role === 'admin' ? [{ href: '/console/setup', label: 'Domains & email' }] : []),
             { href: '/console/meta', label: 'Meta connector' },
           ],
         },
