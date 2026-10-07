@@ -3,7 +3,9 @@
 // that has already checked permission (sign-in, invites) or a database event that queued it (outbox).
 import 'server-only';
 
-export const emailConfigured = () => Boolean(process.env.RESEND_API_KEY);
+// The Vercel variable was created as RESEND_GENOVOUS_API_KEY; RESEND_API_KEY is accepted too.
+const RESEND_KEY = () => process.env.RESEND_API_KEY || process.env.RESEND_GENOVOUS_API_KEY || '';
+export const emailConfigured = () => Boolean(RESEND_KEY());
 const FROM = () => process.env.EMAIL_FROM || 'Genovus <hello@genovus.io>';
 const REPLY_TO = () => process.env.EMAIL_REPLY_TO || 'hello@genovus.io';
 
@@ -14,7 +16,7 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${RESEND_KEY()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: FROM(), to: [m.to], reply_to: REPLY_TO(), subject: m.subject, html: m.html, text: m.text }),
       signal: AbortSignal.timeout(10_000),
     });
