@@ -2,6 +2,7 @@
 import { timingSafeEqual, createHash } from 'node:crypto';
 import mendez from '@/data/clients/mendez-hollis.json';
 import genovus from '@/data/clients/genovus.json';
+import demoBrooks from '@/data/clients/demo-brooks.json';
 
 /** A client record. The welcome-package fields are optional: internal records (Genovus itself) have none. */
 export type Client = {
@@ -14,6 +15,8 @@ export type Client = {
   contactName: string;
   /** Internal records run the social wizard for Genesis's own accounts; they never get a welcome package. */
   internal?: boolean;
+  /** A fictional agency used for demos and pitch films. Never real client data. */
+  demo?: boolean;
   film?: string;
   poster?: string;
   previewUrl?: string;
@@ -23,7 +26,7 @@ export type Client = {
 };
 type WelcomeClient = Client & Required<Pick<Client, 'film' | 'poster' | 'pricing' | 'handled'>>;
 
-const CLIENTS: Client[] = [mendez as unknown as Client, genovus as unknown as Client];
+const CLIENTS: Client[] = [mendez as unknown as Client, genovus as unknown as Client, demoBrooks as unknown as Client];
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/;
 

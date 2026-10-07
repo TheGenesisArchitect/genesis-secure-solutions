@@ -1,0 +1,57 @@
+{
+  "slug": "demo-brooks",
+  "token": "9CjuzKycyHlwBCmw4QHdyA",
+  "demo": true,
+  "firstName": "Avery",
+  "fullName": "Avery Brooks",
+  "office": "Brooks Family Insurance",
+  "plan": "Growth",
+  "contactName": "Anthony Beedles",
+  "film": "/demo/brooks/agency-film.mp4",
+  "poster": "/demo/brooks/brooks-poster.jpg",
+  "previewUrl": "",
+  "pricing": [
+    [
+      "Growth plan setup",
+      "$2,500"
+    ],
+    [
+      "Deposit received (70%)",
+      "$1,750"
+    ],
+    [
+      "Balance due at launch",
+      "$750"
+    ],
+    [
+      "Monthly care, from launch",
+      "$399/mo"
+    ]
+  ],
+  "handled": [
+    [
+      "Your site",
+      "A five-page site with booking, built from your agency profile."
+    ],
+    [
+      "Your profiles",
+      "Facebook, Instagram and Google set up with you, live on a call."
+    ],
+    [
+      "Your first month",
+      "Posts drafted from approved templates, ready for your approval."
+    ],
+    [
+      "Your numbers",
+      "Every lead tagged with where it came from, in one monthly report."
+    ]
+  ],
+  "social": {
+    "plan": [
+      "facebook",
+      "instagram",
+      "meta-partner",
+      "google"
+    ]
+  }
+}

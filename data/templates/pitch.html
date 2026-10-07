@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/png" href="/brand/genovus/genovus-favicon-64.png">
+<title>Genovus · The Platform, End to End</title>
+<style>
+/*@base*/
+/* Pitch storyboard: one long page a carrier or agency owner can scroll after (or instead of) the films.
+   Films first, then the ecosystem, the storyboard, onboarding, packages, the pilot and an honest roadmap. */
+body{padding-block:0 64px}
+.wrap{max-width:1180px;gap:56px}
+.wrap>*{min-width:0}
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding-block:22px 0}
+.hero h1{font-size:clamp(34px,5.4vw,64px);max-width:16ch}
+.hero .lede{font-size:clamp(17px,1.6vw,20px);max-width:64ch}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{font:600 14px var(--body);border-radius:999px;padding:9px 16px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--grad);color:var(--on-amber);border-color:transparent}
+video{width:100%;max-width:100%;aspect-ratio:16/9;border-radius:16px;background:#000;display:block;box-shadow:0 30px 90px rgba(0,0,0,.55),0 0 0 1px var(--line)}
+.note{font-size:13px;color:var(--muted);max-width:72ch}
+section>h2{margin-bottom:8px}
+.intro{color:var(--soft);max-width:68ch;margin-bottom:18px}
+.eco{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;overflow-x:auto}
+.eco svg{display:block;min-width:760px;width:100%;height:auto}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:16px}
+.sc{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:grid;align-content:start}
+.sc img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border-bottom:1px solid var(--line)}
+.sc .b{padding:14px 16px 16px;display:grid;gap:6px}
+.sc .k{display:flex;justify-content:space-between;gap:10px;align-items:center;font:500 12px/1 var(--mono);letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.sc h3{margin:0;font:800 18px/1.25 var(--display)}
+.sc p{color:var(--soft);font-size:15px}
+.chip{font:500 11px/1 var(--mono);letter-spacing:.14em;border-radius:999px;padding:5px 8px;text-transform:uppercase;white-space:nowrap}
+.chip.live{color:var(--teal);border:1px solid rgba(61,214,145,.55)}
+.chip.dev{color:var(--amber-2);border:1px solid rgba(255,163,26,.6)}
+.flow{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px;counter-reset:f}
+.flow li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;counter-increment:f;display:grid;gap:4px}
+.flow li::before{content:counter(f, decimal-leading-zero);font:500 12px var(--mono);letter-spacing:.2em;color:var(--link)}
+.flow b{font:800 15px var(--display)}
+.flow span{font-size:14px;color:var(--soft)}
+.flow li.live{border-color:rgba(61,214,145,.45)}
+.tbl-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:15px}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+td b{font:800 16px var(--display)}
+td .p{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+.pilot{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.pilot div{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:8px;align-content:start}
+.pilot h3{margin:0;font:800 17px var(--display)}
+.pilot ul{margin:0;padding-left:18px;color:var(--soft);display:grid;gap:4px;font-size:15px}
+.road{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.road div{border-radius:16px;padding:18px;border:1px solid var(--line);background:var(--surface)}
+.road h3{margin:0 0 10px;font:800 17px var(--display);display:flex;gap:10px;align-items:center}
+.road ul{margin:0;padding-left:18px;color:var(--soft);display:grid;gap:5px;font-size:15px}
+.cta{background:linear-gradient(135deg,rgba(255,90,32,.14),rgba(255,163,26,.06));border:1px solid rgba(255,106,43,.45);border-radius:20px;padding:26px;display:grid;gap:10px}
+.cta h2{margin:0}
+.foot{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top"><div class="brandbar"><img src="/brand/genovus/genovus-mark-128.png" alt=""><b>GENOVUS</b><span>The platform, end to end</span></div><span class="foot">A Genesis Secure Solutions brand</span></header>
+
+  <section class="hero">
+    <div class="eyebrow">For carriers, agency networks and their agents</div>
+    <h1>The right technology inside every agency.</h1>
+    <p class="lede">Genovus turns one agent record into a carrier-aware website, connected social profiles and tracked leads, set up live with the agent and approved before anything goes public. Automation does the repeatable work; people own the relationship.</p>
+  </section>
+
+  <section aria-label="Films">
+    <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true" data-film="ent">For carriers · 3 min</button><button class="tab" role="tab" aria-selected="false" data-film="agency">For agencies · 80 sec</button></div>
+    <div style="margin-top:14px"><video id="film" controls playsinline preload="metadata" poster="{{BASE}}/poster-ent.jpg" src="{{BASE}}/genovus-enterprise.mp4"></video></div>
+    <p class="note" style="margin-top:10px">The agency shown, Brooks Family Insurance, is fictional. Product screens are real; screens marked “in development” are concepts, and dashboard numbers are illustrative.</p>
+  </section>
+
+  <section>
+    <h2>One platform, the whole ecosystem</h2>
+    <p class="intro">Each layer gets what it needs without anyone giving up control of their own accounts.</p>
+    <div class="eco">{{ECO}}</div>
+  </section>
+
+  <section>
+    <h2>The storyboard</h2>
+    <p class="intro">Eleven scenes, from the gap agents face today to a network carriers can see. Each says whether it is live now or in development.</p>
+    <div class="board">{{BOARD}}</div>
+  </section>
+
+  <section>
+    <h2>Onboarding, consult to care</h2>
+    <p class="intro">Green steps run on the platform today; the rest are run by our team and move onto the platform next.</p>
+    <ol class="flow">{{FLOW}}</ol>
+  </section>
+
+  <section>
+    <h2>The right package for each audience</h2>
+    <p class="intro">Agencies pick a plan. Agent networks and carriers start with a group program or a pilot sized to them.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Package</th><th>Who it is for</th><th>Price</th><th>What it includes</th></tr></thead><tbody>{{PLANS}}</tbody></table></div>
+  </section>
+
+  <section>
+    <h2>A 90-day pilot</h2>
+    <p class="intro">For a carrier or agent network, the first step is a paid pilot with a group of agencies, with terms set together.</p>
+    <div class="pilot">
+      <div><h3>What we deliver</h3><ul><li>Each pilot agency set up live: site, profiles and Google listing</li><li>Your wording rules built into every agency's copy</li><li>Approval before anything goes public</li><li>A pilot report at day 90</li></ul></div>
+      <div><h3>What we measure</h3><ul><li>Days from intake to live, per agency</li><li>Specialist hours per agency</li><li>Approval turnaround</li><li>Leads tracked to their source</li></ul></div>
+      <div><h3>What we ask of you</h3><ul><li>A named contact for brand and compliance</li><li>Your approved wording and templates</li><li>An introduction to the pilot agencies</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Roadmap</h2>
+    <p class="intro">What runs today and what we are building next, so you know exactly what you are buying.</p>
+    <div class="road">{{ROAD}}</div>
+  </section>
+
+  <section class="cta">
+    <h2>Let's put the right technology inside your agencies.</h2>
+    <p class="lede" style="font-size:17px">Start with a 90-day pilot, or book a setup call for a single agency.</p>
+    <p class="foot">Genovus is a Genesis Secure Solutions brand. Genovus does not quote, bind or give insurance advice; quotes and policy service stay with each carrier's approved channels.</p>
+  </section>
+</main>
+<script>
+(function () {
+  const v = document.getElementById('film');
+  const films = { ent: ['{{BASE}}/genovus-enterprise.mp4', '{{BASE}}/poster-ent.jpg'], agency: ['{{BASE}}/genovus-agency.mp4', '{{BASE}}/poster-agency.jpg'] };
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    const f = films[b.dataset.film]; v.pause(); v.poster = f[1]; v.src = f[0]; v.load();
+  }));
+})();
+</script>
+</body>
+</html>
