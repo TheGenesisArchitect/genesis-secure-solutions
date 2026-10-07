@@ -24,6 +24,12 @@ function diff(a: Record<string, unknown> | null, b: Record<string, unknown>) {
   });
 }
 
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const { data } = await (await db()).from('tenants').select('name').eq('slug', slug).maybeSingle();
+  return { title: data?.name ?? 'Client' };
+}
+
 export default async function ClientPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ tab?: string; ok?: string; err?: string }> }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -146,7 +152,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                           <input type="hidden" name="tenant" value={t.id} />
                           <input type="hidden" name="kind" value={x.kind} />
                           <input type="hidden" name="back" value={here} />
-                          <select className="select" name="status" defaultValue={x.status} style={{ width: 'auto' }} aria-label={`${GATE_LABEL[x.kind]} status`}>
+                          <select className="select" name="status" defaultValue={x.status} style={{ width: 'auto', minWidth: 116 }} aria-label={`${GATE_LABEL[x.kind]} status`}>
                             {['open', 'cleared', 'blocked', 'waived'].map((s) => <option key={s}>{s}</option>)}
                           </select>
                           <input className="input" name="evidence" placeholder="Evidence" style={{ minWidth: 140 }} maxLength={1000} />

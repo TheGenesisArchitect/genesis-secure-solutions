@@ -23,8 +23,12 @@ export default async function AgencyHome({ params }: { params: Promise<{ slug: s
   const base = `/app/${slug}`;
   const next: { label: string; href: string }[] = [];
   for (const a of approvals ?? []) next.push({ label: `Approve: ${a.title}`, href: `${base}/approvals` });
-  for (const s of live.welcome?.steps ?? []) if (!s.done) next.push({ label: s.label, href: live.welcome!.url });
-  if (live.social && live.social.done < live.social.total) next.push({ label: `Finish social setup (${live.social.done} of ${live.social.total})`, href: live.social.clientUrl });
+  // Once an agency is live, setup is finished: never ask a launched client for setup steps.
+  const launched = t?.stage === 'care';
+  if (!launched) {
+    for (const s of live.welcome?.steps ?? []) if (!s.done) next.push({ label: s.label, href: live.welcome!.url });
+    if (live.social && live.social.done < live.social.total) next.push({ label: `Finish social setup (${live.social.done} of ${live.social.total})`, href: live.social.clientUrl });
+  }
   const latest = kpis?.[0];
   const sample = ctx.tenant.isSample;
   return (
@@ -36,7 +40,7 @@ export default async function AgencyHome({ params }: { params: Promise<{ slug: s
         <Tile label="Posts this month" value={<span className="num">{content?.length ?? 0}</span>} hint="Drafted, approved or published" sample={sample && !!content?.length} />
       </div>
       <div className="grid g2">
-        <Panel title="Your next steps" sub="The shortest path to live, in order">
+        <Panel title="Your next steps" sub={launched ? 'What needs you next' : 'The shortest path to live, in order'}>
           {next.length ? (
             <ol className="steps">
               {next.slice(0, 3).map((n, i) => (
@@ -46,19 +50,20 @@ export default async function AgencyHome({ params }: { params: Promise<{ slug: s
           ) : <Empty title="You’re all caught up">We will let you know when something needs you.</Empty>}
         </Panel>
         <Panel title="Setup" sub="Updates live as you and our team finish each step" actions={<Link className="btn small" href={`${base}/setup`}>Details</Link>}>
-          {live.welcome ? (
+          {launched ? <p className="soft">Setup is complete and you are live. Changes now go through monthly care.</p> : null}
+          {!launched && live.welcome ? (
             <div style={{ display: 'grid', gap: 6 }}>
               <div className="spread"><span>Welcome guide</span><span className="muted num">{live.welcome.done}/{live.welcome.total}</span></div>
               <Bar value={live.welcome.done} total={live.welcome.total} done={live.welcome.done === live.welcome.total} />
             </div>
           ) : null}
-          {live.social ? (
+          {!launched && live.social ? (
             <div style={{ display: 'grid', gap: 6 }}>
               <div className="spread"><span>Social profiles</span><span className="muted num">{live.social.done}/{live.social.total}</span></div>
               <Bar value={live.social.done} total={live.social.total} done={live.social.done === live.social.total} />
             </div>
           ) : null}
-          {!live.welcome && !live.social ? <p className="soft">{sample ? 'Sample agency: setup is complete and the agency is in monthly care.' : 'Your setup guide appears here once your deposit clears.'}</p> : null}
+          {!launched && !live.welcome && !live.social ? <p className="soft">Your setup guide appears here once your deposit clears.</p> : null}
         </Panel>
       </div>
       <Panel title="This month’s results" sub={latest ? `Month of ${new Date(latest.period + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : undefined} actions={<Link className="btn small" href={`${base}/performance`}>Performance</Link>}>

@@ -12,8 +12,10 @@ const url = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
 const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const sbKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !sbUrl || !sbKey) throw new Error('Missing Supabase env: run `vercel env pull .env.local` first');
-const sql = postgres(url, { ssl: 'require', max: 1, onnotice: () => {} });
+const sql = postgres(url, { ssl: 'require', max: 1, onnotice: () => {}, transform: { undefined: null } });
 const admin = createClient(sbUrl, sbKey, { auth: { persistSession: false } });
+// Multi-row inserts take their columns from the first row, so give every row every column.
+const ins = (list) => { const keys = [...new Set(list.flatMap(Object.keys))]; return sql(list.map((r) => Object.fromEntries(keys.map((k) => [k, r[k] ?? null])))); };
 const read = (p) => JSON.parse(fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'));
 
 const mendez = read('data/clients/mendez-hollis.json');
@@ -92,7 +94,7 @@ try {
       on conflict (tenant_id, kind) do nothing`;
   }
   if (!(await sql`select 1 from invoices where tenant_id = ${mid}`).length) {
-    await sql`insert into invoices ${sql([
+    await sql`insert into invoices ${ins([
       { tenant_id: mid, kind: 'deposit', amount_cents: 37_500, status: 'paid', note: 'VIP Launch price $1,000' },
       { tenant_id: mid, kind: 'balance', amount_cents: 62_500, status: 'open', note: 'Due on completion, before launch' },
     ])}`;
@@ -102,7 +104,7 @@ try {
       requested_at: new Date('2026-10-06T18:30:00Z'), decided_at: new Date('2026-10-06T19:32:00Z'), decision_note: 'Approved in the live setup wizard during the onboarding call' })}`;
   }
   if (!(await sql`select 1 from lifecycle_events where tenant_id = ${mid}`).length) {
-    await sql`insert into lifecycle_events ${sql([
+    await sql`insert into lifecycle_events ${ins([
       { tenant_id: mid, from_stage: null, to_stage: 'deposit', note: 'VIP Launch sold', at: new Date('2026-10-03T12:00:00Z') },
       { tenant_id: mid, from_stage: 'deposit', to_stage: 'intake', note: '$375 deposit paid; welcome package sent', at: new Date('2026-10-05T12:00:00Z') },
     ])}`;
@@ -124,13 +126,13 @@ try {
   await sql`delete from network_tenants where network_id in (select id from networks where is_sample)`;
   await sql`delete from networks where is_sample`;
   const samples = [
-    { slug: 'demo-brooks', name: 'Brooks Family Insurance', stage: 'care', plan: 'growth', care: 'Growth Care', base: 1.0 },
-    { slug: 'sample-harbor-point', name: 'Harbor Point Insurance', stage: 'care', plan: 'premium', care: 'Optimization Care', base: 1.6 },
-    { slug: 'sample-ridgeview', name: 'Ridgeview Family Agency', stage: 'care', plan: 'launch', care: 'Essential Care', base: 0.6 },
-    { slug: 'sample-magnolia', name: 'Magnolia Lane Insurance', stage: 'review', plan: 'growth', care: null, base: 0 },
-    { slug: 'sample-delgado', name: 'Delgado & Sons Insurance', stage: 'build', plan: 'launch', care: null, base: 0 },
-    { slug: 'sample-summit', name: 'Summit Street Agency', stage: 'intake', plan: 'growth', care: null, base: 0 },
-    { slug: 'sample-bluewater', name: 'Bluewater Coverage Group', stage: 'consult', plan: null, care: null, base: 0 },
+    { slug: 'demo-brooks', town: 'Riverside', name: 'Brooks Family Insurance', stage: 'care', plan: 'growth', care: 'Growth Care', base: 1.0 },
+    { slug: 'sample-harbor-point', town: 'Harbor Point', name: 'Harbor Point Insurance', stage: 'care', plan: 'premium', care: 'Optimization Care', base: 1.6 },
+    { slug: 'sample-ridgeview', town: 'Ridgeview', name: 'Ridgeview Family Agency', stage: 'care', plan: 'launch', care: 'Essential Care', base: 0.6 },
+    { slug: 'sample-magnolia', town: 'Magnolia', name: 'Magnolia Lane Insurance', stage: 'review', plan: 'growth', care: null, base: 0 },
+    { slug: 'sample-delgado', town: 'Eastside', name: 'Delgado & Sons Insurance', stage: 'build', plan: 'launch', care: null, base: 0 },
+    { slug: 'sample-summit', town: 'Summit', name: 'Summit Street Agency', stage: 'intake', plan: 'growth', care: null, base: 0 },
+    { slug: 'sample-bluewater', town: 'Bluewater Bay', name: 'Bluewater Coverage Group', stage: 'consult', plan: null, care: null, base: 0 },
   ];
   const [net] = await sql`insert into networks (slug, name, kind, is_sample) values ('sample-carrier-network', 'Sample Carrier Network', 'carrier', true) returning id`;
   const PLAN_SETUP = { launch: 150_000, growth: 250_000, premium: 500_000 };
@@ -152,7 +154,7 @@ try {
     await sql`insert into lifecycle_events (tenant_id, from_stage, to_stage, note) values (${id}, null, ${s.stage}, 'Sample')`;
     if (s.plan && stageIx >= 3) {
       const setup = PLAN_SETUP[s.plan];
-      await sql`insert into invoices ${sql([
+      await sql`insert into invoices ${ins([
         { tenant_id: id, kind: 'deposit', amount_cents: Math.round(setup * 0.7), status: 'paid', note: '70% to start', paid_at: new Date('2026-08-20T15:00:00Z') },
         { tenant_id: id, kind: 'balance', amount_cents: Math.round(setup * 0.3), status: live ? 'paid' : 'open', note: '30% at launch', paid_at: live ? new Date('2026-09-10T15:00:00Z') : null },
         ...(live ? [{ tenant_id: id, kind: 'care', amount_cents: PLAN_CARE[s.plan], status: 'paid', note: `${s.care}, October`, paid_at: new Date('2026-10-01T15:00:00Z') }] : []),
@@ -173,19 +175,19 @@ try {
         ['instagram', 'Meet the team behind the desk. Hablamos español. 👋', 'published', 6],
         ['facebook', 'New driver at home? Here is what to ask about before they take the keys.', 'scheduled', 14],
         ['instagram', 'Storm season reminder: photos of your home and car today make any claim easier later.', 'in_review', 21],
-        ['facebook', 'Thank you, neighbors, for a great first year in Riverside.', 'draft', 28],
+        ['facebook', `Thank you, neighbors, for a great first year in ${s.town}.`, 'draft', 28],
       ];
       await sql`insert into content_items ${sql(posts.map(([channel, copy, status, d]) => ({ tenant_id: id, channel, copy, status, scheduled_for: day(d), is_sample: true })))}`;
-      await sql`insert into approvals ${sql([
+      await sql`insert into approvals ${ins([
         { tenant_id: id, subject_kind: 'post', title: 'Instagram post: storm season reminder', body: sql.json({ text: posts[3][1], channel: 'Instagram', when: 'Oct 21' }), lane: 'required', approver: 'client', status: 'pending', requested_at: new Date(Date.now() - 26 * 3_600_000), is_sample: true },
         { tenant_id: id, subject_kind: 'post', title: 'Facebook post: thank you, neighbors', body: sql.json({ text: posts[4][1], channel: 'Facebook', when: 'Oct 28' }), lane: 'required', approver: 'client', status: 'pending', requested_at: new Date(Date.now() - 5 * 3_600_000), is_sample: true },
-        { tenant_id: id, subject_kind: 'copy', title: 'Instagram bio refresh', body: sql.json({ field: 'igBio', text: 'Your neighborhood agency\nThe best rates in Riverside, guaranteed\nAuto · Home · Renters' }), lane: 'queued', approver: 'team', status: 'pending', requested_at: new Date(Date.now() - 50 * 3_600_000), is_sample: true },
-        { tenant_id: id, subject_kind: 'report', title: 'September monthly report', body: sql.json({ text: 'Leads up month over month; response time is the weakest link. Proposed improvement: turn on instant callback alerts to the office phone.' }), lane: 'queued', approver: 'team', status: 'pending', requested_at: new Date(Date.now() - 20 * 3_600_000), is_sample: true },
+        ...(s.slug === 'demo-brooks' ? [{ tenant_id: id, subject_kind: 'copy', title: 'Instagram bio refresh', body: sql.json({ field: 'igBio', text: `Your neighborhood agency\nThe best rates in ${s.town}, guaranteed\nAuto · Home · Renters` }), lane: 'queued', approver: 'team', status: 'pending', requested_at: new Date(Date.now() - 50 * 3_600_000), is_sample: true }] : []),
+        { tenant_id: id, subject_kind: 'report', title: 'September monthly report', body: sql.json({ text: 'Leads and calls up month over month, and replies got faster. Proposed improvement: turn on instant callback alerts to the office phone to cut response time further.' }), lane: 'queued', approver: 'team', status: 'pending', requested_at: new Date(Date.now() - 20 * 3_600_000), is_sample: true },
         { tenant_id: id, subject_kind: 'post', title: 'Facebook post: fall coverage check', body: sql.json({ text: posts[0][1] }), lane: 'required', approver: 'client', status: 'approved', requested_at: new Date('2026-09-28T14:00:00Z'), decided_at: new Date('2026-09-29T09:00:00Z'), decision_note: 'Looks great', is_sample: true },
       ])}`;
-      await sql`insert into care_requests ${sql([
+      await sql`insert into care_requests ${ins([
         { tenant_id: id, kind: 'change', title: 'Update Saturday office hours', detail: 'We now open 9 to 1 on Saturdays.', status: 'in_progress', is_sample: true },
-        { tenant_id: id, kind: 'content', title: 'Post for our community fair booth', detail: 'Saturday the 18th, Riverside park.', status: 'new', is_sample: true },
+        { tenant_id: id, kind: 'content', title: 'Post for our community fair booth', detail: `Saturday the 18th, ${s.town} park.`, status: 'new', is_sample: true },
         { tenant_id: id, kind: 'report', title: 'Why did calls dip mid-September?', status: 'done', is_sample: true },
       ])}`;
     } else if (stageIx >= 4) {

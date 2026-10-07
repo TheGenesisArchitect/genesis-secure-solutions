@@ -215,3 +215,4 @@ details>summary{cursor:pointer;color:var(--soft)}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:14px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:700px){.sec{padding:52px 0}.hero{padding:36px 0 24px}.site-nav nav a:not(.btn){display:none}}
+.list>li>.chip{justify-self:start}

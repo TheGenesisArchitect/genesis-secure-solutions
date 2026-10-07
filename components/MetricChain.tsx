@@ -16,9 +16,9 @@ export function chainLinks(m: Metrics) {
     { k: 'Reach', v: n((m.visits ?? 0) + (m.reach ?? 0)), raw: (m.visits ?? 0) + (m.reach ?? 0), sub: `${n(m.visits)} site visits` },
     { k: 'Engagement', v: n(m.engagement), raw: m.engagement ?? 0, sub: 'Post and profile actions' },
     { k: 'Actions', v: n(actions), raw: actions, sub: `${n(m.calls)} calls · ${n(m.callbacks)} callbacks` },
-    { k: 'Response', v: m.responseMinutes != null ? `${m.responseMinutes}m` : '—', raw: m.responseMinutes != null ? -m.responseMinutes : 0, sub: 'Median time to first reply' },
+    { k: 'Response', lowerIsBetter: true, v: m.responseMinutes != null ? `${m.responseMinutes}m` : '—', raw: m.responseMinutes != null ? -m.responseMinutes : 0, sub: 'Median time to first reply' },
     { k: 'Outcomes', v: `${n(m.quotes)} / ${n(m.policies)}`, raw: m.policies ?? 0, sub: 'Quotes / policies (staff-logged)' },
-    { k: 'Efficiency', v: cpl != null ? `$${cpl.toFixed(0)}` : '—', raw: cpl != null ? -cpl : 0, sub: 'Cost per lead' },
+    { k: 'Efficiency', lowerIsBetter: true, v: cpl != null ? `$${cpl.toFixed(0)}` : '—', raw: cpl != null ? -cpl : 0, sub: 'Cost per lead' },
   ];
 }
 
@@ -47,7 +47,7 @@ export function MetricChain({ m, prev, sample }: { m: Metrics; prev?: Metrics; s
               <span className="k">{l.k}</span>
               <span className="v">{l.v}</span>
               <span className="muted" style={{ fontSize: 12 }}>{l.sub}</span>
-              {delta != null && delta !== 0 ? <span style={{ fontSize: 12, color: delta > 0 ? 'var(--done)' : 'var(--bad)' }}>{delta > 0 ? '▲' : '▼'} {Math.abs(delta)}% vs last month</span> : null}
+              {delta != null && delta !== 0 ? <span style={{ fontSize: 12, color: delta > 0 ? 'var(--done)' : 'var(--bad)' }}>{(l.lowerIsBetter ? delta < 0 : delta > 0) ? '▲' : '▼'} {Math.abs(delta)}% vs last month</span> : null}
             </div>
           );
         })}

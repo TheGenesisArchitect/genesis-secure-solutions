@@ -19,7 +19,8 @@ export default async function Setup({ params }: { params: Promise<{ slug: string
   const { slug } = await params;
   const ctx = await agencyContext(slug);
   const supabase = await db();
-  const [{ data: gates }, live] = await Promise.all([
+  const [{ data: t }, { data: gates }, live] = await Promise.all([
+    supabase.from('tenants').select('stage').eq('id', ctx.tenant.tenantId).single(),
     supabase.from('gates').select('kind, status, cleared_at').eq('tenant_id', ctx.tenant.tenantId).order('kind'),
     liveSetup(slug),
   ]);
@@ -28,7 +29,8 @@ export default async function Setup({ params }: { params: Promise<{ slug: string
   return (
     <AgencyShell ctx={ctx} title="Setup">
       {live.error ? <div className="notice err">{live.error}</div> : null}
-      <div className="grid g2">
+      {t?.stage === 'care' ? <div className="notice ok"><b>Setup is complete and you are live.</b> Changes now go through monthly care; the record below is kept for reference.</div> : null}
+      {t?.stage !== 'care' ? <div className="grid g2">
         <Panel title="Your welcome guide" sub={live.welcome?.updatedAt ? `Last updated ${dateTime(live.welcome.updatedAt)}` : 'The steps from your welcome package'}>
           {live.welcome ? (
             <>
@@ -52,7 +54,7 @@ export default async function Setup({ params }: { params: Promise<{ slug: string
             </>
           ) : <Empty title="Not part of your setup yet" />}
         </Panel>
-      </div>
+      </div> : null}
       <Panel title="Launch checklist" sub={`${cleared} of ${g.length} cleared. Nothing goes public until every item is cleared.`}>
         <Bar value={cleared} total={g.length} done={cleared === g.length && g.length > 0} />
         <div className="table-wrap">
