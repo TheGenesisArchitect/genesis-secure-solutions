@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async rewrites() {
     return [
-      { source: '/', destination: '/film/index.html' },
       { source: '/film', destination: '/film/index.html' },
     ];
   },
