@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireNetwork } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { Shell } from '@/components/Shell';
+import { EcosystemSwitcher } from '@/components/EcosystemSwitcher';
 import { Panel, Tile, Chip, Bar, Empty, STAGES, STAGE_LABEL, PLAN_LABEL, daysSince, type Stage } from '@/components/ui';
 
 export const metadata = { title: 'Network' };
@@ -33,9 +34,9 @@ export default async function NetworkView() {
       home="/network"
       title={networks.length === 1 ? networks[0] : 'Network portfolio'}
       who={{ name: v.staff?.name ?? v.email, detail: v.staff ? 'Genovus team' : 'Network partner' }}
+      switcher={<EcosystemSwitcher current="carrier" />}
       nav={[
         { items: [{ href: '/network', label: 'Portfolio', exact: true }] },
-        ...(v.staff ? [{ title: 'Genovus team', items: [{ href: '/console', label: 'Back to console' }] }] : []),
       ]}
     >
       {sample ? <div className="notice sample"><b>Sample network.</b> These agencies are fictional and every number is illustrative. A real network view starts with a pilot.</div> : null}

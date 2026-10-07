@@ -216,3 +216,32 @@ details>summary{cursor:pointer;color:var(--soft)}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:700px){.sec{padding:52px 0}.hero{padding:36px 0 24px}.site-nav nav a:not(.btn){display:none}}
 .list>li>.chip{justify-self:start}
+
+/* ---------- ecosystem switcher: a short vertical list at the top of the rail ---------- */
+.eco{display:grid;gap:2px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--sunk)}
+.eco::before{content:"Workspace";font:500 9.5px/1 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--muted);padding:4px 6px 6px}
+.eco>a,.eco summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:9px;font:600 13.5px/1.2 var(--body);color:var(--soft);text-decoration:none;cursor:pointer;list-style:none}
+.eco summary::-webkit-details-marker{display:none}
+.eco summary::after{content:"▾";font-size:11px;color:var(--muted)}
+.eco details[open] summary::after{content:"▴"}
+.eco>a:hover,.eco summary:hover{color:var(--ink);background:var(--raise)}
+.eco [aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:inset 3px 0 0 var(--accent)}
+.eco-menu{min-width:0}
+.eco-menu summary{overflow:hidden}
+.eco .eco-list{position:static;box-shadow:none;border:0;background:none;padding:2px 0 4px 10px;min-width:0;max-height:260px}
+.eco-list{position:absolute;left:0;top:calc(100% + 6px);z-index:30;min-width:230px;max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:grid;gap:2px}
+.eco-list a{padding:7px 10px;border-radius:8px;color:var(--soft);text-decoration:none;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.eco-list a:hover,.eco-list a[aria-current="page"]{background:var(--raise);color:var(--ink)}
+.login-menu{position:relative}
+.login-menu>summary{list-style:none}
+.login-menu>summary::-webkit-details-marker{display:none}
+.login-menu .eco-list{min-width:260px}
+.doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+.door{display:grid;gap:4px;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:var(--surface);text-decoration:none;color:var(--ink)}
+.door:hover{border-color:var(--accent)}
+.door b{font:800 15px var(--display)}
+.door span{color:var(--soft);font-size:14px}
+@media (max-width:700px){.site-nav nav .login-menu{display:block}}
+.skel{border-radius:12px;background:linear-gradient(90deg,var(--surface),var(--raise),var(--surface));background-size:200% 100%;animation:skel 1.2s ease-in-out infinite}
+@keyframes skel{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (max-width:700px){.list .btn.good,.list .btn{min-height:44px}}

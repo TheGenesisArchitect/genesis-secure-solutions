@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Empty, dateTime, daysSince } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
-import { decideApproval } from '@/lib/actions';
+import { decideApproval, bulkApprove } from '@/lib/actions';
 import { checkCopy } from '@/lib/copy-checks';
 
 export const metadata = { title: 'Approval queue' };
@@ -16,12 +16,23 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
   ]);
   const t = new Map((tenants ?? []).map((x) => [x.id, x]));
   const team = (data ?? []).filter((a) => a.approver === 'team');
+  // Items that passed every rule and sit in the queued lane can be cleared together (the spec staffing model).
+  const clean = team.filter((a) => a.lane === 'queued' && (typeof a.body?.text !== 'string' || checkCopy(a.body.text as string, typeof a.body?.field === 'string' ? (a.body.field as string) : undefined).length === 0));
   const client = (data ?? []).filter((a) => a.approver === 'client');
   return (
     <ConsoleShell title="Approval queue" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Approval queue' }]}>
       <Flash ok={sp.ok} err={sp.err} />
       <p className="soft">Nothing leaves the building without a person. Drafts arrive pre-checked; anything that fails a rule is flagged before you read it.</p>
-      <Panel title="Waiting on the team" sub={`${team.length} item${team.length === 1 ? '' : 's'}, oldest first`}>
+      <Panel
+        title="Waiting on the team"
+        sub={`${team.length} item${team.length === 1 ? '' : 's'}, oldest first`}
+        actions={clean.length > 1 ? (
+          <form action={bulkApprove}>
+            {clean.map((a) => <input key={a.id} type="hidden" name="id" value={a.id} />)}
+            <button className="btn good small" type="submit">Approve all {clean.length} that passed every rule</button>
+          </form>
+        ) : null}
+      >
         {team.length ? (
           <ul className="list">
             {team.map((a) => {

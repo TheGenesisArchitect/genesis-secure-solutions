@@ -83,12 +83,44 @@ try {
   }
   check('anonymous cannot call functions', !!(await anon.rpc('network_portfolio')).error);
 
+  // Staff roles are enforced in the database, not just the pages.
+  for (const [k, role] of [['operator', 'operator'], ['reviewer', 'reviewer'], ['lead', 'account_lead']]) {
+    users[k] = (await admin.auth.admin.createUser({ email: `rls-${k}-${stamp}@example.com`, email_confirm: true })).data.user;
+    await admin.from('staff').insert({ user_id: users[k].id, role, display_name: `RLS ${k}` });
+  }
+  const operator = await signedIn(`rls-operator-${stamp}@example.com`);
+  const reviewer = await signedIn(`rls-reviewer-${stamp}@example.com`);
+  const lead = await signedIn(`rls-lead-${stamp}@example.com`);
+  check('operator cannot move a stage', !!(await operator.rpc('move_stage', { p_tenant: ridge, p_to: 'care' })).error);
+  check('operator cannot change a gate', !!(await operator.rpc('set_gate', { p_tenant: ridge, p_kind: 'domain', p_status: 'cleared' })).error);
+  check('operator cannot convert an inquiry', !!(await operator.rpc('convert_inquiry', { p_id: '00000000-0000-0000-0000-000000000000', p_slug: 'x-test' })).error?.message.includes('admin'));
+  check('reviewer can change a gate', !(await reviewer.rpc('set_gate', { p_tenant: ridge, p_kind: 'domain', p_status: 'open' })).error);
+  check('account lead can move a stage', !(await lead.rpc('move_stage', { p_tenant: ridge, p_to: 'care', p_note: 'RLS test' })).error);
+  check('staff of any role read every tenant', ((await operator.from('tenants').select('id')).data ?? []).length >= 9);
+
+  // Platform internals stay internal.
+  check('owner cannot read the email outbox', ((await owner.from('outbox').select('id')).data ?? []).length === 0);
+  check('owner cannot read welcome links', ((await owner.from('client_links').select('id')).data ?? []).length === 0);
+  check('signed-in users cannot probe sign-in eligibility', !!(await owner.rpc('signin_user_id', { p_email: emails.owner })).error);
+  check('anonymous cannot run the audit check', !!(await anon.rpc('verify_audit_chain')).error);
+  const { data: broken } = await lead.rpc('verify_audit_chain', { p_full: true });
+  check('audit chain verifies in full', broken === null, `first broken id: ${broken}`);
+
+  // A client approval on a real (non-sample) agency queues an email to its owner, exactly once.
+  const { data: tmp } = await admin.from('tenants').insert({ slug: `rls-tmp-${stamp}`, name: 'RLS temp agency' }).select('id').single();
+  await admin.from('memberships').insert({ tenant_id: tmp.id, user_id: users.owner.id, role: 'owner' });
+  const { data: appr } = await admin.from('approvals').insert({ tenant_id: tmp.id, subject_kind: 'post', title: 'RLS outbox check', lane: 'required', approver: 'client' }).select('id').single();
+  const { data: mail } = await admin.from('outbox').select('to_email, template').like('dedupe_key', `approval:${appr.id}:%`);
+  check('client approval queues one owner email', (mail ?? []).length === 1 && mail[0].template === 'approval_waiting' && mail[0].to_email === emails.owner);
+  await admin.from('tenants').delete().eq('id', tmp.id);
+
   // The audit log refuses edits and deletes, even with the service key.
   const last = (await admin.from('audit_events').select('id').order('id', { ascending: false }).limit(1)).data[0];
   check('audit log rejects update', !!(await admin.from('audit_events').update({ action: 'tamper' }).eq('id', last.id)).error);
   check('audit log rejects delete', !!(await admin.from('audit_events').delete().eq('id', last.id)).error);
 } finally {
   for (const u of Object.values(users)) if (u) await admin.auth.admin.deleteUser(u.id);
+  await admin.from('tenants').delete().like('slug', 'rls-tmp-%');
   await admin.from('care_requests').delete().eq('title', 'RLS test request');
 }
 console.log(fails ? `\n${fails} check(s) FAILED` : '\nAll checks passed');

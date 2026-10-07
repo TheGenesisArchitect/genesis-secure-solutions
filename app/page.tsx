@@ -3,6 +3,7 @@ import { SiteChrome } from '@/components/SiteChrome';
 import { Chip } from '@/components/ui';
 import { SCENES } from '@/data/story';
 import { PLANS, ADD_ONS, RESPONSE_TIMES } from '@/data/offers';
+import { doors } from '@/lib/surfaces';
 
 export const metadata = { title: { absolute: 'Genovus · The right technology inside every agency' } };
 
@@ -35,7 +36,8 @@ const TRUST = [
   ['We never give insurance advice', 'No quoting, binding or policy advice. Quote buttons hand off to the carrier.'],
 ];
 
-export default function Home() {
+export default async function Home() {
+  const d = await doors();
   return (
     <SiteChrome>
       <main>
@@ -53,6 +55,11 @@ export default function Home() {
             Your browser can’t play this film.
           </video>
           <p className="muted" style={{ fontSize: 13 }}>The agency in the film, Brooks Family Insurance, is fictional. Product screens are real; screens marked “In development” are concepts.</p>
+          <div className="doors" aria-label="Already a client?">
+            <a className="door" href={d.agency}><b>Agency dashboard →</b><span>Your setup, approvals, monthly care and results.</span></a>
+            <a className="door" href={d.carrier}><b>Carrier &amp; network portal →</b><span>Every office in your network, at a glance.</span></a>
+            <a className="door" href={d.team}><b>Genovus team →</b><span>The enterprise console.</span></a>
+          </div>
         </section>
 
         <section className="wrapx sec" id="platform">

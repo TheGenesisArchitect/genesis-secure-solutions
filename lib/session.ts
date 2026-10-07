@@ -3,6 +3,8 @@
 import 'server-only';
 import { cache } from 'react';
 import { redirect, notFound } from 'next/navigation';
+import { headers } from 'next/headers';
+import { safeNext } from './safe-next';
 import { db } from './supabase/server';
 import { supabaseConfigured } from './supabase/env';
 
@@ -53,7 +55,10 @@ export function homeFor(v: Viewer): string {
 
 export async function requireViewer(): Promise<Viewer> {
   const v = await getViewer();
-  if (!v) redirect('/signin');
+  if (!v) {
+    const next = safeNext((await headers()).get('x-pathname'));
+    redirect(next ? `/signin?next=${encodeURIComponent(next)}` : '/signin');
+  }
   return v;
 }
 

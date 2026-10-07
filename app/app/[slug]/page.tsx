@@ -1,11 +1,18 @@
 import Link from 'next/link';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
-import { Panel, Tile, Chip, Bar, Empty, STAGE_LABEL, PLAN_LABEL, dateTime, type Stage } from '@/components/ui';
+import { Panel, Tile, Chip, Bar, Empty, STAGES, STAGE_LABEL, PLAN_LABEL, dateTime, type Stage } from '@/components/ui';
 import { MetricChain, type Metrics } from '@/components/MetricChain';
 import { db } from '@/lib/supabase/server';
 import { liveSetup } from '@/lib/live-setup';
 
 export const metadata = { title: 'Home' };
+
+const STAGE_HELP: Record<Stage, string> = {
+  attract: 'You found us.', consult: 'A short call about your office and goals.', propose: 'Your plan and price, in writing.', deposit: '70% to start; your welcome package follows right away.',
+  intake: 'Your welcome guide: portrait, draft review, social setup, domain, kickoff.', build: 'We build your site, copy and profiles from your record.',
+  review: 'You (and your carrier) approve before anything goes live.', care: 'Live: monthly posts, results and one improvement a month.',
+};
+
 
 export default async function AgencyHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -20,6 +27,8 @@ export default async function AgencyHome({ params }: { params: Promise<{ slug: s
     supabase.from('kpi_snapshots').select('period, metrics, is_sample').eq('tenant_id', tid).order('period', { ascending: false }).limit(2),
     liveSetup(slug),
   ]);
+  const { data: lead } = await supabase.rpc('my_account_lead', { p_tenant: tid });
+  const contact = (lead as { name: string; email: string }[] | null)?.[0];
   const base = `/app/${slug}`;
   const next: { label: string; href: string }[] = [];
   for (const a of approvals ?? []) next.push({ label: `Approve: ${a.title}`, href: `${base}/approvals` });
@@ -39,6 +48,16 @@ export default async function AgencyHome({ params }: { params: Promise<{ slug: s
         <Tile label="Waiting on you" value={<span className="num">{approvals?.length ?? 0}</span>} hint="Approvals only you can give" />
         <Tile label="Posts this month" value={<span className="num">{content?.length ?? 0}</span>} hint="Drafted, approved or published" sample={sample && !!content?.length} />
       </div>
+      {!launched ? (
+        <Panel title="Here’s what happens next" sub={contact ? `Your Genovus contact: ${contact.name} · ${contact.email}` : 'Your Genovus team guides every step'}>
+          <ol className="lifecycle">
+            {STAGES.map((s) => {
+              const ix = STAGES.indexOf(s), cur = STAGES.indexOf((t?.stage ?? 'attract') as Stage);
+              return <li key={s} className={ix < cur ? 'auto' : ''} style={ix === cur ? { borderColor: 'var(--accent)', boxShadow: 'inset 0 0 0 1px var(--accent)' } : undefined} aria-current={ix === cur ? 'step' : undefined}><b>{STAGE_LABEL[s]}{ix === cur ? ' · you are here' : ''}</b><span>{STAGE_HELP[s]}</span></li>;
+            })}
+          </ol>
+        </Panel>
+      ) : null}
       <div className="grid g2">
         <Panel title="Your next steps" sub={launched ? 'What needs you next' : 'The shortest path to live, in order'}>
           {next.length ? (

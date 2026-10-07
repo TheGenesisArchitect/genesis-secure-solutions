@@ -55,7 +55,7 @@ export function IntakeForm({ kind, defaults }: { kind: 'agency' | 'carrier'; def
       </div>
       <label className="row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', gap: 10, fontSize: 14, color: 'var(--soft)' }}>
         <input type="checkbox" name="consent" value="yes" required style={{ marginTop: 4 }} />
-        <span>{CONSENT_TEXT}</span>
+        <span>{CONSENT_TEXT} See our <a href="/privacy" target="_blank">privacy policy</a>.</span>
       </label>
       <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>{kind === 'agency' ? 'Request my consult' : 'Start the pilot conversation'}</button>
     </form>

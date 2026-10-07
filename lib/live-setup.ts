@@ -1,7 +1,7 @@
 // Live setup status for the dashboards, read from the same Blob files the welcome page and social wizard
 // write. Read-only: dashboards never write these files, so a client mid-setup is never disturbed.
 import 'server-only';
-import { findClientBySlug, hasWelcome } from './clients';
+import { findClientAnyBySlug, hasWelcome } from './clients';
 import { readProgress, storageConfigured, STEP_KEYS } from './progress';
 import { readSession, summary } from './social-session';
 import { setupFor } from './social-setup';
@@ -21,7 +21,7 @@ export type LiveSetup = {
 };
 
 export async function liveSetup(slug: string): Promise<LiveSetup> {
-  const c = findClientBySlug(slug);
+  const c = await findClientAnyBySlug(slug);
   if (!c) return { welcome: null, social: null };
   if (!storageConfigured()) return { welcome: null, social: null, error: 'Setup storage is not connected in this environment.' };
   try {

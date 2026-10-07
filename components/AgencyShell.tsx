@@ -2,6 +2,7 @@
 import { requireTenant, type Membership, type Viewer } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { Shell } from './Shell';
+import { EcosystemSwitcher } from './EcosystemSwitcher';
 
 export type AgencyCtx = { viewer: Viewer; tenant: Membership; asStaff: boolean; isOwner: boolean };
 
@@ -25,6 +26,7 @@ export async function AgencyShell({ ctx, title, children, actions }: { ctx: Agen
       title={title}
       crumbs={[{ href: base, label: tenant.name }]}
       actions={actions}
+      switcher={<EcosystemSwitcher current="agency" slug={tenant.slug} />}
       who={{ name: viewer.staff?.name ?? viewer.email, detail: asStaff ? 'Genovus team, viewing as the agency' : tenant.role === 'owner' ? 'Agency owner' : 'Office staff' }}
       nav={[
         { items: [{ href: base, label: 'Home', exact: true }] },
@@ -45,7 +47,7 @@ export async function AgencyShell({ ctx, title, children, actions }: { ctx: Agen
             { href: `${base}/team`, label: 'Team' },
           ],
         },
-        ...(asStaff ? [{ title: 'Genovus team', items: [{ href: `/console/clients/${tenant.slug}`, label: 'Back to console' }] }] : []),
+        ...(asStaff ? [{ title: 'Genovus team', items: [{ href: `/console/clients/${tenant.slug}`, label: 'This client in the console' }] }] : []),
       ]}
     >
       {asStaff ? <div className="notice">You are viewing {tenant.name}’s dashboard as the Genovus team. Client approvals can only be decided by the agency owner.</div> : null}

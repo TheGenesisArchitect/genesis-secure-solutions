@@ -23,7 +23,7 @@ export const FIXED_SCREENS = { start: 'start', review: 'review', more: 'more', f
 
 export function setupFor(c: Client): Setup & { kit: Kit | null } {
   const { plan, optional } = channelsForClient(channelRegistry(partnerDetailsFromEnv()), c.social?.plan ?? []);
-  const kit = KITS[c.slug] ?? null;
+  const kit = (c.kit as Kit | undefined) ?? KITS[c.slug] ?? null;
   const screens = [
     FIXED_SCREENS.start,
     ...(kit ? [FIXED_SCREENS.review] : []),

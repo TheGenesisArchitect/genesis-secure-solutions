@@ -6,6 +6,21 @@ import { setCareStatus } from '@/lib/actions';
 
 export const metadata = { title: 'Care desk' };
 
+// First human response targets by plan (spec: Support response times), in business hours.
+const TARGET_HOURS: Record<string, number> = { vip: 16, launch: 16, growth: 8, premium: 4 };
+
+/** Adds business hours (Mon to Fri, 9 to 5 Eastern, approximated in UTC) to a start time. */
+function dueBy(startIso: string, hours: number): Date {
+  const d = new Date(startIso);
+  let left = hours * 60;
+  while (left > 0) {
+    d.setUTCMinutes(d.getUTCMinutes() + 30);
+    const day = d.getUTCDay(), h = d.getUTCHours();
+    if (day !== 0 && day !== 6 && h >= 13 && h < 21) left -= 30;
+  }
+  return d;
+}
+
 /** First business day of next month: when monthly reports go out. */
 function nextReportDay(now = new Date()) {
   const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -20,7 +35,7 @@ export default async function Care({ searchParams }: { searchParams: Promise<{ s
   let rq = supabase.from('care_requests').select('*').neq('status', 'done').order('created_at');
   let cq = supabase.from('content_items').select('id, tenant_id, channel, copy, status, scheduled_for, is_sample').in('status', ['draft', 'in_review', 'approved', 'scheduled']).order('scheduled_for');
   if (!samples) { rq = rq.eq('is_sample', false); cq = cq.eq('is_sample', false); }
-  const [{ data: reqs }, { data: content }, { data: tenants }] = await Promise.all([rq, cq, supabase.from('tenants').select('id, slug, name, stage, care_plan, is_sample')]);
+  const [{ data: reqs }, { data: content }, { data: tenants }] = await Promise.all([rq, cq, supabase.from('tenants').select('id, slug, name, stage, plan, care_plan, is_sample')]);
   const t = new Map((tenants ?? []).map((x) => [x.id, x]));
   const inCare = (tenants ?? []).filter((x) => x.stage === 'care' && (samples || !x.is_sample));
   const report = nextReportDay();
@@ -41,14 +56,14 @@ export default async function Care({ searchParams }: { searchParams: Promise<{ s
         {reqs?.length ? (
           <div className="table-wrap">
             <table className="t">
-              <thead><tr><th>Request</th><th>Client</th><th>Kind</th><th>Age</th><th>Status</th></tr></thead>
+              <thead><tr><th>Request</th><th>Client</th><th>Kind</th><th>Reply due</th><th>Status</th></tr></thead>
               <tbody>
                 {reqs.map((r) => (
                   <tr key={r.id}>
                     <td><b>{r.title}</b>{r.detail ? <div className="soft" style={{ fontSize: 13 }}>{r.detail}</div> : null}</td>
                     <td><Link href={`/console/clients/${t.get(r.tenant_id)?.slug}?tab=care`}>{t.get(r.tenant_id)?.name}</Link> {r.is_sample ? <Chip kind="sample">Sample</Chip> : null}</td>
                     <td>{r.kind}</td>
-                    <td className="num">{daysSince(r.created_at)}d</td>
+                    <td className="num">{(() => { const due = dueBy(r.created_at, TARGET_HOURS[t.get(r.tenant_id)?.plan ?? 'launch'] ?? 16); const late = r.status === 'new' && due.getTime() < Date.now(); return <span style={{ color: late ? 'var(--bad)' : undefined }}>{late ? 'Overdue · ' : ''}{dateTime(due.toISOString())}</span>; })()}</td>
                     <td>
                       <form action={setCareStatus} className="row" style={{ flexWrap: 'nowrap' }}>
                         <input type="hidden" name="id" value={r.id} />

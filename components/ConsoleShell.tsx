@@ -2,6 +2,7 @@
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { Shell } from './Shell';
+import { EcosystemSwitcher } from './EcosystemSwitcher';
 
 const ROLE: Record<string, string> = { admin: 'Platform admin', account_lead: 'Account lead', operator: 'Content and ads operator', reviewer: 'Reviewer' };
 
@@ -21,6 +22,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
       crumbs={props.crumbs}
       actions={props.actions}
       who={{ name: v.staff.name, detail: ROLE[v.staff.role] ?? v.staff.role }}
+      switcher={<EcosystemSwitcher current="enterprise" />}
       nav={[
         { items: [{ href: '/console', label: 'Overview', exact: true }] },
         {
@@ -42,7 +44,6 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
         {
           title: 'Oversee',
           items: [
-            { href: '/network', label: 'Network view' },
             { href: '/console/audit', label: 'Audit log' },
             { href: '/console/meta', label: 'Meta connector' },
           ],

@@ -14,6 +14,7 @@ export function Shell(props: {
   crumbs?: { href?: string; label: string }[];
   actions?: React.ReactNode;
   who: { name: string; detail: string };
+  switcher?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const crumbs = props.crumbs ?? [];
@@ -28,6 +29,7 @@ export function Shell(props: {
             <small>{props.surface}</small>
           </span>
         </Link>
+        {props.switcher}
         <nav className="nav">
           {props.nav.map((s, i) => (
             <div key={i} style={{ display: 'grid', gap: 2 }}>

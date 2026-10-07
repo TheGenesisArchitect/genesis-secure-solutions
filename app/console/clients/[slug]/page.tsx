@@ -7,6 +7,8 @@ import { db } from '@/lib/supabase/server';
 import { liveSetup } from '@/lib/live-setup';
 import { moveStage, setGate, decideApproval, setCareStatus, saveRecord } from '@/lib/actions';
 import { inviteMember } from '@/lib/invite';
+import { issueWelcomeLink } from '@/lib/actions';
+import { findClientBySlug } from '@/lib/clients';
 
 const TABS = [
   ['overview', 'Overview'], ['record', 'Agent record'], ['assets', 'Assets'], ['approvals', 'Approvals'],
@@ -50,6 +52,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     supabase.from('memberships').select('role, user_id, created_at').eq('tenant_id', t.id),
     tab === 'overview' ? liveSetup(slug) : Promise.resolve(null),
   ]);
+  const links = await supabase.from('client_links').select('created_at').eq('tenant_id', t.id).is('revoked_at', null).order('created_at', { ascending: false }).limit(1);
   const rec = records.data?.find((r) => r.is_current);
   const data = (rec?.data ?? {}) as Record<string, unknown>;
   const g = gates.data ?? [];
@@ -165,6 +168,16 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               </table>
             </div>
           </Panel>
+          {t.kind === 'agency' && !findClientBySlug(slug) ? (
+            <Panel title="Welcome package" sub="A personal welcome page and setup guide, built from this record. No deploy needed.">
+              {links.data?.length ? <p className="soft">Link issued {dateTime(links.data[0].created_at)}. Reissuing replaces it; the client keeps their progress.</p> : <p className="soft">No welcome link yet. Issue one when the deposit clears; it is shown to you once.</p>}
+              <form action={issueWelcomeLink} className="row">
+                <input type="hidden" name="tenant" value={t.id} />
+                <input type="hidden" name="back" value={here} />
+                <button className="btn small primary" type="submit">{links.data?.length ? 'Reissue welcome link' : 'Issue welcome link'}</button>
+              </form>
+            </Panel>
+          ) : null}
           <Panel title="People" sub="Who can sign in to this agency’s dashboard">
             {members.data?.length ? (
               <p className="soft">{members.data.length} member{members.data.length > 1 ? 's' : ''}: {members.data.map((m) => m.role).join(', ')}.</p>
