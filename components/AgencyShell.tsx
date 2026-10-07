@@ -43,7 +43,7 @@ export async function AgencyShell({ ctx, title, children, actions }: { ctx: Agen
           title: 'Your business',
           items: [
             { href: `${base}/assets`, label: 'Assets & documents' },
-            ...(isOwner ? [{ href: `${base}/billing`, label: 'Plan & billing' }] : []),
+            ...(isOwner ? [{ href: `${base}/billing`, label: 'Billing & maintenance' }] : []),
             { href: `${base}/team`, label: 'Team' },
           ],
         },

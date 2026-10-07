@@ -107,12 +107,27 @@ try {
   check('audit chain verifies in full', broken === null, `first broken id: ${broken}`);
 
   // A client approval on a real (non-sample) agency queues an email to its owner, exactly once.
-  const { data: tmp } = await admin.from('tenants').insert({ slug: `rls-tmp-${stamp}`, name: 'RLS temp agency' }).select('id').single();
+  // A permanent, internal fixture agency: the append-only audit log (rightly) never lets a referenced tenant be deleted.
+  let { data: tmp } = await admin.from('tenants').select('id').eq('slug', 'rls-fixture').maybeSingle();
+  if (!tmp) tmp = (await admin.from('tenants').insert({ slug: 'rls-fixture', name: 'RLS test fixture (preview only)', kind: 'internal' }).select('id').single()).data;
   await admin.from('memberships').insert({ tenant_id: tmp.id, user_id: users.owner.id, role: 'owner' });
   const { data: appr } = await admin.from('approvals').insert({ tenant_id: tmp.id, subject_kind: 'post', title: 'RLS outbox check', lane: 'required', approver: 'client' }).select('id').single();
   const { data: mail } = await admin.from('outbox').select('to_email, template').like('dedupe_key', `approval:${appr.id}:%`);
   check('client approval queues one owner email', (mail ?? []).length === 1 && mail[0].template === 'approval_waiting' && mail[0].to_email === emails.owner);
-  await admin.from('tenants').delete().eq('id', tmp.id);
+  // Billing through Mercury: only a lead or admin drafts and sends; only mercury.com links; the owner is emailed once.
+  const { data: inv, error: invErr } = await lead.rpc('create_invoice', { p_tenant: tmp.id, p_kind: 'balance', p_amount_cents: 62500, p_note: 'RLS test' });
+  check('account lead can draft an invoice', !invErr, invErr?.message);
+  check('operator cannot draft an invoice', !!(await operator.rpc('create_invoice', { p_tenant: tmp.id, p_kind: 'care', p_amount_cents: 100 })).error);
+  check('a non-Mercury payment link is refused', !!(await lead.rpc('publish_invoice', { p_id: inv, p_pay_url: 'https://evil.example.com/pay' })).error);
+  check('a look-alike domain is refused', !!(await lead.rpc('publish_invoice', { p_id: inv, p_pay_url: 'https://mercury.com.evil.io/pay' })).error);
+  check('owner cannot send or settle invoices', !!(await owner.rpc('publish_invoice', { p_id: inv, p_pay_url: 'https://app.mercury.com/pay/x' })).error && !!(await owner.rpc('mark_invoice_paid', { p_id: inv })).error);
+  check('a Mercury link sends the invoice', !(await lead.rpc('publish_invoice', { p_id: inv, p_pay_url: 'https://app.mercury.com/pay/rls-test', p_number: 'RLS-1' })).error);
+  const { data: invMail } = await admin.from('outbox').select('template, to_email').like('dedupe_key', `invoice:${inv}:%`);
+  check('the owner gets one invoice email', (invMail ?? []).length === 1 && invMail[0].template === 'invoice_ready' && invMail[0].to_email === emails.owner);
+  const { data: seen } = await owner.from('invoices').select('status, pay_url').eq('id', inv).single();
+  check('owner sees the open invoice with its pay link', seen?.status === 'open' && seen?.pay_url === 'https://app.mercury.com/pay/rls-test');
+  check('account lead can record the payment', !(await lead.rpc('mark_invoice_paid', { p_id: inv, p_via: 'Mercury' })).error);
+  for (const t of ['approvals', 'invoices', 'outbox', 'memberships']) await admin.from(t).delete().eq('tenant_id', tmp.id);
 
   // The audit log refuses edits and deletes, even with the service key.
   const last = (await admin.from('audit_events').select('id').order('id', { ascending: false }).limit(1)).data[0];
@@ -120,7 +135,7 @@ try {
   check('audit log rejects delete', !!(await admin.from('audit_events').delete().eq('id', last.id)).error);
 } finally {
   for (const u of Object.values(users)) if (u) await admin.auth.admin.deleteUser(u.id);
-  await admin.from('tenants').delete().like('slug', 'rls-tmp-%');
+
   await admin.from('care_requests').delete().eq('title', 'RLS test request');
 }
 console.log(fails ? `\n${fails} check(s) FAILED` : '\nAll checks passed');

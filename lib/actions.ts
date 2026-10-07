@@ -102,3 +102,26 @@ export async function bulkApprove(f: FormData) {
   revalidatePath('/', 'layout');
   redirect(withMsg('/console/approvals', errors.size ? 'err' : 'ok', errors.size ? `Approved ${ok} of ${ids.length}. ${[...errors].join(' ')}` : `Approved ${ok} item${ok === 1 ? '' : 's'}.`));
 }
+
+// ---------- billing (Mercury) ----------
+export async function createInvoice(f: FormData) {
+  const dollars = Number(str(f, 'amount', 20).replace(/[$,\s]/g, ''));
+  await call('create_invoice', {
+    p_tenant: str(f, 'tenant', 64), p_kind: str(f, 'kind', 20), p_amount_cents: Math.round(dollars * 100),
+    p_note: str(f, 'note', 300) || null, p_due: str(f, 'due', 10) || null,
+  }, f, '/console', 'Invoice drafted. Add its Mercury payment link to send it.');
+}
+
+export async function publishInvoice(f: FormData) {
+  await call('publish_invoice', { p_id: str(f, 'id', 64), p_pay_url: str(f, 'pay_url', 500), p_number: str(f, 'number', 40) || null, p_due: str(f, 'due', 10) || null },
+    f, '/console', 'Invoice sent: it is in the client’s Billing page and they get an email.');
+}
+
+export async function markInvoicePaid(f: FormData) {
+  await call('mark_invoice_paid', { p_id: str(f, 'id', 64), p_via: str(f, 'via', 60) || 'Mercury', p_paid_on: str(f, 'paid_on', 10) || new Date().toISOString().slice(0, 10) },
+    f, '/console', 'Payment recorded.');
+}
+
+export async function voidInvoice(f: FormData) {
+  await call('void_invoice', { p_id: str(f, 'id', 64) }, f, '/console', 'Invoice voided.');
+}

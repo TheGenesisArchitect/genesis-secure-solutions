@@ -7,7 +7,7 @@ import { db } from '@/lib/supabase/server';
 import { liveSetup } from '@/lib/live-setup';
 import { moveStage, setGate, decideApproval, setCareStatus, saveRecord } from '@/lib/actions';
 import { inviteMember } from '@/lib/invite';
-import { issueWelcomeLink } from '@/lib/actions';
+import { issueWelcomeLink, createInvoice, publishInvoice, markInvoicePaid } from '@/lib/actions';
 import { findClientBySlug } from '@/lib/clients';
 
 const TABS = [
@@ -289,19 +289,60 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       )}
 
       {tab === 'billing' && (
-        <Panel title="Invoices" sub="View only until Stripe is connected. Upgrade credit is what the client has actually paid.">
-          {t.is_sample ? <div className="notice sample">Sample client: amounts are illustrative.</div> : null}
-          <div className="table-wrap">
-            <table className="t">
-              <thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Note</th></tr></thead>
-              <tbody>
+        <div className="grid g2">
+          <Panel title="Invoices" sub="Paid through Mercury. Paste each Mercury invoice’s payment link to send it; the client pays from their Billing page.">
+            {t.is_sample ? <div className="notice sample">Sample client: amounts are illustrative.</div> : null}
+            {(invoices.data ?? []).length ? (
+              <ul className="list">
                 {(invoices.data ?? []).map((i) => (
-                  <tr key={i.id}><td>{i.kind}</td><td className="num">{money(i.amount_cents)}</td><td><Status value={i.status} /></td><td className="soft">{i.note ?? ''}{i.paid_at ? ` · paid ${date(i.paid_at)}` : ''}</td></tr>
+                  <li key={i.id} style={{ gap: 8 }}>
+                    <div className="spread">
+                      <span><b>{i.number ? `${i.number} · ` : ''}{i.kind}</b> <span className="num">{money(i.amount_cents)}</span></span>
+                      <Status value={i.status} />
+                    </div>
+                    <span className="muted" style={{ fontSize: 13 }}>
+                      {i.note ?? ''}{i.due_date ? ` · due ${date(i.due_date + 'T12:00:00')}` : ''}{i.paid_at ? ` · paid ${date(i.paid_at)}${i.paid_via ? ` via ${i.paid_via}` : ''}` : ''}
+                    </span>
+                    {i.status !== 'paid' && i.status !== 'void' ? (
+                      <>
+                        <form action={publishInvoice} className="row">
+                          <input type="hidden" name="id" value={i.id} />
+                          <input type="hidden" name="back" value={here} />
+                          <input className="input" name="pay_url" type="url" required defaultValue={i.pay_url ?? ''} placeholder="https://… Mercury invoice payment link" style={{ flex: 2, minWidth: 220 }} aria-label="Mercury payment link" />
+                          <input className="input" name="number" defaultValue={i.number ?? ''} placeholder="Invoice #" style={{ width: 110 }} aria-label="Invoice number" />
+                          <input className="input" name="due" type="date" defaultValue={i.due_date ?? ''} style={{ width: 160 }} aria-label="Due date" />
+                          <button className="btn small primary" type="submit">{i.status === 'open' ? 'Update link' : 'Send to client'}</button>
+                        </form>
+                        <form action={markInvoicePaid} className="row">
+                          <input type="hidden" name="id" value={i.id} />
+                          <input type="hidden" name="back" value={here} />
+                          <input className="input" name="via" defaultValue="Mercury" style={{ width: 140 }} aria-label="Paid via" />
+                          <input className="input" name="paid_on" type="date" style={{ width: 160 }} aria-label="Paid on" />
+                          <button className="btn small good" type="submit">Mark paid</button>
+                        </form>
+                      </>
+                    ) : null}
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+              </ul>
+            ) : <Empty title="No invoices yet" />}
+          </Panel>
+          <Panel title="New invoice" sub="Draft it here, create the matching invoice in Mercury, then paste its payment link to send.">
+            <form action={createInvoice} className="form">
+              <input type="hidden" name="tenant" value={t.id} />
+              <input type="hidden" name="back" value={here} />
+              <label className="field"><span>Type</span>
+                <select className="select" name="kind" defaultValue="balance">
+                  <option value="deposit">Deposit (70%)</option><option value="balance">Balance at launch (30%)</option><option value="care">Monthly care</option><option value="upgrade">Upgrade</option>
+                </select>
+              </label>
+              <label className="field"><span>Amount (USD)</span><input className="input" name="amount" inputMode="decimal" required placeholder="625.00" /></label>
+              <label className="field"><span>Note the client sees</span><input className="input" name="note" maxLength={300} placeholder="Balance due at launch" /></label>
+              <label className="field"><span>Due date</span><input className="input" name="due" type="date" /></label>
+              <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Draft invoice</button>
+            </form>
+          </Panel>
+        </div>
       )}
 
       {tab === 'audit' && (

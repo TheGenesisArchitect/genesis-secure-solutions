@@ -91,6 +91,17 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           button: { label: 'Review it', url: `${origin}/app/${data.slug}/approvals` },
         }, origin),
       };
+    case 'invoice_ready':
+      return {
+        to,
+        subject: `Invoice ready: ${data.amount} for ${data.agency}`,
+        ...frame({
+          preheader: `Pay securely through Mercury${data.due ? `, due ${data.due}` : ''}.`,
+          heading: `Your invoice for ${data.amount} is ready`,
+          body: [`Your ${data.kind} invoice for ${data.agency} is ready${data.due ? ` and due ${data.due}` : ''}.`, 'Open Billing in your dashboard to pay securely through Mercury, our bank. Your receipt and payment history stay in your dashboard.'],
+          button: { label: 'View and pay', url: `${origin}/app/${data.slug}/billing` },
+        }, origin),
+      };
     case 'team_inquiry':
       return {
         to,

@@ -68,7 +68,7 @@ try {
   }
 
   // ---------- Mendez Hollis / JAVA Agency (real; facts only, never overwritten) ----------
-  const mid = await tenant('mendez-hollis', 'JAVA Agency · Mendez Hollis', { stage: 'intake', plan: 'vip' });
+  const mid = await tenant('mendez-hollis', 'JAVA Agency · Mendez Hollis', { stage: 'review', plan: 'vip' });
   await firstRecord(mid, {
     agencyName: 'JAVA Agency', legalName: 'JAVA Agency, LLC', agentName: 'Mendez Hollis', office: 'The Columbus Local Office',
     carrier: 'GEICO', carrierWording: 'GEICO Exclusive Agency (never "agent"; GEICO in capitals)',
@@ -78,25 +78,27 @@ try {
     serviceArea: 'Columbus, GA & Chattahoochee Valley and surrounding communities',
     licensedStates: ['Georgia', 'Alabama'], languages: ['English', 'Spanish'],
     lines: 'Auto, RV, motorcycle, marine; property through partner carriers (Travelers, Homesite, Arrowhead); commercial lines next year',
-    instagramName: 'Java Agency LLC - Mendez Hollis', site: 'https://java-agency.vercel.app',
-    openQuestions: ['Office hours', 'Basis for "75 years of experience"', 'Headshot', 'Partner logo permissions'],
+    instagramName: 'Java Agency LLC - Mendez Hollis', site: 'https://javaagencyllc.com',
+    facebook: 'https://www.facebook.com/profile.php?id=61595377251988',
+    partnerLogosApproved: ['Travelers', 'Homesite', 'Arrowhead'],
+    openQuestions: ['Office hours', 'Basis for "75 years of experience"', 'Instagram profile link'],
   }, 'From site.config.ts, the welcome record and the 2026-10-06 onboarding call');
   for (const [kind, status, evidence] of [
-    ['photo_rights', 'open', 'Riverfront hero photo is unlicensed; license it or replace it.'],
-    ['carrier_approval', 'open', 'GEICO allows its name, images and phone on the site; final copy approval pending.'],
+    ['photo_rights', 'cleared', 'Original riverfront illustration replaced the unlicensed photo; headshot supplied by the client (2026-10-07).'],
+    ['carrier_approval', 'cleared', 'GEICO approved the site; Travelers, Homesite and Arrowhead approved their logos (per Anthony, 2026-10-07).'],
     ['carrier_rules', 'open', null],
     ['meta_access', 'open', 'Genovus Meta portfolio not created yet (restricted for Anthony); partner access follows.'],
-    ['domain', 'open', null],
+    ['domain', 'cleared', 'javaagencyllc.com live 2026-10-07 (bought on the Genesis Vercel team; transfer to the client on request).'],
     ['privacy_notice', 'open', null],
     ['kickoff', 'cleared', 'Onboarding call held Oct 6, 2026.'],
   ]) {
-    await sql`insert into gates (tenant_id, kind, status, evidence, cleared_at) values (${mid}, ${kind}, ${status}, ${evidence}, ${status === 'cleared' ? new Date('2026-10-06T20:30:00Z') : null})
+    await sql`insert into gates (tenant_id, kind, status, evidence, cleared_at) values (${mid}, ${kind}, ${status}, ${evidence}, ${status === 'cleared' ? new Date(kind === 'kickoff' ? '2026-10-06T20:30:00Z' : '2026-10-07T22:00:00Z') : null})
       on conflict (tenant_id, kind) do nothing`;
   }
   if (!(await sql`select 1 from invoices where tenant_id = ${mid}`).length) {
     await sql`insert into invoices ${ins([
-      { tenant_id: mid, kind: 'deposit', amount_cents: 37_500, status: 'paid', note: 'VIP Launch price $1,000' },
-      { tenant_id: mid, kind: 'balance', amount_cents: 62_500, status: 'open', note: 'Due on completion, before launch' },
+      { tenant_id: mid, kind: 'deposit', amount_cents: 37_500, status: 'paid', note: 'Launch (VIP) $1,000 · deposit', paid_via: 'Mercury', paid_at: new Date('2026-10-04T12:00:00Z') },
+      { tenant_id: mid, kind: 'balance', amount_cents: 62_500, status: 'draft', note: 'Launch (VIP) $1,000 · balance due at launch', paid_via: null, paid_at: null },
     ])}`;
   }
   if (!(await sql`select 1 from approvals where tenant_id = ${mid}`).length) {
@@ -106,9 +108,10 @@ try {
   if (!(await sql`select 1 from lifecycle_events where tenant_id = ${mid}`).length) {
     await sql`insert into lifecycle_events ${ins([
       { tenant_id: mid, from_stage: null, to_stage: 'deposit', note: 'VIP Launch sold', at: new Date('2026-10-03T12:00:00Z') },
-      { tenant_id: mid, from_stage: 'deposit', to_stage: 'intake', note: '$375 deposit paid; welcome package sent', at: new Date('2026-10-05T12:00:00Z') },
+      { tenant_id: mid, from_stage: 'deposit', to_stage: 'intake', note: '$375 deposit paid (Mercury); welcome package sent', at: new Date('2026-10-05T12:00:00Z') },
+      { tenant_id: mid, from_stage: 'intake', to_stage: 'review', note: 'Site live at javaagencyllc.com; GEICO approved', at: new Date('2026-10-07T22:00:00Z') },
     ])}`;
-    await sql`update tenants set stage_since = '2026-10-05T12:00:00Z' where id = ${mid}`;
+    await sql`update tenants set stage_since = '2026-10-07T22:00:00Z' where id = ${mid}`;
   }
   const W = `/w/${mendez.token}`;
   for (const a of [
@@ -117,7 +120,9 @@ try {
     { kind: 'wizard', title: 'Social setup wizard', location_kind: 'route', location: `/welcome/${mendez.token}/social`, preview: `${W}/social/facebook-cover.png`, audience: 'client', notes: 'Facebook, Instagram, Meta partner access, Google.' },
     { kind: 'image', title: 'Facebook cover', location_kind: 'public', location: `${W}/social/facebook-cover.png`, preview: `${W}/social/facebook-cover.png`, audience: 'client', notes: '1640×624, without the unlicensed riverfront photo.' },
     { kind: 'image', title: 'Profile mark', location_kind: 'public', location: `${W}/social/profile-mark.png`, preview: `${W}/social/profile-mark.png`, audience: 'client' },
-    { kind: 'site', title: 'JAVA Agency landing page (draft)', location_kind: 'external', location: 'https://java-agency.vercel.app', audience: 'client', rights_status: 'pending', notes: 'Noindex until photo rights and GEICO approval clear.' },
+    { kind: 'site', title: 'JAVA Agency website', location_kind: 'external', location: 'https://javaagencyllc.com', preview: '/w/' + mendez.token + '/social/facebook-cover.png', audience: 'client', rights_status: 'cleared', notes: 'Live 2026-10-07. GEICO approved; open to search engines.' },
+    { kind: 'image', title: 'Headshot', location_kind: 'external', location: 'https://javaagencyllc.com/mendez-hollis.jpg', preview: 'https://javaagencyllc.com/mendez-hollis.jpg', audience: 'client', notes: 'Supplied by Mendez, 2026-10-07.' },
+    { kind: 'image', title: 'Riverfront illustration', location_kind: 'external', location: 'https://javaagencyllc.com/riverfront-illustration.jpg', preview: 'https://javaagencyllc.com/riverfront-illustration.jpg', audience: 'client', notes: 'Original artwork by Genovus; owned outright.' },
     { kind: 'wizard', title: 'Setup console (team)', location_kind: 'route', location: '/console/social/mendez-hollis', preview: `${W}/social/facebook-cover.png`, notes: 'Talk track, presence and lead mode for setup calls.' },
     { kind: 'deck', title: 'Growth and Premium proposal decks', location_kind: 'file', location: 'OneDrive/Documents/JAVA AGENCY (Pitch_Updated, Progression)', notes: 'Approved pricing as of Oct 4.' },
   ]) await addAsset(mid, a);
