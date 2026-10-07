@@ -129,6 +129,14 @@ try {
   check('account lead can record the payment', !(await lead.rpc('mark_invoice_paid', { p_id: inv, p_via: 'Mercury' })).error);
   for (const t of ['approvals', 'invoices', 'outbox', 'memberships']) await admin.from(t).delete().eq('tenant_id', tmp.id);
 
+  if (process.env.POSTGRES_URL_NON_POOLING) {
+    const { default: postgres } = await import('postgres');
+    const pg = postgres(process.env.POSTGRES_URL_NON_POOLING, { ssl: 'require', max: 1 });
+    const [{ n }] = await pg`select count(*)::int n from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')`;
+    await pg.end();
+    check('no database function is callable anonymously', n === 0, `${n} callable`);
+  }
+
   // The audit log refuses edits and deletes, even with the service key.
   const last = (await admin.from('audit_events').select('id').order('id', { ascending: false }).limit(1)).data[0];
   check('audit log rejects update', !!(await admin.from('audit_events').update({ action: 'tamper' }).eq('id', last.id)).error);

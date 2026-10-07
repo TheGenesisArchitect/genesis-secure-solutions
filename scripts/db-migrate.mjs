@@ -23,6 +23,11 @@ try {
     });
     console.log(`apply ${f}`);
   }
+  // Supabase grants every new function to anonymous visitors by default; take that back after every run.
+  await sql`revoke execute on all functions in schema public from public, anon`;
+  const [{ n }] = await sql`select count(*)::int n from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')`;
+  console.log(`functions callable anonymously: ${n}`);
+  if (n) throw new Error('anonymous visitors can still call functions');
 } finally {
   await sql.end();
 }
