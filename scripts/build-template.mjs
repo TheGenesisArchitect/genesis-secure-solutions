@@ -12,6 +12,7 @@ const out = [
   `export const WELCOME_TEMPLATE = ${JSON.stringify(bake('welcome.html'))};`,
   `export const SOCIAL_TEMPLATE = ${JSON.stringify(bake('social.html'))};`,
   `export const META_TEMPLATE = ${JSON.stringify(bake('meta-console.html'))};`,
+  `export const PITCH_TEMPLATE = ${JSON.stringify(bake('pitch.html'))};`,
   '',
 ].join('\n');
 fs.writeFileSync('lib/templates.ts', out);

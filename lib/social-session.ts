@@ -4,9 +4,8 @@
 //              Version-checked writes. Edits bump rev; presence updates do not, so they never look like edits.
 //   operator - notes and our-side ticks. Only the console API reads it, so the client can never receive it.
 // A poll is one read of the session file.
-import { createHash } from 'node:crypto';
 import { get, put } from '@vercel/blob';
-import type { Client } from './clients';
+import { clientKey, type Client } from './clients';
 import { GOOGLE_OWNERS, applicableStepIds, countDone, tickableStepIds, type Channel, type GoogleOwner } from './channels';
 import { COPY_KEYS, cleanCopy, isCopyKey, type CopyKey } from './copy-rules';
 
@@ -55,7 +54,7 @@ export const blankSession = (): Session => ({
 const blankOperator = (): OperatorData => ({ notes: '', ours: [] });
 
 function keys(c: Client) {
-  const h = createHash('sha256').update(c.token).digest('hex').slice(0, 16);
+  const h = clientKey(c);
   return {
     session: `progress/social-${c.slug}-${h}.json`,
     operator: `progress/social-operator-${c.slug}-${h}.json`,

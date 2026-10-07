@@ -1,0 +1,39 @@
+# Every push and pull request: typecheck and build. When the preview database secrets are present,
+# also prove tenant isolation against it. Production deploys only from main, through Vercel.
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+  isolation:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.PREVIEW_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PREVIEW_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.PREVIEW_SUPABASE_SECRET_KEY }}
+      POSTGRES_URL_NON_POOLING: ${{ secrets.PREVIEW_POSTGRES_URL_NON_POOLING }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Migrate the preview database
+        if: env.POSTGRES_URL_NON_POOLING != ''
+        run: node scripts/db-migrate.mjs
+      - name: Row-level security checks
+        if: env.SUPABASE_SECRET_KEY != ''
+        run: node scripts/rls-test.mjs

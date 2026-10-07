@@ -1,4 +1,4 @@
-import { findClientByToken, hasWelcome } from '@/lib/clients';
+import { findClientAnyByToken, hasWelcome } from '@/lib/clients';
 import { parseProgress, readProgress, storageConfigured, writeProgress } from '@/lib/progress';
 
 export const dynamic = 'force-dynamic';
@@ -6,7 +6,7 @@ const HEADERS = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollo
 const notFound = () => Response.json({ error: 'Not found' }, { status: 404, headers: HEADERS });
 
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
-  const client = findClientByToken((await ctx.params).token);
+  const client = await findClientAnyByToken((await ctx.params).token);
   if (!hasWelcome(client)) return notFound();
   if (!storageConfigured()) return Response.json({ error: 'Progress storage is not connected yet.' }, { status: 503, headers: HEADERS });
   try {
@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }) {
-  const client = findClientByToken((await ctx.params).token);
+  const client = await findClientAnyByToken((await ctx.params).token);
   if (!hasWelcome(client)) return notFound();
   const origin = req.headers.get('origin');
   if (origin && origin !== new URL(req.url).origin) return Response.json({ error: 'Request not permitted.' }, { status: 403, headers: HEADERS });

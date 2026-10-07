@@ -1,0 +1,63 @@
+{
+  "note": "FICTIONAL demo agency for Genovus demos and pitch films. Not a real business; all details are invented.",
+  "pageNames": [
+    "Brooks Family Insurance - Avery Brooks",
+    "Avery Brooks - Riverside Insurance Agent"
+  ],
+  "category": "Insurance Agent",
+  "fbBio": "Coverage that feels like family. Auto, home and renters help for Riverside and nearby towns.",
+  "igUsernames": [
+    "brooksfamilyins",
+    "averybrooks.agent",
+    "brooksfamily.riverside"
+  ],
+  "igName": "Avery Brooks | Brooks Family Insurance",
+  "igBio": "Your neighborhood agency\nAuto · Home · Renters · Life\nRiverside and nearby towns\nHablamos Español",
+  "gDescription": "Brooks Family Insurance is the Riverside office of Avery Brooks, an exclusive agency serving Riverside and the surrounding towns. Avery and the team help families explore auto, home, renters and life coverage and find a clear next step through a real local conversation. The team speaks English and Spanish. Call the office or stop by to talk through your options.",
+  "services": "Auto insurance, Home insurance, Renters insurance, Life insurance",
+  "facts": [
+    [
+      "Phone",
+      "(555) 010-0142"
+    ],
+    [
+      "Address",
+      "120 Main Street, Suite 4, Riverside"
+    ],
+    [
+      "Email",
+      "hello@brooksfamily.example"
+    ],
+    [
+      "Service area",
+      "Riverside and nearby towns"
+    ],
+    [
+      "Languages",
+      "English, Spanish"
+    ]
+  ],
+  "website": "Add your website once it is approved and live. We send you the address.",
+  "assets": {
+    "cover": {
+      "url": "/demo/brooks/brooks-facebook-cover.png",
+      "file": "Brooks-facebook-cover.png",
+      "size": "1640 × 624"
+    },
+    "mark": {
+      "url": "/demo/brooks/brooks-mark.png",
+      "file": "Brooks-mark.png",
+      "size": "1080 × 1080"
+    },
+    "googleLogo": {
+      "url": "/demo/brooks/brooks-mark.png",
+      "file": "Brooks-logo.png",
+      "size": "1080 × 1080"
+    },
+    "portrait": {
+      "url": "/demo/brooks/brooks-mark.png",
+      "file": "",
+      "size": ""
+    }
+  }
+}
