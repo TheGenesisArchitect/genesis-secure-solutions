@@ -6,7 +6,7 @@
 import 'server-only';
 import { adminDb } from './supabase/admin';
 import { COST_CENTS, textSearch, type Rect } from './places';
-import { classify, type CarrierRule } from './classify';
+import { classify, fit, type CarrierRule } from './classify';
 import { startingCells, stateAt } from './geo-states';
 
 const MIN_CELL_DEG = 0.04; // ~4 km: stop splitting below this
@@ -96,7 +96,13 @@ export async function runSlice(opts: { deadlineMs?: number; maxRequests?: number
         const ids = [...seen.keys()];
         const { data: existing } = ids.length ? await db.from('prospects').select('place_id').in('place_id', ids) : { data: [] };
         const known = new Set((existing ?? []).map((e) => e.place_id));
-        const rows = [...seen.entries()].map(([place_id, v]) => ({ place_id, carrier_id: v.carrier, segment: v.segment, state: v.state ?? cell.state, cell_id: cell.id, last_seen: now, missed_sweeps: 0 }));
+        const rows = [...seen.entries()].map(([place_id, v]) => {
+          const c = carriers.find((x) => x.id === v.carrier);
+          const state = v.state ?? cell.state;
+          // Base fit (carrier + focus state); first-party and live signals refine it on the prospect page.
+          const base = fit({ carrierFit: c?.fit_score ?? 50, carrierReasons: [], state, focusStates: settings.states }).score;
+          return { place_id, carrier_id: v.carrier, segment: v.segment, state, cell_id: cell.id, last_seen: now, missed_sweeps: 0, fit_score: base };
+        });
         if (rows.length) {
           const { error } = await db.from('prospects').upsert(rows, { onConflict: 'place_id' });
           if (error) throw new Error(error.message);

@@ -68,6 +68,17 @@ export const getDetails = cache(async (placeId: string): Promise<PlaceDetails | 
   }
 });
 
+/** Name and address only (cheaper tier) for list rows; fetched live, never stored. */
+export const getSummary = cache(async (placeId: string): Promise<{ name: string; address: string } | null> => {
+  if (!placesConfigured()) return null;
+  try {
+    const p = await call<{ displayName?: { text?: string }; formattedAddress?: string }>(`/places/${encodeURIComponent(placeId)}`, { fields: 'displayName,formattedAddress' });
+    return { name: p.displayName?.text ?? '', address: p.formattedAddress ?? '' };
+  } catch {
+    return null;
+  }
+});
+
 /** A website that is the office's own (not the carrier's agent page or a directory listing). */
 export function isOwnSite(website: string | null, carrierHosts: string[]): boolean | null {
   if (!website) return false;
