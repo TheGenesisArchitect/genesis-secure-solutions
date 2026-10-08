@@ -34,7 +34,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
     <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 16 }}>
       <div className="panel" style={{ width: 'min(100%, 440px)', padding: 28, gap: 18 }}>
         <div className="row" style={{ gap: 12 }}>
-          <img src="/brand/genovus/genovus-mark-128.png" alt="" width={36} height={36} style={{ borderRadius: 9 }} />
+          <img src="/brand/genovus/genovus-mark.svg" alt="" width={36} height={36} style={{ borderRadius: 9 }} />
           <div>
             <div style={{ font: '800 16px/1 var(--display)', letterSpacing: '.12em' }}>GENOVUS</div>
             <div className="eyebrow" style={{ color: 'var(--muted)', marginTop: 4 }}>{codeStep ? 'Check your email' : 'Sign in'}</div>

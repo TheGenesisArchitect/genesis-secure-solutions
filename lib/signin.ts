@@ -58,7 +58,12 @@ export async function requestSignIn(f: FormData) {
     if (p?.hashed_token && p.email_otp) {
       const o = await origin();
       const link = `${o}/auth/continue?t=${encodeURIComponent(p.hashed_token)}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
-      await sendEmail(signInEmail(email, link, p.email_otp, o));
+      const sent = await sendEmail(signInEmail(email, link, p.email_otp, o));
+      if (!sent.ok) {
+        // Never leave someone without a way in: fall back to Supabase's own sign-in email.
+        const supabase = await db();
+        await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${o}/auth/confirm${next ? `?next=${encodeURIComponent(next)}` : ''}` } });
+      } else console.log(`[email] sign-in code sent (${sent.id})`);
     }
   }
   // Same answer whether or not the address has access.

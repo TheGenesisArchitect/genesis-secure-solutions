@@ -4,6 +4,8 @@ import { Chip } from '@/components/ui';
 import { SCENES } from '@/data/story';
 import { PLANS, ADD_ONS, RESPONSE_TIMES } from '@/data/offers';
 import { doors } from '@/lib/surfaces';
+import { Hero } from '@/components/site/Hero';
+import { Story } from '@/components/site/Story';
 
 export const metadata = { title: { absolute: 'Genovus · The right technology inside every agency' } };
 
@@ -41,25 +43,16 @@ export default async function Home() {
   return (
     <SiteChrome>
       <main>
-        <section className="wrapx hero">
-          <div className="eyebrow">For insurance agencies, agency networks and carriers</div>
-          <h1>The right technology <span className="grad">inside every agency.</span></h1>
-          <p className="lede" style={{ fontSize: 'clamp(17px,1.7vw,21px)', color: 'var(--soft)', maxWidth: '62ch' }}>
-            Genovus turns one agent record into a carrier-aware website, connected social profiles and tracked leads, set up live with the agent and approved before anything goes public. Then it runs every month: care, content and results. Automation does the repeatable work; people own the relationship.
-          </p>
-          <div className="row">
-            <Link href="/start" className="btn primary">Start with your agency</Link>
-            <Link href="/partners" className="btn">Carriers and networks</Link>
-          </div>
+        <Hero doors={d} />
+        <Story />
+
+        <section className="wrapx sec" id="film">
+          <div className="eyebrow">The film</div>
+          <h2 className="big">See Genovus in seventy-eight seconds.</h2>
           <video className="film-frame" controls playsInline preload="metadata" poster="/site/poster-agency.jpg" src="/site/genovus-agency.mp4">
             Your browser can’t play this film.
           </video>
           <p className="muted" style={{ fontSize: 13 }}>The agency in the film, Brooks Family Insurance, is fictional. Product screens are real; screens marked “In development” are concepts.</p>
-          <div className="doors" aria-label="Already a client?">
-            <a className="door" href={d.agency}><b>Agency dashboard →</b><span>Your setup, approvals, monthly care and results.</span></a>
-            <a className="door" href={d.carrier}><b>Carrier &amp; network portal →</b><span>Every office in your network, at a glance.</span></a>
-            <a className="door" href={d.team}><b>Genovus team →</b><span>The enterprise console.</span></a>
-          </div>
         </section>
 
         <section className="wrapx sec" id="platform">

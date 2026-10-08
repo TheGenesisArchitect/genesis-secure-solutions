@@ -10,7 +10,7 @@ export async function SiteChrome({ children }: { children: React.ReactNode }) {
       <header className="site-nav">
         <div className="in">
           <Link href="/" className="brand" aria-label="Genovus home">
-            <img src="/brand/genovus/genovus-mark-128.png" alt="" />
+            <img src="/brand/genovus/genovus-mark.svg" alt="" />
             <span><b>GENOVUS</b><small>Turnkey agency platform</small></span>
           </Link>
           <nav aria-label="Site">

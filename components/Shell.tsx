@@ -23,7 +23,7 @@ export function Shell(props: {
       <input type="checkbox" id="nav-open" className="sr" aria-hidden="true" tabIndex={-1} />
       <aside className="rail" aria-label="Main navigation">
         <Link href={props.home} className="brand">
-          <img src="/brand/genovus/genovus-mark-128.png" alt="" />
+          <img src="/brand/genovus/genovus-mark.svg" alt="" />
           <span>
             <b>GENOVUS</b>
             <small>{props.surface}</small>
