@@ -7,7 +7,7 @@ import { ActionForm } from '@/components/ActionForm';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { getDetails, isOwnSite } from '@/lib/places';
+import { getDetails, isOwnSite, GOOGLE_ATTRIBUTION } from '@/lib/places';
 import { fit } from '@/lib/classify';
 import { scanSettings } from '@/lib/scanner';
 import { STATUS_LABEL, OUTCOMES, CARRIER_HOSTS, officeClock } from '@/lib/prospects';
@@ -53,6 +53,7 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
               </dl>
             ) : <p className="muted">Live details are unavailable (Google Places not connected).</p>}
             {details?.mapsUrl ? <a className="btn small" href={details.mapsUrl} target="_blank" rel="noreferrer">Open in Google Maps</a> : null}
+            {details ? <p className="muted" style={{ fontSize: 12, margin: 0 }}>{GOOGLE_ATTRIBUTION}</p> : null}
           </Panel>
           <Panel title={`Fit ${f.score}/100`} sub={`${carrier?.name ?? 'Independent agency'} · ${p.segment} · ${p.state ?? 'state unknown'}`}>
             <ul className="list">{f.reasons.map((r) => <li key={r} style={{ fontSize: 14 }}>{r}</li>)}</ul>

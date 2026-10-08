@@ -12,31 +12,37 @@ import { saveCarrier, saveScanSettings, runScanNow } from '@/lib/scan-actions';
 
 export const metadata = { title: 'Carriers & scanner' };
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // "Run a scan slice now" works for up to 40 seconds
 
 export default async function Carriers() {
   const v = await requireStaff();
   const supabase = await db();
   const [{ data: carriers }, { data: found }, { data: cells }, { data: runs }, settings, spent] = await Promise.all([
     supabase.from('carriers').select('*').order('fit_score', { ascending: false }),
-    supabase.from('prospects').select('carrier_id, status'),
-    supabase.from('scan_cells').select('state, status'),
+    supabase.rpc('prospect_counts'),
+    supabase.rpc('scan_cell_counts'),
     supabase.from('scan_runs').select('*').order('started_at', { ascending: false }).limit(5),
     scanSettings(),
     monthSpendCents(),
   ]);
+  const rowsC = (found ?? []) as { carrier_id: string | null; status: string; n: number }[];
   const count = new Map<string, number>();
-  for (const p of found ?? []) if (p.carrier_id) count.set(p.carrier_id, (count.get(p.carrier_id) ?? 0) + 1);
-  const pending = (cells ?? []).filter((c) => c.status === 'pending').length;
-  const doneCells = (cells ?? []).filter((c) => c.status !== 'pending').length;
+  for (const p of rowsC) if (p.carrier_id) count.set(p.carrier_id, (count.get(p.carrier_id) ?? 0) + Number(p.n));
+  const totalFound = rowsC.reduce((a, p) => a + Number(p.n), 0);
+  const worked = rowsC.filter((p) => p.status !== 'new').reduce((a, p) => a + Number(p.n), 0);
+  const cellRows = (cells ?? []) as { status: string; n: number }[];
+  const totalCells = cellRows.reduce((a, c) => a + Number(c.n), 0);
+  const pending = cellRows.filter((c) => c.status === 'pending').reduce((a, c) => a + Number(c.n), 0);
+  const doneCells = totalCells - pending;
   const admin = v.staff.role === 'admin';
   const connected = placesConfigured();
   return (
     <ConsoleShell title="Carriers & scanner" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Carriers & scanner' }]}>
       <p className="soft">Every carrier whose agents fit Genovus, and the national scan that finds their offices. Counts come from each carrier’s own documents; blank means not published or not yet confirmed.</p>
       <div className="grid g4">
-        <Tile label="Offices found" value={<span className="num">{(found ?? []).length}</span>} hint={`${(found ?? []).filter((p) => p.status !== 'new').length} worked so far`} />
-        <Tile label="Scan progress" value={<span className="num">{cells?.length ? Math.round((100 * doneCells) / cells.length) : 0}%</span>} hint={`${pending} areas left in ${settings.states.join(', ')}`} />
-        <Tile label="Spent this month" value={`$${(spent / 100).toFixed(2)}`} hint={`of $${(settings.budgetCents / 100).toFixed(0)} budget (estimate)`} />
+        <Tile label="Offices found" value={<span className="num">{totalFound.toLocaleString('en-US')}</span>} hint={`${worked.toLocaleString('en-US')} worked so far`} />
+        <Tile label="Scan progress" value={<span className="num">{totalCells ? Math.round((100 * doneCells) / totalCells) : 0}%</span>} hint={`${pending} areas left in ${settings.states.join(', ')}`} />
+        <Tile label="Spent this month" value={`$${(spent / 100).toFixed(2)}`} hint={`of ${(settings.budgetCents / 100).toFixed(0)} budget: searches and on-screen lookups (estimate)`} />
         <Tile label="Carriers scanned" value={<span className="num">{(carriers ?? []).filter((c) => c.scan_enabled).length}</span>} hint={`of ${(carriers ?? []).length} in the catalog`} />
       </div>
 

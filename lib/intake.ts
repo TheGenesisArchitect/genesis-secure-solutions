@@ -68,5 +68,9 @@ export async function submitInquiry(f: FormData) {
     .single();
   if (error || !data) fail('Something went wrong saving your request. Please try again.');
   await db.from('audit_events').insert({ tenant_id: null, actor: null, actor_label: 'website', action: 'inquiry.new', subject: org, after: { kind, id: data!.id }, prev_hash: '', hash: '' });
+  if (prospectId) {
+    await db.from('prospects').update({ status: 'replied', next_action_at: null }).eq('id', prospectId).in('status', ['new', 'verified', 'contacting']);
+    await db.from('prospect_events').insert({ prospect_id: prospectId, kind: 'reply', outcome: 'inquiry', note: `Sent an inquiry from the website (${org})` });
+  }
   redirect(`/thanks?k=${kind}`);
 }

@@ -63,10 +63,11 @@ async function snapshotHouseKpis(db: ReturnType<typeof adminDb>, period: string)
     db.from('invoices').select('tenant_id, kind, amount_cents, status, paid_at').eq('status', 'paid'),
     db.from('tenants').select('id, kind, is_sample, care_active, care_rate_cents'),
     db.from('expenses').select('spent_on, category, amount_cents').gte('spent_on', period),
-    db.from('scan_runs').select('started_at, est_cost_cents').gte('started_at', period),
+    db.from('places_usage').select('day, cost_cents').gte('day', period),
     db.from('inquiries').select('created_at').gte('created_at', period),
   ]);
-  const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: scans ?? [], inquiries: inquiries ?? [], window });
+  const google = (scans ?? []).map((u) => ({ started_at: u.day, est_cost_cents: Math.round(Number(u.cost_cents)) }));
+  const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: google, inquiries: inquiries ?? [], window });
   const { count: prospects } = await db.from('prospects').select('id', { count: 'exact', head: true });
   const metrics = {
     revenue_cents: f.revenue, setup_cents: f.setup, care_cents: f.care, mrr_cents: f.mrr, acquisition_cents: f.acquisition, operating_cents: f.operating,

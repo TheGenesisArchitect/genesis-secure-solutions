@@ -13,9 +13,11 @@ export function classify(name: string, types: string[] | undefined, carriers: Ca
   // the place must also be an insurance business, by Google's type or its own name.
   const insurance = Boolean(types?.includes('insurance_agency')) || /\b(insurance|agent|agency|financial)\b/i.test(name);
   if (!insurance) return null;
-  for (const c of carriers) {
-    if (!c.aliases.length || c.model === 'independent') continue;
-    if (c.aliases.some((a) => new RegExp(`(^|[^A-Za-z0-9])${esc(a)}([^A-Za-z0-9]|$)`, 'i').test(n))) return { carrier: c, segment: 'captive' };
+  // Most specific first: "Georgia Farm Bureau" must win over the generic "Farm Bureau".
+  const pairs = carriers.filter((c) => c.aliases.length && c.model !== 'independent').flatMap((c) => c.aliases.map((a) => ({ c, a })))
+    .sort((x, y) => y.a.length - x.a.length);
+  for (const { c, a } of pairs) {
+    if (new RegExp(`(^|[^A-Za-z0-9])${esc(a)}([^A-Za-z0-9]|$)`, 'i').test(n)) return { carrier: c, segment: 'captive' };
   }
   // Not a carrier's office: keep it only if Google types it as an insurance agency.
   if (types?.includes('insurance_agency')) return { carrier: carriers.find((c) => c.slug === 'independent') ?? null, segment: 'independent' };

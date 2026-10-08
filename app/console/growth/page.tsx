@@ -28,13 +28,14 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
     supabase.from('invoices').select('tenant_id, kind, amount_cents, status, paid_at').eq('status', 'paid'),
     supabase.from('tenants').select('id, kind, is_sample, care_active, care_rate_cents'),
     supabase.from('expenses').select('id, spent_on, category, vendor, amount_cents, recurring, note, campaign_id').gte('spent_on', since).order('spent_on', { ascending: false }),
-    supabase.from('scan_runs').select('started_at, est_cost_cents').gte('started_at', since),
+    supabase.from('places_usage').select('day, cost_cents').gte('day', since),
     supabase.from('inquiries').select('created_at, status, campaign_id').gte('created_at', since),
     supabase.from('campaigns').select('id, name').order('created_at', { ascending: false }),
   ]);
-  const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: scans ?? [], inquiries: inquiries ?? [], window });
+  const google = (scans ?? []).map((u) => ({ started_at: u.day, est_cost_cents: Math.round(Number(u.cost_cents)) }));
+  const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: google, inquiries: inquiries ?? [], window });
   const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
-  const scanCost = (scans ?? []).reduce((a, s) => a + s.est_cost_cents, 0);
+  const scanCost = google.reduce((a, s) => a + s.est_cost_cents, 0);
   const converted = (inquiries ?? []).filter((q) => q.status === 'converted').length;
   return (
     <ConsoleShell title="Growth & financials" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Growth & financials' }]}

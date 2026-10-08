@@ -5,7 +5,7 @@ import { ConsoleShell } from '@/components/ConsoleShell';
 import { Panel, Chip, Empty, Tile } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { getSummary, placesConfigured } from '@/lib/places';
+import { getSummary, placesConfigured, GOOGLE_ATTRIBUTION } from '@/lib/places';
 import { STATUS_LABEL, OPEN_STATUSES } from '@/lib/prospects';
 
 export const metadata = { title: 'Prospects' };
@@ -77,6 +77,7 @@ export default async function Prospects({ searchParams }: { searchParams: Promis
             {page < pages ? <Link className="btn small" href={link({ page: String(page + 1) })}>Next</Link> : <span />}
           </div>
         ) : null}
+        {live ? <p className="muted" style={{ fontSize: 12, margin: 0 }}>{GOOGLE_ATTRIBUTION}</p> : null}
       </Panel>
     </ConsoleShell>
   );

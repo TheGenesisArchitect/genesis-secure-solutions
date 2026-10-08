@@ -2,12 +2,13 @@
 // carrier in the catalog (scan_enabled) plus one generic insurance-agency search for independents. A query
 // that fills all 3 pages (60 results) may be hiding more, so the cell splits into four and re-queues.
 // Runs in short, resumable slices (cron) and stops at the monthly budget. Stores only place IDs and our own
-// classification (carrier, segment, state); see lib/places.ts for the Google terms this follows.
+// classification (carrier, segment, and the state whose area was searched); see lib/places.ts for the Google
+// terms this follows. Time and budget are checked between areas, so a slice never discards paid-for results.
 import 'server-only';
 import { adminDb } from './supabase/admin';
 import { COST_CENTS, textSearch, type Rect } from './places';
 import { classify, fit, type CarrierRule } from './classify';
-import { startingCells, stateAt } from './geo-states';
+import { startingCells } from './geo-states';
 
 const MIN_CELL_DEG = 0.04; // ~4 km: stop splitting below this
 const PAGES = 3;
@@ -23,10 +24,10 @@ export async function scanSettings() {
   return { states, budgetCents: Math.round(budgetUsd * 100), sweepStarted: get('scan_sweep_started') ?? null };
 }
 
+/** All Google Places spend this month (sweep searches and on-screen lookups), in cents. */
 export async function monthSpendCents() {
-  const start = new Date(); start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0);
-  const { data } = await adminDb().from('scan_runs').select('est_cost_cents').gte('started_at', start.toISOString());
-  return (data ?? []).reduce((s, r) => s + r.est_cost_cents, 0);
+  const { data } = await adminDb().rpc('places_month_cents');
+  return Number(data ?? 0);
 }
 
 /** Make sure every focus state has starting cells. */
@@ -59,23 +60,24 @@ export async function runSlice(opts: { deadlineMs?: number; maxRequests?: number
   const runId = run!.id as number;
   let requests = 0, found = 0, cellsDone = 0;
   let status: SliceResult['status'] = 'more';
-  const cost = () => Math.round(requests * COST_CENTS.textSearch);
-  const overBudget = () => spent + cost() + COST_CENTS.textSearch > settings.budgetCents;
+  const cost = () => Math.round(requests * COST_CENTS.text_search);
+  // Worst case for one area: every query fills all pages.
+  const cellWorst = queries.length * PAGES * COST_CENTS.text_search;
 
   try {
     outer: while (Date.now() - t0 < deadline) {
       const { data: cells } = await db.from('scan_cells').select('*').eq('status', 'pending').in('state', settings.states).order('depth', { ascending: false }).order('id').limit(5);
       if (!cells?.length) { status = 'done'; break; }
       for (const cell of cells) {
+        if (spent + cost() + cellWorst > settings.budgetCents) { status = 'budget'; break outer; }
+        if (requests >= maxReq || Date.now() - t0 > deadline) break outer;
         const rect: Rect = { south: cell.south, west: cell.west, north: cell.north, east: cell.east };
         let full = false;
-        const seen = new Map<string, { carrier: string | null; segment: string; state: string | null }>();
+        const seen = new Map<string, { carrier: string | null; segment: string }>();
         for (const q of queries) {
           let token: string | undefined;
           let got = 0;
           for (let page = 0; page < PAGES; page++) {
-            if (overBudget()) { status = 'budget'; break outer; }
-            if (requests >= maxReq || Date.now() - t0 > deadline) break outer;
             const r = await textSearch({ query: q.q, rect, includedType: q.type, pageToken: token });
             requests++;
             got += r.places.length;
@@ -84,7 +86,7 @@ export async function runSlice(opts: { deadlineMs?: number; maxRequests?: number
               if (!k) continue;
               const prev = seen.get(p.id);
               // A carrier match wins over "independent" when the same office appears in several searches.
-              if (!prev || (prev.segment === 'independent' && k.segment === 'captive')) seen.set(p.id, { carrier: k.carrier?.id ?? null, segment: k.segment, state: stateAt(p.lon, p.lat) });
+              if (!prev || (prev.segment === 'independent' && k.segment === 'captive')) seen.set(p.id, { carrier: k.carrier?.id ?? null, segment: k.segment });
             }
             token = r.next;
             if (!token) break;
@@ -98,7 +100,7 @@ export async function runSlice(opts: { deadlineMs?: number; maxRequests?: number
         const known = new Set((existing ?? []).map((e) => e.place_id));
         const rows = [...seen.entries()].map(([place_id, v]) => {
           const c = carriers.find((x) => x.id === v.carrier);
-          const state = v.state ?? cell.state;
+          const state = cell.state; // the state whose area we searched (our own data), not a Google coordinate
           // Base fit (carrier + focus state); first-party and live signals refine it on the prospect page.
           const base = fit({ carrierFit: c?.fit_score ?? 50, carrierReasons: [], state, focusStates: settings.states }).score;
           return { place_id, carrier_id: v.carrier, segment: v.segment, state, cell_id: cell.id, last_seen: now, missed_sweeps: 0, fit_score: base };

@@ -28,28 +28,29 @@ export default async function RealNetwork({ searchParams }: { searchParams: Prom
     supabase.from('carriers').select('id, slug, name, agent_count, count_label, verified, model').order('fit_score', { ascending: false }),
     supabase.from('networks').select('slug, name').order('name'),
     scanSettings(),
-    supabase.from('scan_cells').select('status, last_scanned'),
+    supabase.rpc('scan_cell_counts'),
   ]);
   const carrier = carriers?.find((c) => c.slug === sp.carrier);
-  // All prospects in pages of 1,000 (PostgREST's cap per request).
-  const all: { carrier_id: string | null; segment: string; state: string | null; status: string }[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data } = await supabase.from('prospects').select('carrier_id, segment, state, status').neq('status', 'closed').range(from, from + 999);
-    all.push(...(data ?? []));
-    if (!data || data.length < 1000) break;
-  }
-  const rows = all.filter((p) => (!carrier || p.carrier_id === carrier.id) && (!sp.segment || p.segment === sp.segment) && (!sp.state || p.state === sp.state));
+  // Counts by carrier, state, status and segment from one aggregate (no row limits at national scale).
+  const { data: agg } = await supabase.rpc('prospect_counts');
+  type G = { carrier_id: string | null; segment: string; state: string | null; status: string; n: number };
+  const all = ((agg ?? []) as G[]).filter((g) => g.status !== 'closed');
+  const groups = all.filter((p) => (!carrier || p.carrier_id === carrier.id) && (!sp.segment || p.segment === sp.segment) && (!sp.state || p.state === sp.state));
+  const total = (pred: (g: G) => boolean) => groups.filter(pred).reduce((a, g) => a + Number(g.n), 0);
   const perState = new Map<string, number>(), talking = new Map<string, number>();
-  for (const p of rows.filter((r) => !sp.state || true)) {
-    if (!p.state) continue;
-    perState.set(p.state, (perState.get(p.state) ?? 0) + 1);
-    if (TALKING.includes(p.status)) talking.set(p.state, (talking.get(p.state) ?? 0) + 1);
+  for (const g of groups) {
+    if (!g.state) continue;
+    perState.set(g.state, (perState.get(g.state) ?? 0) + Number(g.n));
+    if (TALKING.includes(g.status)) talking.set(g.state, (talking.get(g.state) ?? 0) + Number(g.n));
   }
-  const byCarrier = (carriers ?? []).map((c) => ({ c, n: rows.filter((p) => p.carrier_id === c.id).length })).filter((x) => x.n || x.c.agent_count);
+  const byCarrier = (carriers ?? []).map((c) => ({ c, n: total((g) => g.carrier_id === c.id) })).filter((x) => x.n || x.c.agent_count);
   const maxC = Math.max(1, ...byCarrier.map((x) => x.n));
-  const funnel = FUNNEL.map((s) => ({ s, n: rows.filter((p) => FUNNEL.indexOf(p.status) >= FUNNEL.indexOf(s)).length }));
-  const lastScan = (cells ?? []).map((c) => c.last_scanned).filter(Boolean).sort().pop();
-  const doneCells = (cells ?? []).filter((c) => c.status !== 'pending').length;
+  const funnel = FUNNEL.map((s) => ({ s, n: total((g) => FUNNEL.indexOf(g.status) >= FUNNEL.indexOf(s)) }));
+  const cellRows = (cells ?? []) as { status: string; n: number; last_scanned: string | null }[];
+  const lastScan = cellRows.map((c) => c.last_scanned).filter(Boolean).sort().pop();
+  const totalCells = cellRows.reduce((a, c) => a + Number(c.n), 0);
+  const doneCells = totalCells - cellRows.filter((c) => c.status === 'pending').reduce((a, c) => a + Number(c.n), 0);
+  const found = total(() => true);
   const link = (patch: Partial<SP>) => {
     const p = new URLSearchParams();
     for (const [k, val] of Object.entries({ ...sp, ...patch })) if (val) p.set(k, String(val));
@@ -69,7 +70,7 @@ export default async function RealNetwork({ searchParams }: { searchParams: Prom
         { title: 'Scenarios', items: (nets ?? []).map((n) => ({ href: `/network?n=${n.slug}`, label: n.name.replace(' (scenario)', ''), exact: true })) },
       ]}
     >
-      <div className="notice">Real offices found by the Genovus scanner in {settings.states.join(', ')} ({cells?.length ? Math.round((100 * doneCells) / cells.length) : 0}% scanned{lastScan ? `, last ${new Date(lastScan).toLocaleDateString('en-US')}` : ''}). Team only: carrier partners never see this view.</div>
+      <div className="notice">Real offices found by the Genovus scanner in {settings.states.join(', ')} ({totalCells ? Math.round((100 * doneCells) / totalCells) : 0}% scanned{lastScan ? `, last ${new Date(lastScan).toLocaleDateString('en-US')}` : ''}). Team only: carrier partners never see this view.</div>
       <form className="row" action="/network/real">
         <select className="select" style={{ width: "auto", minWidth: 170 }} name="carrier" defaultValue={sp.carrier ?? ''} aria-label="Carrier"><option value="">All carriers</option>{(carriers ?? []).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select>
         <select className="select" style={{ width: "auto", minWidth: 170 }} name="segment" defaultValue={sp.segment ?? ''} aria-label="Segment"><option value="">Captive + independent</option><option value="captive">Captive / exclusive</option><option value="independent">Independent</option></select>
@@ -78,12 +79,12 @@ export default async function RealNetwork({ searchParams }: { searchParams: Prom
         {sp.state ? <Link className="btn ghost small" href={link({ state: undefined })}>Clear {STATE_NAME[sp.state] ?? sp.state}</Link> : null}
       </form>
       <div className="grid g4">
-        <Tile label="Offices found" value={<span className="num">{rows.length.toLocaleString('en-US')}</span>} hint={`${perState.size} states`} />
-        <Tile label="Captive / exclusive" value={<span className="num">{rows.filter((p) => p.segment === 'captive').length.toLocaleString('en-US')}</span>} hint={`${rows.filter((p) => p.segment === 'independent').length.toLocaleString('en-US')} independent`} />
-        <Tile label="In conversation" value={<span className="num">{rows.filter((p) => TALKING.includes(p.status)).length}</span>} hint="Contacting to proposal" />
-        <Tile label="Won" value={<span className="num">{rows.filter((p) => p.status === 'won').length}</span>} hint="Became clients" />
+        <Tile label="Offices found" value={<span className="num">{found.toLocaleString('en-US')}</span>} hint={`${perState.size} states`} />
+        <Tile label="Captive / exclusive" value={<span className="num">{total((g) => g.segment === 'captive').toLocaleString('en-US')}</span>} hint={`${total((g) => g.segment === 'independent').toLocaleString('en-US')} independent`} />
+        <Tile label="In conversation" value={<span className="num">{total((g) => TALKING.includes(g.status))}</span>} hint="Contacting to proposal" />
+        <Tile label="Won" value={<span className="num">{total((g) => g.status === 'won')}</span>} hint="Became clients" />
       </div>
-      {rows.length ? (
+      {found ? (
         <>
           <div className="grid net-top">
             <Panel title="Offices by state" sub={sp.state ? `Showing ${STATE_NAME[sp.state]}. Click it again to clear.` : 'Click a state to filter; dots = offices in conversation'}>
@@ -112,10 +113,10 @@ export default async function RealNetwork({ searchParams }: { searchParams: Prom
               ))}
             </div>
           </Panel>
-          <NetworkForecast offices={rows.map((p) => ({ stage: p.status === 'won' ? 'care' : 'attract', plan: null }))} sample={false} />
+          <NetworkForecast offices={groups.flatMap((g) => Array.from({ length: Number(g.n) }, () => ({ stage: g.status === 'won' ? 'care' : 'attract', plan: null })))} sample={false} />
         </>
       ) : <Empty title="No offices found yet">Connect Google Places and run the first scan from Carriers & scanner.</Empty>}
-      <p className="muted" style={{ fontSize: 12 }}>Office locations from Google Maps Platform. <Chip kind="dev">Projection</Chip> rows above are estimates from published rates.</p>
+      <p className="muted" style={{ fontSize: 12 }}>Counts are of offices our scan found through Google Maps Platform, grouped by the state we searched. <Chip kind="dev">Projection</Chip> rows above are estimates from published rates.</p>
     </Shell>
   );
 }

@@ -6,7 +6,7 @@ import { ActionForm } from '@/components/ActionForm';
 import { Panel, Chip, Empty } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { getDetails } from '@/lib/places';
+import { getDetails, GOOGLE_ATTRIBUTION } from '@/lib/places';
 import { scanSettings } from '@/lib/scanner';
 import { OUTCOMES, officeClock } from '@/lib/prospects';
 import { logProspect } from '@/lib/scan-actions';
@@ -68,6 +68,7 @@ export default async function Calls() {
               })}
             </ul>
           ) : <Empty title="No calls due">Run the scanner, widen the focus states, or check back when follow-ups come due.</Empty>}
+          {list.length ? <p className="muted" style={{ fontSize: 12, margin: 0 }}>{GOOGLE_ATTRIBUTION}</p> : null}
         </Panel>
         <Panel title="Talking points" sub="Keep it short and honest">
           <ol style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8, fontSize: 14 }}>{TALKING_POINTS.map((t) => <li key={t}>{t}</li>)}</ol>

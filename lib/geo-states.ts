@@ -1,8 +1,8 @@
 // State geometry in longitude/latitude (us-atlas, unprojected) for the scanner: each state's bounding box to
-// tile searches, and which state a point falls in. Server only; computed once per process.
+// tile searches. Server only; computed once per process.
 import 'server-only';
 import { feature } from 'topojson-client';
-import { geoBounds, geoContains } from 'd3-geo';
+import { geoBounds } from 'd3-geo';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import states from 'us-atlas/states-10m.json';
 import { STATE_ABBR } from './us-map';
@@ -29,15 +29,6 @@ export function stateBox(abbr: string) {
   return load().find((x) => x.abbr === abbr)?.box ?? null;
 }
 
-/** The state a point is in (null offshore or outside the US). Bounding boxes first, then the exact shape. */
-export function stateAt(lon: number, lat: number): string | null {
-  for (const x of load()) {
-    const [[w, s], [e, n]] = x.box;
-    if (lon < w || lon > e || lat < s || lat > n) continue;
-    if (geoContains(x.f, [lon, lat])) return x.abbr;
-  }
-  return null;
-}
 
 /** Split a state's box into starting cells of at most `step` degrees per side. */
 export function startingCells(abbr: string, step = 1) {
