@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0b0c10',
     icons: [
       { src: '/brand/genovus/genovus-app-icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' },
-      { src: '/brand/genovus/genovus-mark-128.png', sizes: '128x128', type: 'image/png' },
+      { src: '/brand/genovus/genovus-icon.svg', sizes: 'any', type: 'image/svg+xml' },
     ],
   };
 }
