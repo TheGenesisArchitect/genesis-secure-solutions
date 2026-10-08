@@ -507,3 +507,11 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 }
 @media (max-width:900px){.rail-toggle{display:none}.jump-hint,.jump-open kbd{display:none}}
 @media (prefers-reduced-motion:reduce){.dash,.dash .rail{transition:none}}
+
+/* revenue vs spend chart */
+.chart{width:100%;height:auto;display:block}
+.chart .grid-line{stroke:var(--line);stroke-width:1}
+.chart .axis{fill:var(--muted);font:500 11px var(--mono)}
+.rev-setup{fill:#ff6a2b}.rev-care{fill:#ffa31a}.sp-acq{fill:#6aa8ff}.sp-op{fill:#3a5f99}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.sw.rev-setup{background:#ff6a2b}.sw.rev-care{background:#ffa31a}.sw.sp-acq{background:#6aa8ff}.sw.sp-op{background:#3a5f99}

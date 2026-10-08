@@ -249,6 +249,20 @@ export async function deleteInvoice(_: ActionResult, f: FormData) {
   return call('delete_invoice', { p_id: str(f, 'id', 64) }, 'Draft removed.');
 }
 
+// ---------- Growth & financials (house account) ----------
+export async function addExpense(_: ActionResult, f: FormData) {
+  const amount = cents(str(f, 'amount', 20) || '0');
+  if (!(amount > 0)) return fail('Enter an amount above zero.');
+  return call('add_expense', {
+    p_on: str(f, 'on', 10) || businessToday(), p_category: str(f, 'category', 20), p_vendor: str(f, 'vendor', 80), p_amount_cents: amount,
+    p_recurring: f.get('recurring') === 'on', p_campaign: str(f, 'campaign', 64) || null, p_note: str(f, 'note', 300),
+  }, `Expense recorded: ${str(f, 'vendor', 80)} ${fmt(amount)}.`);
+}
+
+export async function deleteExpense(_: ActionResult, f: FormData) {
+  return call('delete_expense', { p_id: str(f, 'id', 64) }, 'Expense removed.');
+}
+
 // ---------- Genovus campaigns (house account) ----------
 export async function saveCampaign(_: ActionResult, f: FormData) {
   const slug = str(f, 'slug', 41).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');

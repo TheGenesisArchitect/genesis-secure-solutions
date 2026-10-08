@@ -2,6 +2,7 @@
 // open care requests) instead of a stream of nudges, plus a full verification of the audit chain.
 import { adminDb } from '@/lib/supabase/admin';
 import { cronAuthorized } from '@/lib/cron';
+import { finance } from '@/lib/finance';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,10 @@ export async function GET(req: Request) {
   const now = new Date();
   const period = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
   const { data: drafted } = await db.rpc('draft_monthly_care', { p_period: period });
+  // Monthly costs carry into the new month once; then today's house-account KPIs are saved for this month,
+  // so the trend survives later edits to invoices or expenses.
+  await db.rpc('roll_recurring_expenses', { p_month: period });
+  await snapshotHouseKpis(db, period);
   const weekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
   const twoDays = new Date(Date.now() - 2 * 86_400_000).toISOString();
   const [{ count: inquiries }, { data: stale }, { count: care }, { data: broken }] = await Promise.all([
@@ -48,4 +53,24 @@ export async function GET(req: Request) {
     }
   }
   return Response.json({ quiet, lines });
+}
+
+async function snapshotHouseKpis(db: ReturnType<typeof adminDb>, period: string) {
+  const { data: house } = await db.from('tenants').select('id').eq('slug', 'genovus').maybeSingle();
+  if (!house) return;
+  const window = [period.slice(0, 7)];
+  const [{ data: invoices }, { data: tenants }, { data: expenses }, { data: scans }, { data: inquiries }] = await Promise.all([
+    db.from('invoices').select('tenant_id, kind, amount_cents, status, paid_at').eq('status', 'paid'),
+    db.from('tenants').select('id, kind, is_sample, care_active, care_rate_cents'),
+    db.from('expenses').select('spent_on, category, amount_cents').gte('spent_on', period),
+    db.from('scan_runs').select('started_at, est_cost_cents').gte('started_at', period),
+    db.from('inquiries').select('created_at').gte('created_at', period),
+  ]);
+  const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: scans ?? [], inquiries: inquiries ?? [], window });
+  const { count: prospects } = await db.from('prospects').select('id', { count: 'exact', head: true });
+  const metrics = {
+    revenue_cents: f.revenue, setup_cents: f.setup, care_cents: f.care, mrr_cents: f.mrr, acquisition_cents: f.acquisition, operating_cents: f.operating,
+    new_clients: f.newClients, live_clients: f.liveClients, cac_cents: f.cac == null ? null : Math.round(f.cac), inquiries: f.inquiries, prospects: prospects ?? 0,
+  };
+  await db.from('kpi_snapshots').upsert({ tenant_id: house.id, period, metrics, is_sample: false }, { onConflict: 'tenant_id,period' });
 }

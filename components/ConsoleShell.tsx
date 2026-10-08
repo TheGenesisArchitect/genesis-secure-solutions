@@ -35,6 +35,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
             { href: '/console/campaigns', label: 'Campaigns', icon: 'growth' },
             { href: '/console/prospects', label: 'Prospects', icon: 'target' },
             { href: '/console/carriers', label: 'Carriers & scanner', icon: 'carriers' },
+            { href: '/console/growth', label: 'Growth & financials', icon: 'chart' },
           ],
         },
         {
