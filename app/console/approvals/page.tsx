@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import Link from 'next/link';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Empty, dateTime, daysSince } from '@/components/ui';
@@ -27,10 +28,10 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
         title="Waiting on the team"
         sub={`${team.length} item${team.length === 1 ? '' : 's'}, oldest first`}
         actions={clean.length > 1 ? (
-          <form action={bulkApprove}>
+          <ActionForm action={bulkApprove}>
             {clean.map((a) => <input key={a.id} type="hidden" name="id" value={a.id} />)}
             <button className="btn good small" type="submit">Approve all {clean.length} that passed every rule</button>
-          </form>
+          </ActionForm>
         ) : null}
       >
         {team.length ? (
@@ -56,13 +57,13 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
                   {flags.length ? (
                     <div className="row" style={{ gap: 6 }}>{flags.map((f, i) => <Chip key={i} kind={f.hard ? 'bad' : 'pending'}>{f.label}</Chip>)}</div>
                   ) : text ? <Chip kind="done">Passed every rule</Chip> : null}
-                  <form action={decideApproval} className="row">
+                  <ActionForm action={decideApproval} className="row">
                     <input type="hidden" name="id" value={a.id} />
                     <input type="hidden" name="back" value="/console/approvals" />
                     <input className="input" name="note" placeholder="Note (required to request changes)" style={{ flex: 1, minWidth: 200 }} />
                     <button className="btn good small" name="decision" value="approved" disabled={flags.some((f) => f.hard)}>Approve</button>
                     <button className="btn small" name="decision" value="changes_requested">Request changes</button>
-                  </form>
+                  </ActionForm>
                 </li>
               );
             })}

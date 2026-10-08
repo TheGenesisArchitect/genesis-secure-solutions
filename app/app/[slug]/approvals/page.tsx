@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Status, Empty, dateTime } from '@/components/ui';
@@ -29,7 +30,7 @@ export default async function AgencyApprovals({ params, searchParams }: { params
                 {typeof a.body?.text === 'string' ? <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>{a.body.text}</div> : null}
                 {typeof a.body?.channel === 'string' ? <span className="muted" style={{ fontSize: 13 }}>For {a.body.channel}{typeof a.body?.when === 'string' ? ` · planned ${a.body.when}` : ''}</span> : null}
                 {canDecide ? (
-                  <form action={decideApproval} className="form">
+                  <ActionForm action={decideApproval} className="form">
                     <input type="hidden" name="id" value={a.id} />
                     <input type="hidden" name="back" value={here} />
                     <input className="input" name="note" placeholder="What should change? (needed only to request changes)" />
@@ -37,7 +38,7 @@ export default async function AgencyApprovals({ params, searchParams }: { params
                       <button className="btn good" name="decision" value="approved">Approve</button>
                       <button className="btn" name="decision" value="changes_requested">Request changes</button>
                     </div>
-                  </form>
+                  </ActionForm>
                 ) : <span className="muted" style={{ fontSize: 13 }}>{ctx.asStaff ? 'Only the agency owner can decide this.' : 'Your agency owner approves this.'}</span>}
               </li>
             ))}

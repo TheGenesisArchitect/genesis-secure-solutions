@@ -1,4 +1,4 @@
-// Every weekday morning: one digest to the team (new inquiries, client approvals waiting over two days,
+// Every day: draft the month's care invoices (idempotent) and, on weekdays, one digest to the team (new inquiries,
 // open care requests) instead of a stream of nudges, plus a full verification of the audit chain.
 import { adminDb } from '@/lib/supabase/admin';
 import { cronAuthorized } from '@/lib/cron';
@@ -8,6 +8,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return new Response('Unauthorized', { status: 401 });
   const db = adminDb();
+  // Care: draft this month's invoices (idempotent, so running every day also catches up after a weekend 1st).
+  const now = new Date();
+  const period = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const { data: drafted } = await db.rpc('draft_monthly_care', { p_period: period });
+  const weekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
   const twoDays = new Date(Date.now() - 2 * 86_400_000).toISOString();
   const [{ count: inquiries }, { data: stale }, { count: care }, { data: broken }] = await Promise.all([
     db.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new'),
@@ -21,7 +26,15 @@ export async function GET(req: Request) {
     stale?.length ? `Client approvals waiting over two days: ${stale.map((s) => `${s.title} (${(s.tenants as unknown as { name: string } | null)?.name})`).join('; ')}.` : 'No client approvals waiting over two days.',
     broken === null ? 'Audit log: every entry verified.' : `Audit log: the chain breaks at entry #${broken}. Investigate today.`,
   ];
-  const quiet = !inquiries && !care && !stale?.length && broken === null;
+  if ((drafted ?? 0) > 0) {
+    const month = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const { data: leads } = await db.from('staff').select('user_id').in('role', ['admin', 'account_lead']);
+    for (const s of leads ?? []) {
+      const { data: u } = await db.auth.admin.getUserById(s.user_id);
+      if (u.user?.email) await db.from('outbox').upsert({ to_email: u.user.email, template: 'team_care_month', data: { month, count: String(drafted) }, dedupe_key: `caremonth:${period}:${drafted}:${s.user_id}` }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    }
+  }
+  const quiet = !weekday || (!inquiries && !care && !stale?.length && broken === null);
   if (!quiet) {
     const { data: team } = await db.from('staff').select('user_id, role').in('role', ['admin', 'account_lead']);
     const day = new Date().toISOString().slice(0, 10);

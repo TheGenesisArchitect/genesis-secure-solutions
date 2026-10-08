@@ -441,3 +441,11 @@ figure svg g:nth-child(2) rect{animation-delay:.05s}figure svg g:nth-child(3) re
 .stage-row:hover,.stage-row.on{background:var(--raise)}
 .net-top{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
 @media (max-width:1100px){.net-top{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- toasts and in-place saving ---------- */
+.toast{position:fixed;right:20px;bottom:20px;z-index:60;max-width:min(560px,calc(100vw - 32px));display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:14px;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(14px);border:1px solid var(--line-2);box-shadow:0 20px 50px -20px rgba(0,0,0,.8);animation:rise .35s var(--ease) both;overflow-wrap:anywhere}
+.toast.ok{border-color:color-mix(in srgb,var(--done) 55%,transparent)}
+.toast.err{border-color:color-mix(in srgb,var(--bad) 60%,transparent)}
+.toast-x{background:none;border:0;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+form[data-pending] button[type=submit],form[data-pending] button:not([type]){opacity:.6;pointer-events:none}

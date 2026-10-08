@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, date } from '@/components/ui';
@@ -34,7 +35,7 @@ export default async function Team({ params, searchParams }: { params: Promise<{
         </Panel>
         {ctx.isOwner ? (
           <Panel title="Invite someone" sub="They get an email with a sign-in link. No passwords.">
-            <form action={inviteMember} className="form">
+            <ActionForm action={inviteMember} className="form">
               <input type="hidden" name="tenant" value={ctx.tenant.tenantId} />
               <input type="hidden" name="back" value={here} />
               <label className="field"><span>Email</span><input className="input" type="email" name="email" required maxLength={200} /></label>
@@ -45,7 +46,7 @@ export default async function Team({ params, searchParams }: { params: Promise<{
                 </select>
               </label>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Send invitation</button>
-            </form>
+            </ActionForm>
           </Panel>
         ) : null}
       </div>

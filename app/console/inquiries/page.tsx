@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Status, Empty, dateTime } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
@@ -33,20 +34,20 @@ export default async function Inquiries({ searchParams }: { searchParams: Promis
           </dl>
           <div className="row">
             {i.status !== 'converted' ? (
-              <form action={setInquiryStatus} className="row">
+              <ActionForm action={setInquiryStatus} className="row">
                 <input type="hidden" name="id" value={i.id} />
                 <select className="select" name="status" defaultValue={i.status} style={{ width: 'auto' }} aria-label="Status">
                   {['new', 'contacted', 'closed'].map((s) => <option key={s}>{s}</option>)}
                 </select>
                 <button className="btn small" type="submit">Save</button>
-              </form>
+              </ActionForm>
             ) : null}
             {i.kind === 'agency' && i.status !== 'converted' ? (
-              <form action={convertInquiry} className="row">
+              <ActionForm action={convertInquiry} className="row">
                 <input type="hidden" name="id" value={i.id} />
                 <input className="input" name="slug" required placeholder="client-address" defaultValue={i.org.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)} style={{ width: 200 }} aria-label="Client address" />
                 <button className="btn primary small" type="submit">Convert to client</button>
-              </form>
+              </ActionForm>
             ) : null}
           </div>
         </Panel>

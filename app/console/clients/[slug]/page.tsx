@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
@@ -7,7 +8,8 @@ import { db } from '@/lib/supabase/server';
 import { liveSetup } from '@/lib/live-setup';
 import { moveStage, setGate, decideApproval, setCareStatus, saveRecord } from '@/lib/actions';
 import { inviteMember } from '@/lib/invite';
-import { issueWelcomeLink, createInvoice, publishInvoice, markInvoicePaid } from '@/lib/actions';
+import { issueWelcomeLink } from '@/lib/actions';
+import { BillingConsole } from '@/components/BillingConsole';
 import { findClientBySlug } from '@/lib/clients';
 
 const TABS = [
@@ -88,7 +90,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           </div>
           <div className="grid g2">
             <Panel title="Lifecycle" sub="Moving a stage is logged and drives the client’s next messages">
-              <form action={moveStage} className="row">
+              <ActionForm action={moveStage} className="row">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input type="hidden" name="back" value={here} />
                 <select className="select" name="stage" defaultValue={t.stage} style={{ width: 'auto' }} aria-label="Stage">
@@ -96,7 +98,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 </select>
                 <input className="input" name="note" placeholder="Note (optional)" style={{ flex: 1, minWidth: 160 }} maxLength={500} />
                 <button className="btn primary small" type="submit">Move</button>
-              </form>
+              </ActionForm>
               <ul className="list">
                 {(events.data ?? []).map((e, i) => (
                   <li key={i}>
@@ -151,7 +153,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                       <td><Status value={x.status} />{x.cleared_at ? <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{date(x.cleared_at)}</div> : null}</td>
                       <td className="soft" style={{ fontSize: 13, maxWidth: 340 }}>{x.evidence ?? '—'}</td>
                       <td>
-                        <form action={setGate} className="row" style={{ flexWrap: 'nowrap' }}>
+                        <ActionForm action={setGate} className="row" style={{ flexWrap: 'nowrap' }}>
                           <input type="hidden" name="tenant" value={t.id} />
                           <input type="hidden" name="kind" value={x.kind} />
                           <input type="hidden" name="back" value={here} />
@@ -160,7 +162,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                           </select>
                           <input className="input" name="evidence" placeholder="Evidence" style={{ minWidth: 140 }} maxLength={1000} />
                           <button className="btn small" type="submit">Save</button>
-                        </form>
+                        </ActionForm>
                       </td>
                     </tr>
                   ))}
@@ -171,11 +173,11 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           {t.kind === 'agency' && !findClientBySlug(slug) ? (
             <Panel title="Welcome package" sub="A personal welcome page and setup guide, built from this record. No deploy needed.">
               {links.data?.length ? <p className="soft">Link issued {dateTime(links.data[0].created_at)}. Reissuing replaces it; the client keeps their progress.</p> : <p className="soft">No welcome link yet. Issue one when the deposit clears; it is shown to you once.</p>}
-              <form action={issueWelcomeLink} className="row">
+              <ActionForm action={issueWelcomeLink} className="row">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input type="hidden" name="back" value={here} />
                 <button className="btn small primary" type="submit">{links.data?.length ? 'Reissue welcome link' : 'Issue welcome link'}</button>
-              </form>
+              </ActionForm>
             </Panel>
           ) : null}
           <Panel title="People" sub="Who can sign in to this agency’s dashboard">
@@ -185,13 +187,13 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               <Empty title="No one is invited yet">Invite the agency owner when they are ready to sign in.</Empty>
             )}
             {t.kind === 'agency' ? (
-              <form action={inviteMember} className="row">
+              <ActionForm action={inviteMember} className="row">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input type="hidden" name="back" value={here} />
                 <input className="input" type="email" name="email" required placeholder="name@agency.com" style={{ flex: 1, minWidth: 200 }} aria-label="Email to invite" />
                 <select className="select" name="role" defaultValue="owner" style={{ width: 'auto' }} aria-label="Access"><option value="owner">Owner</option><option value="staff">Office staff</option></select>
                 <button className="btn small primary" type="submit">Send sign-in invitation</button>
-              </form>
+              </ActionForm>
             ) : null}
           </Panel>
         </>
@@ -200,13 +202,13 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === 'record' && (
         <div className="grid g2">
           <Panel title={`Agent record v${rec?.version ?? 0}`} sub="One record drives the site, copy, kit and welcome package. Saving creates a new version.">
-            <form action={saveRecord} className="form">
+            <ActionForm action={saveRecord} className="form">
               <input type="hidden" name="tenant" value={t.id} />
               <input type="hidden" name="back" value={here} />
               <textarea className="textarea" name="data" defaultValue={JSON.stringify(data, null, 2)} style={{ minHeight: 420, font: '500 12.5px/1.5 var(--mono)' }} aria-label="Agent record JSON" />
               <input className="input" name="note" placeholder="What changed and why" maxLength={500} />
               <button className="btn primary" type="submit">Save new version</button>
-            </form>
+            </ActionForm>
           </Panel>
           <Panel title="Version history">
             <ul className="list">
@@ -249,13 +251,13 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                   <span className="muted" style={{ fontSize: 13 }}>Decided by {a.approver === 'team' ? 'the team' : 'the client'} · requested {dateTime(a.requested_at)}{a.decided_at ? ` · decided ${dateTime(a.decided_at)}` : ''}</span>
                   {a.decision_note ? <span className="soft">“{a.decision_note}”</span> : null}
                   {a.status === 'pending' && a.approver === 'team' ? (
-                    <form action={decideApproval} className="row">
+                    <ActionForm action={decideApproval} className="row">
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="back" value={here} />
                       <input className="input" name="note" placeholder="Note (required to request changes)" style={{ flex: 1, minWidth: 180 }} />
                       <button className="btn good small" name="decision" value="approved">Approve</button>
                       <button className="btn small" name="decision" value="changes_requested">Request changes</button>
-                    </form>
+                    </ActionForm>
                   ) : null}
                 </li>
               ))}
@@ -272,7 +274,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <li key={c.id}>
                   <div className="spread"><b>{c.title}</b><span className="row" style={{ gap: 6 }}>{c.is_sample ? <Chip kind="sample">Sample</Chip> : null}<Status value={c.status} /></span></div>
                   {c.detail ? <span className="soft">{c.detail}</span> : null}
-                  <form action={setCareStatus} className="row">
+                  <ActionForm action={setCareStatus} className="row">
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="back" value={here} />
                     <select className="select" name="status" defaultValue={c.status} style={{ width: 'auto' }} aria-label="Status">
@@ -280,7 +282,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                     </select>
                     <button className="btn small" type="submit">Update</button>
                     <span className="muted" style={{ fontSize: 13 }}>{c.kind} · {dateTime(c.created_at)}</span>
-                  </form>
+                  </ActionForm>
                 </li>
               ))}
             </ul>
@@ -288,62 +290,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
         </Panel>
       )}
 
-      {tab === 'billing' && (
-        <div className="grid g2">
-          <Panel title="Invoices" sub="Paid through Mercury. Paste each Mercury invoice’s payment link to send it; the client pays from their Billing page.">
-            {t.is_sample ? <div className="notice sample">Sample client: amounts are illustrative.</div> : null}
-            {(invoices.data ?? []).length ? (
-              <ul className="list">
-                {(invoices.data ?? []).map((i) => (
-                  <li key={i.id} style={{ gap: 8 }}>
-                    <div className="spread">
-                      <span><b>{i.number ? `${i.number} · ` : ''}{i.kind}</b> <span className="num">{money(i.amount_cents)}</span></span>
-                      <Status value={i.status} />
-                    </div>
-                    <span className="muted" style={{ fontSize: 13 }}>
-                      {i.note ?? ''}{i.due_date ? ` · due ${date(i.due_date + 'T12:00:00')}` : ''}{i.paid_at ? ` · paid ${date(i.paid_at)}${i.paid_via ? ` via ${i.paid_via}` : ''}` : ''}
-                    </span>
-                    {i.status !== 'paid' && i.status !== 'void' ? (
-                      <>
-                        <form action={publishInvoice} className="row">
-                          <input type="hidden" name="id" value={i.id} />
-                          <input type="hidden" name="back" value={here} />
-                          <input className="input" name="pay_url" type="url" required defaultValue={i.pay_url ?? ''} placeholder="https://… Mercury invoice payment link" style={{ flex: 2, minWidth: 220 }} aria-label="Mercury payment link" />
-                          <input className="input" name="number" defaultValue={i.number ?? ''} placeholder="Invoice #" style={{ width: 110 }} aria-label="Invoice number" />
-                          <input className="input" name="due" type="date" defaultValue={i.due_date ?? ''} style={{ width: 160 }} aria-label="Due date" />
-                          <button className="btn small primary" type="submit">{i.status === 'open' ? 'Update link' : 'Send to client'}</button>
-                        </form>
-                        <form action={markInvoicePaid} className="row">
-                          <input type="hidden" name="id" value={i.id} />
-                          <input type="hidden" name="back" value={here} />
-                          <input className="input" name="via" defaultValue="Mercury" style={{ width: 140 }} aria-label="Paid via" />
-                          <input className="input" name="paid_on" type="date" style={{ width: 160 }} aria-label="Paid on" />
-                          <button className="btn small good" type="submit">Mark paid</button>
-                        </form>
-                      </>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : <Empty title="No invoices yet" />}
-          </Panel>
-          <Panel title="New invoice" sub="Draft it here, create the matching invoice in Mercury, then paste its payment link to send.">
-            <form action={createInvoice} className="form">
-              <input type="hidden" name="tenant" value={t.id} />
-              <input type="hidden" name="back" value={here} />
-              <label className="field"><span>Type</span>
-                <select className="select" name="kind" defaultValue="balance">
-                  <option value="deposit">Deposit (70%)</option><option value="balance">Balance at launch (30%)</option><option value="care">Monthly care</option><option value="upgrade">Upgrade</option>
-                </select>
-              </label>
-              <label className="field"><span>Amount (USD)</span><input className="input" name="amount" inputMode="decimal" required placeholder="625.00" /></label>
-              <label className="field"><span>Note the client sees</span><input className="input" name="note" maxLength={300} placeholder="Balance due at launch" /></label>
-              <label className="field"><span>Due date</span><input className="input" name="due" type="date" /></label>
-              <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Draft invoice</button>
-            </form>
-          </Panel>
-        </div>
-      )}
+      {tab === 'billing' && <BillingConsole t={t} invoices={(invoices.data ?? []) as never} here={here} />}
 
       {tab === 'audit' && (
         <Panel title="Audit trail" sub="Append-only and hash-chained; nobody can edit or delete an entry">
