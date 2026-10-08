@@ -1,12 +1,13 @@
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Empty } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
+import { MercuryPanel } from '@/components/MercuryPanel';
 import { ionosConfigured, type DnsRecord } from '@/lib/ionos';
 import { resendConfigured } from '@/lib/resend-domains';
 import { emailPlan, sitePlan, SITE_DOMAINS, type Plan } from '@/lib/dns-plan';
 import { registerEmailDomain, publishEmailRecords, verifyEmailDomain, pointSiteDomain } from '@/lib/setup-actions';
 
-export const metadata = { title: 'Domains & email' };
+export const metadata = { title: 'Domains, email & billing' };
 export const dynamic = 'force-dynamic';
 
 function Records({ title, list, kind }: { title: string; list: DnsRecord[]; kind: 'add' | 'remove' | 'ok' }) {
@@ -71,6 +72,8 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
         </div>
       ) : null}
       {error ? <div className="notice err">{error}</div> : null}
+
+      <MercuryPanel />
 
       <Panel
         title="Sending email as hello@genovus.io"

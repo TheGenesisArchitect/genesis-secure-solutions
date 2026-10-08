@@ -148,8 +148,10 @@ export async function startCare(_: ActionResult, f: FormData): Promise<ActionRes
   if (!rate) return fail('Pick a care plan.');
   const dim = daysInMonth(start), left = dim - start.getUTCDate() + 1;
   const first = Math.round((rate * left) / dim);
-  return call('start_care', { p_tenant: tenant, p_care: careName[plan], p_rate_cents: rate, p_start: iso(start), p_first_cents: first, p_first_end: iso(monthEnd(start)) },
+  const r = await call('start_care', { p_tenant: tenant, p_care: careName[plan], p_rate_cents: rate, p_start: iso(start), p_first_cents: first, p_first_end: iso(monthEnd(start)) },
     `${careName[plan]} started ${iso(start)}: first month ${fmt(first)} (${left} of ${dim} days) drafted; ${fmt(rate)} drafts on the 1st of each month.`);
+  if (r?.ok && f.get('autosend') === 'on') await call('set_care_autosend', { p_tenant: tenant, p_on: true }, '');
+  return r;
 }
 
 export async function stopCare(_: ActionResult, f: FormData) {
@@ -165,8 +167,61 @@ export async function markInvoicePaid(_: ActionResult, f: FormData) {
   return call('mark_invoice_paid', { p_id: str(f, 'id', 64), p_via: str(f, 'via', 60) || 'Mercury', p_paid_on: str(f, 'paid_on', 10) || businessToday() }, 'Payment recorded.');
 }
 
-export async function voidInvoice(_: ActionResult, f: FormData) {
-  return call('void_invoice', { p_id: str(f, 'id', 64) }, 'Invoice voided.');
+export async function voidInvoice(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const id = str(f, 'id', 64);
+  const supabase = await db();
+  const { data: allowed } = await supabase.rpc('has_role', { roles: ['admin'] });
+  if (!allowed) return fail('Only an admin can void an invoice.');
+  const { data: inv } = await supabase.from('invoices').select('mercury_invoice_id, status').eq('id', id).single();
+  // Cancel in Mercury first, so the client can never pay an invoice we have voided.
+  if (inv?.mercury_invoice_id && inv.status === 'open') {
+    const { cancelInvoice } = await import('./mercury');
+    try { await cancelInvoice(inv.mercury_invoice_id); } catch (e) { return fail(`Not voided: ${e instanceof Error ? e.message : 'Mercury did not cancel it'}`); }
+  }
+  return call('void_invoice', { p_id: id }, inv?.mercury_invoice_id ? 'Invoice voided here and cancelled in Mercury.' : 'Invoice voided.');
+}
+
+// ---------- Mercury connection ----------
+async function staffBilling() {
+  const supabase = await db();
+  const { data } = await supabase.rpc('has_role', { roles: ['admin', 'account_lead'] });
+  return Boolean(data);
+}
+
+/** Create the draft in Mercury and send it: the client gets our email with the Mercury pay link. */
+export async function sendViaMercury(_: ActionResult, f: FormData): Promise<ActionResult> {
+  if (!(await staffBilling())) return fail('Only an admin or account lead can send an invoice.');
+  const id = str(f, 'id', 64), due = str(f, 'due', 10);
+  const supabase = await db();
+  if (/^d{4}-d{2}-d{2}$/.test(due)) await supabase.from('invoices').update({ due_date: due }).eq('id', id).eq('status', 'draft');
+  const { pushInvoice } = await import('./mercury');
+  try {
+    const r = await pushInvoice(id);
+    revalidatePath('/', 'layout');
+    return done(`${r.number} created in Mercury and sent: the client has the pay link by email and on their Billing page.`);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : 'Mercury did not accept the invoice.');
+  }
+}
+
+export async function learnMercuryPayUrl(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const supabase = await db();
+  const { data: admin } = await supabase.rpc('has_role', { roles: ['admin'] });
+  if (!admin) return fail('Only an admin can change the Mercury connection.');
+  const { learnPayUrl } = await import('./mercury');
+  try {
+    const t = await learnPayUrl(str(f, 'link', 500));
+    revalidatePath('/', 'layout');
+    return done(`Pay-link format saved: ${t}`);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : 'Could not read that link.');
+  }
+}
+
+export async function setCareAutosend(_: ActionResult, f: FormData) {
+  const on = str(f, 'on', 5) === 'true';
+  return call('set_care_autosend', { p_tenant: str(f, 'tenant', 64), p_on: on },
+    on ? 'Monthly care invoices will be created and sent through Mercury automatically.' : 'Monthly care invoices will wait for you to send them.');
 }
 
 export async function deleteInvoice(_: ActionResult, f: FormData) {

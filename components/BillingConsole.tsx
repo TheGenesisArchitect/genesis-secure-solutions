@@ -5,21 +5,26 @@ import { ActionForm } from './ActionForm';
 import { Panel, Chip, Status, Empty, money, date, PLAN_LABEL } from './ui';
 import { PLANS } from '@/data/offers';
 import {
-  createInvoice, createUpgradeInvoice, deleteInvoice, markInvoicePaid, publishInvoice, startCare, stopCare, voidInvoice,
+  createInvoice, createUpgradeInvoice, deleteInvoice, markInvoicePaid, publishInvoice, sendViaMercury, setCareAutosend, startCare, stopCare, voidInvoice,
 } from '@/lib/actions';
+import { mercuryConfigured, payUrlTemplate } from '@/lib/mercury';
 import { quoteUpgrade, businessToday } from '@/lib/billing';
 
 type Invoice = {
   id: string; kind: string; amount_cents: number; status: string; note: string | null; number: string | null; due_date: string | null;
   pay_url: string | null; paid_at: string | null; paid_via: string | null; lines: { label: string; cents: number }[] | null; upgrade_to: string | null;
+  mercury_invoice_id?: string | null; mercury_status?: string | null; mercury_synced_at?: string | null;
 };
-type Tenant = { id: string; plan: string | null; is_sample: boolean; care_active: boolean; care_plan: string | null; care_rate_cents: number | null; care_started_on: string | null };
+type Tenant = { id: string; plan: string | null; is_sample: boolean; care_active: boolean; care_plan: string | null; care_rate_cents: number | null; care_started_on: string | null; care_autosend?: boolean };
 
 const KIND: Record<string, string> = { deposit: 'Deposit', balance: 'Balance', care: 'Monthly care', upgrade: 'Upgrade', custom: 'Custom' };
 const today = businessToday;
 const signed = (c: number) => (c < 0 ? `−${money(-c)}` : money(c));
 
-export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]; here?: string }) {
+const ago = (iso: string) => { const m = Math.round((Date.now() - new Date(iso).getTime()) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+
+export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]; here?: string }) {
+  const mercury = mercuryConfigured() && !t.is_sample ? Boolean(await payUrlTemplate()) : false;
   const setupPaid = invoices.filter((i) => i.status === 'paid' && ['deposit', 'balance', 'upgrade'].includes(i.kind)).reduce((s, i) => s + i.amount_cents, 0);
   const order = ['launch', 'growth', 'premium'];
   const current = t.plan === 'vip' ? 'launch' : t.plan ?? 'launch';
@@ -49,15 +54,30 @@ export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]
                     {i.lines.flatMap((l, k) => [<dt key={k + 'l'}>{l.label}</dt>, <dd key={k + 'v'} className="num" style={{ textAlign: 'right' }}>{signed(l.cents)}</dd>])}
                   </dl>
                 ) : null}
+                {i.mercury_invoice_id ? (
+                  <span className="muted" style={{ fontSize: 12 }}>In Mercury: <b>{i.mercury_status ?? 'Unpaid'}</b>{i.mercury_synced_at ? ` · checked ${ago(i.mercury_synced_at)}` : ''}{i.pay_url ? <> · <a href={i.pay_url} target="_blank" rel="noreferrer">pay page</a></> : null}</span>
+                ) : null}
+                {i.status === 'draft' && mercury ? (
+                  <ActionForm action={sendViaMercury} className="row">
+                    <input type="hidden" name="id" value={i.id} />
+                    <input className="input" name="due" type="date" defaultValue={i.due_date ?? ''} style={{ width: 160 }} aria-label="Due date" />
+                    <button className="btn small primary" type="submit">{i.kind === 'upgrade' ? 'Send upgrade through Mercury' : 'Create in Mercury & send'}</button>
+                  </ActionForm>
+                ) : null}
                 {i.status === 'draft' || i.status === 'open' ? (
                   <>
+                    {i.mercury_invoice_id ? null : (
+                    <details open={!mercury || i.status === 'open'}>
+                    {mercury ? <summary className="muted" style={{ fontSize: 12, cursor: 'pointer' }}>Or paste a Mercury link yourself</summary> : null}
                     <ActionForm action={publishInvoice} className="row">
                       <input type="hidden" name="id" value={i.id} />
                       <input className="input" name="pay_url" type="url" required defaultValue={i.pay_url ?? ''} placeholder="https://… Mercury invoice payment link" style={{ flex: 2, minWidth: 220 }} aria-label="Mercury payment link" />
                       <input className="input" name="number" defaultValue={i.number ?? ''} placeholder="Invoice #" style={{ width: 110 }} aria-label="Invoice number" />
                       <input className="input" name="due" type="date" defaultValue={i.due_date ?? ''} style={{ width: 160 }} aria-label="Due date" />
-                      <button className="btn small primary" type="submit">{i.status === 'open' ? 'Update link' : i.kind === 'upgrade' ? 'Send upgrade' : 'Send to client'}</button>
+                      <button className={'btn small ' + (mercury ? 'ghost' : 'primary')} type="submit">{i.status === 'open' ? 'Update link' : i.kind === 'upgrade' ? 'Send upgrade' : 'Send to client'}</button>
                     </ActionForm>
+                    </details>
+                    )}
                     <div className="row">
                       <ActionForm action={markInvoicePaid} className="row">
                         <input type="hidden" name="id" value={i.id} />
@@ -90,7 +110,14 @@ export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]
           {t.care_active ? (
             <>
               <div className="spread"><b>{t.care_plan}</b><span className="num"><b>{money(t.care_rate_cents ?? 0)}</b> <span className="muted">/ month</span></span></div>
-              <p className="soft" style={{ fontSize: 14 }}>Running since {date((t.care_started_on ?? today()) + 'T12:00:00')}. Each month’s invoice is drafted on the 1st; add its Mercury link and send.</p>
+              <p className="soft" style={{ fontSize: 14 }}>Running since {date((t.care_started_on ?? today()) + 'T12:00:00')}. {t.care_autosend && mercury ? 'Each month’s invoice is created and sent through Mercury automatically on the 1st.' : 'Each month’s invoice is drafted on the 1st for you to send.'}</p>
+              {mercury ? (
+                <ActionForm action={setCareAutosend} className="row">
+                  <input type="hidden" name="tenant" value={t.id} />
+                  <input type="hidden" name="on" value={t.care_autosend ? 'false' : 'true'} />
+                  <button className="btn small" type="submit">{t.care_autosend ? 'Turn off automatic billing' : 'Bill automatically through Mercury'}</button>
+                </ActionForm>
+              ) : null}
               <ActionForm action={stopCare} className="row" confirm="Stop monthly care for this client? Past invoices stay on record.">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input className="input" name="end" type="date" defaultValue={today()} style={{ width: 160 }} aria-label="Last day of care" />
@@ -108,6 +135,7 @@ export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]
                 </select>
               </label>
               <label className="field"><span>Start date</span><input className="input" name="start" type="date" defaultValue={today()} /></label>
+              {mercury ? <label className="row" style={{ fontSize: 14, gap: 8 }}><input type="checkbox" name="autosend" defaultChecked /> Bill monthly through Mercury automatically (the client approved monthly care)</label> : null}
               <span className="muted" style={{ fontSize: 13 }}>Marks the client launched (the launch checklist must be cleared), moves them to Care and drafts the first month, prorated from the start date to the end of the month.</span>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Start care</button>
             </ActionForm>
