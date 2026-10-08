@@ -21,6 +21,7 @@ export default async function AgencyPicker({ searchParams }: { searchParams: Pro
   const rows = data ?? [];
   return (
     <Shell
+      searchClients
       surface="Agency"
       home="/app"
       title={v.staff ? 'Agencies' : 'Your agencies'}

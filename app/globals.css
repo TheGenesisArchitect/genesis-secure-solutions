@@ -460,3 +460,50 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .kv.lines dd{white-space:nowrap;overflow-wrap:normal;text-align:right}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45}
 .check input{margin-top:3px;flex:none}
+
+/* ---------- slide-in rail: icon strip, toggle, jump box ---------- */
+.dash{transition:grid-template-columns .28s var(--ease)}
+.rail-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.rail-toggle{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;transition:color .2s,background .2s,border-color .2s}
+.rail-toggle:hover{color:var(--ink);background:var(--raise);border-color:var(--line-2)}
+.nav a{justify-content:flex-start}
+.nav-icon{position:relative;display:grid;place-items:center;flex:none;width:22px;color:var(--muted)}
+.nav a:hover .nav-icon,.nav a[aria-current="page"] .nav-icon{color:var(--accent)}
+.nav-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-dot{position:absolute;top:-2px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--surface);display:none}
+.signout{display:inline-flex;align-items:center;gap:6px}
+.topbar-actions{flex-wrap:nowrap}
+.jump-open{gap:8px;color:var(--muted)}
+.jump-open kbd,.jump-input kbd{font:500 10.5px/1 var(--mono);padding:3px 6px;border-radius:6px;border:1px solid var(--line-2);color:var(--muted)}
+.jump-scrim{position:fixed;inset:0;z-index:70;background:rgba(4,5,8,.55);backdrop-filter:blur(4px);display:grid;place-items:start center;padding:12vh 16px 0;animation:rise .2s var(--ease) both}
+.jump{width:min(620px,100%);border-radius:16px;border:1px solid var(--line-2);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 40px 90px -30px rgba(0,0,0,.9);overflow:hidden}
+.jump-input{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);color:var(--muted)}
+.jump-input input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--ink);font:500 16px var(--body)}
+.jump-list{list-style:none;margin:0;padding:6px;max-height:min(420px,60vh);overflow-y:auto}
+.jump-list li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--soft)}
+.jump-list li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jump-list li small{font:500 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.jump-list li[aria-selected="true"]{background:var(--raise);color:var(--ink);box-shadow:inset 3px 0 0 var(--accent)}
+.jump-list li[aria-selected="true"] .icon{color:var(--accent)}
+@media (min-width:901px){
+  .dash[data-rail="collapsed"]{grid-template-columns:72px minmax(0,1fr)}
+  .dash[data-rail="collapsed"] .rail{width:72px;padding:18px 12px;overflow-x:hidden;z-index:30;transition:width .28s var(--ease),box-shadow .28s var(--ease)}
+  .dash[data-rail="collapsed"] .rail-head{flex-direction:column;gap:12px}
+  .dash[data-rail="collapsed"] .brand span,.dash[data-rail="collapsed"] .rail-switcher,.dash[data-rail="collapsed"] .nav h4,
+  .dash[data-rail="collapsed"] .nav-label,.dash[data-rail="collapsed"] .nav .count,.dash[data-rail="collapsed"] .who-text,.dash[data-rail="collapsed"] .signout span{display:none}
+  .dash[data-rail="collapsed"] .nav a{justify-content:center;padding:10px 0}
+  .dash[data-rail="collapsed"] .nav-dot{display:block}
+  .dash[data-rail="collapsed"] .nav>div+div{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}
+  .dash[data-rail="collapsed"] .who{justify-items:center}
+  /* hover (or keyboard focus) peeks the full rail over the page without moving it */
+  .dash[data-rail="collapsed"] .rail:hover,.dash[data-rail="collapsed"] .rail:focus-within{width:248px;padding:18px 14px;box-shadow:24px 0 60px -20px rgba(0,0,0,.75)}
+  .dash[data-rail="collapsed"] .rail:hover .rail-head,.dash[data-rail="collapsed"] .rail:focus-within .rail-head{flex-direction:row}
+  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) :is(.brand span,.nav h4,.nav-label,.who-text,.signout span){display:revert}
+  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .rail-switcher{display:block}
+  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .nav .count{display:inline}
+  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .nav a{justify-content:flex-start;padding:9px 10px}
+  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .nav-dot{display:none}
+  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .who{justify-items:stretch}
+}
+@media (max-width:900px){.rail-toggle{display:none}.jump-hint,.jump-open kbd{display:none}}
+@media (prefers-reduced-motion:reduce){.dash,.dash .rail{transition:none}}

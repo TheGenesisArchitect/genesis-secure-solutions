@@ -68,6 +68,7 @@ export default async function NetworkView({ searchParams }: { searchParams: Prom
 
   return (
     <Shell
+      searchClients
       surface="Network"
       home="/network"
       title={current?.name ?? 'Network portfolio'}

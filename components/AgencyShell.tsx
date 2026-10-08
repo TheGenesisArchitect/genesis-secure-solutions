@@ -21,6 +21,7 @@ export async function AgencyShell({ ctx, title, children, actions }: { ctx: Agen
   const base = `/app/${tenant.slug}`;
   return (
     <Shell
+      searchClients
       surface="Agency"
       home={base}
       title={title}

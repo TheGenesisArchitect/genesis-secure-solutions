@@ -16,6 +16,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
   ]);
   return (
     <Shell
+      searchClients
       surface="Enterprise"
       home="/console"
       title={props.title}
