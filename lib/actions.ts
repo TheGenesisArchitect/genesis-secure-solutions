@@ -135,10 +135,22 @@ export async function createUpgradeInvoice(_: ActionResult, f: FormData): Promis
   const q = quoteUpgrade(t, setupPaid, to, on, unpaid);
   if (!q) return fail('Pick Growth or Premium.');
   if (q.total <= 0) return fail('Nothing to charge: what they have paid already covers this plan.');
+  // The upgrade replaces any unpaid setup invoice. One already sent through Mercury is cancelled there first,
+  // so it can never be paid by mistake; one sent by a pasted link must be cancelled in Mercury by hand.
+  const { data: superseded } = await supabase.from('invoices').select('id, number, status, mercury_invoice_id').eq('tenant_id', tenant).in('kind', ['deposit', 'balance']).eq('status', 'open');
+  const byHand = (superseded ?? []).filter((i) => !i.mercury_invoice_id);
+  for (const i of (superseded ?? []).filter((i) => i.mercury_invoice_id)) {
+    const { cancelInvoice } = await import('./mercury');
+    try {
+      await cancelInvoice(i.mercury_invoice_id!);
+      const { adminDb } = await import('./supabase/admin');
+      await adminDb().from('invoices').update({ mercury_status: 'Cancelled', mercury_synced_at: new Date().toISOString() }).eq('id', i.id);
+    } catch (e) { return fail(`Upgrade not drafted: ${i.number ?? 'the open balance'} could not be cancelled in Mercury (${e instanceof Error ? e.message : 'error'}).`); }
+  }
   return call('create_upgrade', {
     p_tenant: tenant, p_to: to, p_amount_cents: q.total, p_note: `Upgrade to ${q.plan.name}, effective ${iso(on)}`, p_due: iso(new Date(on.getTime() + 7 * 86_400_000)),
     p_lines: q.lines,
-  }, `Upgrade to ${q.plan.name} drafted: ${fmt(q.total)}${unpaid ? `; the unpaid ${fmt(unpaid)} setup balance is retired` : ''}. Add its Mercury link to send it with the upgrade email.`);
+  }, `Upgrade to ${q.plan.name} drafted: ${fmt(q.total)}${unpaid ? `; the unpaid ${fmt(unpaid)} setup balance is retired` : ''}${byHand.length ? `. Cancel ${byHand.map((i) => i.number ?? 'the balance invoice').join(', ')} in Mercury too: it was sent by link` : ''}. Send it from Invoices; the client gets the upgrade email with the pay link.`);
 }
 
 /** Start monthly care: plan, rate and start date; the first month is prorated to month end. */
@@ -182,6 +194,16 @@ export async function voidInvoice(_: ActionResult, f: FormData): Promise<ActionR
 }
 
 // ---------- Mercury connection ----------
+/** Credit the person who clicked: the Mercury steps themselves are logged as "Mercury". */
+async function staffNote(invoiceId: string, action: string, subject: string) {
+  const supabase = await db();
+  const { data: auth } = await supabase.auth.getUser();
+  const { adminDb } = await import('./supabase/admin');
+  const admin = adminDb();
+  const { data: inv } = await admin.from('invoices').select('tenant_id').eq('id', invoiceId).single();
+  const { data: st } = await admin.from('staff').select('display_name').eq('user_id', auth.user?.id ?? '').maybeSingle();
+  await admin.from('audit_events').insert({ tenant_id: inv?.tenant_id ?? null, actor: auth.user?.id ?? null, actor_label: st?.display_name ?? auth.user?.email ?? 'staff', action, subject, prev_hash: '', hash: '' });
+}
 async function staffBilling() {
   const supabase = await db();
   const { data } = await supabase.rpc('has_role', { roles: ['admin', 'account_lead'] });
@@ -192,11 +214,10 @@ async function staffBilling() {
 export async function sendViaMercury(_: ActionResult, f: FormData): Promise<ActionResult> {
   if (!(await staffBilling())) return fail('Only an admin or account lead can send an invoice.');
   const id = str(f, 'id', 64), due = str(f, 'due', 10);
-  const supabase = await db();
-  if (/^d{4}-d{2}-d{2}$/.test(due)) await supabase.from('invoices').update({ due_date: due }).eq('id', id).eq('status', 'draft');
   const { pushInvoice } = await import('./mercury');
   try {
-    const r = await pushInvoice(id);
+    const r = await pushInvoice(id, due);
+    await staffNote(id, 'invoice.send', `${r.number} sent through Mercury`);
     revalidatePath('/', 'layout');
     return done(`${r.number} created in Mercury and sent: the client has the pay link by email and on their Billing page.`);
   } catch (e) {

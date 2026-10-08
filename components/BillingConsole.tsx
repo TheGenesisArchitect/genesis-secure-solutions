@@ -36,7 +36,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
 
   return (
     <div className="grid g2" style={{ alignItems: 'start' }}>
-      <Panel title="Invoices" sub="Paid through Mercury: paste each Mercury invoice’s payment link to send it; the client pays from their Billing page.">
+      <Panel title="Invoices" sub={mercury ? 'Created and sent through Mercury; marked paid automatically when Mercury reports the payment.' : 'Paid through Mercury: paste each Mercury invoice’s payment link to send it; the client pays from their Billing page.'}>
         {t.is_sample ? <div className="notice sample">Sample client: amounts are illustrative.</div> : null}
         {invoices.length ? (
           <ul className="list">
@@ -50,7 +50,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
                   {i.note ?? ''}{i.due_date ? ` · due ${date(i.due_date + 'T12:00:00')}` : ''}{i.paid_at ? ` · paid ${date(i.paid_at)}${i.paid_via ? ` via ${i.paid_via}` : ''}` : ''}
                 </span>
                 {i.lines?.length ? (
-                  <dl className="kv" style={{ fontSize: 13 }}>
+                  <dl className="kv lines" style={{ fontSize: 13 }}>
                     {i.lines.flatMap((l, k) => [<dt key={k + 'l'}>{l.label}</dt>, <dd key={k + 'v'} className="num" style={{ textAlign: 'right' }}>{signed(l.cents)}</dd>])}
                   </dl>
                 ) : null}
@@ -135,7 +135,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
                 </select>
               </label>
               <label className="field"><span>Start date</span><input className="input" name="start" type="date" defaultValue={today()} /></label>
-              {mercury ? <label className="row" style={{ fontSize: 14, gap: 8 }}><input type="checkbox" name="autosend" defaultChecked /> Bill monthly through Mercury automatically (the client approved monthly care)</label> : null}
+              {mercury ? <label className="check"><input type="checkbox" name="autosend" /> Bill monthly through Mercury automatically. Ticking this is a standing approval, recorded in the audit log</label> : null}
               <span className="muted" style={{ fontSize: 13 }}>Marks the client launched (the launch checklist must be cleared), moves them to Care and drafts the first month, prorated from the start date to the end of the month.</span>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Start care</button>
             </ActionForm>
@@ -147,7 +147,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
             {quotes.map(({ p, q }) => q ? (
               <div key={p.id} className="tile" style={{ gap: 8 }}>
                 <div className="spread"><b>{PLAN_LABEL[current]} → {p.name}</b><b className="num">{signed(q.total)}</b></div>
-                <dl className="kv" style={{ fontSize: 13 }}>
+                <dl className="kv lines" style={{ fontSize: 13 }}>
                   {q.lines.flatMap((l, k) => [<dt key={k + 'l'}>{l.label}</dt>, <dd key={k + 'v'} className="num" style={{ textAlign: 'right' }}>{signed(l.cents)}</dd>])}
                 </dl>
                 <ActionForm action={createUpgradeInvoice} className="row">

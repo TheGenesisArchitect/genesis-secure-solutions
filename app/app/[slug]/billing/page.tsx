@@ -48,7 +48,7 @@ export default async function Billing({ params }: { params: Promise<{ slug: stri
                 </div>
                 <span className="soft" style={{ fontSize: 14 }}>{i.note ?? ''}{due(i.due_date) ? ` · Due ${due(i.due_date)}` : ''}</span>
                 {Array.isArray(i.lines) && i.lines.length ? (
-                  <dl className="kv" style={{ fontSize: 13 }}>
+                  <dl className="kv lines" style={{ fontSize: 13 }}>
                     {(i.lines as { label: string; cents: number }[]).flatMap((l, k) => [<dt key={k + 'l'}>{l.label}</dt>, <dd key={k + 'v'} className="num" style={{ textAlign: 'right' }}>{signed(l.cents)}</dd>])}
                   </dl>
                 ) : null}

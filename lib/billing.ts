@@ -17,7 +17,7 @@ export function quoteUpgrade(t: { plan: string | null; care_active: boolean; car
     { label: `${target.name} setup`, cents: target.setupCents },
     { label: 'Credit: paid toward setup to date', cents: -Math.min(setupPaid, target.setupCents) },
   ];
-  if (unpaidSetup > 0) lines.push({ label: `Replaces the unpaid setup balance of $${(unpaidSetup / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })} (that invoice is retired)`, cents: 0 });
+  if (unpaidSetup > 0) lines.push({ label: `Replaces the unpaid setup balance of $${(unpaidSetup / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })} (retired when the upgrade is drafted)`, cents: 0 });
   if (t.care_active && t.care_rate_cents != null) {
     const diff = careRate[to] - t.care_rate_cents;
     if (diff > 0) {

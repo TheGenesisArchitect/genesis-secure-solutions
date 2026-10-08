@@ -454,3 +454,9 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .back-home{display:inline-flex;align-items:center;gap:6px;flex:none;padding:7px 12px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;
   border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);transition:background .2s,transform .2s}
 .back-home:hover{background:color-mix(in srgb,var(--accent) 22%,transparent);transform:translateX(-2px)}
+
+/* money breakdowns: label left, amount right, amounts never wrap */
+.kv.lines{grid-template-columns:minmax(0,1fr) max-content}
+.kv.lines dd{white-space:nowrap;overflow-wrap:normal;text-align:right}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45}
+.check input{margin-top:3px;flex:none}

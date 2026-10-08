@@ -98,7 +98,7 @@ const dollars = (cents: number) => Math.round(cents) / 100;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Create the invoice in Mercury (idempotent by invoice number) and open it here with its pay link. */
-export async function pushInvoice(invoiceId: string): Promise<{ number: string; payUrl: string }> {
+export async function pushInvoice(invoiceId: string, dueOverride?: string): Promise<{ number: string; payUrl: string }> {
   if (!mercuryConfigured()) throw new MercuryError('Mercury is not connected yet.');
   const template = await payUrlTemplate();
   if (!template) throw new MercuryError('Teach Genovus the Mercury pay-link format first: Console → Domains & email → Mercury.');
@@ -121,7 +121,9 @@ export async function pushInvoice(invoiceId: string): Promise<{ number: string; 
   const lineItems = simple ? lines.map((l) => ({ name: l.label, unitPrice: dollars(l.cents), quantity: 1 })) : [{ name: label, unitPrice: dollars(inv.amount_cents), quantity: 1 }];
   const memo = !simple && lines.length ? lines.map((l) => `${l.label}: ${l.cents < 0 ? '-' : ''}$${(Math.abs(l.cents) / 100).toFixed(2)}`).join('\n').slice(0, 1000) : undefined;
   const today = new Date();
-  const due = inv.due_date ?? day(new Date(today.getTime() + 7 * 86_400_000));
+  const chosen = dueOverride && /^\d{4}-\d{2}-\d{2}$/.test(dueOverride) ? dueOverride : null;
+  if (chosen) await db.from('invoices').update({ due_date: chosen }).eq('id', invoiceId);
+  const due = (chosen ?? inv.due_date) ?? day(new Date(today.getTime() + 7 * 86_400_000));
 
   let m: MercuryInvoice | undefined;
   try {
