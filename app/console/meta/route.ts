@@ -47,7 +47,7 @@ async function recentEvents(): Promise<{ count: number; rows: string[] } | null>
 }
 
 export async function GET(req: Request) {
-  const denied = consoleAuth(req);
+  const denied = await consoleAuth(req);
   if (denied) return denied;
   const cfg = metaConfig();
   const origin = new URL(req.url).origin;

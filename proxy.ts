@@ -1,6 +1,6 @@
 // Keeps Supabase sessions fresh on the signed-in surfaces and passes the requested path on (x-pathname) so a
 // signed-out visitor returns to the same page after sign-in. It never authorizes: pages do that
-// (lib/session.ts) and row-level security backs them up. The older Basic-auth console routes pass through.
+// (lib/session.ts) and row-level security backs them up. The older console routes (social setup, Meta) read the same session.
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabaseConfigured } from './lib/supabase/env';
@@ -27,5 +27,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/console', '/console/((?!social|meta).*)', '/app', '/app/:path*', '/network/:path*', '/network', '/signin', '/auth/:path*', '/go'],
+  matcher: ['/console', '/console/:path*', '/app', '/app/:path*', '/network/:path*', '/network', '/signin', '/auth/:path*', '/go'],
 };

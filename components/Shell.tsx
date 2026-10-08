@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { NavLink } from './NavLink';
 
-export type NavItem = { href: string; label: string; exact?: boolean; count?: number };
+export type NavItem = { href: string; label: string; exact?: boolean; count?: number; plain?: boolean };
 export type NavSection = { title?: string; items: NavItem[] };
 
 export function Shell(props: {
@@ -35,7 +35,7 @@ export function Shell(props: {
             <div key={i} style={{ display: 'grid', gap: 2 }}>
               {s.title ? <h4>{s.title}</h4> : null}
               {s.items.map((it) => (
-                <NavLink key={it.href} href={it.href} exact={it.exact} count={it.count}>
+                <NavLink key={it.href} href={it.href} exact={it.exact} count={it.count} plain={it.plain}>
                   {it.label}
                 </NavLink>
               ))}
