@@ -15,6 +15,8 @@ export function Shell(props: {
   actions?: React.ReactNode;
   who: { name: string; detail: string };
   switcher?: React.ReactNode;
+  /** A one-tap way home for the team when they are inside an agency or carrier workspace. */
+  back?: { href: string; label: string };
   children: React.ReactNode;
 }) {
   const crumbs = props.crumbs ?? [];
@@ -56,6 +58,7 @@ export function Shell(props: {
         <header className="topbar">
           <div className="row" style={{ gap: 12, minWidth: 0, flexWrap: 'nowrap' }}>
             <label htmlFor="nav-open" className="btn small ghost menu-toggle" aria-label="Open menu">Menu</label>
+            {props.back ? <Link href={props.back.href} className="back-home" title={`Back to ${props.back.label}`}><span aria-hidden="true">←</span> {props.back.label}</Link> : null}
             <div style={{ minWidth: 0 }}>
               {crumbs.length ? (
                 <div className="crumbs">

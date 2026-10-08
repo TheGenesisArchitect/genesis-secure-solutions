@@ -449,3 +449,8 @@ figure svg g:nth-child(2) rect{animation-delay:.05s}figure svg g:nth-child(3) re
 .toast.err{border-color:color-mix(in srgb,var(--bad) 60%,transparent)}
 .toast-x{background:none;border:0;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
 form[data-pending] button[type=submit],form[data-pending] button:not([type]){opacity:.6;pointer-events:none}
+
+/* one-tap way back to Enterprise from agency and carrier workspaces (team only) */
+.back-home{display:inline-flex;align-items:center;gap:6px;flex:none;padding:7px 12px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;
+  border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);transition:background .2s,transform .2s}
+.back-home:hover{background:color-mix(in srgb,var(--accent) 22%,transparent);transform:translateX(-2px)}
