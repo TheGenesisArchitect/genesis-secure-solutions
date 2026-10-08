@@ -20,7 +20,7 @@ export async function MercuryPanel() {
     [hasToken, 'Mercury API key saved in Vercel as MERCURY_API_TOKEN (read-write, invoicing scopes)'],
     [hasToken && !reach, reach ? `Mercury reachable from this server: ${reach}` : 'Mercury reachable from this server (static IPs on the key’s allowlist)'],
     [Boolean(dest), dest ? `Payments land in ${dest.name}${dest.last4 ? ` ··${dest.last4}` : ''}` : 'Deposit account chosen: set MERCURY_ACCOUNT_ID to one of the account IDs below'],
-    [Boolean(template), template ? `Pay-link format learned: ${template}` : 'Pay-link format learned from one real Mercury invoice link (below)'],
+    [Boolean(template), `Pay-link format: ${template ?? 'https://app.mercury.com/pay/{slug}'} (confirmed from a real invoice link; paste another below to change it)`],
   ];
   return (
     <Panel title="Mercury invoicing" sub="Invoices are created and sent through Mercury, and marked paid when Mercury reports the payment"
@@ -38,7 +38,7 @@ export async function MercuryPanel() {
       {hasToken && !reach ? (
         <ActionForm action={learnMercuryPayUrl} className="row">
           <input className="input" name="link" type="url" required placeholder="Paste the pay link of any invoice you sent from Mercury" style={{ flex: 1, minWidth: 260 }} aria-label="Mercury invoice pay link" />
-          <button className="btn small" type="submit">{template ? 'Relearn' : 'Learn the format'}</button>
+          <button className="btn small" type="submit">Check a link</button>
         </ActionForm>
       ) : null}
     </Panel>

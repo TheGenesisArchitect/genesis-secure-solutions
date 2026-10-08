@@ -53,17 +53,32 @@ export async function listAccounts() {
   return rows(await api('/accounts')).map((a) => ({ id: String(a.id), name: String(a.nickname ?? a.name ?? 'Account'), kind: String(a.kind ?? a.type ?? ''), last4: String(a.accountNumber ?? '').slice(-4) }));
 }
 
+/** Every row of a Mercury list endpoint, following its page cursor ({ <rows>, page: { nextPage } }). */
+async function listAll(path: string, max = 20): Promise<Json[]> {
+  const all: Json[] = [];
+  let after = '';
+  for (let i = 0; i < max; i++) {
+    const b = await api<Json>(`${path}?limit=1000${after ? `&start_after=${encodeURIComponent(after)}` : ''}`);
+    all.push(...rows(b));
+    const next = (b.page as { nextPage?: string | null } | undefined)?.nextPage;
+    if (!next) break;
+    after = next;
+  }
+  return all;
+}
+
 async function listInvoices(): Promise<MercuryInvoice[]> {
-  return rows(await api('/ar/invoices?limit=1000')) as unknown as MercuryInvoice[];
+  return (await listAll('/ar/invoices')) as unknown as MercuryInvoice[];
 }
 
 // ---------- pay-page link ----------
-// Mercury documents only that the pay page is built from the invoice slug, not the address itself. Genovus
-// learns it once from a real Mercury invoice link (any one you have sent) and stores it as a pattern.
+// Mercury documents only that the pay page is built from the invoice slug. The format below is confirmed from a
+// real JAVA Agency invoice link (2026-10-08); a link pasted on the setup page, or MERCURY_PAY_URL_TEMPLATE, overrides it.
+export const DEFAULT_PAY_URL_TEMPLATE = 'https://app.mercury.com/pay/{slug}';
 export async function payUrlTemplate(): Promise<string | null> {
   if (process.env.MERCURY_PAY_URL_TEMPLATE) return process.env.MERCURY_PAY_URL_TEMPLATE;
   const { data } = await adminDb().from('app_settings').select('value').eq('key', 'mercury_pay_url_template').maybeSingle();
-  return data?.value ?? null;
+  return data?.value ?? DEFAULT_PAY_URL_TEMPLATE;
 }
 
 export async function learnPayUrl(link: string): Promise<string> {
@@ -87,7 +102,7 @@ async function ensureCustomer(tenantId: string): Promise<string> {
   const email = ownerId ? (await db.auth.admin.getUserById(ownerId)).data.user?.email : null;
   if (!email) throw new MercuryError('Invite the agency owner first: Mercury needs an email to bill.');
   // Mercury does not enforce unique emails, so match on email before creating (their recommended practice).
-  const existing = rows(await api('/ar/customers?limit=1000')).find((c) => String(c.email ?? '').toLowerCase() === email.toLowerCase());
+  const existing = (await listAll('/ar/customers')).find((c) => String(c.email ?? '').toLowerCase() === email.toLowerCase());
   const id = existing ? String(existing.id) : String((await api<Json>('/ar/customers', { method: 'POST', body: { name: t.name, email } })).id);
   await db.from('tenants').update({ mercury_customer_id: id }).eq('id', tenantId);
   return id;
