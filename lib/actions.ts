@@ -248,3 +248,14 @@ export async function setCareAutosend(_: ActionResult, f: FormData) {
 export async function deleteInvoice(_: ActionResult, f: FormData) {
   return call('delete_invoice', { p_id: str(f, 'id', 64) }, 'Draft removed.');
 }
+
+// ---------- Genovus campaigns (house account) ----------
+export async function saveCampaign(_: ActionResult, f: FormData) {
+  const slug = str(f, 'slug', 41).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  const budget = str(f, 'budget', 20);
+  return call('save_campaign', {
+    p_slug: slug, p_name: str(f, 'name', 120), p_channel: str(f, 'channel', 20), p_segment: str(f, 'segment', 30), p_carrier: str(f, 'carrier', 40),
+    p_status: str(f, 'status', 10) || 'draft', p_starts: str(f, 'starts', 10) || null, p_ends: str(f, 'ends', 10) || null,
+    p_budget_cents: budget ? Math.round(Number(budget.replace(/[$,\s]/g, '')) * 100) : null, p_notes: str(f, 'notes', 1000),
+  }, `Campaign “${slug}” saved.`);
+}

@@ -30,11 +30,12 @@ const CARRIER: Field[] = [
   { name: 'goals', label: 'What would a successful pilot show?', type: 'textarea', placeholder: 'Faster agency launches, consistent approved wording, visibility across offices…' },
 ];
 
-export function IntakeForm({ kind, defaults }: { kind: 'agency' | 'carrier'; defaults?: Record<string, string> }) {
+export function IntakeForm({ kind, defaults, back }: { kind: 'agency' | 'carrier'; defaults?: Record<string, string>; back?: string }) {
   const fields = kind === 'agency' ? AGENCY : CARRIER;
   return (
     <form action={submitInquiry} className="form-card">
       <input type="hidden" name="kind" value={kind} />
+      {back ? <input type="hidden" name="back" value={back} /> : null}
       <input type="hidden" name="t" value={Date.now()} />
       <label className="hp" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
       <div className="form-grid">
@@ -48,7 +49,7 @@ export function IntakeForm({ kind, defaults }: { kind: 'agency' | 'carrier'; def
                 {f.options!.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             ) : (
-              <input className="input" name={f.name} type={f.type ?? 'text'} required={f.required} maxLength={f.name === 'email' ? 200 : 160} placeholder={f.placeholder} autoComplete={f.auto} />
+              <input className="input" name={f.name} type={f.type ?? 'text'} required={f.required} maxLength={f.name === 'email' ? 200 : 160} placeholder={f.placeholder} autoComplete={f.auto} defaultValue={defaults?.[f.name]} />
             )}
           </label>
         ))}

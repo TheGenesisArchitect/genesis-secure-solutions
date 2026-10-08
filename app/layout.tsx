@@ -1,4 +1,5 @@
 import { Toaster } from '@/components/ActionForm';
+import { RefCapture } from '@/components/RefCapture';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Ambient } from '@/components/Ambient';
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Ambient />
         <Toaster />
+        <RefCapture />
       </body>
     </html>
   );
