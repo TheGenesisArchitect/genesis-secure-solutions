@@ -7,7 +7,7 @@ import { PLANS } from '@/data/offers';
 import {
   createInvoice, createUpgradeInvoice, deleteInvoice, markInvoicePaid, publishInvoice, startCare, stopCare, voidInvoice,
 } from '@/lib/actions';
-import { quoteUpgrade } from '@/lib/billing';
+import { quoteUpgrade, businessToday } from '@/lib/billing';
 
 type Invoice = {
   id: string; kind: string; amount_cents: number; status: string; note: string | null; number: string | null; due_date: string | null;
@@ -16,7 +16,7 @@ type Invoice = {
 type Tenant = { id: string; plan: string | null; is_sample: boolean; care_active: boolean; care_plan: string | null; care_rate_cents: number | null; care_started_on: string | null };
 
 const KIND: Record<string, string> = { deposit: 'Deposit', balance: 'Balance', care: 'Monthly care', upgrade: 'Upgrade', custom: 'Custom' };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = businessToday;
 const signed = (c: number) => (c < 0 ? `−${money(-c)}` : money(c));
 
 export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]; here?: string }) {
@@ -24,8 +24,9 @@ export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]
   const order = ['launch', 'growth', 'premium'];
   const current = t.plan === 'vip' ? 'launch' : t.plan ?? 'launch';
   const higher = PLANS.filter((p) => p.setupCents && order.indexOf(p.id) > order.indexOf(current));
+  const unpaidSetup = invoices.filter((i) => (i.kind === 'deposit' || i.kind === 'balance') && (i.status === 'draft' || i.status === 'open')).reduce((s, i) => s + i.amount_cents, 0);
   const now = new Date(today() + 'T00:00:00Z');
-  const quotes = higher.map((p) => ({ p, q: quoteUpgrade(t, setupPaid, p.id, now) }));
+  const quotes = higher.map((p) => ({ p, q: quoteUpgrade(t, setupPaid, p.id, now, unpaidSetup) }));
   const defaultCare = current === 'premium' ? 'premium' : current === 'growth' ? 'growth' : 'launch';
 
   return (
@@ -107,7 +108,7 @@ export function BillingConsole({ t, invoices }: { t: Tenant; invoices: Invoice[]
                 </select>
               </label>
               <label className="field"><span>Start date</span><input className="input" name="start" type="date" defaultValue={today()} /></label>
-              <span className="muted" style={{ fontSize: 13 }}>Moves the client to Care and drafts the first month, prorated from the start date to the end of the month.</span>
+              <span className="muted" style={{ fontSize: 13 }}>Marks the client launched (the launch checklist must be cleared), moves them to Care and drafts the first month, prorated from the start date to the end of the month.</span>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Start care</button>
             </ActionForm>
           )}

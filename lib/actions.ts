@@ -6,7 +6,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { db } from './supabase/server';
-import { quoteUpgrade, careName, careRate, monthEnd, daysInMonth } from './billing';
+import { quoteUpgrade, careName, careRate, monthEnd, daysInMonth, businessToday } from './billing';
 
 export type ActionResult = { ok?: string; err?: string; sticky?: boolean; at: number } | null;
 
@@ -106,7 +106,7 @@ export async function bulkApprove(_: ActionResult, f: FormData): Promise<ActionR
 // ---------- billing (Mercury) ----------
 const cents = (v: string) => Math.round(Number(v.replace(/[$,\s]/g, '')) * 100);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const dateOr = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + 'T00:00:00Z') : new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z'));
+const dateOr = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + 'T00:00:00Z') : new Date(businessToday() + 'T00:00:00Z'));
 const fmt = (c: number) => (c < 0 ? '−' : '') + '$' + (Math.abs(c) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Deposit, balance, care or a custom ("Other") invoice with up to three line items. */
@@ -127,17 +127,18 @@ export async function createUpgradeInvoice(_: ActionResult, f: FormData): Promis
   const supabase = await db();
   const [{ data: t }, { data: paid }] = await Promise.all([
     supabase.from('tenants').select('plan, care_active, care_rate_cents').eq('id', tenant).single(),
-    supabase.from('invoices').select('amount_cents, kind').eq('tenant_id', tenant).eq('status', 'paid').in('kind', ['deposit', 'balance', 'upgrade']),
+    supabase.from('invoices').select('amount_cents, kind, status').eq('tenant_id', tenant).in('kind', ['deposit', 'balance', 'upgrade']),
   ]);
   if (!t) return fail('Client not found.');
-  const setupPaid = (paid ?? []).reduce((s, i) => s + i.amount_cents, 0);
-  const q = quoteUpgrade(t, setupPaid, to, on);
+  const setupPaid = (paid ?? []).filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount_cents, 0);
+  const unpaid = (paid ?? []).filter((i) => i.kind !== 'upgrade' && (i.status === 'draft' || i.status === 'open')).reduce((s, i) => s + i.amount_cents, 0);
+  const q = quoteUpgrade(t, setupPaid, to, on, unpaid);
   if (!q) return fail('Pick Growth or Premium.');
   if (q.total <= 0) return fail('Nothing to charge: what they have paid already covers this plan.');
-  return call('create_invoice', {
-    p_tenant: tenant, p_kind: 'upgrade', p_amount_cents: q.total, p_note: `Upgrade to ${q.plan.name}, effective ${iso(on)}`, p_due: iso(new Date(on.getTime() + 7 * 86_400_000)),
-    p_lines: q.lines, p_upgrade_to: to,
-  }, `Upgrade to ${q.plan.name} drafted: ${fmt(q.total)}. Add its Mercury link to send it with the upgrade email.`);
+  return call('create_upgrade', {
+    p_tenant: tenant, p_to: to, p_amount_cents: q.total, p_note: `Upgrade to ${q.plan.name}, effective ${iso(on)}`, p_due: iso(new Date(on.getTime() + 7 * 86_400_000)),
+    p_lines: q.lines,
+  }, `Upgrade to ${q.plan.name} drafted: ${fmt(q.total)}${unpaid ? `; the unpaid ${fmt(unpaid)} setup balance is retired` : ''}. Add its Mercury link to send it with the upgrade email.`);
 }
 
 /** Start monthly care: plan, rate and start date; the first month is prorated to month end. */
@@ -152,7 +153,7 @@ export async function startCare(_: ActionResult, f: FormData): Promise<ActionRes
 }
 
 export async function stopCare(_: ActionResult, f: FormData) {
-  return call('stop_care', { p_tenant: str(f, 'tenant', 64), p_end: str(f, 'end', 10) || iso(new Date()) }, 'Care stopped. Past invoices stay on record.');
+  return call('stop_care', { p_tenant: str(f, 'tenant', 64), p_end: str(f, 'end', 10) || businessToday() }, 'Care stopped. Past invoices stay on record.');
 }
 
 export async function publishInvoice(_: ActionResult, f: FormData) {
@@ -161,7 +162,7 @@ export async function publishInvoice(_: ActionResult, f: FormData) {
 }
 
 export async function markInvoicePaid(_: ActionResult, f: FormData) {
-  return call('mark_invoice_paid', { p_id: str(f, 'id', 64), p_via: str(f, 'via', 60) || 'Mercury', p_paid_on: str(f, 'paid_on', 10) || iso(new Date()) }, 'Payment recorded.');
+  return call('mark_invoice_paid', { p_id: str(f, 'id', 64), p_via: str(f, 'via', 60) || 'Mercury', p_paid_on: str(f, 'paid_on', 10) || businessToday() }, 'Payment recorded.');
 }
 
 export async function voidInvoice(_: ActionResult, f: FormData) {
