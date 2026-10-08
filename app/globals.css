@@ -496,14 +496,14 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
   .dash[data-rail="collapsed"] .nav>div+div{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}
   .dash[data-rail="collapsed"] .who{justify-items:center}
   /* hover (or keyboard focus) peeks the full rail over the page without moving it */
-  .dash[data-rail="collapsed"] .rail:hover,.dash[data-rail="collapsed"] .rail:focus-within{width:248px;padding:18px 14px;box-shadow:24px 0 60px -20px rgba(0,0,0,.75)}
-  .dash[data-rail="collapsed"] .rail:hover .rail-head,.dash[data-rail="collapsed"] .rail:focus-within .rail-head{flex-direction:row}
-  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) :is(.brand span,.nav h4,.nav-label,.who-text,.signout span){display:revert}
-  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .rail-switcher{display:block}
-  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .nav .count{display:inline}
-  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .nav a{justify-content:flex-start;padding:9px 10px}
-  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .nav-dot{display:none}
-  .dash[data-rail="collapsed"] .rail:is(:hover,:focus-within) .who{justify-items:stretch}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover{width:248px;padding:18px 14px;box-shadow:24px 0 60px -20px rgba(0,0,0,.75)}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .rail-head{flex-direction:row}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover :is(.brand span,.nav h4,.nav-label,.who-text,.signout span){display:revert}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .rail-switcher{display:block}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .nav .count{display:inline}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .nav a{justify-content:flex-start;padding:9px 10px}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .nav-dot{display:none}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .who{justify-items:stretch}
 }
 @media (max-width:900px){.rail-toggle{display:none}.jump-hint,.jump-open kbd{display:none}}
 @media (prefers-reduced-motion:reduce){.dash,.dash .rail{transition:none}}
@@ -515,3 +515,8 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .rev-setup{fill:#ff6a2b}.rev-care{fill:#ffa31a}.sp-acq{fill:#6aa8ff}.sp-op{fill:#3a5f99}
 .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .sw.rev-setup{background:#ff6a2b}.sw.rev-care{background:#ffa31a}.sw.sp-acq{background:#6aa8ff}.sw.sp-op{background:#3a5f99}
+
+/* pending dot on the link just clicked (instead of a loading screen) */
+.nav-pending{position:absolute;right:-4px;bottom:-3px;width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.25;transform:scale(.7)}to{opacity:1;transform:scale(1.1)}}
+.dash .rail{will-change:width}

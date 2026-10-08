@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from './icons';
 
@@ -12,9 +12,15 @@ export function NavLink({ href, exact, count, children, plain, icon }: { href: s
   const label = typeof children === 'string' ? children : undefined;
   return (
     <Link href={href} prefetch={plain ? false : undefined} aria-current={on ? 'page' : undefined} title={label} data-label={label}>
-      <span className="nav-icon"><Icon name={icon} />{count ? <i className="nav-dot" aria-hidden="true" /> : null}</span>
+      <span className="nav-icon"><Icon name={icon} />{count ? <i className="nav-dot" aria-hidden="true" /> : null}<Pending /></span>
       <span className="nav-label">{children}</span>
       {count ? <span className="count num">{count}</span> : null}
     </Link>
   );
+}
+
+/** Shows while this link's page is loading (the current page stays on screen until the new one is ready). */
+function Pending() {
+  const { pending } = useLinkStatus();
+  return pending ? <i className="nav-pending" aria-hidden="true" /> : null;
 }

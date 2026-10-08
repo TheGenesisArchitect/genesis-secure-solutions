@@ -15,6 +15,11 @@ export function RailToggle({ collapsed }: { collapsed: boolean }) {
     setC((prev) => {
       const next = !prev;
       document.querySelector('.dash')?.setAttribute('data-rail', next ? 'collapsed' : 'open');
+      // The pointer is still over the rail right after a click: pause the hover peek until it leaves, and drop
+      // focus from the button, so the rail visibly collapses instead of re-opening under the cursor.
+      const dash = document.querySelector('.dash'), rail = document.querySelector('.rail');
+      if (next && dash && rail) { dash.setAttribute('data-peek', 'off'); rail.addEventListener('mouseleave', () => dash.removeAttribute('data-peek'), { once: true }); }
+      (document.activeElement as HTMLElement | null)?.blur();
       document.cookie = `rail=${next ? 'collapsed' : 'open'}; path=/; max-age=31536000; samesite=lax`;
       return next;
     });

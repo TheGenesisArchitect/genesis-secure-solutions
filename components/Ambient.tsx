@@ -46,7 +46,9 @@ export function Ambient() {
     // text before then makes React's hydration check fail and re-render the page.
     const mo = new MutationObserver(scan);
     let started = false;
-    const begin = () => { if (started) return; started = true; scan(); mo.observe(document.body, { childList: true, subtree: true }); };
+    // Count up only what is on the page as it first loads; later updates (a save refreshing the data) must
+    // not replay the animation, or every click looks like a page reload.
+    const begin = () => { if (started) return; started = true; scan(); mo.observe(document.body, { childList: true, subtree: true }); setTimeout(() => mo.disconnect(), 1500); };
     const delayed = () => setTimeout(begin, 350);
     if (document.readyState === 'complete') delayed(); else window.addEventListener('load', delayed, { once: true });
     return () => {
