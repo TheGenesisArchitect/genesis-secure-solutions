@@ -21,11 +21,13 @@ export default async function AgencyPicker({ searchParams }: { searchParams: Pro
   const rows = data ?? [];
   return (
     <Shell
+      searchClients
       surface="Agency"
       home="/app"
       title={v.staff ? 'Agencies' : 'Your agencies'}
       who={{ name: v.staff?.name ?? v.email, detail: v.staff ? 'Genovus team' : 'Agency member' }}
       switcher={<EcosystemSwitcher current="agency" />}
+      back={v.staff ? { href: '/console', label: 'Enterprise' } : undefined}
       nav={[{ items: [{ href: '/app', label: 'All agencies', exact: true }] }]}
     >
       <form className="row" role="search">

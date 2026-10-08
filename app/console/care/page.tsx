@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import Link from 'next/link';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Status, Empty, Tile, dateTime, daysSince } from '@/components/ui';
@@ -65,14 +66,14 @@ export default async function Care({ searchParams }: { searchParams: Promise<{ s
                     <td>{r.kind}</td>
                     <td className="num">{(() => { const due = dueBy(r.created_at, TARGET_HOURS[t.get(r.tenant_id)?.plan ?? 'launch'] ?? 16); const late = r.status === 'new' && due.getTime() < Date.now(); return <span style={{ color: late ? 'var(--bad)' : undefined }}>{late ? 'Overdue · ' : ''}{dateTime(due.toISOString())}</span>; })()}</td>
                     <td>
-                      <form action={setCareStatus} className="row" style={{ flexWrap: 'nowrap' }}>
+                      <ActionForm action={setCareStatus} className="row" style={{ flexWrap: 'nowrap' }}>
                         <input type="hidden" name="id" value={r.id} />
                         <input type="hidden" name="back" value={'/console/care' + (samples ? '?samples=1' : '')} />
                         <select className="select" name="status" defaultValue={r.status} style={{ width: 'auto' }} aria-label="Status">
                           {['new', 'in_progress', 'waiting_client', 'done'].map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                         </select>
                         <button className="btn small" type="submit">Save</button>
-                      </form>
+                      </ActionForm>
                     </td>
                   </tr>
                 ))}

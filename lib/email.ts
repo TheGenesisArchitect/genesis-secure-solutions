@@ -107,6 +107,34 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           button: { label: 'View and pay', url: `${origin}/app/${data.slug}/billing` },
         }, origin),
       };
+    case 'upgrade_ready': {
+      const plan = { growth: 'Growth', premium: 'Premium', launch: 'Launch' }[data.upgrade_to] ?? 'your new plan';
+      const gets = data.upgrade_to === 'premium'
+        ? 'up to eight pages and campaign pages, a CRM and lead pipeline, the AI concierge (approved answers only), ads management and priority response'
+        : 'up to five pages, online intake and booking, a monthly content calendar, review requests and a monthly report with one recommended improvement';
+      return {
+        to,
+        subject: `Your upgrade to ${plan}: ${data.amount}`,
+        ...frame({
+          preheader: `Everything you have paid counts toward ${plan}.`,
+          heading: `Welcome to ${plan}, ${data.agency}`,
+          body: [
+            `Your upgrade adds ${gets}.`,
+            `Everything you have already paid counts toward it, so you pay only the difference:`,
+            ...(data.lines ? data.lines.split('\n') : []),
+            `Total due: ${data.amount}${data.due ? ` by ${data.due}` : ''}.`,
+            'What happens next: pay securely through Mercury from your Billing page. As soon as it clears, your plan switches to ' + plan + ' and your Genovus contact books a short kickoff to plan the new pages.',
+          ],
+          button: { label: 'Review and pay', url: `${origin}/app/${data.slug}/billing` },
+        }, origin),
+      };
+    }
+    case 'team_care_month':
+      return {
+        to,
+        subject: `Care invoices drafted for ${data.month}`,
+        ...frame({ preheader: `${data.count} to send`, heading: `${data.count} care invoice${data.count === '1' ? '' : 's'} ready for ${data.month}`, body: ['Each one needs its Mercury link, then Send. Clients see them in their Billing page and get an email.'], button: { label: 'Open the care desk', url: `${origin}/console/care` } }, origin),
+      };
     case 'team_inquiry':
       return {
         to,

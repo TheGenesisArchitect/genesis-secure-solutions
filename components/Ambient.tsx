@@ -42,10 +42,15 @@ export function Ambient() {
     };
     const io = new IntersectionObserver((entries) => entries.forEach((en) => en.isIntersecting && countUp(en.target as HTMLElement)), { threshold: 0.4 });
     const scan = () => document.querySelectorAll<HTMLElement>('.tile .value .num, .tile .value:not(:has(*)), .chain .v, .count-up').forEach((el) => io.observe(el));
-    scan();
+    // Start only after the page has loaded and React has hydrated the streamed content: changing a number's
+    // text before then makes React's hydration check fail and re-render the page.
     const mo = new MutationObserver(scan);
-    mo.observe(document.body, { childList: true, subtree: true });
+    let started = false;
+    const begin = () => { if (started) return; started = true; scan(); mo.observe(document.body, { childList: true, subtree: true }); };
+    const delayed = () => setTimeout(begin, 350);
+    if (document.readyState === 'complete') delayed(); else window.addEventListener('load', delayed, { once: true });
     return () => {
+      window.removeEventListener('load', delayed);
       window.removeEventListener('pointermove', onMove);
       io.disconnect();
       mo.disconnect();

@@ -141,6 +141,24 @@ try {
   const last = (await admin.from('audit_events').select('id').order('id', { ascending: false }).limit(1)).data[0];
   check('audit log rejects update', !!(await admin.from('audit_events').update({ action: 'tamper' }).eq('id', last.id)).error);
   check('audit log rejects delete', !!(await admin.from('audit_events').delete().eq('id', last.id)).error);
+
+  // Genovus's own growth data (campaigns, scanner, prospects, finance) is staff-only: agency members and
+  // network partners read nothing and can call nothing that writes it.
+  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage'];
+  const seed = { prospect: (await admin.from('prospects').insert({ place_id: `rls-test-${stamp}`, segment: 'independent' }).select('id').single()).data };
+  for (const [who, c] of [['agency owner', owner], ['network partner', netUser], ['signed out', anon]]) {
+    for (const t of staffOnly) {
+      const { data } = await c.from(t).select('*').limit(5);
+      check(`${who} reads no ${t}`, !data || data.length === 0, `${data?.length ?? 0} rows`);
+    }
+    const counts = await c.rpc('prospect_counts');
+    check(`${who} gets no prospect counts`, !!counts.error || (counts.data ?? []).length === 0);
+    check(`${who} cannot log on a prospect`, !!(await c.rpc('log_prospect', { p_id: seed.prospect.id, p_kind: 'note', p_outcome: '', p_note: 'x' })).error);
+    check(`${who} cannot add expenses`, !!(await c.rpc('add_expense', { p_on: '2026-10-01', p_category: 'ads', p_vendor: 'x', p_amount_cents: 100, p_recurring: false, p_campaign: null, p_note: null })).error);
+    check(`${who} cannot save campaigns`, !!(await c.rpc('save_campaign', { p_slug: 'rls-x', p_name: 'x', p_channel: 'email', p_segment: 'mixed', p_carrier: '', p_status: 'draft', p_starts: null, p_ends: null, p_budget_cents: null, p_notes: '' })).error);
+    check(`${who} cannot meter Places usage`, !!(await c.rpc('bump_places_usage', { p_sku: 'details', p_calls: 1, p_cost_cents: 1 })).error);
+  }
+  await admin.from('prospects').delete().eq('id', seed.prospect.id);
 } finally {
   for (const u of Object.values(users)) if (u) await admin.auth.admin.deleteUser(u.id);
 

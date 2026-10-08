@@ -1,3 +1,4 @@
+import { ActionForm } from '@/components/ActionForm';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Status, Empty, dateTime } from '@/components/ui';
@@ -25,7 +26,7 @@ export default async function AgencyCare({ params, searchParams }: { params: Pro
       <Flash ok={sp.ok} err={sp.err} />
       <div className="grid g2">
         <Panel title="Ask for a change" sub={`We reply within ${RESPONSE[t?.plan ?? 'launch']}. Site down or a lead form not delivering: within 2 business hours on every plan.`}>
-          <form action={createCareRequest} className="form">
+          <ActionForm action={createCareRequest} className="form" resetOnOk>
             <input type="hidden" name="tenant" value={tid} />
             <input type="hidden" name="back" value={here} />
             <label className="field"><span>What do you need?</span>
@@ -39,7 +40,7 @@ export default async function AgencyCare({ params, searchParams }: { params: Pro
             <label className="field"><span>Short title</span><input className="input" name="title" required minLength={3} maxLength={140} placeholder="e.g. Update Saturday office hours" /></label>
             <label className="field"><span>Details (optional)</span><textarea className="textarea" name="detail" maxLength={4000} placeholder="Anything that helps us get it right the first time" /></label>
             <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Send request</button>
-          </form>
+          </ActionForm>
         </Panel>
         <Panel title="Your requests">
           {reqs?.length ? (

@@ -16,6 +16,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
   ]);
   return (
     <Shell
+      searchClients
       surface="Enterprise"
       home="/console"
       title={props.title}
@@ -31,6 +32,10 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
             { href: '/console/inquiries', label: 'Inquiries', count: inq.count ?? 0 },
             { href: '/console/pipeline', label: 'Pipeline' },
             { href: '/console/clients', label: 'Clients' },
+            { href: '/console/campaigns', label: 'Campaigns', icon: 'growth' },
+            { href: '/console/prospects', label: 'Prospects', icon: 'target' },
+            { href: '/console/carriers', label: 'Carriers & scanner', icon: 'carriers' },
+            { href: '/console/growth', label: 'Growth & financials', icon: 'chart' },
           ],
         },
         {

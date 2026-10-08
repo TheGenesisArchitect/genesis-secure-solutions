@@ -68,12 +68,17 @@ export default async function NetworkView({ searchParams }: { searchParams: Prom
 
   return (
     <Shell
+      searchClients
       surface="Network"
       home="/network"
       title={current?.name ?? 'Network portfolio'}
       who={{ name: v.staff?.name ?? v.email, detail: v.staff ? 'Genovus team' : 'Network partner' }}
       switcher={<EcosystemSwitcher current="carrier" />}
-      nav={[{ title: networks.length > 1 ? 'Networks' : undefined, items: networks.map((n) => ({ href: `/network?n=${n.slug}`, label: n.name.replace(' (scenario)', ''), exact: true })) }]}
+      back={v.staff ? { href: '/console', label: 'Enterprise' } : undefined}
+      nav={[
+        ...(v.staff ? [{ title: 'Real data', items: [{ href: '/network/real', label: 'Real network', exact: true, icon: 'target' }] }] : []),
+        { title: networks.length > 1 ? 'Networks' : undefined, items: networks.map((n) => ({ href: `/network?n=${n.slug}`, label: n.name.replace(' (scenario)', ''), exact: true })) },
+      ]}
     >
       {sample ? <div className="notice sample"><b>Scenario.</b> These agencies are fictional, spread across states by population, and every number is illustrative. A real network view starts with a pilot.</div> : null}
       {error ? <div className="notice err">The portfolio could not load: {error.message}</div> : null}
