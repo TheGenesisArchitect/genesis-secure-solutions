@@ -427,3 +427,17 @@ figure svg g:nth-child(2) rect{animation-delay:.05s}figure svg g:nth-child(3) re
   .layers .layer:nth-child(1),.layers .layer:nth-child(3){transform:none}
   .layers .layer:nth-child(2){z-index:1}
 }
+
+/* ---------- network map ---------- */
+.netmap{width:100%;height:auto;display:block}
+.netmap .st{stroke:rgba(255,255,255,.08);stroke-width:.6;transition:fill .3s var(--ease),filter .3s var(--ease);cursor:pointer}
+.netmap a:hover .st{filter:brightness(1.35) drop-shadow(0 0 8px rgba(255,106,43,.6))}
+.netmap .st.on{stroke:#fff;stroke-width:1.6;filter:drop-shadow(0 0 10px rgba(255,140,60,.8))}
+.netmap .st-borders{fill:none;stroke:rgba(11,12,16,.7);stroke-width:.8;pointer-events:none}
+.netmap .st-live{fill:#3dd691;fill-opacity:.85;stroke:#052114;stroke-width:1;pointer-events:none;filter:drop-shadow(0 0 6px rgba(61,214,145,.7))}
+.legend-swatch{display:inline-block;width:12px;height:12px;border-radius:3px;background:linear-gradient(90deg,rgba(255,106,43,.2),rgba(255,106,43,1));vertical-align:middle;margin-right:4px}
+.legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#3dd691;vertical-align:middle;margin-right:4px}
+.stage-row{display:grid;grid-template-columns:110px 1fr 34px;gap:10px;align-items:center;text-decoration:none;color:var(--ink);padding:3px 6px;border-radius:8px}
+.stage-row:hover,.stage-row.on{background:var(--raise)}
+.net-top{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+@media (max-width:1100px){.net-top{grid-template-columns:minmax(0,1fr)}}

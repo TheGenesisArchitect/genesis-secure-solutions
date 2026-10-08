@@ -49,7 +49,7 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
                 <span>{STAGE_LABEL[s]}</span>
                 <span className="num">{inStage.length}</span>
               </header>
-              {inStage.map((t) => {
+              {inStage.slice(0, 12).map((t) => {
                 const open = (gates.data ?? []).filter((g) => g.tenant_id === t.id && (g.status === 'open' || g.status === 'blocked')).length;
                 const pending = (approvals.data ?? []).filter((a) => a.tenant_id === t.id).length;
                 const d = daysSince(t.stage_since);
@@ -64,6 +64,9 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
                   </Link>
                 );
               })}
+              {inStage.length > 12 ? (
+                <Link className="muted" style={{ fontSize: 13, padding: '4px 6px' }} href="/console/clients">+{inStage.length - 12} more</Link>
+              ) : null}
             </section>
           );
         })}
