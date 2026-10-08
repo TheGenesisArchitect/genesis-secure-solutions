@@ -35,7 +35,8 @@ export function StoryClient({ map }: { map: MapData }) {
     if (!el) return;
     gsap.registerPlugin(ScrollTrigger);
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const lenis = reduce ? null : new Lenis({ duration: 1.1, anchors: true });
+    // Softer, more natural smooth scrolling; touch keeps the device's own physics.
+    const lenis = reduce ? null : new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, smoothWheel: true, anchors: true });
     const onTick = (t: number) => lenis?.raf(t * 1000);
     if (lenis) {
       lenis.on('scroll', ScrollTrigger.update);
@@ -44,47 +45,89 @@ export function StoryClient({ map }: { map: MapData }) {
     }
 
     const mm = gsap.matchMedia();
-    mm.add({ desktop: '(min-width: 980px) and (prefers-reduced-motion: no-preference)', other: '(max-width: 979px), (prefers-reduced-motion: reduce)' }, (ctx) => {
-      const q = gsap.utils.selector(el);
-      if (!ctx.conditions?.desktop) {
-        // Stacked: reveal each scene as it arrives.
-        q('.scene').forEach((s) => gsap.from(s, { autoAlpha: 0, y: 40, duration: 0.8, ease: 'power2.out', scrollTrigger: { trigger: s, start: 'top 80%' } }));
-        q('.map-dots').forEach((d) => gsap.set(d, { clipPath: 'inset(0 0% 0 0)' }));
-        return;
-      }
-      const copies = q('.scene-copy');
-      const stages = q('.stage');
-      gsap.set(copies.slice(1), { autoAlpha: 0, y: 30 });
-      gsap.set(stages.slice(1), { autoAlpha: 0 });
-      const tl = gsap.timeline({
-        defaults: { ease: 'power2.inOut' },
-        scrollTrigger: { trigger: q('.story-pin')[0], start: 'top top', end: `+=${SCENES.length * 110}%`, pin: true, scrub: 0.8, anticipatePin: 1 },
-      });
-      // Scene 1: the record, then its outputs fly out along their lines.
-      tl.from(q('.record'), { scale: 0.8, autoAlpha: 0, duration: 0.4 })
-        .from(q('.out'), { x: 0, y: 0, scale: 0.4, autoAlpha: 0, stagger: 0.08, duration: 0.6 }, '<0.1')
-        .from(q('.out-line'), { strokeDashoffset: 400, stagger: 0.08, duration: 0.6 }, '<');
-      const step = (i: number) => {
-        tl.to(copies[i - 1], { autoAlpha: 0, y: -30, duration: 0.3 }, `s${i}`)
-          .to(stages[i - 1], { autoAlpha: 0, duration: 0.3 }, `s${i}`)
-          .to(copies[i], { autoAlpha: 1, y: 0, duration: 0.4 }, `s${i}+=0.15`)
-          .to(stages[i], { autoAlpha: 1, duration: 0.4 }, `s${i}+=0.1`);
-      };
-      tl.addLabel('s1', '+=0.6'); step(1);
-      tl.from(q('.device'), { rotateY: 28, rotateX: 8, y: 40, duration: 0.6 }, 's1+=0.1')
-        .from(q('.tick'), { autoAlpha: 0, x: -14, stagger: 0.12, duration: 0.3 }, '<0.2')
-        .fromTo(q('.setup-bar i'), { scaleX: 0 }, { scaleX: 1, duration: 0.8 }, '<');
-      tl.addLabel('s2', '+=0.5'); step(2);
-      tl.from(q('.draft'), { y: 80, autoAlpha: 0, rotate: (i) => [-6, 3, -2][i] ?? 0, stagger: 0.12, duration: 0.5 }, 's2+=0.15')
-        .from(q('.rule'), { autoAlpha: 0, scale: 0.8, stagger: 0.08, duration: 0.3 }, '<0.3')
-        .from(q('.stamp'), { scale: 2.4, autoAlpha: 0, rotate: -18, duration: 0.35, ease: 'back.out(2)' }, '>');
-      tl.addLabel('s3', '+=0.5'); step(3);
-      tl.fromTo(q('.layer'), { x: 0, y: 0, z: 0, rotateY: 0 }, { x: (i) => [-260, 0, 260][i], y: (i) => [40, -20, 40][i], z: (i) => [-120, 60, -120][i], rotateY: (i) => [18, 0, -18][i], duration: 0.9, stagger: 0.05 }, 's3+=0.15');
-      tl.addLabel('s4', '+=0.5'); step(4);
-      tl.fromTo(q('.map-dots'), { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: 1, ease: 'none' }, 's4+=0.2')
-        .from(q('.map-live'), { autoAlpha: 0, duration: 0.5 }, '>-0.3');
-      tl.to({}, { duration: 0.4 });
-    });
+    mm.add(
+      {
+        desktop: '(min-width: 980px) and (prefers-reduced-motion: no-preference)',
+        phone: '(max-width: 979px) and (prefers-reduced-motion: no-preference)',
+        still: '(prefers-reduced-motion: reduce)',
+      },
+      (ctx) => {
+        const q = gsap.utils.selector(el);
+        const c = ctx.conditions ?? {};
+
+        // Hero hand-off: the headline drifts up and fades, the 3D scene recedes, in step with the scroll.
+        const hero = document.querySelector('.hero2');
+        if (hero && !c.still) {
+          gsap.timeline({ scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } })
+            .to('.hero2-copy', { y: -80, autoAlpha: 0, ease: 'none' }, 0)
+            .to('.hero-visual', { scale: 0.9, autoAlpha: 0.15, ease: 'none' }, 0);
+        }
+        if (c.still) return;
+
+        if (c.phone) {
+          // Every scene and its parts rise and settle in proportion to the scroll: nothing pops.
+          const rise = (target: gsap.TweenTarget, trigger: Element, from: gsap.TweenVars, start = 'top 92%', end = 'top 52%') =>
+            gsap.fromTo(target, from, { autoAlpha: 1, x: 0, y: 0, scale: 1, rotate: 0, filter: 'blur(0px)', ease: 'none', stagger: 0.12, scrollTrigger: { trigger, start, end, scrub: 0.6 } });
+          q('.scene-copy').forEach((s) => rise(s, s, { autoAlpha: 0, y: 50, filter: 'blur(6px)' }));
+          q('.stage').forEach((s) => rise(s, s, { autoAlpha: 0, y: 70, scale: 0.94, filter: 'blur(6px)' }));
+          rise(q('.out'), q('.record')[0], { autoAlpha: 0, y: 30, scale: 0.9 }, 'top 75%', 'top 35%');
+          rise(q('.tick'), q('.ticks')[0], { autoAlpha: 0, x: -20 }, 'top 90%', 'top 55%');
+          rise(q('.draft'), q('.drafts')[0], { autoAlpha: 0, y: 40, rotate: -3 }, 'top 90%', 'top 50%');
+          gsap.fromTo(q('.stamp'), { autoAlpha: 0, scale: 2 }, { autoAlpha: 1, scale: 1, ease: 'back.out(2)', scrollTrigger: { trigger: q('.drafts')[0], start: 'top 45%', end: 'top 30%', scrub: 0.5 } });
+          gsap.fromTo(q('.layer'), { x: 0, rotateY: 0, scale: 0.9 }, {
+            x: (i) => ['-16%', '0%', '16%'][i], rotateY: (i) => [14, 0, -14][i], scale: (i) => [0.86, 1, 0.86][i], ease: 'none',
+            scrollTrigger: { trigger: q('.layers')[0], start: 'top 85%', end: 'top 40%', scrub: 0.6 },
+          });
+          gsap.fromTo(q('.map-dots'), { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', ease: 'none', scrollTrigger: { trigger: q('.usmap')[0], start: 'top 85%', end: 'top 35%', scrub: 0.6 } });
+          return;
+        }
+
+        // Desktop: one pinned stage; scenes dissolve into each other and the scroll settles on each one.
+        const copies = q('.scene-copy');
+        const stages = q('.stage');
+        gsap.set(copies.slice(1), { autoAlpha: 0, y: 40, filter: 'blur(8px)' });
+        gsap.set(stages.slice(1), { autoAlpha: 0, scale: 1.05, filter: 'blur(10px)' });
+        const bar = q('.story-bar i')[0];
+        const tl = gsap.timeline({
+          defaults: { ease: 'power2.inOut' },
+          scrollTrigger: {
+            trigger: q('.story-pin')[0],
+            start: 'top top',
+            end: `+=${SCENES.length * 120}%`,
+            pin: true,
+            scrub: 1,
+            anticipatePin: 1,
+            onUpdate: (self) => bar && gsap.set(bar, { scaleX: self.progress }),
+          },
+        });
+        tl.addLabel('s0');
+        tl.from(q('.record'), { scale: 0.85, autoAlpha: 0, filter: 'blur(8px)', duration: 0.5 })
+          .from(q('.out'), { x: 0, y: 0, scale: 0.4, autoAlpha: 0, stagger: 0.07, duration: 0.7, ease: 'power3.out' }, '<0.15')
+          .from(q('.out-line'), { strokeDashoffset: 400, stagger: 0.07, duration: 0.7 }, '<');
+        // A crossfade where the outgoing scene softens away while the next one sharpens in.
+        const step = (i: number) => {
+          tl.addLabel(`s${i}`, '+=0.5');
+          tl.to(copies[i - 1], { autoAlpha: 0, y: -40, filter: 'blur(8px)', duration: 0.55 }, `s${i}`)
+            .to(stages[i - 1], { autoAlpha: 0, scale: 0.95, filter: 'blur(10px)', duration: 0.55 }, `s${i}`)
+            .to(copies[i], { autoAlpha: 1, y: 0, filter: 'blur(0px)', duration: 0.6 }, `s${i}+=0.25`)
+            .to(stages[i], { autoAlpha: 1, scale: 1, filter: 'blur(0px)', duration: 0.6 }, `s${i}+=0.2`);
+        };
+        step(1);
+        tl.from(q('.device'), { rotateY: 28, rotateX: 8, y: 40, duration: 0.7, ease: 'power3.out' }, 's1+=0.25')
+          .from(q('.tick'), { autoAlpha: 0, x: -16, stagger: 0.1, duration: 0.35 }, '<0.2')
+          .fromTo(q('.setup-bar i'), { scaleX: 0 }, { scaleX: 1, duration: 0.8 }, '<');
+        step(2);
+        tl.from(q('.draft'), { y: 80, autoAlpha: 0, rotate: (i) => [-6, 3, -2][i] ?? 0, stagger: 0.1, duration: 0.55, ease: 'power3.out' }, 's2+=0.25')
+          .from(q('.rule'), { autoAlpha: 0, scale: 0.8, stagger: 0.07, duration: 0.3 }, '<0.3')
+          .from(q('.stamp'), { scale: 2.4, autoAlpha: 0, rotate: -18, duration: 0.4, ease: 'back.out(2)' }, '>');
+        step(3);
+        tl.fromTo(q('.layer'), { x: 0, y: 0, z: 0, rotateY: 0 }, { x: (i) => [-170, 0, 200][i], y: (i) => [44, -20, 44][i], z: (i) => [-160, 60, -160][i], rotateY: (i) => [18, 0, -18][i], duration: 1, stagger: 0.05, ease: 'power3.out' }, 's3+=0.25');
+        step(4);
+        tl.fromTo(q('.map-dots'), { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: 1.1, ease: 'none' }, 's4+=0.3')
+          .from(q('.map-live'), { autoAlpha: 0, y: 10, duration: 0.5 }, '>-0.3');
+        tl.addLabel('end', '+=0.3');
+      },
+    );
 
     return () => {
       mm.revert();
@@ -100,12 +143,12 @@ export function StoryClient({ map }: { map: MapData }) {
       <div className="story-pin">
         <div className="story-grid wrapx">
           <div className="story-copy">
+            <div className="story-bar" aria-hidden="true"><i /></div>
             {SCENES.map((s, i) => (
               <div key={s.title} className="scene-copy scene" style={{ order: i * 2 }}>
                 <div className="eyebrow">{s.eyebrow}</div>
                 <h2 className="big">{s.title}</h2>
                 <p className="lede">{s.text}</p>
-                <div className="story-progress" aria-hidden="true">{SCENES.map((_, j) => <i key={j} className={j === i ? 'on' : ''} />)}</div>
               </div>
             ))}
           </div>
