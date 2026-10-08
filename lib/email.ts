@@ -21,8 +21,11 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
       signal: AbortSignal.timeout(10_000),
     });
     const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
-    return res.ok && body.id ? { ok: true, id: body.id } : { ok: false, error: body.message ?? `HTTP ${res.status}` };
+    if (res.ok && body.id) return { ok: true, id: body.id };
+    console.error(`[email] Resend refused "${m.subject}": ${res.status} ${body.message ?? ''}`);
+    return { ok: false, error: body.message ?? `HTTP ${res.status}` };
   } catch (e) {
+    console.error(`[email] send failed: ${e instanceof Error ? e.message : e}`);
     return { ok: false, error: e instanceof Error ? e.message : 'send failed' };
   }
 }
