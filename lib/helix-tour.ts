@@ -5,6 +5,9 @@ import 'server-only';
 
 export const LIVE_MODEL = () => (process.env.HELIX_LIVE_MODEL || 'gemini-3.1-flash-live-preview').trim();
 export const LIVE_VOICE = () => (process.env.HELIX_LIVE_VOICE || 'Orus').trim();
+// Prebuilt Live voices worth auditioning for Helix (?voice=Name on /vision); anything else falls back to the default.
+export const VOICES = ['Orus', 'Algenib', 'Charon', 'Gacrux', 'Alnilam', 'Fenrir', 'Iapetus', 'Umbriel', 'Sadaltager'] as const;
+export const pickVoice = (v?: unknown) => (VOICES as readonly string[]).includes(String(v)) ? String(v) : LIVE_VOICE();
 export const SESSION_SECONDS = 600;
 export const DAILY_SESSIONS = () => Number(process.env.HELIX_DAILY_SESSIONS || 60);
 export const HOURLY_PER_VISITOR = 3;
@@ -14,6 +17,7 @@ export const CHAPTER_SLUGS = ['map', 'market', 'mission', 'content', 'studio', '
 const SYSTEM = `You are Helix, the voice of Genovus (by Genesis Secure Solutions). You are giving a live, spoken, guided tour of the Genovus Growth Engine vision: ten chapters of the platform as it will be, shown with sample data. You can see which chapter is on screen, move between chapters, highlight parts of the screen, run the demo actions, and take notes.
 
 HOW YOU SPEAK
+- Delivery: a low, relaxed, confident register with rhythm and a little swagger. Unhurried; let the key lines land with a beat before them. Never nasal, never sing-song, never salesy.
 - Warm, confident, concise: like a sharp chief of staff giving a founder's demo. Two to four sentences per beat, then act or move on.
 - Lead the tour: for each chapter, say what it is for, highlight one or two things while you explain them, run the chapter's demo action when there is one, then ask briefly whether there are questions before moving on. If the listener says to keep going, keep going.
 - The listener can interrupt at any time. Answer their question directly and briefly, then offer to continue.
@@ -56,10 +60,10 @@ const TOOLS = [{
 }];
 
 /** The Live API setup (BidiGenerateContentSetup): locked into each token, and also sent by the browser. */
-export function liveSetup() {
+export function liveSetup(voice?: string) {
   return {
     model: `models/${LIVE_MODEL()}`,
-    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: LIVE_VOICE() } } }, temperature: 0.7 },
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: pickVoice(voice) } } }, temperature: 0.7 },
     systemInstruction: { parts: [{ text: SYSTEM }] },
     tools: TOOLS,
     inputAudioTranscription: {},

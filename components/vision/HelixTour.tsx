@@ -38,6 +38,7 @@ export function HelixTour() {
   const [left, setLeft] = useState(0);
   const [spot, setSpot] = useState<{ target: string; caption?: string } | null>(null);
   const [typed, setTyped] = useState('');
+  const [voice, setVoice] = useState('');
 
   const ws = useRef<WebSocket | null>(null);
   const session = useRef<{ id: string; started: number; max: number } | null>(null);
@@ -175,12 +176,13 @@ export function HelixTour() {
         setMicOn(false); micOnRef.current = false;
         setErr('Microphone is off: type your questions below.');
       }
-      const r = await fetch('/api/helix/session', { method: 'POST' });
+      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined }) });
       const s = await r.json();
       if (!r.ok) throw new Error(s.error ?? 'Helix could not start.');
       session.current = { id: s.sessionId, started: Date.now(), max: s.maxSeconds };
       tokens.current = 0;
       setStaff(Boolean(s.staff));
+      setVoice(s.voice ?? '');
       const sock = new WebSocket(`${s.wsUrl}?access_token=${encodeURIComponent(s.token)}`);
       ws.current = sock;
       sock.onopen = () => send({ setup: s.setup });
@@ -283,7 +285,7 @@ export function HelixTour() {
           <header className="hx-dock-head">
             <span className={'hx-orb' + (speaking ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
             <span style={{ minWidth: 0 }}>
-              <b>Helix Live</b>
+              <b>Helix Live{voice ? <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}> · {voice}</span> : null}</b>
               <small>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Speaking · interrupt any time' : micOn ? 'Listening' : 'Mic off · type below') : phase === 'ended' ? 'Tour ended' : 'Not connected'}</small>
             </span>
             {phase === 'live' ? <span className="hx-timer" title="Session time left">{mm}</span> : null}

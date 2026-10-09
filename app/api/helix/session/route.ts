@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { LIVE_WS, liveSetup, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS, HOURLY_PER_VISITOR } from '@/lib/helix-tour';
+import { LIVE_WS, liveSetup, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS, HOURLY_PER_VISITOR } from '@/lib/helix-tour';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +29,12 @@ async function mint(setup?: unknown) {
   return res.ok && body.name ? { token: body.name } : { error: body.error?.message ?? `HTTP ${res.status}` };
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const voice = pickVoice(((await req.json().catch(() => ({}))) as { voice?: string }).voice);
   // Local testing only: no key, a stand-in token; the test page supplies its own voice socket.
   if (!KEY() && process.env.NODE_ENV !== 'production' && process.env.HELIX_STANDIN === '1') {
     const { data: s } = await adminDb().from('helix_tour_sessions').insert({ ip_hash: 'standin', is_staff: true, model: 'standin' }).select('id').single();
-    return Response.json({ sessionId: s!.id, token: 'standin', wsUrl: 'wss://standin.invalid/live', setup: liveSetup(), locked: true, staff: Boolean((await getViewer().catch(() => null))?.staff), maxSeconds: SESSION_SECONDS });
+    return Response.json({ sessionId: s!.id, token: 'standin', wsUrl: 'wss://standin.invalid/live', setup: liveSetup(voice), locked: true, staff: Boolean((await getViewer().catch(() => null))?.staff), maxSeconds: SESSION_SECONDS });
   }
   if (!KEY()) return Response.json({ error: 'Helix voice is not connected yet.' }, { status: 503 });
   const h = await headers();
@@ -52,7 +53,7 @@ export async function POST() {
 
   // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an
   // unlocked token (the browser sends the same setup), which only the Genovus team may use.
-  let minted = await mint(liveSetup());
+  let minted = await mint(liveSetup(voice));
   let locked = true;
   if ('error' in minted) {
     console.error(`[helix] locked setup refused: ${minted.error}`);
@@ -65,8 +66,8 @@ export async function POST() {
     console.error(`[helix] token refused: ${minted.error}`);
     return Response.json({ error: 'Helix couldn’t start a voice session right now.' }, { status: 502 });
   }
-  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: LIVE_MODEL() }).select('id').single();
-  return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup: liveSetup(), locked, staff, maxSeconds: SESSION_SECONDS });
+  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}` }).select('id').single();
+  return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup: liveSetup(voice), voice, locked, staff, maxSeconds: SESSION_SECONDS });
 }
 
 export async function PATCH(req: Request) {
