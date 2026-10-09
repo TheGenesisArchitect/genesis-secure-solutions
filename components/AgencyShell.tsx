@@ -3,6 +3,7 @@ import { requireTenant, type Membership, type Viewer } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { Shell } from './Shell';
 import { EcosystemSwitcher } from './EcosystemSwitcher';
+import { businessToday } from '@/lib/billing';
 
 export type AgencyCtx = { viewer: Viewer; tenant: Membership; asStaff: boolean; isOwner: boolean };
 
@@ -14,9 +15,10 @@ export async function agencyContext(slug: string): Promise<AgencyCtx> {
 export async function AgencyShell({ ctx, title, children, actions }: { ctx: AgencyCtx; title: string; children: React.ReactNode; actions?: React.ReactNode }) {
   const { tenant, viewer, asStaff, isOwner } = ctx;
   const supabase = await db();
-  const [{ count: pending }, { count: open }] = await Promise.all([
+  const [{ count: pending }, { count: open }, { count: due }] = await Promise.all([
     supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'pending').eq('approver', 'client'),
     supabase.from('care_requests').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).neq('status', 'done'),
+    supabase.from('follow_ups').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'open').lte('due_on', businessToday()),
   ]);
   const base = `/app/${tenant.slug}`;
   return (
@@ -31,7 +33,7 @@ export async function AgencyShell({ ctx, title, children, actions }: { ctx: Agen
       back={viewer.staff ? { href: `/console/clients/${tenant.slug}`, label: 'Enterprise' } : undefined}
       who={{ name: viewer.staff?.name ?? viewer.email, detail: asStaff ? 'Genovus team, viewing as the agency' : tenant.role === 'owner' ? 'Agency owner' : 'Office staff' }}
       nav={[
-        { items: [{ href: base, label: 'Home', exact: true }] },
+        { items: [{ href: base, label: 'Home', exact: true }, { href: `${base}/follow-ups`, label: 'Follow-ups', count: due ?? 0 }] },
         {
           title: 'Your program',
           items: [

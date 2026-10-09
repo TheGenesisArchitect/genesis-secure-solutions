@@ -39,6 +39,7 @@ export function HelixTour() {
   const [spot, setSpot] = useState<{ target: string; caption?: string } | null>(null);
   const [typed, setTyped] = useState('');
   const [voice, setVoice] = useState('');
+  const [cta, setCta] = useState(false);
   // Minimized: just the orb, controls and a one-line caption, so the presentation stays visible. Phones start
   // minimized; the choice is remembered on this device.
   const [mini, setMini] = useState(false);
@@ -125,6 +126,7 @@ export function HelixTour() {
       if (r.ok) setTab((t) => t);
       return r;
     }
+    if (name === 'talk_to_team') { setCta(true); return { ok: true, shown: 'A “Talk to the team” button is now on screen.' }; }
     if (name === 'end_tour') { setTimeout(() => end('Tour complete.'), 2500); return { ok: true }; }
     return { ok: false, error: 'unknown tool' };
   };
@@ -308,6 +310,11 @@ export function HelixTour() {
             {live ? <button className="hx-ic" onClick={() => end('Tour ended.')}>End</button> : <button className="hx-ic" onClick={() => { setOpen(false); setPhase('idle'); setErr(''); }}>Close</button>}
             <button className="hx-ic hx-min" onClick={() => setMiniPref(!mini)} aria-label={mini ? 'Expand Helix' : 'Minimize Helix'} title={mini ? 'Expand' : 'Minimize'} aria-expanded={!mini}>{mini ? '▴' : '▾'}</button>
           </header>
+          {cta || phase === 'ended' ? (
+            <a className="hx-cta" href="/for/captive-agents?from=helix#consult">
+              <b>Talk to the team</b><span>Book a 15-minute consult →</span>
+            </a>
+          ) : null}
           {mini && (caption || lines.length) ? <p className="hx-sub" aria-live="polite">{caption || [...lines].reverse().find((l) => l.who === 'helix')?.text || ''}</p> : null}
           <nav className="hx-tabs">
             <button aria-pressed={tab === 'live'} onClick={() => setTab('live')}>Conversation</button>

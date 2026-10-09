@@ -289,3 +289,57 @@ export async function handOffHelixNote(_: ActionResult, f: FormData) {
   revalidatePath('/console/helix');
   return r.ok ? done('Handed to the build agent: the draft plan appears here in a few seconds.') : fail(r.error ?? 'Hand-off failed.');
 }
+
+// ---------- Follow-ups (agency reminders) ----------
+export async function addFollowUp(_: ActionResult, f: FormData) {
+  return call('add_follow_up', { p_tenant: str(f, 'tenant', 64), p_who: str(f, 'who', 120), p_reason: str(f, 'reason', 300), p_due: str(f, 'due', 10) || null, p_at: str(f, 'at', 5) },
+    `Follow-up saved for ${str(f, 'due', 10) === businessToday() ? 'today' : str(f, 'due', 10)}.`);
+}
+
+export async function updateFollowUp(_: ActionResult, f: FormData) {
+  const status = str(f, 'status', 10) || 'open';
+  const due = str(f, 'due', 10) || null;
+  return call('update_follow_up', { p_id: str(f, 'id', 64), p_status: status, p_due: due }, status === 'done' ? 'Done. Nice.' : due ? 'Moved.' : 'Reopened.');
+}
+
+// ---------- Genovus Studio ----------
+export async function studioUpdateShot(_: ActionResult, f: FormData) {
+  return call('studio_update_shot', { p_id: str(f, 'id', 64), p_status: str(f, 'status', 20), p_take_url: str(f, 'take', 500), p_notes: str(f, 'notes', 1000) }, 'Shot updated.');
+}
+
+export async function studioSetEpisode(_: ActionResult, f: FormData) {
+  const status = str(f, 'status', 20);
+  return call('studio_set_episode', { p_id: str(f, 'id', 64), p_status: status, p_final_url: str(f, 'final', 500) },
+    status === 'approved' ? 'Episode approved: this exact render can now be posted.' : `Episode moved to ${status}.`);
+}
+
+export async function studioSavePost(_: ActionResult, f: FormData) {
+  const when = str(f, 'when', 30);
+  return call('studio_save_post', { p_id: str(f, 'id', 64), p_caption: str(f, 'caption', 2200), p_title: str(f, 'title', 100), p_scheduled: when ? new Date(`${when}:00-04:00`).toISOString() : null }, 'Post saved (back to draft for approval).');
+}
+
+export async function studioApprovePost(_: ActionResult, f: FormData) {
+  return call('studio_approve_post', { p_id: str(f, 'id', 64) }, 'Approved. Publish it on the platform, then record the live link here.');
+}
+
+export async function studioMarkPosted(_: ActionResult, f: FormData) {
+  return call('studio_mark_posted', { p_id: str(f, 'id', 64), p_url: str(f, 'url', 500), p_ai_label: f.get('ai') === 'on' }, 'Recorded as live. 🎬');
+}
+
+// Re-dates the demo agency's follow-ups around today, so the app capture for the Studio always shows a full
+// “Tomorrow” list. Sample agency only.
+export async function resetDemoFollowUps(_: ActionResult) {
+  const { requireStaff } = await import('./session');
+  await requireStaff();
+  const { adminDb } = await import('./supabase/admin');
+  const season = (await import('@/data/studio-season1.json')).default as { demo_follow_ups: { who: string; reason: string; day: number; at: string }[] };
+  const admin = adminDb();
+  const { data: t } = await admin.from('tenants').select('id, is_sample').eq('slug', 'demo-brooks').maybeSingle();
+  if (!t?.is_sample) return fail('The demo agency (demo-brooks) is missing.');
+  const today = businessToday();
+  const day = (n: number) => { const x = new Date(`${today}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  await admin.from('follow_ups').delete().eq('tenant_id', t.id);
+  const { error } = await admin.from('follow_ups').insert(season.demo_follow_ups.map((d) => ({ tenant_id: t.id, who: d.who, reason: d.reason, due_on: day(d.day), due_at: d.at })));
+  revalidatePath('/', 'layout');
+  return error ? fail(error.message) : done('Demo follow-ups reset: tomorrow’s list is ready to film.');
+}

@@ -2,7 +2,7 @@
 // Gemini Live token with Helix's instructions and tools locked in. The Gemini key never reaches the browser.
 // PATCH ends a session (records its length).
 import { createHash } from 'node:crypto';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
 import { LIVE_WS, liveSetup, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
@@ -29,6 +29,15 @@ async function mint(setup?: unknown) {
   return res.ok && body.name ? { token: body.name } : { error: body.error?.message ?? `HTTP ${res.status}` };
 }
 
+// The campaign and platform that brought this visitor (first-touch cookie set by RefCapture), codes only.
+function campaignRef(raw?: string): { c: string | null; src: string | null } {
+  try {
+    const r = JSON.parse(decodeURIComponent(raw ?? '')) as { c?: unknown; src?: unknown };
+    const ok = (v: unknown, re: RegExp) => (typeof v === 'string' && re.test(v) ? v : null);
+    return { c: ok(r.c, /^[a-z0-9-]{2,41}$/), src: ok(r.src, /^[a-z0-9-]{1,20}$/) };
+  } catch { return { c: null, src: null }; }
+}
+
 export async function POST(req: Request) {
   const voice = pickVoice(((await req.json().catch(() => ({}))) as { voice?: string }).voice);
   // Local testing only: no key, a stand-in token; the test page supplies its own voice socket.
@@ -38,6 +47,7 @@ export async function POST(req: Request) {
   }
   if (!KEY()) return Response.json({ error: 'Helix voice is not connected yet.' }, { status: 503 });
   const h = await headers();
+  const ref = campaignRef((await cookies()).get('gv_ref')?.value);
   const ip = (h.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
   const ipHash = createHash('sha256').update(`genovus-helix|${ip}`).digest('hex').slice(0, 32);
   const viewer = await getViewer().catch(() => null);
@@ -64,7 +74,7 @@ export async function POST(req: Request) {
     console.error(`[helix] token refused: ${minted.error}`);
     return Response.json({ error: 'Helix couldn’t start a voice session right now.' }, { status: 502 });
   }
-  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}` }).select('id').single();
+  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}`, campaign: ref.c, src: ref.src }).select('id').single();
   return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup: liveSetup(voice), voice, locked, staff, maxSeconds: SESSION_SECONDS });
 }
 

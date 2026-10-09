@@ -63,6 +63,16 @@ try {
   const team = (await admin.from('approvals').select('id').eq('tenant_id', brooks).eq('approver', 'team').eq('status', 'pending').limit(1)).data?.[0];
   if (team) check('owner cannot decide a team approval', !!(await owner.rpc('decide_approval', { p_id: team.id, p_decision: 'approved' })).error);
 
+  // Follow-ups: private to each agency.
+  const fu = await owner.rpc('add_follow_up', { p_tenant: brooks, p_who: 'RLS test', p_reason: null, p_due: '2026-10-10', p_at: '' });
+  check('owner can add a follow-up for own agency', !fu.error, fu.error?.message);
+  check('owner cannot add a follow-up for another agency', !!(await owner.rpc('add_follow_up', { p_tenant: mendez, p_who: 'x', p_reason: null, p_due: '2026-10-10', p_at: '' })).error);
+  check('office staff at another agency cannot read it', ((await staff.from('follow_ups').select('id').eq('id', fu.data)).data ?? []).length === 0);
+  check('office staff cannot close it', !!(await staff.rpc('update_follow_up', { p_id: fu.data, p_status: 'done', p_due: null })).error);
+  check('network partner reads no follow-ups', ((await netUser.from('follow_ups').select('id')).data ?? []).length === 0);
+  check('signed out cannot add follow-ups', !!(await anon.rpc('add_follow_up', { p_tenant: brooks, p_who: 'x', p_reason: null, p_due: '2026-10-10', p_at: '' })).error);
+  if (fu.data) await admin.from('follow_ups').delete().eq('id', fu.data);
+
   // Office staff at another agency: own agency only, and no billing.
   const sRows = (await staff.from('tenants').select('id')).data ?? [];
   check('office staff sees only their agency', sRows.length === 1 && sRows[0].id === ridge);
@@ -144,7 +154,7 @@ try {
 
   // Genovus's own growth data (campaigns, scanner, prospects, finance) is staff-only: agency members and
   // network partners read nothing and can call nothing that writes it.
-  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage', 'helix_tour_sessions', 'helix_notes'];
+  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage', 'helix_tour_sessions', 'helix_notes', 'studio_series', 'studio_episodes', 'studio_shots', 'studio_posts'];
   const seed = { prospect: (await admin.from('prospects').insert({ place_id: `rls-test-${stamp}`, segment: 'independent' }).select('id').single()).data };
   for (const [who, c] of [['agency owner', owner], ['network partner', netUser], ['signed out', anon]]) {
     for (const t of staffOnly) {

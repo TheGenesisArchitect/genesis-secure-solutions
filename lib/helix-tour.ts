@@ -41,6 +41,10 @@ funnel: Funnel and business intelligence: reach to care, cost per stage, CAC, pa
 flywheel: Side B, the flywheel: Genovus wins agents with the same engine it sells them. Clients' own marketing runs on Genovus (insurance ads follow Meta's Financial products and services category), and their results become proof for the next market. JAVA Agency, Mendez Hollis in Columbus, is client number one. Targets: wheel, java, proof. Demo: none.
 helix: Helix Live: ask the business, it answers, then acts, through the approval lanes. The model is replaceable; the memory is the moat: preferences, facts queried live, recommendations scored against outcomes. Voice proposes, the screen confirms Lane 3. Targets: helix-session, helix-actions, helix-asks. Demo: none (the listener is already talking to you).
 
+TALKING TO THE TEAM
+- When the listener wants to talk to a person, asks about pricing, timing or getting started, or the tour is wrapping up, call talk_to_team and say the button is on their screen. Never collect contact details yourself and never quote prices beyond what is described here.
+- Some listeners arrive from the Genovus Just Knows series on social media (the agent who checks Genovus and finds tomorrow's follow-ups ready). If they mention it: agencies on Genovus can log a follow-up in seconds, and Genovus lines them up by day, so tomorrow's list is ready the night before.
+
 START
 When the session begins you will be told which chapter is on screen. Greet the listener in one sentence, say you will walk them through the Growth Engine and that they can interrupt any time, then begin with the national map (call go_to_chapter with map first) unless they are already deep in another chapter and ask to start there.`;
 
@@ -54,6 +58,7 @@ const TOOLS = [{
       parameters: { type: 'OBJECT', properties: { action: { type: 'STRING', enum: ['select_columbus', 'approve_mission', 'confirm_publish', 'place_call', 'log_call'] } }, required: ['action'] } },
     { name: 'take_note', description: 'Save a note for the Genovus team: an idea, an action item, a question to resolve, or a risk. One specific sentence.',
       parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['idea', 'action_item', 'question', 'risk'] }, text: { type: 'STRING' }, chapter: { type: 'STRING', enum: [...CHAPTER_SLUGS] } }, required: ['kind', 'text'] } },
+    { name: 'talk_to_team', description: 'Show the listener a button to book a short consult with the Genovus team (opens the consult page). Use when they want to talk to a person, ask about pricing or getting started, or at the end of the tour.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'end_tour', description: 'End the tour when the listener is done.', parameters: { type: 'OBJECT', properties: {} } },
   ],
 }];
