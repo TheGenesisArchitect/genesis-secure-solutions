@@ -39,6 +39,16 @@ export function HelixTour() {
   const [spot, setSpot] = useState<{ target: string; caption?: string } | null>(null);
   const [typed, setTyped] = useState('');
   const [voice, setVoice] = useState('');
+  // Minimized: just the orb, controls and a one-line caption, so the presentation stays visible. Phones start
+  // minimized; the choice is remembered on this device.
+  const [mini, setMini] = useState(false);
+  const setMiniPref = (v: boolean) => { setMini(v); try { localStorage.setItem('helix-mini', v ? '1' : '0'); } catch {} };
+  useEffect(() => {
+    if (!open) return;
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('helix-mini'); } catch {}
+    setMini(saved != null ? saved === '1' : window.matchMedia('(max-width: 600px)').matches);
+  }, [open]);
 
   const ws = useRef<WebSocket | null>(null);
   const session = useRef<{ id: string; started: number; max: number } | null>(null);
@@ -286,17 +296,19 @@ export function HelixTour() {
           <span><b>Take the tour with Helix</b><small>Talk to it, interrupt it, ask anything</small></span>
         </button>
       ) : (
-        <aside className={'hx-dock' + (box ? ' spotting' : '')} aria-label="Helix Live tour">
+        <aside className={'hx-dock' + (mini ? ' mini' : box ? ' spotting' : '')} aria-label="Helix Live tour">
           <header className="hx-dock-head">
             <span className={'hx-orb' + (speaking ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
-            <span style={{ minWidth: 0 }}>
+            <span style={{ minWidth: 0, flex: 1, cursor: mini ? 'pointer' : undefined }} onClick={mini ? () => setMiniPref(false) : undefined}>
               <b>Helix Live{voice ? <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}> · {voice}</span> : null}</b>
               <small>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Speaking · interrupt any time' : micOn ? 'Listening' : 'Mic off · type below') : phase === 'ended' ? 'Tour ended' : 'Not connected'}</small>
             </span>
             {phase === 'live' ? <span className="hx-timer" title="Session time left">{mm}</span> : null}
             {phase === 'live' ? <button className={'hx-ic' + (micOn ? '' : ' off')} onClick={toggleMic} aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'} title={micOn ? 'Mute' : 'Unmute'}><span className="hx-level" style={{ transform: `scaleY(${micOn ? Math.min(1, 0.15 + level * 3) : 0.1})` }} />{micOn ? 'Mic' : 'Muted'}</button> : null}
             {live ? <button className="hx-ic" onClick={() => end('Tour ended.')}>End</button> : <button className="hx-ic" onClick={() => { setOpen(false); setPhase('idle'); setErr(''); }}>Close</button>}
+            <button className="hx-ic hx-min" onClick={() => setMiniPref(!mini)} aria-label={mini ? 'Expand Helix' : 'Minimize Helix'} title={mini ? 'Expand' : 'Minimize'} aria-expanded={!mini}>{mini ? '▴' : '▾'}</button>
           </header>
+          {mini && (caption || lines.length) ? <p className="hx-sub" aria-live="polite">{caption || [...lines].reverse().find((l) => l.who === 'helix')?.text || ''}</p> : null}
           <nav className="hx-tabs">
             <button aria-pressed={tab === 'live'} onClick={() => setTab('live')}>Conversation</button>
             <button aria-pressed={tab === 'notes'} onClick={() => setTab('notes')}>Notes{notes.length ? ` · ${notes.length}` : ''}</button>

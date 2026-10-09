@@ -9,10 +9,11 @@ const ROLE: Record<string, string> = { admin: 'Platform admin', account_lead: 'A
 export async function ConsoleShell(props: { title: string; crumbs?: { href?: string; label: string }[]; actions?: React.ReactNode; children: React.ReactNode }) {
   const v = await requireStaff();
   const supabase = await db();
-  const [appr, inq, care] = await Promise.all([
+  const [appr, inq, care, notes] = await Promise.all([
     supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('approver', 'team'),
     supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new'),
     supabase.from('care_requests').select('id', { count: 'exact', head: true }).in('status', ['new', 'in_progress']).eq('is_sample', false),
+    supabase.from('helix_notes').select('id', { count: 'exact', head: true }).in('status', ['new', 'drafted', 'failed']),
   ]);
   return (
     <Shell
@@ -43,6 +44,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
           items: [
             { href: '/console/approvals', label: 'Approval queue', count: appr.count ?? 0 },
             { href: '/console/care', label: 'Care desk', count: care.count ?? 0 },
+            { href: '/console/helix', label: 'Helix notes', count: notes.count ?? 0 },
             { href: '/console/assets', label: 'Asset library' },
           ],
         },

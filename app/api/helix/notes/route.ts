@@ -1,14 +1,17 @@
 // Notes Helix takes during a tour. POST saves one (only for a live session, capped per session); GET lists a
-// session's notes with any agent drafts, so the tour panel can show work arriving in the background.
+// session's notes with any agent drafts, so the tour panel can show work arriving in the background. Every note
+// lands in the Enterprise dashboard's Helix notes inbox; notes from a team member's tour go to the agent at once.
 import { adminDb } from '@/lib/supabase/admin';
+import { handOffNote } from '@/lib/helix-notes';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 const KINDS = ['idea', 'action_item', 'question', 'risk'];
 const CHAPTERS = ['map', 'market', 'mission', 'content', 'studio', 'calendar', 'calls', 'funnel', 'flywheel', 'helix'];
 const uuid = (s: unknown) => typeof s === 'string' && /^[0-9a-f-]{36}$/.test(s);
 
 async function liveSession(id: string) {
-  const { data } = await adminDb().from('helix_tour_sessions').select('id, started_at, ended_at').eq('id', id).maybeSingle();
+  const { data } = await adminDb().from('helix_tour_sessions').select('id, started_at, ended_at, is_staff, viewer_id').eq('id', id).maybeSingle();
   if (!data) return null;
   const age = Date.now() - new Date(data.started_at).getTime();
   return age < 20 * 60_000 ? data : null; // notes accepted for a short while after a tour ends
@@ -16,7 +19,8 @@ async function liveSession(id: string) {
 
 export async function POST(req: Request) {
   const b = (await req.json().catch(() => ({}))) as { sessionId?: string; kind?: string; text?: string; chapter?: string; source?: string };
-  if (!uuid(b.sessionId) || !(await liveSession(b.sessionId!))) return Response.json({ error: 'This tour has ended.' }, { status: 400 });
+  const session = uuid(b.sessionId) ? await liveSession(b.sessionId!) : null;
+  if (!session) return Response.json({ error: 'This tour has ended.' }, { status: 400 });
   const text = String(b.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 600);
   if (text.length < 2) return Response.json({ error: 'Empty note.' }, { status: 400 });
   const db = adminDb();
@@ -26,7 +30,11 @@ export async function POST(req: Request) {
     session_id: b.sessionId, kind: KINDS.includes(String(b.kind)) ? b.kind : 'idea', text,
     chapter: CHAPTERS.includes(String(b.chapter)) ? b.chapter : null, source: b.source === 'person' ? 'person' : 'helix',
   }).select('id, kind, text, chapter, status, created_at').single();
-  if (error) return Response.json({ error: 'The note could not be saved.' }, { status: 500 });
+  if (error || !data) return Response.json({ error: 'The note could not be saved.' }, { status: 500 });
+  if (session.is_staff) {
+    const r = await handOffNote(data.id, { userId: session.viewer_id, name: 'Helix tour' });
+    if (r.ok && r.status) data.status = r.status;
+  }
   return Response.json({ note: data });
 }
 

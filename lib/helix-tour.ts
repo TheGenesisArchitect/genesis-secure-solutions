@@ -9,8 +9,7 @@ export const LIVE_VOICE = () => (process.env.HELIX_LIVE_VOICE || 'Orus').trim();
 export const VOICES = ['Orus', 'Algenib', 'Charon', 'Gacrux', 'Alnilam', 'Fenrir', 'Iapetus', 'Umbriel', 'Sadaltager'] as const;
 export const pickVoice = (v?: unknown) => (VOICES as readonly string[]).includes(String(v)) ? String(v) : LIVE_VOICE();
 export const SESSION_SECONDS = 600;
-export const DAILY_SESSIONS = () => Number(process.env.HELIX_DAILY_SESSIONS || 60);
-export const HOURLY_PER_VISITOR = 3;
+export const DAILY_SESSIONS = () => Number(process.env.HELIX_DAILY_SESSIONS || 500);
 
 export const CHAPTER_SLUGS = ['map', 'market', 'mission', 'content', 'studio', 'calendar', 'calls', 'funnel', 'flywheel', 'helix'] as const;
 

@@ -2,6 +2,7 @@
 // 24×24 grid, currentColor, 1.8 stroke.
 const P: Record<string, string> = {
   overview: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z',
+  helix: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6',
   inbox: 'M4 13l2.5-8h11L20 13v6H4zM4 13h5l1.5 2.5h3L15 13h5',
   pipeline: 'M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v5h-4z',
   clients: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 6.5M21 20c0-2.6-1.6-4.8-4-5.6',
@@ -43,7 +44,7 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
 export function iconFor(label: string, href: string): string {
   const l = label.toLowerCase();
   const rules: [RegExp, string][] = [
-    [/overview/, 'overview'], [/inquir/, 'inbox'], [/pipeline/, 'pipeline'], [/prospect|scanner/, 'target'], [/carrier/, 'carriers'],
+    [/overview/, 'overview'], [/helix/, 'helix'], [/inquir/, 'inbox'], [/pipeline/, 'pipeline'], [/prospect|scanner/, 'target'], [/carrier/, 'carriers'],
     [/growth|financ/, 'growth'], [/client|agencies/, 'clients'], [/approv/, 'approvals'], [/care/, 'care'], [/asset|document/, 'assets'],
     [/audit/, 'audit'], [/domain|email/, 'globe'], [/meta|connector/, 'link'], [/^home$/, 'home'], [/setup/, 'setup'],
     [/performance/, 'chart'], [/billing/, 'billing'], [/team/, 'team'], [/console/, 'building'],

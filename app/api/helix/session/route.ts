@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { LIVE_WS, liveSetup, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS, HOURLY_PER_VISITOR } from '@/lib/helix-tour';
+import { LIVE_WS, liveSetup, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,12 +44,10 @@ export async function POST(req: Request) {
   const staff = Boolean(viewer?.staff);
   const db = adminDb();
   const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
-  const [{ count: today }, { count: recent }] = await Promise.all([
-    db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).gte('started_at', dayStart.toISOString()),
-    db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('ip_hash', ipHash).gte('started_at', new Date(Date.now() - 3_600_000).toISOString()),
-  ]);
-  if ((today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
-  if (!staff && (recent ?? 0) >= HOURLY_PER_VISITOR) return Response.json({ error: 'You’ve taken three tours this hour. Please try again a little later.' }, { status: 429 });
+  // No per-visitor limit: the link is meant to be shared and replayed. One high daily ceiling stays as a
+  // runaway-spend guard (HELIX_DAILY_SESSIONS); the team's own tours never count against it.
+  const { count: today } = await db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('is_staff', false).gte('started_at', dayStart.toISOString());
+  if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 
   // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an
   // unlocked token (the browser sends the same setup), which only the Genovus team may use.

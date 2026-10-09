@@ -256,3 +256,10 @@
 @media (max-width:600px){.hx-dock{right:8px;left:8px;bottom:8px;width:auto;max-height:70dvh}.hx-launch{right:12px;bottom:12px;left:12px;justify-content:center}}
 @media (prefers-reduced-motion:reduce){.hx-spot{transition:none}.hx-agent{animation:none}}
 @media (max-width:600px){.hx-dock.spotting{max-height:150px}.hx-dock.spotting .hx-tabs,.hx-dock.spotting .hx-input{display:none}}
+/* Minimized Helix: orb + controls + one caption line */
+.hx-min{padding:5px 9px;font-size:13px;line-height:1}
+.hx-dock.mini{grid-template-rows:auto auto;max-height:none}
+.hx-dock.mini .hx-tabs,.hx-dock.mini .hx-convo,.hx-dock.mini .hx-notes,.hx-dock.mini .hx-err,.hx-dock.mini .hx-input{display:none}
+.hx-dock.mini .hx-dock-head{border-bottom:0}
+.hx-sub{margin:0;padding:0 14px 12px;font-size:13px;line-height:1.45;color:var(--soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media (max-width:600px){.hx-dock.mini{left:auto;right:8px;width:min(340px,calc(100vw - 16px))}.hx-dock.mini .hx-dock-head{padding:8px 10px;gap:8px}.hx-dock.mini .hx-timer{display:none}}

@@ -273,3 +273,19 @@ export async function saveCampaign(_: ActionResult, f: FormData) {
     p_budget_cents: budget ? Math.round(Number(budget.replace(/[$,\s]/g, '')) * 100) : null, p_notes: str(f, 'notes', 1000),
   }, `Campaign “${slug}” saved.`);
 }
+
+// ---------- Helix notes (from vision tours) ----------
+const NOTE_DONE: Record<string, string> = { in_progress: 'Note started.', done: 'Note marked done.', dismissed: 'Note dismissed.', new: 'Note reopened.' };
+export async function setHelixNote(_: ActionResult, f: FormData) {
+  const status = str(f, 'status', 20);
+  return call('set_helix_note_status', { p_id: str(f, 'id', 64), p_status: status }, NOTE_DONE[status] ?? 'Note updated.');
+}
+
+export async function handOffHelixNote(_: ActionResult, f: FormData) {
+  const { requireStaff } = await import('./session');
+  const { handOffNote } = await import('./helix-notes');
+  const v = await requireStaff();
+  const r = await handOffNote(str(f, 'id', 64), { userId: v.userId, name: v.staff.name });
+  revalidatePath('/console/helix');
+  return r.ok ? done('Handed to the build agent: the draft plan appears here in a few seconds.') : fail(r.error ?? 'Hand-off failed.');
+}
