@@ -71,8 +71,8 @@ export async function Shell(props: {
       </aside>
       <div className="main">
         <header className="topbar">
-          <div className="row" style={{ gap: 12, minWidth: 0, flexWrap: 'nowrap' }}>
-            <label htmlFor="nav-open" className="btn small ghost menu-toggle" aria-label="Open menu">Menu</label>
+          <Link href={props.home} className="mobile-brand" aria-label="Genovus home"><Wordmark size={18} /></Link>
+          <div className="row topbar-title" style={{ gap: 12, minWidth: 0, flexWrap: 'nowrap' }}>
             {props.back ? <Link href={props.back.href} className="back-home" title={`Back to ${props.back.label}`}><span aria-hidden="true">←</span> {props.back.label}</Link> : null}
             <div style={{ minWidth: 0 }}>
               {crumbs.length ? (
@@ -88,9 +88,10 @@ export async function Shell(props: {
               <h1>{props.title}</h1>
             </div>
           </div>
+          {props.actions ? <div className="row topbar-extra">{props.actions}</div> : null}
           <div className="row topbar-actions">
             <CommandBar items={jump} searchClients={Boolean(props.searchClients)} />
-            {props.actions}
+            <label htmlFor="nav-open" className="btn small ghost menu-toggle" aria-label="Open menu"><Icon name="menu" size={18} /><span>Menu</span></label>
           </div>
         </header>
         <main className="content">{props.children}</main>

@@ -80,7 +80,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .nav .count{font:500 11px var(--mono);color:var(--on-accent);background:var(--accent);border-radius:999px;padding:2px 7px}
 .rail .who{margin-top:auto;border-top:1px solid var(--line);padding-top:14px;display:grid;gap:8px;font-size:13px;color:var(--muted)}
 .main{min-width:0;display:flex;flex-direction:column}
-.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 28px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px)}
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:14px 28px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px)}
 .topbar h1{font:800 18px/1.2 var(--display);letter-spacing:-.01em}
 .crumbs{font-size:13px;color:var(--muted)}
 .crumbs a{color:var(--muted);text-decoration:none}
@@ -592,3 +592,22 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
   .dash[data-rail="collapsed"] .brand>.brand-egg{display:block}
   .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .brand>.brand-egg{display:none}
 }
+
+/* Top bar: the Genovus wordmark leads on phones and tablets; title on its own line; tools stay compact */
+.mobile-brand{display:none;text-decoration:none;flex:none}
+.menu-toggle{align-items:center;gap:6px}
+@media (max-width:900px){
+  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand tools" "title title" "extra extra";align-items:center;column-gap:10px;row-gap:10px;padding:10px 14px 12px}
+  .mobile-brand{grid-area:brand;display:inline-flex;align-items:center;min-height:40px}
+  .topbar-title{grid-area:title;min-width:0}
+  .topbar-actions{grid-area:tools;gap:8px;flex-wrap:nowrap}
+  .topbar-actions>.jump-open{width:40px;height:40px;padding:0;justify-content:center}
+  .topbar-actions>.menu-toggle{height:40px}
+  .topbar-extra{grid-area:extra;gap:8px;flex-wrap:wrap}
+  .topbar-extra:empty{display:none}
+  .topbar h1{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar .back-home{padding:6px 10px;font-size:12px}
+}
+
+.topbar-title{flex:1 1 auto}
+.topbar-extra{gap:8px}

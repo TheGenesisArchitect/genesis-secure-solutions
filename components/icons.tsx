@@ -5,6 +5,7 @@ const P: Record<string, string> = {
   helix: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6',
   studio: 'M4 7h16v12H4zM4 7l3-3h4l-3 3M12 7l3-3h4l-3 3M10 10.5v5l4.5-2.5z',
   check: 'M5 12.5l4.5 4.5L19 7',
+  menu: 'M4 7h16M4 12h16M4 17h16',
   inbox: 'M4 13l2.5-8h11L20 13v6H4zM4 13h5l1.5 2.5h3L15 13h5',
   pipeline: 'M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v5h-4z',
   clients: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 6.5M21 20c0-2.6-1.6-4.8-4-5.6',

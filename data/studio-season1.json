@@ -190,7 +190,7 @@
           "description": "INSERT, the proof: Dee's phone shows the real Genovus Follow-ups screen. Tomorrow · your list is ready · 9:30 AM The Hendersons.",
           "camera": "Over-the-shoulder macro on the phone; the screen is a real capture composited, or film a real phone.",
           "tool": "capture",
-          "prompt": "Real app capture. Sign in as the Genovus team, open the demo agency's Follow-ups page on a phone (or Chrome device mode at 390 px), scroll to “Tomorrow · your list is ready” showing 9:30 AM The Hendersons. Screen-record 6 seconds with one slow scroll. Never film a real agency's data."
+          "prompt": "Real app capture, filmed on your phone: 1) In the Studio, press Reset demo follow-ups (so tomorrow's list shows The Hendersons at 9:30 AM). 2) On your phone, signed in, open genovus.io/app/demo-brooks/follow-ups?film=1 (filming mode hides the team and sample banners). 3) Start screen recording at the top of the page, then make one slow scroll down to the Tomorrow · your list is ready card with 9:30 AM The Hendersons, and hold for 2 seconds. Trim to 6 seconds. 4) Upload it here with Upload recording. Only ever film the demo agency (Brooks Family Insurance, fictional)."
         },
         {
           "n": 7,

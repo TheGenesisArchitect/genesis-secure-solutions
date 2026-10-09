@@ -150,7 +150,8 @@ export default async function Studio() {
                 <p className="soft" style={{ margin: 0, fontSize: 14 }}>Reset the demo agency’s follow-ups so “Tomorrow · your list is ready” shows The Hendersons at 9:30, then open the page on a phone and screen-record.</p>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                   <ActionForm action={resetDemoFollowUps}><button className="btn small primary" type="submit">Reset demo follow-ups</button></ActionForm>
-                  <Link className="btn small" href="/app/demo-brooks/follow-ups">Open the demo agency’s Follow-ups →</Link>
+                  <Link className="btn small" href="/app/demo-brooks/follow-ups?film=1">Open the filming page →</Link>
+                  <CopyButton text="https://genovus.io/app/demo-brooks/follow-ups?film=1" label="Copy link for your phone" />
                 </div>
               </Panel>
             </div>

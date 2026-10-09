@@ -12,7 +12,8 @@ export async function agencyContext(slug: string): Promise<AgencyCtx> {
   return { ...ctx, isOwner: ctx.asStaff || ctx.tenant.role === 'owner' };
 }
 
-export async function AgencyShell({ ctx, title, children, actions }: { ctx: AgencyCtx; title: string; children: React.ReactNode; actions?: React.ReactNode }) {
+/** `film`: a clean frame for filming the app with the demo agency (no team or sample banners). */
+export async function AgencyShell({ ctx, title, children, actions, film }: { ctx: AgencyCtx; title: string; children: React.ReactNode; actions?: React.ReactNode; film?: boolean }) {
   const { tenant, viewer, asStaff, isOwner } = ctx;
   const supabase = await db();
   const [{ count: pending }, { count: open }, { count: due }] = await Promise.all([
@@ -54,8 +55,8 @@ export async function AgencyShell({ ctx, title, children, actions }: { ctx: Agen
         ...(asStaff ? [{ title: 'Genovus team', items: [{ href: `/console/clients/${tenant.slug}`, label: 'This client in the console' }] }] : []),
       ]}
     >
-      {asStaff ? <div className="notice">You are viewing {tenant.name}’s dashboard as the Genovus team. Client approvals can only be decided by the agency owner.</div> : null}
-      {tenant.isSample ? <div className="notice sample"><b>Sample agency.</b> {tenant.name} is fictional. Every number here is illustrative and marked Sample.</div> : null}
+      {asStaff && !film ? <div className="notice">You are viewing {tenant.name}’s dashboard as the Genovus team. Client approvals can only be decided by the agency owner.</div> : null}
+      {tenant.isSample && !film ? <div className="notice sample"><b>Sample agency.</b> {tenant.name} is fictional. Every number here is illustrative and marked Sample.</div> : null}
       {children}
     </Shell>
   );

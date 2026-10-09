@@ -40,9 +40,11 @@ function Row({ f, today, tomorrow }: { f: F; today: string; tomorrow: string }) 
   );
 }
 
-export default async function FollowUps({ params }: { params: Promise<{ slug: string }> }) {
+export default async function FollowUps({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ film?: string }> }) {
   const { slug } = await params;
   const ctx = await agencyContext(slug);
+  // Filming mode is only for the fictional demo agency, so real agencies always see their banners.
+  const film = (await searchParams).film === '1' && ctx.tenant.isSample;
   const tid = ctx.tenant.tenantId;
   const today = businessToday();
   const tomorrow = addDays(today, 1);
@@ -62,7 +64,7 @@ export default async function FollowUps({ params }: { params: Promise<{ slug: st
     </Panel>
   );
   return (
-    <AgencyShell ctx={ctx} title="Follow-ups">
+    <AgencyShell ctx={ctx} title="Follow-ups" film={film}>
       <div className="grid g3">
         <Tile label="Today" value={<span className="num">{todays.length + overdue.length}</span>} hint={overdue.length ? `${overdue.length} carried over` : 'All on track'} />
         <Tile label="Tomorrow" value={<span className="num">{tomorrows.length}</span>} hint="Ready the night before" />
@@ -97,7 +99,7 @@ export default async function FollowUps({ params }: { params: Promise<{ slug: st
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>Private to {ctx.tenant.name}. Reminders only: nothing is sent to your customers from here.</p>
         </div>
       </div>
-      {ctx.asStaff ? <Chip kind="info">Viewing as the Genovus team</Chip> : null}
+      {ctx.asStaff && !film ? <Chip kind="info">Viewing as the Genovus team</Chip> : null}
     </AgencyShell>
   );
 }

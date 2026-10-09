@@ -101,7 +101,8 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           <input ref={file} type="file" accept="video/mp4,video/quicktime,video/webm" hidden onChange={(e) => onFile(e.target.files?.[0])} />
           <button className="btn small primary" type="button" disabled={busy} onClick={() => file.current?.click()}>{busy ? 'Uploading…' : 'Upload recording'}</button>
-          <span className="muted" style={{ fontSize: 12 }}>Screen-record the demo agency on a phone, then upload it here.</span>
+          <a className="btn small" href="/app/demo-brooks/follow-ups?film=1" target="_blank" rel="noreferrer">Open the filming page</a>
+          <span className="muted" style={{ fontSize: 12 }}>Reset demo follow-ups on the Studio home first, record on your phone, then upload it here.</span>
         </div>
       ) : tool === 'flow' || tool === 'veo' ? (
         <div className="grid" style={{ gap: 6 }}>
