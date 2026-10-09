@@ -1,0 +1,76 @@
+// Start a Helix Live tour: checks the per-visitor and daily limits, then mints a single-use, short-lived
+// Gemini Live token with Helix's instructions and tools locked in. The Gemini key never reaches the browser.
+// PATCH ends a session (records its length).
+import { createHash } from 'node:crypto';
+import { headers } from 'next/headers';
+import { adminDb } from '@/lib/supabase/admin';
+import { getViewer } from '@/lib/session';
+import { LIVE_WS, liveConstraints, liveSetup, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS, HOURLY_PER_VISITOR } from '@/lib/helix-tour';
+
+export const dynamic = 'force-dynamic';
+
+const KEY = () => (process.env.GEMINI_API_KEY || '').trim();
+
+async function mint(constraints: unknown) {
+  const now = Date.now();
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+    method: 'POST',
+    headers: { 'x-goog-api-key': KEY(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      uses: 1,
+      expireTime: new Date(now + (SESSION_SECONDS + 60) * 1000).toISOString(),
+      newSessionExpireTime: new Date(now + 2 * 60 * 1000).toISOString(),
+      liveConnectConstraints: constraints,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as { name?: string; error?: { message?: string } };
+  return res.ok && body.name ? { token: body.name } : { error: body.error?.message ?? `HTTP ${res.status}` };
+}
+
+export async function POST() {
+  // Local testing only: no key, a stand-in token; the test page supplies its own voice socket.
+  if (!KEY() && process.env.NODE_ENV !== 'production' && process.env.HELIX_STANDIN === '1') {
+    const { data: s } = await adminDb().from('helix_tour_sessions').insert({ ip_hash: 'standin', is_staff: true, model: 'standin' }).select('id').single();
+    return Response.json({ sessionId: s!.id, token: 'standin', wsUrl: 'wss://standin.invalid/live', setup: liveSetup(), locked: true, staff: Boolean((await getViewer().catch(() => null))?.staff), maxSeconds: SESSION_SECONDS });
+  }
+  if (!KEY()) return Response.json({ error: 'Helix voice is not connected yet.' }, { status: 503 });
+  const h = await headers();
+  const ip = (h.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ipHash = createHash('sha256').update(`genovus-helix|${ip}`).digest('hex').slice(0, 32);
+  const viewer = await getViewer().catch(() => null);
+  const staff = Boolean(viewer?.staff);
+  const db = adminDb();
+  const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
+  const [{ count: today }, { count: recent }] = await Promise.all([
+    db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).gte('started_at', dayStart.toISOString()),
+    db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('ip_hash', ipHash).gte('started_at', new Date(Date.now() - 3_600_000).toISOString()),
+  ]);
+  if ((today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
+  if (!staff && (recent ?? 0) >= HOURLY_PER_VISITOR) return Response.json({ error: 'You’ve taken three tours this hour. Please try again a little later.' }, { status: 429 });
+
+  // Lock Helix's instructions and tools into the token; if the service won't accept the full lock, fall back to
+  // locking the model and audio output and send the same setup from the browser.
+  let minted = await mint(liveConstraints());
+  let locked = true;
+  if ('error' in minted) {
+    console.error(`[helix] full constraints refused: ${minted.error}`);
+    minted = await mint({ model: LIVE_MODEL(), config: { responseModalities: ['AUDIO'] } });
+    locked = false;
+  }
+  // Unlocked tokens let the browser choose the instructions, so only the Genovus team may use them.
+  if (!('error' in minted) && !locked && !staff) return Response.json({ error: 'Helix’s voice is being tuned. The scripted session below shows what it does.' }, { status: 503 });
+  if ('error' in minted) {
+    console.error(`[helix] token refused: ${minted.error}`);
+    return Response.json({ error: 'Helix couldn’t start a voice session right now.' }, { status: 502 });
+  }
+  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: LIVE_MODEL() }).select('id').single();
+  return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup: liveSetup(), locked, staff, maxSeconds: SESSION_SECONDS });
+}
+
+export async function PATCH(req: Request) {
+  const { sessionId, seconds, tokens } = (await req.json().catch(() => ({}))) as { sessionId?: string; seconds?: number; tokens?: number };
+  if (!sessionId || !/^[0-9a-f-]{36}$/.test(sessionId)) return Response.json({ ok: false }, { status: 400 });
+  await adminDb().from('helix_tour_sessions').update({ ended_at: new Date().toISOString(), seconds: Math.max(0, Math.min(SESSION_SECONDS + 120, Math.round(Number(seconds) || 0))), tokens: Math.max(0, Math.round(Number(tokens) || 0)) || null }).eq('id', sessionId).is('ended_at', null);
+  return Response.json({ ok: true });
+}

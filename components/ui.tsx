@@ -2,9 +2,9 @@
 // empty state, plus the labels and formatters every surface shares. Server components; no client JavaScript.
 import type { ReactNode } from 'react';
 
-export function Panel({ title, sub, actions, children, id }: { title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string }) {
+export function Panel({ title, sub, actions, children, id, tour }: { title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string; tour?: string }) {
   return (
-    <section className="panel" id={id}>
+    <section className="panel" id={id} data-tour={tour}>
       {title || actions ? (
         <header>
           <div>

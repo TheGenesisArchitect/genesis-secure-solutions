@@ -46,7 +46,7 @@ export default function Funnel() {
         <Tile label="MRR" value="$1,395" hint="ARR $16,740" sample />
       </div>
       <div className="vgrid2" style={{ gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)' }}>
-        <Panel title="The funnel" sub="Columbus + Atlanta · last 60 days" actions={<Chip kind="sample">Sample</Chip>}>
+        <Panel tour="funnel" title="The funnel" sub="Columbus + Atlanta · last 60 days" actions={<Chip kind="sample">Sample</Chip>}>
           <div className="vfunnel">
             {FUNNEL.map((f, i) => (
               <div key={f.stage} className="row">
@@ -56,13 +56,13 @@ export default function Funnel() {
               </div>
             ))}
           </div>
-          <div className="gate">
+          <div className="gate" data-tour="gate">
             <span style={{ font: '800 26px var(--display)', color: unlocked ? 'var(--done)' : 'var(--warn)' }}>{unlocked ? '🔓' : '🔒'}</span>
             <span style={{ flex: 1 }}><b>Paid gate · Columbus</b><br /><span className="muted" style={{ fontSize: 13 }}>{GATE.metric}: <b style={{ color: 'var(--ink)' }}>{GATE.actual}</b> vs {GATE.threshold} needed</span></span>
             <span className={'chip ' + (unlocked ? 'done' : 'pending')}>{unlocked ? 'Paid unlocked' : 'Organic + calls'}</span>
           </div>
         </Panel>
-        <Panel title="Markets" sub="What each market cost and earned" actions={<Chip kind="sample">Sample</Chip>}>
+        <Panel tour="markets-table" title="Markets" sub="What each market cost and earned" actions={<Chip kind="sample">Sample</Chip>}>
           <div className="table-wrap">
             <table className="t">
               <thead><tr><th>Market</th><th>Spend</th><th>Clients</th><th>MRR</th><th>CAC</th></tr></thead>
@@ -71,7 +71,7 @@ export default function Funnel() {
           </div>
         </Panel>
       </div>
-      <Panel title="Revenue vs spend" sub="Setup and care against acquisition and operating cost, by month" actions={<Chip kind="dev">Projection</Chip>}>
+      <Panel tour="revenue-chart" title="Revenue vs spend" sub="Setup and care against acquisition and operating cost, by month" actions={<Chip kind="dev">Projection</Chip>}>
         <RevenueChart series={SERIES} />
       </Panel>
     </VisionShell>

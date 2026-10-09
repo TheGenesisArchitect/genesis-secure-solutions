@@ -31,7 +31,7 @@ export default function ContentDesk() {
       ]}
     >
       <div className="spread"><div className="row" style={{ gap: 8 }}>{['State Farm agents', 'Independent agencies', 'New agency owners', 'Spanish-speaking agents'].map((a) => <Chip key={a} kind="info">{a}</Chip>)}</div><Chip kind="sample">Sample posts</Chip></div>
-      <div className="vgrid3" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))' }}>
+      <div className="vgrid3" data-tour="posts" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))' }}>
         {POSTS.map((p, i) => {
           const n = NET[p.network];
           return (
@@ -43,12 +43,12 @@ export default function ContentDesk() {
                 <div className="body">{p.body}</div>
                 <div className="meta"><span>genovus.io/for/captive-agents?c=columbus-organic</span><span>{p.network === 'linkedin' ? 'Like · Comment · Repost' : '♡ 💬 ↗'}</span></div>
               </article>
-              <div className={`check ${p.check}`}><span>{p.check === 'pass' ? '✓' : '⚑'}</span><span><b style={{ color: 'var(--ink)' }}>{p.check === 'pass' ? 'Passed' : 'Fixed before review'}:</b> {p.note}</span></div>
+              <div className={`check ${p.check}`} data-tour={i === 0 ? 'compliance' : undefined}><span>{p.check === 'pass' ? '✓' : '⚑'}</span><span><b style={{ color: 'var(--ink)' }}>{p.check === 'pass' ? 'Passed' : 'Fixed before review'}:</b> {p.note}</span></div>
             </div>
           );
         })}
       </div>
-      <Panel title="This month’s series plan" sub="Columbus warm-up · 4 audiences × 3 posts + 2 Studio shorts" actions={<Chip kind="sample">Sample</Chip>}>
+      <Panel tour="series-plan" title="This month’s series plan" sub="Columbus warm-up · 4 audiences × 3 posts + 2 Studio shorts" actions={<Chip kind="sample">Sample</Chip>}>
         <div className="grid g4">
           {[['Week 1', 'Neighbors are searching · local demand'], ['Week 2', 'Before / after: a Columbus office (sample)'], ['Week 3', 'The Local Office S1E1 premiere'], ['Week 4', 'Ask us anything: live Q&A + booking link']].map(([w, d]) => (
             <div key={w} className="tile"><span className="label">{w}</span><span style={{ fontWeight: 600 }}>{d}</span></div>

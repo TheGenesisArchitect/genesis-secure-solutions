@@ -30,12 +30,12 @@ export function CallSim(p: Props) {
   };
   return (
     <div className="vgrid2" style={{ gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)' }}>
-      <div className="callcard">
+      <div className="callcard" data-tour="call-card">
         <div className="spread"><div><span className="v-eyebrow">Next best call · {p.market}</span><h2 style={{ margin: '4px 0 0', font: '800 22px var(--display)' }}>{p.office}</h2><span className="muted">{p.carrier} · fit {p.fit}/100 · {p.local} local · good time to call</span></div><span className="chip sample">Sample</span></div>
         <div><b style={{ fontSize: 13 }}>Why this office</b><ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 14, display: 'grid', gap: 4 }}>{p.reasons.map((r) => <li key={r}>{r}</li>)}</ul></div>
         <div className="check pass"><span>↗</span><span><b style={{ color: 'var(--ink)' }}>Warm signal:</b> {p.hook}</span></div>
         <div><b style={{ fontSize: 13 }}>Opener</b><p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--soft)' }}>“{p.opener}”</p></div>
-        {phase === 'brief' ? <button className="btn primary" onClick={call} style={{ justifySelf: 'start' }}>Call through CallRail</button> : null}
+        {phase === 'brief' ? <button className="btn primary" onClick={call} data-tour-action="place_call" style={{ justifySelf: 'start' }}>Call through CallRail</button> : null}
         {phase === 'ringing' ? <div className="ringing"><span className="wave">✆</span><span><b>Calling…</b><br /><span className="muted" style={{ fontSize: 13 }}>Local Columbus number · tracked to campaign “columbus-organic”</span></span></div> : null}
         {phase === 'live' || phase === 'ended' || phase === 'logged' ? (
           <div className="panel" style={{ padding: 14, display: 'grid', gap: 8 }}>
@@ -47,20 +47,20 @@ export function CallSim(p: Props) {
           <div className="check pass" style={{ display: 'grid', gap: 8 }}>
             <span><b style={{ color: 'var(--ink)' }}>Summary (Call Desk agent):</b> Owner uses only the carrier page; interested; agreed to a 15-minute consult Tuesday 10:00.</span>
             <span><b style={{ color: 'var(--ink)' }}>Suggested outcome:</b> Booked a consult · Tue Oct 13, 10:00 AM</span>
-            <button className="btn primary small" style={{ justifySelf: 'start' }} onClick={() => setPhase('logged')}>Log it and book the consult</button>
+            <button className="btn primary small" style={{ justifySelf: 'start' }} onClick={() => setPhase('logged')} data-tour-action="log_call">Log it and book the consult</button>
           </div>
         ) : null}
         {phase === 'logged' ? <div className="check pass"><span>✓</span><span><b style={{ color: 'var(--ink)' }}>Logged.</b> Status → Consult booked. On the calendar Tue 10:00 with a confirmation email sent. Sealed in the audit chain.</span></div> : null}
         {phase !== 'brief' ? <button className="btn ghost small" style={{ justifySelf: 'start' }} onClick={() => { if (t.current) clearTimeout(t.current); setPhase('brief'); }}>Replay ↺</button> : null}
       </div>
       <div className="grid" style={{ alignContent: 'start' }}>
-        <div className="panel" style={{ padding: 16, display: 'grid', gap: 8 }}>
+        <div className="panel" data-tour="up-next" style={{ padding: 16, display: 'grid', gap: 8 }}>
           <b>Up next</b>
           {[['Riverwalk Insurance (Sample)', 'Allstate · fit 91'], ['Main St Family Agency (Sample)', 'Independent · fit 89'], ['Midland Office (Sample)', 'Georgia Farm Bureau · fit 88']].map(([n, d]) => (
             <div key={n} className="spread" style={{ fontSize: 14 }}><span>{n}</span><span className="muted">{d}</span></div>
           ))}
         </div>
-        <div className="panel" style={{ padding: 16, display: 'grid', gap: 8 }}>
+        <div className="panel" data-tour="never" style={{ padding: 16, display: 'grid', gap: 8 }}>
           <b>Never on a call</b>
           {p.never.map((n) => <span key={n} style={{ fontSize: 14 }}>✕ {n}</span>)}
         </div>

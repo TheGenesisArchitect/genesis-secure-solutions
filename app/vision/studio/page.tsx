@@ -31,7 +31,7 @@ export default function Studio() {
         ] },
       ]}
     >
-      <div className="series" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))' }}>
+      <div className="series" data-tour="series" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))' }}>
         {SERIES.map((s) => (
           <article key={s.name} className="card">
             <SceneArt scene={s.scene as Scene} label={s.name} />
@@ -45,15 +45,15 @@ export default function Studio() {
         ))}
       </div>
       <div className="vgrid2" style={{ gridTemplateColumns: 'minmax(0,1.7fr) minmax(0,1fr)' }}>
-        <Panel title={EPISODE.title} sub={EPISODE.logline} actions={<Chip kind="sample">Storyboard illustration</Chip>}>
+        <Panel tour="storyboard" title={EPISODE.title} sub={EPISODE.logline} actions={<Chip kind="sample">Storyboard illustration</Chip>}>
           <Storyboard shots={EPISODE.shots} />
         </Panel>
-        <Panel title="The finished short" sub="9:16 for Shorts and Reels · captions · tracked end card">
+        <Panel tour="phone" title="The finished short" sub="9:16 for Shorts and Reels · captions · tracked end card">
           <PhoneShort />
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>Preview built from the storyboard frames. Real episodes are produced shot by shot once the provider bake-off picks the models.</p>
         </Panel>
       </div>
-      <Panel title="First production milestone: two pilots" sub="Same workflow end to end; each ships with script, storyboard, references, finished edit, alternate hook, tracked destination and a cost record">
+      <Panel tour="pilots" title="First production milestone: two pilots" sub="Same workflow end to end; each ships with script, storyboard, references, finished edit, alternate hook, tracked destination and a cost record">
         <div className="vgrid2">
           {PILOTS.map((p) => (
             <div key={p.name} className="tile" style={{ gap: 10 }}>

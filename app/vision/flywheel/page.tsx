@@ -65,9 +65,9 @@ export default function Flywheel() {
       ]}
     >
       <div className="vgrid2" style={{ gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)' }}>
-        <Panel title="The flywheel" sub="Five steps, one engine, both sides"><Wheel /></Panel>
+        <Panel tour="wheel" title="The flywheel" sub="Five steps, one engine, both sides"><Wheel /></Panel>
         <div className="grid" style={{ alignContent: 'start' }}>
-          <Panel title="JAVA Agency · Side B" sub="Mendez Hollis, Columbus GA · client #1" actions={<Chip kind="sample">Sample results</Chip>}>
+          <Panel tour="java" title="JAVA Agency · Side B" sub="Mendez Hollis, Columbus GA · client #1" actions={<Chip kind="sample">Sample results</Chip>}>
             <div className="grid g2">
               <Tile label="Local reach" value="9,800" hint="Last 30 days" sample />
               <Tile label="Calls from the site" value="23" hint="Tracked" sample />
@@ -75,7 +75,7 @@ export default function Flywheel() {
               <Tile label="Quote clicks" value="41" hint="To his official GEICO page" sample />
             </div>
           </Panel>
-          <Panel title="Becomes Side A proof" sub="“Main Street” · Episode 1 (with written consent)">
+          <Panel tour="proof" title="Becomes Side A proof" sub="“Main Street” · Episode 1 (with written consent)">
             <p className="soft" style={{ margin: 0, fontSize: 14 }}>“A GEICO exclusive agent in Columbus went from a carrier page to being found by his neighbors.” Shown to the next 142 Columbus offices, the next 980 in Atlanta.</p>
           </Panel>
         </div>

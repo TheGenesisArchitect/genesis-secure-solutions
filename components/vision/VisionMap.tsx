@@ -24,7 +24,7 @@ export function VisionMap({ shapes, borders, points }: { shapes: Shape[]; border
   const states = new Set(points.map((p) => p.state));
   return (
     <div className="vmap-wrap">
-      <div className="vmap">
+      <div className="vmap" data-tour="map">
         <svg viewBox="0 0 975 610" role="img" aria-label="Markets found by Radar">
           <defs>
             <radialGradient id="vglow"><stop offset="0" stopColor="#fff" stopOpacity=".9" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
@@ -36,7 +36,7 @@ export function VisionMap({ shapes, borders, points }: { shapes: Shape[]; border
           {visible.map((p) => {
             const r = 4 + 11 * Math.sqrt(p.offices / max);
             return (
-              <g key={p.slug} className="vdot" onClick={() => setSel(p)} role="button" tabIndex={0} aria-label={`${p.name}, ${p.state}: ${p.offices} offices`}
+              <g key={p.slug} className="vdot" data-tour-action={p.slug === 'columbus-ga' ? 'select_columbus' : undefined} onClick={() => setSel(p)} role="button" tabIndex={0} aria-label={`${p.name}, ${p.state}: ${p.offices} offices`}
                 onKeyDown={(e) => { if (e.key === 'Enter') setSel(p); }}>
                 <circle cx={p.x} cy={p.y} r={r * 2.2} fill={COLOR[p.status]} opacity=".12" className="vpulse" />
                 <circle cx={p.x} cy={p.y} r={r} fill={COLOR[p.status]} opacity=".9" stroke={sel?.slug === p.slug ? '#fff' : 'none'} strokeWidth="2" />
@@ -48,20 +48,20 @@ export function VisionMap({ shapes, borders, points }: { shapes: Shape[]; border
         <div className="vlegend">{Object.entries(LABEL).map(([k, l]) => <span key={k}><i style={{ background: COLOR[k] }} />{l}</span>)}</div>
       </div>
       <aside className="vmap-side">
-        <div className="tile">
+        <div className="tile" data-tour="offices-found">
           <span className="label">Offices found</span>
           <span className="value num">{total.toLocaleString('en-US')}</span>
           <span className="hint">{shown} of {points.length} markets lit · <b className="chip sample" style={{ padding: '1px 6px' }}>Sample</b></span>
         </div>
         {sel ? (
-          <div className="vcard">
+          <div className="vcard" data-tour="market-card">
             <span className="v-eyebrow">{LABEL[sel.status]}</span>
             <h3>{sel.name}, {sel.state}</h3>
             <dl className="kv lines"><dt>Offices</dt><dd>{sel.offices.toLocaleString('en-US')}</dd><dt>Captive / exclusive</dt><dd>{sel.captive.toLocaleString('en-US')}</dd><dt>Average fit</dt><dd>{sel.fit}/100</dd></dl>
             {sel.slug === 'columbus-ga' ? <Link className="btn primary small" href="/vision/market">Open the market brief →</Link> : <span className="muted" style={{ fontSize: 13 }}>Brief opens when this market reaches the top of the queue.</span>}
           </div>
         ) : (
-          <div className="vcard muted"><span className="v-eyebrow">Tap a market</span><p style={{ margin: 0 }}>Each dot is a metro the scanner mapped. Size = offices; color = where it is in the funnel. Start with <b style={{ color: 'var(--ink)' }}>Columbus</b>, our home market.</p></div>
+          <div className="vcard muted" data-tour="market-card"><span className="v-eyebrow">Tap a market</span><p style={{ margin: 0 }}>Each dot is a metro the scanner mapped. Size = offices; color = where it is in the funnel. Start with <b style={{ color: 'var(--ink)' }}>Columbus</b>, our home market.</p></div>
         )}
       </aside>
     </div>

@@ -10,7 +10,7 @@ const CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob:",
   "font-src 'self'",
-  "connect-src 'self'",
+  "connect-src 'self' wss://generativelanguage.googleapis.com",
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -20,7 +20,7 @@ const securityHeaders = process.env.NODE_ENV === 'production'
   ? [
       { key: 'Content-Security-Policy', value: CSP },
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
     ]
   : [];
 

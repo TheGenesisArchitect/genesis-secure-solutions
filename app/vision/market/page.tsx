@@ -51,26 +51,26 @@ export default function MarketBrief() {
         ] },
       ]}
     >
-      <div className="grid g4">
+      <div className="grid g4" data-tour="market-tiles">
         <Tile label="Offices" value={<span className="num">{m.offices}</span>} hint={`${m.captive} captive / exclusive`} sample />
         <Tile label="No site of their own" value={`${COLUMBUS.noOwnSite}%`} hint="Only a carrier page, or nothing" sample />
         <Tile label="Local searches / month" value={<span className="num">{COLUMBUS.searches.toLocaleString('en-US')}</span>} hint="Insurance terms in the radius" sample />
         <Tile label="Agencies running ads" value={<span className="num">{COLUMBUS.competitorAds}</span>} hint="From the Meta Ad Library" sample />
       </div>
       <div className="vgrid2">
-        <Panel title="Offices around Columbus" sub="Each dot an office, colored by fit · 15-mile radius" actions={<Chip kind="sample">Sample</Chip>}>
+        <Panel tour="market-radar" title="Offices around Columbus" sub="Each dot an office, colored by fit · 15-mile radius" actions={<Chip kind="sample">Sample</Chip>}>
           <MarketRadar />
           <div className="vlegend"><span><i style={{ background: '#3dd691' }} />90+</span><span><i style={{ background: '#6aa8ff' }} />80–89</span><span><i style={{ background: '#ffb020' }} />70–79</span><span><i style={{ background: '#8b909a' }} />under 70</span></div>
         </Panel>
         <div className="grid" style={{ alignContent: 'start' }}>
-          <Panel title="Who is in the market" sub={`${total} offices by carrier`} actions={<Chip kind="sample">Sample</Chip>}>
+          <Panel tour="carrier-mix" title="Who is in the market" sub={`${total} offices by carrier`} actions={<Chip kind="sample">Sample</Chip>}>
             <div style={{ display: 'grid', gap: 8 }}>
               {COLUMBUS.carriers.map((c, i) => (
                 <div key={c.name} className="vbar"><span>{c.name}</span><span className="track"><span className="fill" style={{ width: `${(100 * c.n) / max}%`, animationDelay: `${i * 60}ms`, display: 'block' }} /></span><b className="num">{c.n}</b></div>
               ))}
             </div>
           </Panel>
-          <Panel title="What winning it is worth" sub="15% adoption, Launch pricing" actions={<Chip kind="dev">Projection</Chip>}>
+          <Panel tour="worth" title="What winning it is worth" sub="15% adoption, Launch pricing" actions={<Chip kind="dev">Projection</Chip>}>
             <dl className="kv lines">
               <dt>New clients</dt><dd>{clients}</dd>
               <dt>Setup revenue</dt><dd>${(clients * 1500).toLocaleString('en-US')}</dd>
@@ -81,7 +81,7 @@ export default function MarketBrief() {
           </Panel>
         </div>
       </div>
-      <Panel title="Market heat" sub="Which markets the call list should follow, ranked only once a market has enough data" actions={<Chip kind="sample">Sample</Chip>}>
+      <Panel tour="heat" title="Market heat" sub="Which markets the call list should follow, ranked only once a market has enough data" actions={<Chip kind="sample">Sample</Chip>}>
         <div className="heat">
           {HEAT.map((h, i) => (
             <div key={h.market} className={'heat-row' + (h.heat == null ? ' thin' : '')}>

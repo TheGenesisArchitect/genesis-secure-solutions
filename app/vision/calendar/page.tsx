@@ -32,7 +32,7 @@ export default function CalendarPage() {
       ]}
     >
       <div className="spread"><b style={{ font: '800 20px var(--display)' }}>October 2026</b><div className="row" style={{ gap: 8 }}><Chip kind="info">Columbus</Chip><Chip kind="info">Atlanta</Chip><Chip kind="sample">Sample</Chip></div></div>
-      <div className="cal" role="grid" aria-label="October 2026">
+      <div className="cal" data-tour="calendar" role="grid" aria-label="October 2026">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} className="dow">{d}</div>)}
         {cells.map((d, i) => {
           const inMonth = d >= 1 && d <= 31;
@@ -47,14 +47,14 @@ export default function CalendarPage() {
       </div>
       <div className="cal-legend">{Object.entries(KIND).map(([k, l]) => <span key={k}><i style={{ background: COLOR[k] }} />{l}</span>)}</div>
       <div className="vgrid3">
-        <Panel title="This week" sub="Thursday, October 8">
+        <Panel tour="this-week" title="This week" sub="Thursday, October 8">
           <ul className="list">
             <li>10:00–12:00 · Call block · Columbus (2 callers)</li>
             <li>2:00 · Consult: Peachtree office (booked from yesterday’s call)</li>
             <li>6:00 PM · Post: “One local brand” on LinkedIn · <span className="vlane l3">LANE 3</span></li>
           </ul>
         </Panel>
-        <Panel title="Booking page" sub="genovus.io/book">
+        <Panel tour="booking" title="Booking page" sub="genovus.io/book">
           <div className="row" style={{ gap: 8 }}>{['Tue 10:00', 'Tue 10:30', 'Tue 2:00', 'Thu 11:00', 'Thu 3:30'].map((s) => <span key={s} className="chip done">{s}</span>)}</div>
           <span className="muted" style={{ fontSize: 13 }}>Open slots come from call-block availability; booked consults land here and on the team’s phone.</span>
         </Panel>

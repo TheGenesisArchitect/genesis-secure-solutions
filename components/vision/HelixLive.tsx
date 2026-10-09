@@ -60,7 +60,7 @@ export function HelixLive() {
 
   return (
     <div className="vgrid2" style={{ gridTemplateColumns: 'minmax(0,1.35fr) minmax(0,1fr)' }}>
-      <div className="hx">
+      <div className="hx" data-tour="helix-session">
         <div className="hx-head">
           <span className={'hx-orb' + (speaking ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
           <span><b>Helix</b><small>{speaking ? 'Speaking · interrupt any time' : typing ? 'Thinking…' : 'Listening'}</small></span>
@@ -74,13 +74,13 @@ export function HelixLive() {
           ))}
           {typing ? <div className="hx-msg helix typing" aria-label="Helix is thinking"><i /><i /><i /></div> : null}
         </div>
-        <div className="hx-asks">
+        <div className="hx-asks" data-tour="helix-asks">
           {Object.keys(ASK).map((q) => <button key={q} className="btn small ghost" onClick={() => ask(q)}>{q}</button>)}
           <button className="btn small" onClick={play}>Replay the briefing ↺</button>
         </div>
       </div>
       <div className="grid" style={{ alignContent: 'start' }}>
-        <div className="panel" style={{ padding: 16, display: 'grid', gap: 8 }}>
+        <div className="panel" data-tour="helix-actions" style={{ padding: 16, display: 'grid', gap: 8 }}>
           <b>What Helix did</b>
           {acts.map((a) => (
             <div key={a.id} className={'hx-act ' + a.lane} data-state={a.state}>

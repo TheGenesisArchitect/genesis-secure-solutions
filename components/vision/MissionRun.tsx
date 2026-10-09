@@ -42,11 +42,11 @@ export function MissionRun({ title, goal, budget, forecast, steps }: { title: st
       <div className="panel" style={{ padding: 18, display: 'grid', gap: 14 }}>
         <div className="spread" style={{ alignItems: 'flex-start' }}>
           <div><span className="v-eyebrow">Mission</span><h2 style={{ margin: '4px 0 0', font: '800 22px var(--display)' }}>{title}</h2><p className="muted" style={{ margin: '4px 0 0' }}>{goal}</p></div>
-          {phase === 'plan' ? <button className="btn primary" onClick={start}>Approve mission (one batch)</button>
+          {phase === 'plan' ? <button className="btn primary" onClick={start} data-tour-action="approve_mission">Approve mission (one batch)</button>
             : phase === 'done' ? <button className="btn" onClick={reset}>Replay ↺</button>
             : <span className="chip info">Running · {sealed}/{steps.length}</span>}
         </div>
-        <div className="mission">
+        <div className="mission" data-tour="mission">
           {steps.map((s, i) => {
             const st = states[s.id];
             return (
@@ -57,7 +57,7 @@ export function MissionRun({ title, goal, budget, forecast, steps }: { title: st
                 </span>
                 <span style={{ display: 'grid', gap: 6, justifyItems: 'end' }}>
                   <span className={`vlane l${s.lane}`}>{LANE[s.lane]}</span>
-                  {st === 'waiting' ? <button className="btn small primary" onClick={() => confirm(s.id)}>Confirm publish</button> : null}
+                  {st === 'waiting' ? <button className="btn small primary" onClick={() => confirm(s.id)} data-tour-action="confirm_publish">Confirm publish</button> : null}
                 </span>
               </div>
             );
@@ -65,10 +65,10 @@ export function MissionRun({ title, goal, budget, forecast, steps }: { title: st
         </div>
       </div>
       <div className="grid" style={{ alignContent: 'start' }}>
-        <div className="tile"><span className="label">Audit chain</span><span className="value num">#{chain.toLocaleString('en-US')}</span><span className="hint">Every step sealed with the mission’s ID; nothing runs outside the chain.</span></div>
-        <div className="tile"><span className="label">Mission budget</span><span className="value" style={{ fontSize: 20 }}>{budget}</span><span className="hint">Steps that would exceed it stop and ask.</span></div>
+        <div className="tile" data-tour="audit-chain"><span className="label">Audit chain</span><span className="value num">#{chain.toLocaleString('en-US')}</span><span className="hint">Every step sealed with the mission’s ID; nothing runs outside the chain.</span></div>
+        <div className="tile" data-tour="budget"><span className="label">Mission budget</span><span className="value" style={{ fontSize: 20 }}>{budget}</span><span className="hint">Steps that would exceed it stop and ask.</span></div>
         <div className="tile"><span className="label">If it works</span><span className="value" style={{ fontSize: 18 }}>{forecast}</span></div>
-        <div className="panel" style={{ padding: 16, display: 'grid', gap: 8, fontSize: 13 }}>
+        <div className="panel" data-tour="lanes" style={{ padding: 16, display: 'grid', gap: 8, fontSize: 13 }}>
           <b>The three lanes</b>
           <span><span className="vlane l1">LANE 1</span> Reads and checks run on their own.</span>
           <span><span className="vlane l2">LANE 2</span> Internal work runs after the one batch approval.</span>
