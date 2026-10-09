@@ -11,7 +11,7 @@ export const CHAPTERS = [
   { slug: 'calls', n: 7, title: 'Call Desk', short: 'Call Desk', icon: 'team' },
   { slug: 'funnel', n: 8, title: 'Funnel and business intelligence', short: 'Funnel & BI', icon: 'chart' },
   { slug: 'flywheel', n: 9, title: 'Side B: the flywheel', short: 'Flywheel', icon: 'care' },
-  { slug: 'briefing', n: 10, title: 'Daily Briefing', short: 'Briefing', icon: 'inbox' },
+  { slug: 'briefing', n: 10, title: 'Helix Live', short: 'Helix Live', icon: 'inbox' },
 ] as const;
 
 export type Market = { slug: string; name: string; state: string; lat: number; lon: number; offices: number; captive: number; fit: number; status: 'live' | 'warming' | 'next' | 'radar' };
@@ -81,11 +81,27 @@ export const POSTS: Post[] = [
 ];
 
 export type Shot = { n: number; desc: string; camera: string; model: string; secs: number; still: string };
+// The programming slate: two editorial divisions on one production system.
 export const SERIES = [
-  { name: 'The Local Office', kind: 'Scripted series', episodes: 6, status: 'Season 1 in production', views: 48200, watch: 71, poster: '/site/stills/s02.jpg' },
-  { name: 'Main Street', kind: 'Real clients, with consent', episodes: 1, status: 'Episode 1: JAVA Agency (pending consent)', views: 0, watch: 0, poster: '/site/stills/s04.jpg' },
-  { name: '60 Seconds to Found', kind: 'Before / after', episodes: 4, status: 'Live', views: 21900, watch: 64, poster: '/site/stills/s06.jpg' },
-  { name: 'Commercials', kind: '15 · 30 · 60 sec spots', episodes: 8, status: '4 audiences cut', views: 9300, watch: 58, poster: '/site/stills/s08.jpg' },
+  { name: 'The Local Office', division: 'Genovus Originals', kind: 'Workplace comedy and drama', episodes: 6, status: 'Season 1 in production', views: 48200, watch: 71, scene: 'desk' },
+  { name: 'After Hours', division: 'Genovus Originals', kind: 'Owners balancing business and home', episodes: 3, status: 'Scripts in review', views: 0, watch: 0, scene: 'skyline' },
+  { name: 'Main Street', division: 'Both', kind: 'Real agencies, written consent', episodes: 1, status: 'E1: JAVA Agency (pending consent)', views: 0, watch: 0, scene: 'street' },
+  { name: 'Life Changed. Did Your Coverage?', division: 'Agency Originals', kind: 'Moving, buying, family, business', episodes: 4, status: 'Template ready for agencies', views: 15600, watch: 62, scene: 'dawn' },
+  { name: 'The Group Chat', division: 'Agency Originals', kind: 'Comedy: confident advice, unexpected question', episodes: 5, status: 'Live', views: 21900, watch: 66, scene: 'kitchen' },
+  { name: 'Before You Assume', division: 'Agency Originals', kind: 'Short scenarios, one practical question', episodes: 4, status: 'Live', views: 9300, watch: 58, scene: 'endcard' },
+] as const;
+
+export const PILOTS = [
+  { name: '“I Thought You Called Them”', division: 'Genovus Originals · The Local Office', beats: ['Two employees each assume the other followed up.', 'A third asks who actually owns the inquiry.', 'Cut to a real Genovus capture: assignment and acknowledgment.', 'The inquiry reaches the right person.'], end: 'Give every inquiry a next step.' },
+  { name: '“The Moving Checklist”', division: 'Agency Originals · JAVA Agency', beats: ['Someone carefully packs for a move.', 'A friend asks: did you review your insurance for the move?', 'A beat of realization; one more line on the checklist.'], end: 'An invitation to talk with Mendez’s office.' },
+];
+
+// Market heat (Sample): engagement lift vs own baseline, consults per 100 conversations, fit density, cost per conversation.
+export const HEAT = [
+  { market: 'Columbus, GA', heat: 86, lift: 41, consults: 14.5, fit: 0.76, cpc: 3.1, sample: 214, confidence: 'High' },
+  { market: 'Atlanta, GA', heat: 71, lift: 22, consults: 9.8, fit: 0.71, cpc: 5.4, sample: 162, confidence: 'Medium' },
+  { market: 'Macon, GA', heat: 58, lift: 18, consults: 6.0, fit: 0.69, cpc: 4.2, sample: 50, confidence: 'Low' },
+  { market: 'Phenix City, AL', heat: null as number | null, lift: 3, consults: 0, fit: 0.72, cpc: 0, sample: 11, confidence: 'Not enough data' },
 ];
 export const EPISODE = {
   title: 'The Local Office · S1E1 “Found”',

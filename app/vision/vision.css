@@ -172,3 +172,44 @@
 @media (max-width:600px){.approve-row{flex-wrap:wrap}.approve-row > span:first-child{flex:1 1 100%}}
 @media (max-width:760px){.vgrid2{grid-template-columns:minmax(0,1fr) !important}.vbar{grid-template-columns:100px 1fr 32px}.vfunnel .row{grid-template-columns:96px 1fr 44px}}
 @media (max-width:600px){.series{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.series .card h3{font-size:14px}.series .card .info{padding:10px}}
+
+/* chapter 10: Helix Live */
+.hx{border:1px solid var(--line);border-radius:18px;background:radial-gradient(ellipse at 20% 0%,color-mix(in srgb,var(--ai) 14%,transparent),transparent 55%),var(--surface);display:grid;grid-template-rows:auto 1fr auto;min-height:520px;overflow:hidden}
+.hx-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.hx-head small{display:block;color:var(--muted);font-size:12px}
+.hx-orb{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#c9b8ff,var(--ai) 60%,#4b3a99);display:flex;align-items:center;justify-content:center;gap:3px;box-shadow:0 0 0 0 color-mix(in srgb,var(--ai) 50%,transparent);flex:none}
+.hx-orb i{width:3px;height:8px;border-radius:2px;background:#fff;opacity:.85}
+.hx-orb.on{animation:hxpulse 1.6s ease-out infinite}
+.hx-orb.on i{animation:hxbar .9s ease-in-out infinite}
+.hx-orb.on i:nth-child(2){animation-delay:.15s}.hx-orb.on i:nth-child(3){animation-delay:.3s}
+@keyframes hxbar{0%,100%{height:6px}50%{height:18px}}
+@keyframes hxpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ai) 45%,transparent)}100%{box-shadow:0 0 0 16px transparent}}
+.hx-log{padding:16px;display:grid;gap:10px;align-content:start;overflow-y:auto;max-height:440px}
+.hx-msg{max-width:88%;border-radius:16px;padding:11px 14px;font-size:14.5px;line-height:1.55;animation:rise .35s var(--ease) both}
+.hx-msg small{display:block;font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;opacity:.8}
+.hx-msg.helix{background:color-mix(in srgb,var(--ai) 12%,var(--raise));border:1px solid color-mix(in srgb,var(--ai) 35%,transparent);color:var(--soft)}
+.hx-msg.helix small{color:var(--ai)}
+.hx-msg.you{justify-self:end;background:var(--raise);border:1px solid var(--line-2);color:var(--ink)}
+.hx-msg.typing{display:flex;gap:5px;width:max-content}
+.hx-msg.typing i{width:6px;height:6px;border-radius:50%;background:var(--ai);animation:hxdot 1s ease-in-out infinite}
+.hx-msg.typing i:nth-child(2){animation-delay:.15s}.hx-msg.typing i:nth-child(3){animation-delay:.3s}
+@keyframes hxdot{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+.hx-asks{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px;border-top:1px solid var(--line)}
+.hx-act{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--raise);transition:border-color .4s,opacity .4s}
+.hx-act b{display:block;font-size:14px}
+.hx-act small{display:block;color:var(--muted);font-size:12px}
+.hx-act[data-state=pending]{opacity:.5}
+.hx-dot{width:10px;height:10px;border-radius:50%}
+.hx-act.auto .hx-dot{background:var(--done)}.hx-act.queued .hx-dot{background:var(--info)}.hx-act.required .hx-dot{background:var(--accent)}
+.hx-act[data-state=waiting]{border-color:color-mix(in srgb,var(--accent) 60%,transparent)}
+.hx-act[data-state=confirmed]{border-color:color-mix(in srgb,var(--done) 50%,transparent)}
+.hx-lane{font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.hx-lane.auto{color:var(--done)}.hx-lane.queued{color:var(--info)}.hx-lane.required{color:var(--done)}
+.heat{display:grid;gap:8px}
+.heat-row{display:grid;grid-template-columns:140px 1fr 70px;gap:12px;align-items:center;font-size:13px}
+.heat-row .track{height:12px;border-radius:99px;background:var(--raise);overflow:hidden}
+.heat-row .fill{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#6aa8ff,#ffb020,#ff5a20);transform-origin:left;animation:vgrow .9s var(--ease) both}
+.heat-row.thin{opacity:.6}
+.division{font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.hx-orb.on,.hx-orb.on i,.hx-msg.typing i{animation:none}}
+@media (max-width:600px){.hx{min-height:440px}.heat-row{grid-template-columns:96px 1fr 60px}}

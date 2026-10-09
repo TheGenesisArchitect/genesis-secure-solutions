@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { VisionShell, Src } from '@/components/vision/VisionShell';
 import { Panel, Tile, Chip } from '@/components/ui';
-import { COLUMBUS, MARKETS } from '@/data/vision';
+import { COLUMBUS, MARKETS, HEAT } from '@/data/vision';
 
 export const metadata = { title: 'Market brief · Growth Engine vision', robots: { index: false, follow: false } };
 
@@ -81,6 +81,18 @@ export default function MarketBrief() {
           </Panel>
         </div>
       </div>
+      <Panel title="Market heat" sub="Which markets the call list should follow, ranked only once a market has enough data" actions={<Chip kind="sample">Sample</Chip>}>
+        <div className="heat">
+          {HEAT.map((h, i) => (
+            <div key={h.market} className={'heat-row' + (h.heat == null ? ' thin' : '')}>
+              <span><b>{h.market}</b><br /><span className="muted" style={{ fontSize: 12 }}>{h.sample} conversations · {h.confidence}</span></span>
+              <span className="track">{h.heat != null ? <span className="fill" style={{ width: `${h.heat}%`, animationDelay: `${i * 80}ms` }} /> : null}</span>
+              <b className="num" style={{ textAlign: 'right' }}>{h.heat ?? '—'}</b>
+            </div>
+          ))}
+        </div>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Heat = engagement lift vs the market’s own baseline + consults per 100 conversations + fit density − cost per conversation. Read per market, never per person. 20% of call blocks keep exploring thin markets; until a market passes its paid gate, only organic engagement and calls count.</p>
+      </Panel>
     </VisionShell>
   );
 }

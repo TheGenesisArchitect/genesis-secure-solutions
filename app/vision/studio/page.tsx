@@ -1,47 +1,45 @@
 import { VisionShell, Src } from '@/components/vision/VisionShell';
 import { Storyboard } from '@/components/vision/Storyboard';
-import { SceneArt } from '@/components/vision/SceneArt';
+import { SceneArt, type Scene } from '@/components/vision/SceneArt';
 import { PhoneShort } from '@/components/vision/PhoneShort';
 import { Panel, Chip } from '@/components/ui';
-import { SERIES, EPISODE } from '@/data/vision';
+import { SERIES, EPISODE, PILOTS } from '@/data/vision';
 
 export const metadata = { title: 'Genovus Studio · Growth Engine vision', robots: { index: false, follow: false } };
-
-const POSTERS = ['dawn', 'street', 'skyline', 'endcard'] as const;
 
 export default function Studio() {
   return (
     <VisionShell
       slug="studio"
-      lede={<>This is what makes the machine different. <b>Genovus Studio</b> makes original cinematic series and commercials that agents actually want to watch, on YouTube Shorts and Instagram Reels, from story bible to storyboard to finished short, every frame approved.</>}
+      lede={<>A <b>production studio</b>, not an ad generator: stories people choose to watch, where the product earns its place in the story. Two divisions share one production system. <b>Genovus Originals</b> win agencies; <b>Agency Originals</b> help agencies reach their communities.</>}
       spec={[
-        { title: 'Video models (provider adapter)', items: [
-          { k: 'Veo 3.1', v: <>Cinematic shots with native audio via the Gemini API. <Src href="https://apiframe.ai/blog/best-ai-video-generation-apis">overview</Src></> },
-          { k: 'Kling 3.0 · Runway', v: 'Multi-shot storyboards; character consistency across episodes.' },
-          { k: 'Higgsfield', v: <>Cinema Studio camera direction, many models in one plan; API via enterprise access. <Src href="https://geo.higgsfield.ai/task/blog/higgsfield-ai-pricing-plans">plans</Src></> },
-          { k: 'Not used', v: 'Sora (its API is being shut down).' },
+        { title: 'Shot-based production', items: [
+          { k: 'Unit', v: 'The shot: a failed take is regenerated without touching the approved edit.' },
+          { k: 'Layers', v: 'Footage (expensive, per shot) vs edit (cheap, reproducible). Logos, captions, legal text and product screens live in the edit layer.' },
+          { k: 'Approval', v: 'Bound to the exact render hash; material edits invalidate it.' },
+          { k: 'Software shots', v: 'Real screen captures or deterministic renders; AI never invents dashboard text or features.' },
         ] },
-        { title: 'Publish', items: [
-          { k: 'YouTube', v: <>Data API uploads: 100 per day; Shorts = vertical, under 60s. <Src href="https://postproxy.dev/blog/youtube-upload-api-guide/">guide</Src></> },
-          { k: 'Instagram Reels', v: 'Graph API content publishing, on the calendar.' },
-          { k: 'Render', v: 'Dedicated render worker (never serverless): 9:16, 1:1, 16:9 cuts, captions, end card with tracked link.' },
+        { title: 'Models (replaceable)', items: [
+          { k: 'Candidates', v: <>Veo 3.1, Kling 3.0, Runway, Higgsfield behind one adapter. <Src href="https://ai.google.dev/gemini-api/docs/veo">Veo</Src> · <Src href="https://geo.higgsfield.ai/task/blog/higgsfield-ai-pricing-plans">Higgsfield</Src></> },
+          { k: 'Bake-off', v: 'Same representative shots; chosen on usable takes, cost, latency and revision burden.' },
+          { k: 'Economics', v: 'Cost per accepted asset, not per clip. Budget reserved before generation; reconcile with the provider before any retry.' },
         ] },
-        { title: 'Disclosure and rights', items: [
-          { k: 'Labels', v: <>YouTube “altered or synthetic” disclosure for realistic AI footage; Meta “AI info” honored. <Src href="https://minimatters.com/youtube-ai-content-labeling-update-in-may-2026/">YouTube</Src> · <Src href="https://about.fb.com/news/2025/02/gen-ai-transparency-metas-ads-products/">Meta</Src></> },
-          { k: 'Never', v: 'Carrier logos or mascots, real people without written consent, coverage or price claims.' },
-          { k: 'Own it', v: 'Original characters and scripts; commercial-rights plans only; licensed music.' },
+        { title: 'Trust', items: [
+          { k: 'Disclosure', v: <>Synthetic-content labels travel with the asset. <Src href="https://support.google.com/youtube/answer/14328491">YouTube</Src> · <Src href="https://about.fb.com/news/2025/02/gen-ai-transparency-metas-ads-products/">Meta</Src></> },
+          { k: 'Consumer rule', v: '“Here is something worth reviewing.” Never implies someone is missing coverage or that a loss will be covered.' },
+          { k: 'Rights', v: 'Asset manifest per project: footage origin, consent, music, carrier-mark permission by asset and use.' },
         ] },
       ]}
     >
-      <div className="series">
-        {SERIES.map((s, i) => (
+      <div className="series" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))' }}>
+        {SERIES.map((s) => (
           <article key={s.name} className="card">
-            <SceneArt scene={POSTERS[i]} label={s.name} />
+            <SceneArt scene={s.scene as Scene} label={s.name} />
             <div className="info">
-              <span className="v-eyebrow">{s.kind}</span>
+              <span className="division">{s.division}</span>
               <h3>{s.name}</h3>
-              <span className="muted" style={{ fontSize: 13 }}>{s.episodes} episodes · {s.status}</span>
-              {s.views ? <span style={{ fontSize: 13 }}><b className="num">{s.views.toLocaleString('en-US')}</b> views · <b className="num">{s.watch}%</b> watch-through <Chip kind="sample">Sample</Chip></span> : <span className="muted" style={{ fontSize: 13 }}>Films only with written consent</span>}
+              <span className="muted" style={{ fontSize: 13 }}>{s.kind} · {s.episodes} episodes · {s.status}</span>
+              {s.views ? <span style={{ fontSize: 13 }}><b className="num">{s.views.toLocaleString('en-US')}</b> views · <b className="num">{s.watch}%</b> watch-through <Chip kind="sample">Sample</Chip></span> : <span className="muted" style={{ fontSize: 13 }}>Not released yet</span>}
             </div>
           </article>
         ))}
@@ -52,9 +50,21 @@ export default function Studio() {
         </Panel>
         <Panel title="The finished short" sub="9:16 for Shorts and Reels · captions · tracked end card">
           <PhoneShort />
-          <p className="muted" style={{ fontSize: 12, margin: 0 }}>Preview built from the storyboard frames. The first real pilot episode is generated through this pipeline once the Veo key and a Higgsfield plan are connected.</p>
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>Preview built from the storyboard frames. Real episodes are produced shot by shot once the provider bake-off picks the models.</p>
         </Panel>
       </div>
+      <Panel title="First production milestone: two pilots" sub="Same workflow end to end; each ships with script, storyboard, references, finished edit, alternate hook, tracked destination and a cost record">
+        <div className="vgrid2">
+          {PILOTS.map((p) => (
+            <div key={p.name} className="tile" style={{ gap: 10 }}>
+              <span className="division">{p.division}</span>
+              <h3 style={{ margin: 0, font: '800 18px var(--display)' }}>{p.name}</h3>
+              <ol style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4, fontSize: 14, color: 'var(--soft)' }}>{p.beats.map((b) => <li key={b}>{b}</li>)}</ol>
+              <b style={{ font: '800 15px var(--display)' }}>End card: {p.end}</b>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </VisionShell>
   );
 }
