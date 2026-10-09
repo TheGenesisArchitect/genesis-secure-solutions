@@ -36,28 +36,48 @@ async function recordExpense(cents: number, note: string, by: string | null) {
 const SHEET_STYLE = 'Photoreal character reference sheet for a short film, vertical 9:16. Show the same person in a front view, three-quarter view, profile and a full-body view, plus three small expression close-ups, on a neutral light-gray studio background with soft even light. Consistent face, hair, wardrobe and proportions in every view. No text, no logos, no watermarks. Original character, not resembling any real person or celebrity.';
 
 /** Generate one character sheet (already reserved). Runs to completion: a few seconds. */
+const SLOT_ASPECT = (slot: string) => (/^(BODY|LOOK_)/.test(slot) || slot === 'ENS_SCALE' ? '9:16' : /^ENS_/.test(slot) ? '4:3' : '3:4');
+
+/**
+ * Generate one reference image (already reserved). Identity slots follow the bible's production order: the front
+ * portrait comes from the character's identity prompt alone; every other slot is derived from the approved front
+ * portrait; ensemble slots get every active character's approved front. Legacy sheets keep the multi-view style.
+ */
 export async function generateRef(id: string): Promise<{ ok: boolean; error?: string }> {
   const db = adminDb();
   const { data: r } = await db.from('studio_refs').select('*').eq('id', id).single();
   if (!r) return { ok: false, error: 'not found' };
   await db.from('studio_refs').update({ status: 'running', updated_at: now() }).eq('id', id);
   try {
-    const res = await fetch(`${BASE()}/models/${encodeURIComponent(r.model)}:generateContent`, {
-      method: 'POST', headers: headers(), signal: AbortSignal.timeout(110_000),
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: `${SHEET_STYLE}\n\n${r.prompt}` }] }],
-        generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '9:16', imageSize: '2K' } },
-      }),
-    });
-    const j = (await res.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] }; finishReason?: string }[]; error?: { message?: string }; promptFeedback?: { blockReason?: string } };
-    if (!res.ok) throw new Error(j.error?.message || `HTTP ${res.status}`);
-    const part = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-    if (!part?.inlineData?.data) throw new Error(j.promptFeedback?.blockReason ? `Blocked: ${j.promptFeedback.blockReason}` : `No image returned (${j.candidates?.[0]?.finishReason ?? 'unknown'})`);
-    const ext = part.inlineData.mimeType === 'image/jpeg' ? 'jpg' : 'png';
+    const parts: Record<string, unknown>[] = [];
+    let aspect = '9:16';
+    if (!r.slot) {
+      parts.push({ text: `${SHEET_STYLE}
+
+${r.prompt}` });
+    } else {
+      aspect = SLOT_ASPECT(r.slot);
+      parts.push({ text: r.prompt });
+      if (r.ref_set === 'ensemble') {
+        const { data: fronts } = await db.from('studio_refs').select('character, blob_path, studio_characters!inner(code, status, sort)').eq('series_id', r.series_id).eq('slot', 'FACE_FRONT').eq('approved', true).eq('studio_characters.status', 'active');
+        for (const fr of fronts ?? []) {
+          const img = fr.blob_path ? await blobBase64(fr.blob_path) : null;
+          const code = (fr.studio_characters as unknown as { code: string }).code;
+          if (img) parts.push({ text: `Reference portrait for ${fr.character} (${code.replace(/d+$/, '')}): this exact person.` }, { inlineData: img });
+        }
+      } else if (r.slot !== 'FACE_FRONT' && r.character_id) {
+        const { data: front } = await db.from('studio_refs').select('blob_path').eq('character_id', r.character_id).eq('slot', 'FACE_FRONT').eq('approved', true).maybeSingle();
+        const img = front?.blob_path ? await blobBase64(front.blob_path) : null;
+        if (!img) throw new Error('The approved front portrait is missing.');
+        parts.push({ text: `Reference portrait of ${r.character}: this exact person.` }, { inlineData: img });
+      }
+    }
+    const out = await nanoImage(r.model, parts, aspect);
+    const ext = out.mimeType === 'image/jpeg' ? 'jpg' : 'png';
     const path = `studio/refs/${id}.${ext}`;
-    await put(path, Buffer.from(part.inlineData.data, 'base64'), { access: 'private', contentType: part.inlineData.mimeType ?? 'image/png', addRandomSuffix: false, allowOverwrite: true });
+    await put(path, Buffer.from(out.data, 'base64'), { access: 'private', contentType: out.mimeType, addRandomSuffix: false, allowOverwrite: true });
     await db.from('studio_refs').update({ status: 'ready', blob_path: path, updated_at: now() }).eq('id', id);
-    await recordExpense(r.cost_cents, `Studio: character sheet for ${r.character} (${r.model})`, r.created_by);
+    await recordExpense(r.cost_cents, `Studio: ${r.asset_code ?? `character sheet for ${r.character}`} (${r.model})`, r.created_by);
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 300) : 'failed';
@@ -67,10 +87,10 @@ export async function generateRef(id: string): Promise<{ ok: boolean; error?: st
 }
 
 /** One image from Nano Banana Pro: a prompt plus reference images (inline), at 9:16 2K. */
-async function nanoImage(model: string, parts: Record<string, unknown>[]): Promise<{ data: string; mimeType: string }> {
+async function nanoImage(model: string, parts: Record<string, unknown>[], aspectRatio = '9:16'): Promise<{ data: string; mimeType: string }> {
   const res = await fetch(`${BASE()}/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST', headers: headers(), signal: AbortSignal.timeout(110_000),
-    body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '9:16', imageSize: '2K' } } }),
+    body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio, imageSize: '2K' } } }),
   });
   const j = (await res.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] }; finishReason?: string }[]; error?: { message?: string }; promptFeedback?: { blockReason?: string } };
   if (!res.ok) throw new Error(j.error?.message || `HTTP ${res.status}`);

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -242,5 +242,48 @@ export function LicenseUpload({ sourceId }: { sourceId: string }) {
       <input ref={file} type="file" accept="application/pdf,image/png,image/jpeg" hidden onChange={(e) => onFile(e.target.files?.[0])} />
       <button className="btn small" type="button" disabled={busy} onClick={() => file.current?.click()}>{busy ? 'Uploading…' : 'Upload their written permission'}</button>
     </>
+  );
+}
+
+export type SlotRef = { id: string; status: string; approved: boolean; error: string | null; asset_code: string | null; version: number | null };
+
+/** One identity slot: its versions, generate, approve. Locked until the character's front portrait is approved. */
+export function IdentitySlot({ target, label, slot, refs, locked, costLabel }: { target: { character?: string; series?: string }; label: string; slot: string; refs: SlotRef[]; locked?: string; costLabel: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const approvedRef = refs.find((r) => r.approved && r.status === 'ready');
+  const generate = async () => {
+    setBusy(true);
+    ok(`Generating ${label}… about 20–40 seconds.`);
+    const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'identity', slot, ...target }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+    setBusy(false);
+    if (r.okay) ok(`${label} ready. Approve it if it matches the bible.`); else err(r.j.error ?? 'Could not generate.');
+    router.refresh();
+  };
+  const approve = async (id: string) => { const f = new FormData(); f.set('id', id); toast(await studioApproveRef(null, f)); router.refresh(); };
+  return (
+    <div className={'id-slot' + (approvedRef ? ' done' : '')}>
+      <div className="spread" style={{ gap: 6 }}>
+        <b style={{ fontSize: 13 }}>{label}</b>
+        {approvedRef ? <span className="take-chosen">✓ {approvedRef.asset_code}</span> : <span className="muted" style={{ fontSize: 11 }}>{slot}</span>}
+      </div>
+      {refs.length ? (
+        <div className="id-versions">
+          {refs.map((r) => (
+            <figure key={r.id} className={'id-ver' + (r.approved ? ' chosen' : '')}>
+              {r.status === 'ready' ? <a href={`/api/studio/media/ref/${r.id}`} target="_blank" rel="noreferrer"><img src={`/api/studio/media/ref/${r.id}`} alt={r.asset_code ?? label} loading="lazy" /></a>
+                : <div className="take-wait">{r.status === 'failed' ? <span>✕ {r.error ?? 'Failed'}</span> : <><span className="take-spin" />Drawing…</>}</div>}
+              <figcaption>
+                <span className="muted">v{String(r.version ?? 1).padStart(2, '0')}</span>
+                {r.status === 'ready' && !r.approved ? <button className="btn small" type="button" onClick={() => approve(r.id)}>Approve</button> : null}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : null}
+      {locked ? <span className="muted" style={{ fontSize: 11 }}>{locked}</span> : (
+        <button className="btn small primary" type="button" disabled={busy} onClick={generate}>{busy ? 'Drawing…' : `${refs.length ? 'New version' : 'Generate'} · ${costLabel}`}</button>
+      )}
+    </div>
   );
 }

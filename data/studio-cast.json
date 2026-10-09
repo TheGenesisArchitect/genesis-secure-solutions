@@ -1,0 +1,133 @@
+{
+  "bible": {
+    "title": "GENOVUS Cast Character Bible",
+    "version": "1.0",
+    "date": "2026-10-09",
+    "owner": "Anthony Maurice Beedles and GENOVUS Studio",
+    "premise": "Three insurance coworkers keep finding themselves just outside the frame of extraordinary viral moments. Their everyday office problems collide with the spectacle. GENOVUS helps them get organized enough to enjoy being there.",
+    "promise": "These people care about doing good work, and they deserve a life after work. Their friendship makes us stay; their reactions make us laugh; a useful product moment earns the brand its place.",
+    "world": "A small, independent insurance agency in metro Atlanta. They are peers with different specialties; Maya is not automatically the owner or everyone’s supervisor. The workplace is fictional and unnamed until a story needs a name. GENOVUS is their office software, not the name of their agency. They have worked together for three years.",
+    "contract": "Anyone can call a work emergency. The other two can challenge whether it is actually an emergency. Nobody abandons a teammate with a real problem, and nobody makes a client the target of the joke.",
+    "intelligences": [
+      "Maya sees the sequence: what depends on what, the useful next step. Failure mode: deciding other people do not need the explanation.",
+      "Trent sees the exposure: a discrepancy, a promise, what could go wrong. Failure mode: treating every possibility as if it is already happening.",
+      "Bri sees the person: discomfort, the room, getting people talking. Failure mode: promising something before checking her own capacity."
+    ],
+    "comedy_rules": [
+      "The friendship comes first. Keep affection visible; avoid two foolish coworkers corrected by a superior one.",
+      "Rotate who causes the trouble and who solves it. GENOVUS can support any of them. Maya owns the closing signature, not all competence.",
+      "The viral event happens independently of them. They occupy plausible audience seats; they never impersonate real participants or invent a relationship with the performer.",
+      "Each episode needs one work concern, one useful product action, and one emotional change."
+    ],
+    "continuity": "Stable: identities, job strengths, relationships, voices, habits, remembered events. Flexible: venue, clothing, who initiates the conflict, the source of the embarrassment. Growing: trust, boundaries, and awareness of Maya’s camera habit.",
+    "relationships": [
+      { "pair": "Maya & Trent", "pattern": "Trent offers three hypothetical disasters; Maya asks one factual question.", "growth": "Maya gives him context; Trent brings her a checked fact rather than a forecast.", "bond": "They once stayed late to reconstruct a messy handoff. Neither mentions the other’s mistake in public." },
+      { "pair": "Maya & Bri", "pattern": "Maya tries to stay composed; Bri knows the exact detail that will make her laugh. Bri occasionally gets the final word.", "growth": "Maya listens without solving; Bri states a boundary without disguising it as a joke.", "bond": "Bri persuaded Maya to join her first team night out. Maya still saves the ticket confirmation." },
+      { "pair": "Trent & Bri", "pattern": "They briefly agree on a bad assumption and reinforce each other until reality arrives. Rotate the initiator.", "growth": "One gently protects the other from embarrassment.", "bond": "An ongoing dispute about who recommended a restaurant that turned out badly." }
+    ],
+    "boundaries": "A platonic chosen family. No romantic triangle. Disagreement does not reset their friendship. No character permanently becomes the group’s parent, child, or fool.",
+    "voice_test": "Maya reduces the problem to the relevant fact. Trent describes the feared consequence. Bri names what the situation feels like. Remove the labels: the wording should still suggest who is speaking.",
+    "product_dialogue": "Name the useful thing the character can see (“Your call list is here”). Never marketing copy. A list being ready does not mean tomorrow’s calls have already happened.",
+    "pronunciation": "GENOVUS: “juh NOH vus” (proposed; confirm and keep one approved audio example).",
+    "sound": "Maintain room ambience through the fork; dialogue above a reduced music bed while crowd texture continues. At the return to the source, restore the event’s energy. Use the source’s own sound perspective, never an unrelated nightclub soundtrack.",
+    "camera_break": "Maya reacts sincerely; another character gives her a reason to answer; she says the tagline to the group, then turns to the lens and repeats “Genovus just knows” with quiet certainty. Finish the shared reaction, settle the eyes, turn the head, find the lens, hold, speak, small smile (about 3–4 s). A short music dip clears space; never mute the room abruptly, no trailer voice, glitch or long logo sting. The others stay inside the scene.",
+    "continuity_instruction": "Preserve the referenced person’s face structure, apparent age, skin tone, hairline, hairstyle, body proportions, and identifying jewelry. Change only the requested pose, expression, wardrobe, or environment. Maintain realistic anatomy and distinguish each ensemble member. Do not beautify into a different face or transfer features between people.",
+    "seat_map": { "order": ["TRENT01", "BRI01", "MAYA01"], "performer": "off camera beyond the audience camera’s left side; gaze sits just left of the lens", "note": "Applies to the initial audience camera; reverse angles need a recorded seat map." },
+    "ep001_scene": "Three referenced coworkers seated close together beside a live runway style performance, warm amber stage spill on their faces, darker surrounding audience, believable crowd density. Trent at camera left, Bri center, Maya right. Their gaze is slightly camera left toward the unseen performer. Contemporary evening clothes as specified in EP001 looks. Seated eye level medium framing, restrained handheld texture matched to the event reference. No neon nightclub, corporate office, generated interface text, or performer duplication.",
+    "arc": [
+      { "ep": "001", "title": "The Night Out", "premise": "Trent starts the worry, Maya checks the preparation, Bri gets the evening moving again. Establish affection and the lens address.", "gain": "The others know Maya can show the shared call list on her phone." },
+      { "ep": "002", "title": "The Plus Ones", "premise": "Bri invited more people than she intended; Trent handles the awkward conversation gracefully.", "gain": "Bri learns honesty can be funnier and kinder than covering." },
+      { "ep": "003", "title": "Trivia Night", "premise": "Maya is obsessively certain about a wrong answer; Bri lets her lose with dignity; Trent checks the facts.", "gain": "Maya can be wrong and still belong." },
+      { "ep": "004", "title": "The Actual Problem", "premise": "Trent spots a genuine discrepancy in a client note; Maya gives him the floor.", "gain": "He resolves it with evidence and earns a sincere thank you." },
+      { "ep": "005", "title": "Off Duty", "premise": "Bri needs one evening without being the team’s emotional host; the others respect it.", "gain": "A boundary can strengthen the friendship." },
+      { "ep": "006", "title": "Who Are You Talking To", "premise": "Trent finally follows Maya’s closing eyeline and asks the question after a beat.", "gain": "Awareness of the camera becomes shared lore." }
+    ],
+    "running_gags": [
+      "Trent’s “quick question” starts ominously, then eventually introduces genuinely good news.",
+      "Maya’s saved confirmations become funny when she keeps one for sentimental reasons.",
+      "Bri’s “tomorrow has office hours” eventually becomes a boundary the team honors."
+    ],
+    "acceptance": {
+      "script": ["Each character has a specific desire in the scene", "The problem is understandable in one exchange", "Reactions belong to the character, not filler", "The product statement matches what appears on screen", "The original source still delivers its entertainment", "The lens close feels motivated by the scene", "At least one gesture or line shows care; Bri contributes judgment; Maya has a human response beyond composure; no client is ridiculed"],
+      "visual": ["Identity: faces, skin tone, age, hair and body scale match the approved references", "Continuity: seat order, eyelines, hands, jewelry, phone case, bag, screen, clothing and emotional state between shots", "Performance: mouths match the speaker, listeners do not mouth lines, laughter varied, every big reaction settles", "Edit: watched silent, audio-only, at normal speed through transitions, and on a phone-sized preview"],
+      "brand": ["Phone screens are real GENOVUS captures with fictional demo data", "Nothing implies completed work that was only prepared", "Source material and synthetic additions are recorded for publication"]
+    }
+  },
+  "characters": [
+    {
+      "code": "MAYA01", "name": "Maya Bennett", "archetype": "The Unbothered Agent", "age": 34, "role": "Client service lead and licensed agent", "sort": 1,
+      "profile": {
+        "sentence": "Maya built systems so she could stop carrying everyone’s unfinished business in her head; her next challenge is letting people care for her without having to organize that too.",
+        "history": "Grew up in Decatur, Georgia. Began in customer service, became the person who could untangle a difficult handoff, and moved into insurance because she liked translating complicated information into a clear next step. She left a job that rewarded reliability with more work, with a quiet rule: being dependable should not mean being permanently available.",
+        "wants": "To become the agency’s operations partner while keeping her evenings. Private fear: people value her usefulness more than her company.",
+        "belief": "“If I’m prepared, nobody will have to worry.”",
+        "outside": "Loves live music, makes very specific restaurant plans, and is a surprisingly poor loser at trivia.",
+        "competence": "Checks the relevant record, separates what is ready from what still needs doing, assigns a clear next action, remembers a teammate’s preference without announcing it.",
+        "flaw": "Answers “It’s handled” when the other person needs to understand the plan; starts fixing when Bri simply wants someone to listen.",
+        "ladder": "Amused stillness → one clarifying question → a shorter sentence → a deliberate pause → a direct admission that she needs help. Shouting is a story event.",
+        "funny": "The smallest response to the largest reaction. Her reassurance contains affection and a mild invitation to get over themselves.",
+        "signature": "Finishes watching the interesting thing before responding to a manufactured emergency. A slight head tilt means she heard it all and remains unconvinced.",
+        "vulnerability": "Let her laugh too hard to finish a sentence.",
+        "never": "All knowing, flawless, contemptuous, everyone’s mother, or a product spokesperson. The tagline is comic confidence, not omniscience.",
+        "season": "Learns to share control, asks for help before she is overwhelmed, and discovers the group enjoys her even when she has no answer."
+      },
+      "identity_prompt": "Original fictional adult Black woman, apparent age 34, deep brown skin, oval face with softly defined cheekbones, almond shaped dark brown eyes, straight full eyebrows, black center parted smooth collarbone length bob, medium build, small gold hoop earrings, slim gold watch on left wrist. Relaxed shoulders, composed and approachable expression, subtle asymmetrical beginning of a smile. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain black top. No text, logos, phone, or props. Establish an original face, not a celebrity likeness.",
+      "visual_anchors": "Center parted bob; small gold hoop earrings; slim gold watch on the left wrist; restrained gestures. About 5′7″, medium build, grounded stance; turns her eyes toward a disturbance before her whole body.",
+      "wardrobe": "Clean tailoring, tactile fabrics, black, cream, and muted olive. Office: unstructured blazer and trousers. Evening: a softer silhouette, never a costume, never more conspicuous than the viral performer.",
+      "voice": { "direction": "Warm lower-middle register, clear consonants, lightly textured warmth, understated metro Atlanta cadence; lived-in, never exaggerated, never a celebrity imitation.", "timing": "125–145 words per minute relaxed; silence as punctuation; the tagline takes 1.3–1.8 s with natural emphasis on “knows”.", "listening": "A small seated bounce while Trent begins, still only when the concern merits it; her thumb stops before she looks up.", "reaction": "Recognition in the eyes, a held smile, a small exhale, then the line. Save an open laugh for a payoff.", "samples": ["Unfortunately, I heard all of that.", "Your list is ready. You still have to make the calls.", "Run that question back. The wording was suspicious.", "I checked everything except whether I needed a break."], "tts_voice": "Sulafat" },
+      "signature_slot": { "slot": "SIG_LENS_TURN", "label": "Stage-to-lens turn", "direction": "Seated, eyes first on something off camera to her right, then turning her head to look straight into the lens with quiet certainty and a small smile beginning at one corner." }
+    },
+    {
+      "code": "TRENT01", "name": "Trent Walker", "archetype": "The Walking Emergency", "age": 32, "role": "New business producer and licensed agent", "sort": 2,
+      "profile": {
+        "sentence": "Trent wants to be the person everyone can rely on, so he announces every possible failure before anyone can accuse him of missing it.",
+        "history": "Grew up in south metro Atlanta and worked in retail sales before insurance. Excellent at turning a stranger into a comfortable conversation. Early on he promised a callback and lost track of it; the embarrassment outlasted the mistake.",
+        "wants": "To build the agency’s strongest referral business and earn the team’s confidence. Private fear: being charming but replaceable.",
+        "belief": "“If I worry about it first, I can stop it happening.”",
+        "outside": "Follows basketball, researches restaurants like scouting opponents, builds playlists with excessive confidence.",
+        "competence": "Remembers what a client actually asked for, notices a mismatch between a request and a note, follows through with a personal call.",
+        "flaw": "Opens with the worst possible headline and gives the useful facts afterward; overexplains and checks twice.",
+        "ladder": "Private mental arithmetic → a leaning whisper → rapid questions → a dramatic forecast → honest admission. Keep the peak brief.",
+        "funny": "He manages his image at the exact moment his body reveals everything. “I’m not stressed” while his foot has been tapping for six seconds.",
+        "signature": "Begins “Quick question” with the face of someone holding very bad news; smooths his shirt after being reassured, as if the panic never happened.",
+        "vulnerability": "“I just don’t want to let them down.” Let it land without a joke covering it.",
+        "never": "Professionally reckless, unintelligent, cowardly, the butt of every joke, or incapable of learning. His anxiety is about the situation, never ridiculed as an identity.",
+        "season": "Learns to check the evidence before announcing the emergency; his vigilance eventually catches a real issue and he resolves it calmly."
+      },
+      "identity_prompt": "Original fictional adult Black man, apparent age 32, medium brown skin, gently rectangular face, expressive dark brown eyes and brows, short textured black crop with low taper, neatly trimmed short boxed beard, lean to average build. Warm and attentive neutral expression, relaxed jaw, shoulders settled. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain navy top. No text, logos, or props. Do not make worry his permanent facial expression. Establish an original face, not a celebrity likeness.",
+      "visual_anchors": "Short crop and boxed beard; silver watch on left wrist; active brows; forward lean under pressure. About 5′11″, lean to average build. Must be recognizable when completely relaxed.",
+      "wardrobe": "Navy, slate, soft blue, restrained burgundy. Well-fitted everyday professional clothes; off duty a clean knit polo, jacket or overshirt. Considered, not stiff.",
+      "voice": { "direction": "Mid register with a lightly nasal edge when worried; friendly resonance with clients; conversational Atlanta rhythm; never a high-pitched cartoon panic voice.", "timing": "155–175 wpm in the brief escalation, slowing to 130–150 when admitting the real concern; never faster than intelligible.", "listening": "Watches the other person’s face for the verdict; his shoulders release before he speaks.", "reaction": "A small freeze, eyes shift, lean toward Bri, quiet question. During the payoff his point toward the stage is involuntary and immediate.", "samples": ["Quick question. How tomorrow-ready are we?", "I’m calm. I’m asking with urgency.", "I remembered the client. I forgot the list.", "Great. I was never worried."], "tts_voice": "Fenrir" },
+      "signature_slot": { "slot": "SIG_RELEASE", "label": "Release of tension", "direction": "Seated, leaning forward with elbows near knees, then visibly relaxing: shoulders drop, a slow exhale, a relieved half smile, smoothing his shirt." }
+    },
+    {
+      "code": "BRI01", "name": "Bri Ellis", "archetype": "The Human Reaction Camera", "age": 31, "role": "Relationship and retention specialist and licensed agent", "sort": 3,
+      "profile": {
+        "sentence": "Bri can tell what everyone in the room is feeling, but sometimes uses humor to avoid saying what she needs herself.",
+        "history": "Grew up in College Park, Georgia. Worked in hospitality before insurance; remembers names, reads tension, makes awkward conversations easier. Clients trust her because she listens to the story behind the question.",
+        "wants": "To lead the relationship team and be recognized for judgment as well as personality. Private fear: being appreciated only when she makes everyone else feel better.",
+        "belief": "“If the room is having a good time, we’re okay.”",
+        "outside": "Finds live events, keeps a running restaurant list, loves a mystery she can solve before the reveal. Often the reason they are at the viral moment at all.",
+        "competence": "Notices when a client has not understood, asks the clarifying question, spots the emotional cost of an overloaded schedule; can stop a room with one calm observation.",
+        "flaw": "Volunteers the team before checking availability, reacts before hearing the full explanation, assumes a good mood means a hard conversation is finished.",
+        "ladder": "Disbelief → a silent double take → a pointed question → a big reaction → unexpectedly plain truth.",
+        "funny": "Her face responds half a beat before the dialogue catches up. Her strongest punchline may be a slow turn toward Trent.",
+        "signature": "Looks at the person who caused the problem, then at the nearest witness, as though requesting confirmation they heard it too.",
+        "vulnerability": "“I wanted one night where nobody needed anything from me.”",
+        "never": "A loud reaction machine, a stereotype, professionally uninformed, a decorative friend, or comic relief without agency. Her social intelligence must change the outcome.",
+        "season": "Becomes comfortable stating a need directly; owns a difficult client conversation and earns respect for the skill mistaken for effortless charm."
+      },
+      "identity_prompt": "Original fictional adult Black woman, apparent age 31, warm medium deep brown skin, softly heart shaped face, dark brown eyes, arched brows, full cheeks, defined shoulder length dark brown natural curls with a side part, full medium build, medium gold hoop earrings. Curious, warmly amused neutral expression with closed relaxed mouth. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain wine colored top. No text, logos, or props. Establish an original face, not a celebrity likeness.",
+      "visual_anchors": "Side-parted shoulder-length curls; medium gold hoops; wine and copper accents; exceptionally readable listening. About 5′5″, full medium build, expressive shoulders and hands. Distinct from Maya even in low light.",
+      "wardrobe": "Soft tailoring, confident color: plum, rust, copper, deep teal. One expressive element is enough; no oversized prints, glitter, or jewelry competing with her face or the performer.",
+      "voice": { "direction": "Warm middle register with the widest melodic range of the trio; can start bright and playful and end completely flat; natural Atlanta inflection.", "timing": "145–165 wpm with an intentional pause before the word that changes the meaning; expressive without shouting.", "listening": "Enjoys the dancer, then hears “tomorrow”, then decides Trent has committed a social offense: separate beats.", "reaction": "Eyes stay on the stage while her smile stops; a slow turn toward Trent; one eyebrow lifts; she answers. At the payoff her laughter escapes before she can compose herself.", "samples": ["Tomorrow has office hours.", "When you say ‘we,’ who have you included?", "She said she understood. She did not look like she understood.", "Can somebody else be the fun one tonight?"], "tts_voice": "Aoede" },
+      "signature_slot": { "slot": "SIG_DOUBLE_TAKE", "label": "Silent double take", "direction": "Seated, smiling toward something off camera, then her smile stops and she turns slowly to her right with one eyebrow raised, lips pressed, pure silent disbelief, anatomically natural." }
+    }
+  ],
+  "looks": [
+    { "code": "EP001_MAYA_LOOK01", "character": "MAYA01", "episode": "gjk-e1", "description": "Black tailored jacket over an ivory satin shell, black trousers, small gold hoops, slim gold watch on the left wrist. Matte olive phone case.", "prop_hand": "Right-handed: phone in left hand, right index finger taps. After the insert the phone goes into the same bag.", "phone_case": "matte olive" },
+    { "code": "EP001_TRENT_LOOK01", "character": "TRENT01", "episode": "gjk-e1", "description": "Dark navy knit polo, charcoal trousers, silver watch, understated black shoes.", "prop_hand": "His dark blue phone stays away during Maya’s demonstration.", "phone_case": "dark blue" },
+    { "code": "EP001_BRI_LOOK01", "character": "BRI01", "episode": "gjk-e1", "description": "Deep wine satin blouse, black wide-leg trousers, medium gold hoops, a slim gold bracelet on the right wrist.", "prop_hand": "Her plum phone stays in her bag during the product scene.", "phone_case": "plum" }
+  ],
+  "retire": ["Dee Carter", "Marcus Hale", "Tasha Reyes", "Velvet"]
+}

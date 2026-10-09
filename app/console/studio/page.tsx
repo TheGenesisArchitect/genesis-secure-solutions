@@ -9,7 +9,6 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { resetDemoFollowUps, studioSetBudget, studioSaveSource } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
-import { CastSheets, type Ref } from '@/components/studio/StudioClient';
 import { IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
 
 export const metadata = { title: 'Studio' };
@@ -35,7 +34,7 @@ export default async function Studio() {
     supabase.from('inquiries').select('source, campaigns!inner(slug)').eq('campaigns.slug', 'gjk-soft-launch'),
   ]);
   const [{ data: refRows }, { data: budget }, { data: spent }] = await Promise.all([
-    supabase.from('studio_refs').select('id, character, status, canonical, error, created_at').order('created_at', { ascending: false }),
+    supabase.from('studio_refs').select('id, character, character_id, slot, approved, status, canonical, error, created_at').order('created_at', { ascending: false }),
     supabase.from('studio_budget').select('monthly_cap_cents, approval_over_cents').maybeSingle(),
     supabase.rpc('studio_spent_cents'),
   ]);
@@ -46,6 +45,7 @@ export default async function Studio() {
   const { data: sourceRows } = await supabase.from('studio_sources').select('*, studio_episodes(code, title)').order('created_at', { ascending: false });
   const sources = (sourceRows ?? []) as unknown as Source[];
   const coverFor = new Map((covers ?? []).map((c) => [c.episode_id, c.id]));
+  const { data: cast } = await supabase.from('studio_characters').select('id, code, name, archetype').eq('status', 'active').order('sort');
   const cap = budget?.monthly_cap_cents ?? 15000;
   const used = Number(spent ?? 0);
   const bible = (series?.bible ?? {}) as Bible;
@@ -128,15 +128,17 @@ export default async function Studio() {
             </Panel>
           ) : null}
 
-          <Panel title="Cast · the faces of Genovus" sub={generationConfigured() ? 'Generate a reference sheet for each character, then pick the one that becomes their look in every shot (Nano Banana Pro)' : 'Generation runs on genovus.io (the Gemini key lives in production)'}>
+          <Panel title="Cast · Maya, Trent and Bri" sub="The recurring characters from the GENOVUS Cast Character Bible v1.0. Each face is locked in their identity package before it goes into a shot." actions={<span className="row" style={{ gap: 6 }}><Link className="btn small" href="/console/studio/cast">Cast &amp; identity</Link><Link className="btn small ghost" href="/console/studio/bible">Character Bible</Link></span>}>
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,300px),1fr))', alignItems: 'start' }}>
-              {(bible.characters ?? []).map((ch) => (
-                <div key={ch.name} className="tile" style={{ gap: 8 }}>
-                  <span className="spread"><b style={{ font: '800 16px var(--display)' }}>{ch.name}</b><span className="muted" style={{ fontSize: 12 }}>{ch.role}</span></span>
-                  <span className="soft" style={{ fontSize: 13 }}>{ch.look}</span>
-                  <CastSheets seriesId={series.id} character={ch.name} prompt={ch.sheet} refs={((refRows ?? []) as Ref[]).filter((r) => r.character === ch.name)} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
-                </div>
-              ))}
+              {(cast ?? []).map((c) => {
+                const fr = (refRows ?? []).find((r) => (r as { character_id?: string; slot?: string; approved?: boolean }).character_id === c.id && (r as { slot?: string }).slot === 'FACE_FRONT' && (r as { approved?: boolean }).approved);
+                return (
+                  <Link key={c.id} href={`/console/studio/cast/${c.code}`} className="tile cast-card">
+                    {fr ? <img src={`/api/studio/media/ref/${fr.id}`} alt={`${c.name}`} /> : <span className="cast-blank">{c.name[0]}</span>}
+                    <span className="grid" style={{ gap: 4 }}><b style={{ font: '800 16px var(--display)' }}>{c.name}</b><span className="muted" style={{ fontSize: 13 }}>{c.archetype}</span><span className="soft" style={{ fontSize: 12 }}>{fr ? 'Face locked' : 'Generate and approve the front portrait'}</span></span>
+                  </Link>
+                );
+              })}
             </div>
             {viewer.staff.role === 'admin' ? (
               <ActionForm action={studioSetBudget} className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>

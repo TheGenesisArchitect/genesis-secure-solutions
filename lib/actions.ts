@@ -400,3 +400,8 @@ export async function studioRegisterLicense(sourceId: string, pathname: string):
   revalidatePath('/', 'layout');
   return error ? fail(error.message) : done('Permission on file: this source is cleared.');
 }
+
+// ---------- Cast Character Bible ----------
+export async function studioApproveRef(_: ActionResult, f: FormData) {
+  return call('studio_approve_ref', { p_id: str(f, 'id', 64), p_reason: str(f, 'reason', 300) }, 'Approved and logged in the bible’s decision record.');
+}

@@ -614,3 +614,31 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .take-cast{font:600 10.5px var(--mono);letter-spacing:.06em;color:var(--done)}
 .take-cast.off{color:var(--warn)}
 .remix-steps{margin:0;padding:10px 10px 10px 28px;display:grid;gap:4px;font-size:13px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,var(--sunk));border:1px dashed color-mix(in srgb,var(--accent) 40%,transparent)}
+/* Identity package grid (Cast Character Bible) */
+.id-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}
+.id-slot{display:grid;gap:8px;align-content:start;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--raise)}
+.id-slot.done{border-color:color-mix(in srgb,var(--done) 55%,var(--line))}
+.id-versions{display:flex;gap:8px;overflow-x:auto}
+.id-ver{flex:0 0 auto;width:96px;margin:0;display:grid;gap:4px}
+.id-ver img,.id-ver .take-wait{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#000}
+.id-ver.chosen img{box-shadow:0 0 0 2px var(--done)}
+.id-ver figcaption{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:11px}
+.cast-card{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:start;color:inherit;text-decoration:none}
+.cast-card img,.cast-card .cast-blank{width:96px;aspect-ratio:3/4;object-fit:cover;border-radius:12px;background:var(--sunk);box-shadow:0 0 0 1px rgba(244,83,27,.45)}
+.cast-blank{display:grid;place-items:center;font:800 28px var(--display);color:var(--muted)}
+.bible-sec{display:grid;gap:4px}
+.bible-sec dt{font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.bible-sec dd{margin:0 0 10px;font-size:14px;line-height:1.55}
+.bible{display:grid;gap:18px}
+.bible-list{margin:0;padding-left:18px;display:grid;gap:5px;font-size:14px;line-height:1.5}
+.bible-list.mono{font:500 12.5px var(--mono)}
+.bible-cast{display:grid;gap:18px}
+.bible-char{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;align-items:start}
+.bible-char img,.bible-char .cast-blank{width:150px;aspect-ratio:3/4;object-fit:cover;border-radius:14px;box-shadow:0 0 0 1px rgba(244,83,27,.45)}
+@media (max-width:600px){.bible-char{grid-template-columns:minmax(0,1fr)}}
+@media print{
+  .rail,.topbar,.no-print,.hx-launch,.hx-dock{display:none!important}
+  .dash{display:block}
+  body{background:#fff;color:#111}
+  .panel,.tile,.studio-hero{break-inside:avoid;background:#fff!important;color:#111!important;box-shadow:none!important;border-color:#ddd!important}
+}
