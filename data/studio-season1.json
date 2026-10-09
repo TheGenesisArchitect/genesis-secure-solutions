@@ -36,11 +36,12 @@
         {
           "name": "Velvet",
           "role": "The showman (E1)",
-          "look": "Lanky stage dancer, sequined emerald jacket, white flared trousers, slick pompadour. Signature move: spin, freeze, one finger to the sky.",
-          "sheet": "Character sheet, original character (not resembling any real person or performer): Velvet, a lanky stage dancer in his 40s, slick pompadour, sequined emerald-green jacket, white flared trousers, white platform shoes. Theatrical, joyful. Full-body views mid-spin, freeze pose with one finger pointed up, and bow. Stage spotlight on black, photoreal."
+          "look": "A lanky Black stage dancer in his 40s, short twists with a sharp line-up, neat mustache, sequined emerald jacket, white flared trousers, white platform shoes. Pure joy on stage. Signature move: spin, freeze, one finger to the sky. Our own character, inspired by the energy of a viral theater dance, not modeled on any real performer.",
+          "sheet": "Character sheet, original character (not resembling any real person or performer): Velvet, a lanky Black man in his 40s, short twists with a sharp line-up, neat mustache, warm brown skin, sequined emerald-green jacket, white flared trousers, white platform shoes. Theatrical and joyful. Front, three-quarter, profile and full-body views; poses: mid-spin, freeze with one finger pointed up, a bow. Stage spotlight on black, photoreal, consistent face across views."
         }
       ],
       "rules": [
+        "Trend Remix: build on viral moments only through the platform’s own Stitch/Remix (their first seconds, credited and linked, in-app, when the creator allows remixing), a written license from the creator, or an original made in the same energy. Never download, re-upload or imitate a specific person, character or video.",
         "Original characters only. The reference reels set the energy; their footage, music, performers and look are never used.",
         "The phone shows the real Genovus app, filmed from a demo agency (fictional data), never real customers.",
         "The claim is narrow and true: follow-ups you log are lined up by day, so tomorrow's list is ready the night before.",
@@ -148,7 +149,7 @@
           "description": "HOOK. Velvet mid-spin on stage, lands a freeze with one finger to the sky; spotlight flare; crowd erupts.",
           "camera": "Low angle from the front row, slow push-in, tiny whip on the landing.",
           "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. A lanky stage dancer in a sequined emerald-green jacket, white flared trousers and a slick pompadour spins fast on a vintage theater stage and lands a frozen pose with one finger pointed to the sky. Hard white spotlight, warm amber stage wash, haze in the air, silhouettes of a cheering crowd in the foreground. Low angle from the front row, slow push-in, a small whip-pan on the landing. Joyful, theatrical energy. Original character, not resembling any real person or performer."
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Velvet, a lanky Black stage dancer with short twists and a neat mustache, in a sequined emerald-green jacket and white flared trousers, spins fast on a vintage theater stage and lands a frozen pose with one finger pointed to the sky. Hard white spotlight, warm amber stage wash, haze in the air, silhouettes of a cheering crowd in the foreground. Low angle from the front row, slow push-in, a small whip-pan on the landing. Joyful, theatrical energy. Original character, not resembling any real person or performer."
         },
         {
           "n": 2,
@@ -207,7 +208,7 @@
           "description": "Back on stage: Velvet's finale knee-slide into a freeze; the trio jumps up cheering with the crowd.",
           "camera": "Wide from the back of the house, cut to the trio on their feet.",
           "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. The lanky stage dancer in a sequined emerald jacket and white flared trousers does a dramatic knee slide across a vintage theater stage into a frozen pose, spotlight and confetti, then cut to the audience where three friends (Dee in a cream blazer, Marcus in a maroon bomber, Tasha in a denim jacket) jump to their feet cheering. Euphoric, warm light, haze. Use the character sheets. Original characters."
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Velvet, the lanky Black stage dancer in a sequined emerald jacket and white flared trousers, does a dramatic knee slide across a vintage theater stage into a frozen pose, spotlight and confetti, then cut to the audience where three friends (Dee in a cream blazer, Marcus in a maroon bomber, Tasha in a denim jacket) jump to their feet cheering. Euphoric, warm light, haze. Use the character sheets. Original characters."
         },
         {
           "n": 9,
@@ -226,7 +227,7 @@
           "prompt": "Dark end card in the Genovus palette, wordmark from /brand/genovus. Line 1: “Don't take our word for it. Ask Helix.” Line 2: genovus.io/vision. Small: “AI-generated video. App shown with demo data.” Stinger hit on the cut."
         }
       ],
-      "thumb": "Hero key art: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) in the front of the frame, calm and amused, holding up her glowing phone, while behind her Marcus (maroon bomber) and Tasha (denim jacket) clutch each other in relief, and far behind them on a spotlit vintage stage a lanky showman in a sequined emerald jacket freezes mid-spin with one finger to the sky. Golden haze, confetti, theatrical light."
+      "thumb": "Hero key art: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) in the front of the frame, calm and amused, holding up her glowing phone, while behind her Marcus (maroon bomber) and Tasha (denim jacket) clutch each other in relief, and far behind them on a spotlit vintage stage Velvet, a lanky Black showman in a sequined emerald jacket, freezes mid-spin with one finger to the sky. Golden haze, confetti, theatrical light."
     },
     {
       "code": "gjk-p1",
@@ -358,5 +359,42 @@
       "day": 3,
       "at": "10:00"
     }
-  ]
+  ],
+  "sources": [
+    {
+      "title": "The showman dancer (theater crowd)",
+      "url": "https://www.instagram.com/reel/DeBuukCvpY3/",
+      "platform": "instagram",
+      "creator": "",
+      "route": "stitch",
+      "episode": "gjk-e1",
+      "notes": "Instagram Remix: their first ~5 seconds, then our scene from shot 2. Check the reel allows remixing (the Remix option appears in its menu). The owned version of the episode (with our Velvet) runs everywhere else."
+    },
+    {
+      "title": "Tin Man reacts (Wizard of Oz bit)",
+      "url": "https://www.instagram.com/evanrosenman/",
+      "platform": "instagram",
+      "creator": "@evanrosenman",
+      "route": "inspired",
+      "episode": null,
+      "notes": "Idea for “The Tin Man and the Lion”. Paste the exact reel link when you have it. Original storybook tin man and lion, not the 1939 film designs."
+    },
+    {
+      "title": "Dancing leprechaun at the car meet",
+      "url": "https://www.instagram.com/reel/DeLM-lViBh-/",
+      "platform": "instagram",
+      "creator": "",
+      "route": "inspired",
+      "episode": null,
+      "notes": "Idea for “The Gas Station”. Our own leprechaun character in the same energy; could become a Remix if the creator allows it."
+    }
+  ],
+  "post_methods": {
+    "gjk-e1": {
+      "instagram": {
+        "method": "remix",
+        "source": "https://www.instagram.com/reel/DeBuukCvpY3/"
+      }
+    }
+  }
 }

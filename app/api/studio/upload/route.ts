@@ -16,9 +16,11 @@ export async function POST(req: Request) {
         const supabase = await db();
         const { data: staff } = await supabase.rpc('is_staff');
         if (!staff) throw new Error('Only the Genovus team can upload to the Studio.');
-        if (!/^studio\/(uploads|finals)\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/.test(pathname)) throw new Error('Upload an .mp4, .mov or .webm video.');
+        // Creators' written permissions (Trend Remix licenses) are documents; everything else is video.
+        const rights = /^studio\/rights\/[A-Za-z0-9._/-]+\.(pdf|png|jpe?g)$/i.test(pathname);
+        if (!rights && !/^studio\/(uploads|finals)\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/.test(pathname)) throw new Error('Upload an .mp4, .mov or .webm video.');
         return {
-          allowedContentTypes: ['video/mp4', 'video/quicktime', 'video/webm'],
+          allowedContentTypes: rights ? ['application/pdf', 'image/png', 'image/jpeg'] : ['video/mp4', 'video/quicktime', 'video/webm'],
           maximumSizeInBytes: 300 * 1024 * 1024,
           addRandomSuffix: true,
         };

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -218,5 +218,29 @@ export function Thumbnails({ episodeId, defaultPrompt, art, costLabel }: { episo
         <button className="btn small ghost" type="button" onClick={() => setEdit(!edit)}>{edit ? 'Hide prompt' : 'Edit prompt'}</button>
       </div>
     </div>
+  );
+}
+
+/** Upload a creator's written permission (PDF or screenshot) for a licensed source. */
+export function LicenseUpload({ sourceId }: { sourceId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  const onFile = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const blob = await upload(`studio/rights/${sourceId}/${f.name.replace(/[^A-Za-z0-9._-]+/g, '-')}`, f, { access: 'private', handleUploadUrl: '/api/studio/upload', contentType: f.type || 'application/pdf' });
+      toast(await studioRegisterLicense(sourceId, blob.pathname));
+    } catch (e) { err(e instanceof Error ? e.message : 'Upload failed.'); }
+    setBusy(false);
+    if (file.current) file.current.value = '';
+    router.refresh();
+  };
+  return (
+    <>
+      <input ref={file} type="file" accept="application/pdf,image/png,image/jpeg" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+      <button className="btn small" type="button" disabled={busy} onClick={() => file.current?.click()}>{busy ? 'Uploading…' : 'Upload their written permission'}</button>
+    </>
   );
 }

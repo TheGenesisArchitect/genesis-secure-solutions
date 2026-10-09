@@ -8,7 +8,8 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted } from '@/lib/actions';
+import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod } from '@/lib/actions';
+import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { ShotTakes, FinalUpload, Thumbnails, type Take, type Art } from '@/components/studio/StudioClient';
 import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS } from '@/lib/studio-gen';
 
@@ -36,6 +37,10 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     supabase.from('studio_art').select('id, status, chosen, error, created_at').eq('episode_id', e.id).order('created_at', { ascending: false }),
   ]);
   const art = (artRows ?? []) as Art[];
+  const { data: srcRows } = await supabase.from('studio_sources').select('*').or(`episode_id.eq.${e.id},and(series_id.eq.${e.series_id},route.eq.stitch)`).order('created_at');
+  const allSources = (srcRows ?? []) as unknown as Source[];
+  const mine = allSources.filter((s) => (s as unknown as { episode_id: string | null }).episode_id === e.id);
+  const remixable = allSources.filter((s) => s.route === 'stitch');
   const thumb = art.find((a) => a.chosen && a.status === 'ready');
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
   const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
@@ -65,6 +70,10 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
           {approved ? <Chip kind="done">Approved {e.approved_at ? new Date(e.approved_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) : ''}</Chip> : <span className="muted" style={{ fontSize: 13 }}>Before approving: AI label planned for every platform, captions burned in, no carrier names or logos, phone shows demo data only.</span>}
         </Panel>
       </div>
+
+      <Panel title="Sources & rights" sub={mine.length ? 'The viral moments this episode builds on. Approval is blocked until each one’s rights are cleared.' : 'This episode is fully original. Add a viral moment on the Studio’s Trend board to remix one.'}>
+        {mine.length ? <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,340px),1fr))', alignItems: 'start' }}>{mine.map((s) => <SourceCard key={s.id} s={s} showEpisode={false} />)}</div> : null}
+      </Panel>
 
       <Panel title="Thumbnails" sub="Key art with the Genovus signature frame. The chosen one is the cover for every post of this episode; download 9:16 for Reels, Shorts and TikTok, 1:1 for the feed.">
         <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
@@ -107,7 +116,37 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,340px),1fr))', alignItems: 'start' }}>
           {(posts ?? []).map((p) => (
             <div key={p.id} className="tile" style={{ gap: 10 }}>
-              <div className="spread"><b style={{ font: '800 16px var(--display)' }}>{PLATFORM[p.platform]}</b>{p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer"><Chip kind="done">live ↗</Chip></a> : <Chip kind={p.status === 'approved' ? 'info' : 'pending'}>{p.status}</Chip>}</div>
+              <div className="spread"><b style={{ font: '800 16px var(--display)' }}>{PLATFORM[p.platform]}{p.method !== 'upload' ? <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}> · {p.method === 'stitch' ? 'Stitch' : 'Remix'}</span> : null}</b>{p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer"><Chip kind="done">live ↗</Chip></a> : <Chip kind={p.status === 'approved' ? 'info' : 'pending'}>{p.status}</Chip>}</div>
+              {(() => {
+                const opts = remixable.filter((s) => (p.platform === 'tiktok' ? s.platform === 'tiktok' : (p.platform === 'instagram' || p.platform === 'facebook') && s.platform === 'instagram'));
+                const verb = p.platform === 'tiktok' ? 'stitch' : 'remix';
+                if (!opts.length && p.method === 'upload') return null;
+                const src = allSources.find((s) => s.id === p.source_id);
+                return (
+                  <div className="grid" style={{ gap: 6 }}>
+                    {p.status !== 'posted' ? (
+                      <ActionForm action={studioSetPostMethod} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                        <input type="hidden" name="id" value={p.id} />
+                        <select className="select" name="how" defaultValue={p.method === 'upload' ? 'upload' : `${p.method}:${p.source_id}`} aria-label="How it's posted" style={{ flex: 1, minWidth: 0 }}>
+                          <option value="upload">Upload our full episode</option>
+                          {opts.map((s) => <option key={s.id} value={`${verb}:${s.id}`}>{verb === 'stitch' ? 'Stitch' : 'Remix'} of “{s.title}”</option>)}
+                        </select>
+                        <button className="btn small ghost" type="submit">Set</button>
+                      </ActionForm>
+                    ) : null}
+                    {p.method !== 'upload' && src ? (
+                      <ol className="remix-steps">
+                        <li>Export <b>our segment</b>: the final cut <b>from shot 2 on</b> (none of their footage comes from us).</li>
+                        {p.method === 'stitch'
+                          ? <li>In TikTok, open <a href={src.url} target="_blank" rel="noreferrer">the original</a> → Share → <b>Stitch</b> → keep their first ~5 seconds → Next → upload our segment from your gallery.</li>
+                          : <li>In Instagram, open <a href={src.url} target="_blank" rel="noreferrer">the original reel</a> → ⋯ → <b>Remix</b> → <b>Add to end</b> → keep their first ~5 seconds → add our segment from your gallery.</li>}
+                        <li>Paste the caption, turn on the AI label ({p.platform === 'tiktok' ? 'AI-generated content' : 'Advanced settings → AI info'}), post.</li>
+                        <li>Come back and record the live link below. The platform credits and links the creator automatically.</li>
+                      </ol>
+                    ) : null}
+                  </div>
+                );
+              })()}
               <ActionForm action={studioSavePost} className="form">
                 <input type="hidden" name="id" value={p.id} />
                 {p.platform === 'youtube' ? <label className="field"><span>Title</span><input className="input" name="title" defaultValue={p.title ?? ''} maxLength={100} disabled={p.status === 'posted'} /></label> : null}

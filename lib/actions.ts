@@ -370,3 +370,33 @@ export async function studioRegisterUpload(kind: 'take' | 'final', target: strin
 export async function studioChooseArt(_: ActionResult, f: FormData) {
   return call('studio_choose_art', { p_id: str(f, 'id', 64) }, 'Thumbnail set for every post of this episode.');
 }
+
+// ---------- Trend Remix (sources and rights) ----------
+export async function studioSaveSource(_: ActionResult, f: FormData) {
+  return call('studio_save_source', {
+    p_id: str(f, 'id', 64) || null, p_url: str(f, 'url', 500), p_platform: str(f, 'platform', 20) || 'other', p_creator: str(f, 'creator', 80),
+    p_title: str(f, 'title', 120) || 'Viral moment', p_route: str(f, 'route', 20) || 'inspired', p_episode: str(f, 'episode', 64) || null, p_notes: str(f, 'notes', 1000),
+  }, 'Saved to the trend board.');
+}
+
+export async function studioSourceRights(_: ActionResult, f: FormData) {
+  const flag = (k: string) => (f.has(k) ? f.get(k) === 'on' || f.get(k) === 'true' : null);
+  return call('studio_source_rights', {
+    p_id: str(f, 'id', 64), p_remix_allowed: f.has('remix_set') ? f.get('remix') === 'on' : null,
+    p_license_status: str(f, 'license', 20) || null, p_license_blob: null, p_attested: f.has('attest_set') ? flag('attest') ?? false : null,
+  }, 'Rights updated.');
+}
+
+export async function studioSetPostMethod(_: ActionResult, f: FormData) {
+  const v = str(f, 'how', 120); // "upload" or "stitch:<source id>" / "remix:<source id>"
+  const [method, source] = v.split(':');
+  return call('studio_set_post_method', { p_post: str(f, 'id', 64), p_method: method || 'upload', p_source: source || null }, method === 'upload' ? 'Posting as an upload.' : `Posting as a ${method === 'stitch' ? 'Stitch' : 'Remix'} of the source.`);
+}
+
+/** Registers a creator's written permission the browser uploaded straight to storage. */
+export async function studioRegisterLicense(sourceId: string, pathname: string): Promise<ActionResult> {
+  const supabase = await db();
+  const { error } = await supabase.rpc('studio_source_rights', { p_id: sourceId, p_remix_allowed: null, p_license_status: 'granted', p_license_blob: pathname, p_attested: null });
+  revalidatePath('/', 'layout');
+  return error ? fail(error.message) : done('Permission on file: this source is cleared.');
+}

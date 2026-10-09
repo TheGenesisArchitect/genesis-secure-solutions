@@ -7,7 +7,8 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip, Tile, Empty, money } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { resetDemoFollowUps, studioSetBudget } from '@/lib/actions';
+import { resetDemoFollowUps, studioSetBudget, studioSaveSource } from '@/lib/actions';
+import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { CastSheets, type Ref } from '@/components/studio/StudioClient';
 import { IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
 
@@ -42,6 +43,8 @@ export default async function Studio() {
     supabase.from('studio_art').select('id, episode_id').eq('chosen', true).eq('status', 'ready'),
     supabase.from('studio_takes').select('id, kind, studio_shots!inner(n, studio_episodes!inner(code, title))').eq('status', 'ready').order('created_at', { ascending: false }).limit(12),
   ]);
+  const { data: sourceRows } = await supabase.from('studio_sources').select('*, studio_episodes(code, title)').order('created_at', { ascending: false });
+  const sources = (sourceRows ?? []) as unknown as Source[];
   const coverFor = new Map((covers ?? []).map((c) => [c.episode_id, c.id]));
   const cap = budget?.monthly_cap_cents ?? 15000;
   const used = Number(spent ?? 0);
@@ -86,6 +89,29 @@ export default async function Studio() {
               );
             })}
           </section>
+          <Panel title="Trend board · Trend Remix" sub="Viral moments we build on, three legitimate ways: the platform's own Stitch/Remix (their first seconds, credited, posted in-app), a written license from the creator, or an original in the same energy. Rights are checked before an episode can be approved.">
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,320px),1fr))', alignItems: 'start' }}>
+              {sources.map((s) => <SourceCard key={s.id} s={s} />)}
+            </div>
+            <details>
+              <summary style={{ cursor: 'pointer', fontWeight: 700 }}>+ Add a viral moment</summary>
+              <ActionForm action={studioSaveSource} className="form" resetOnOk style={{ marginTop: 10 }}>
+                <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  <label className="field" style={{ flex: '2 1 280px' }}><span>Link to the post</span><input className="input" name="url" type="url" required placeholder="https://www.instagram.com/reel/…" /></label>
+                  <label className="field" style={{ flex: '1 1 160px' }}><span>Platform</span><select className="select" name="platform" defaultValue="instagram"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="facebook">Facebook</option><option value="youtube">YouTube</option><option value="other">Other</option></select></label>
+                  <label className="field" style={{ flex: '1 1 160px' }}><span>Creator</span><input className="input" name="creator" placeholder="@handle" /></label>
+                </div>
+                <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  <label className="field" style={{ flex: '2 1 240px' }}><span>What happens in it</span><input className="input" name="title" required maxLength={120} placeholder="e.g. Dancer brings the house down" /></label>
+                  <label className="field" style={{ flex: '1 1 200px' }}><span>Route</span><select className="select" name="route" defaultValue="stitch"><option value="stitch">Stitch / Remix (in-app)</option><option value="licensed">License the clip</option><option value="inspired">Inspired original</option></select></label>
+                  <label className="field" style={{ flex: '1 1 200px' }}><span>For episode</span><select className="select" name="episode" defaultValue=""><option value="">Idea only (no episode yet)</option>{(eps ?? []).map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}</select></label>
+                </div>
+                <label className="field"><span>Our angle</span><input className="input" name="notes" maxLength={1000} placeholder="Where we cut in, and the Genovus message" /></label>
+                <button className="btn primary small" type="submit" style={{ justifySelf: 'start' }}>Add to the board</button>
+              </ActionForm>
+            </details>
+          </Panel>
+
           {(takes ?? []).length ? (
             <Panel title="Fresh takes" sub="The latest shots out of the Studio">
               <div className="take-strip">

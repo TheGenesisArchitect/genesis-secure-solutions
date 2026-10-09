@@ -31,3 +31,21 @@ for (const e of S.episodes) {
   }
 }
 console.log(`Studio Season 1 loaded: ${S.episodes.length} episodes, ${shots} shots, ${posts} posts.`);
+
+// Trend board sources (added once, matched by link) and how specific posts go out (only while still drafts).
+let sources = 0;
+for (const src of S.sources ?? []) {
+  const { data: have } = await db.from('studio_sources').select('id').eq('url', src.url).maybeSingle();
+  if (have) continue;
+  const ep = src.episode ? must(await db.from('studio_episodes').select('id').eq('code', src.episode).single(), 'source episode') : null;
+  must(await db.from('studio_sources').insert({ series_id: series.id, episode_id: ep?.id ?? null, url: src.url, platform: src.platform, creator: src.creator || null, title: src.title, route: src.route, notes: src.notes ?? null }), `source ${src.title}`);
+  sources++;
+}
+for (const [code, byPlatform] of Object.entries(S.post_methods ?? {})) {
+  const ep = must(await db.from('studio_episodes').select('id').eq('code', code).single(), 'episode');
+  for (const [platform, m] of Object.entries(byPlatform)) {
+    const { data: src } = await db.from('studio_sources').select('id').eq('url', m.source).maybeSingle();
+    await db.from('studio_posts').update({ method: m.method, source_id: src?.id ?? null }).eq('episode_id', ep.id).eq('platform', platform).eq('status', 'draft').eq('method', 'upload');
+  }
+}
+console.log(`Trend board: ${sources} new sources.`);
