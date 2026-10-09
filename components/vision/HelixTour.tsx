@@ -14,7 +14,7 @@ const PATH: Record<string, string> = { map: '/vision', helix: '/vision/briefing'
 const toPath = (slug: string) => PATH[slug] ?? `/vision/${slug}`;
 const toSlug = (path: string) => (path === '/vision' ? 'map' : path === '/vision/briefing' ? 'helix' : path.replace('/vision/', '').split('/')[0]);
 const KIND_LABEL: Record<string, string> = { idea: 'Idea', action_item: 'Action item', question: 'Question', risk: 'Risk' };
-const BARGE_IN = 0.18;
+const BARGE_IN = 0.08;
 const b64 = (buf: ArrayBuffer) => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 
 export function HelixTour() {
@@ -52,6 +52,7 @@ export function HelixTour() {
   const heardText = useRef('');
   const wrapSent = useRef(false);
   const speakingRef = useRef(false);
+  const loud = useRef(0);
   const tokens = useRef(0);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
 
@@ -93,7 +94,7 @@ export function HelixTour() {
       if (pathRef.current !== path) router.push(path);
       setSpot(null);
       await waitFor(() => pathRef.current === path && document.querySelectorAll('[data-tour]').length > 0);
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 120));
       return { ok: true, chapter: args.chapter, title: document.querySelector('.topbar h1')?.textContent ?? '', targets: targetsHere() };
     }
     if (name === 'highlight') {
@@ -166,9 +167,13 @@ export function HelixTour() {
         micCtx.current!.createMediaStreamSource(micStream.current).connect(node);
         node.port.onmessage = (e) => {
           setLevel(e.data.level);
-          // While Helix speaks, only a clearly raised voice gets through, so its own voice from the speakers
-          // doesn't interrupt it.
-          if (!micOnRef.current || (speakingRef.current && e.data.level < BARGE_IN)) return;
+          if (!micOnRef.current) return;
+          // The mic always streams (the browser's echo cancellation removes Helix's own voice), so the Live API
+          // hears an interruption from its first syllable. Locally, sustained speech while Helix talks (~120 ms)
+          // silences the queued audio at once instead of waiting for the server to notice.
+          if (speakingRef.current && e.data.level >= BARGE_IN) {
+            if (++loud.current >= 3) { loud.current = 0; stopPlayback(); }
+          } else loud.current = 0;
           send({ realtimeInput: { audio: { data: b64(e.data.pcm), mimeType: 'audio/pcm;rate=16000' } } });
         };
         setMicOn(true); micOnRef.current = true;

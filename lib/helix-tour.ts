@@ -66,6 +66,7 @@ export function liveSetup(voice?: string) {
     generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: pickVoice(voice) } } }, temperature: 0.7 },
     systemInstruction: { parts: [{ text: SYSTEM }] },
     tools: TOOLS,
+    realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH', endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH', prefixPaddingMs: 80, silenceDurationMs: 450 } },
     inputAudioTranscription: {},
     outputAudioTranscription: {},
   };
