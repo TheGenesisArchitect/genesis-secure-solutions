@@ -83,7 +83,7 @@ export async function startTake(id: string): Promise<{ ok: boolean; error?: stri
     method: 'POST', headers: headers(), signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({
       instances: [{ prompt: t.prompt, ...(withRefs && refs.length ? { referenceImages: refs } : {}) }],
-      parameters: { aspectRatio: '9:16', durationSeconds: String(VIDEO_SECONDS), resolution: '1080p', personGeneration: withRefs && refs.length ? 'allow_adult' : 'allow_all' },
+      parameters: { aspectRatio: '9:16', durationSeconds: VIDEO_SECONDS, resolution: '1080p', personGeneration: withRefs && refs.length ? 'allow_adult' : 'allow_all' },
     }),
   });
   try {
