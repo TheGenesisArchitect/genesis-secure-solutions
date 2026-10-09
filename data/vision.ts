@@ -84,12 +84,22 @@ export type Shot = { n: number; desc: string; camera: string; model: string; sec
 // The programming slate: two editorial divisions on one production system.
 export const SERIES = [
   { name: 'The Local Office', division: 'Genovus Originals', kind: 'Workplace comedy and drama', episodes: 6, status: 'Season 1 in production', views: 48200, watch: 71, scene: 'desk' },
+  { name: 'Genovus Just Knows', division: 'Genovus Originals', kind: 'Comedy spots: chaos in the scene, calm on the phone', episodes: 3, status: 'Concepts in development', views: 0, watch: 0, scene: 'skyline' },
   { name: 'After Hours', division: 'Genovus Originals', kind: 'Owners balancing business and home', episodes: 3, status: 'Scripts in review', views: 0, watch: 0, scene: 'skyline' },
   { name: 'Main Street', division: 'Both', kind: 'Real agencies, written consent', episodes: 1, status: 'E1: JAVA Agency (pending consent)', views: 0, watch: 0, scene: 'street' },
   { name: 'Life Changed. Did Your Coverage?', division: 'Agency Originals', kind: 'Moving, buying, family, business', episodes: 4, status: 'Template ready for agencies', views: 15600, watch: 62, scene: 'dawn' },
   { name: 'The Group Chat', division: 'Agency Originals', kind: 'Comedy: confident advice, unexpected question', episodes: 5, status: 'Live', views: 21900, watch: 66, scene: 'kitchen' },
   { name: 'Before You Assume', division: 'Agency Originals', kind: 'Short scenarios, one practical question', episodes: 4, status: 'Live', views: 9300, watch: 58, scene: 'endcard' },
 ] as const;
+
+// "Genovus Just Knows": short comedy spots built for sharing. The scene is loud and absurd; the agent who uses
+// Genovus stays calm, and the product moment is a real capture. Viral reels are vibe references only: never their
+// footage, audio, performers or likeness. Characters are original designs.
+export const SPOTS = [
+  { name: '“The Night Out”', hook: 'A showman’s dance move, mid-spin (first 2 seconds)', beats: ['Five seconds of the performance on stage.', 'Cut to three agents in the crowd: two realize they forgot tomorrow’s follow-ups.', 'The third checks Genovus on her phone: tomorrow’s call list is ready, the follow-ups are already on it.', '“We’re good.” Cut back to the dancer; the friends cheer, relieved.'], product: 'Call list and follow-ups on the phone', end: 'She looks into the camera: “Genovus just knows.”' },
+  { name: '“The Tin Man and the Lion”', hook: 'Two storybook characters mid-argument as the door opens', beats: ['The agent walks into the next appointment and finds a tin man and a lion arguing.', 'They freeze. Awkward silence. A notification lights up the agent’s phone.', 'The argument resumes in the background while the agent works through leads and approves a task.', 'Cut back: the tin man storms out the door.'], product: 'Leads list and one-tap approval', end: 'The agent shrugs at the camera: “Genovus just knows.”' },
+  { name: '“The Gas Station”', hook: 'A leprechaun dancing under parking-lot lights', beats: ['Young coworkers wait late at a gas station: their new client wanted to meet after work.', 'A notification: the client’s photo appears, and he is a leprechaun.', 'The client is a lot of fun; between dance breaks the agent adds a note and the follow-up lands on the Genovus calendar.', 'Cut back to the leprechaun, still dancing.'], product: 'Client note → follow-up on the calendar', end: '“Genovus just knows.”' },
+];
 
 export const PILOTS = [
   { name: '“I Thought You Called Them”', division: 'Genovus Originals · The Local Office', beats: ['Two employees each assume the other followed up.', 'A third asks who actually owns the inquiry.', 'Cut to a real Genovus capture: assignment and acknowledgment.', 'The inquiry reaches the right person.'], end: 'Give every inquiry a next step.' },

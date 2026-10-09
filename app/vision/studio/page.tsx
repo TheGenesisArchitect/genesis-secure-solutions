@@ -3,7 +3,7 @@ import { Storyboard } from '@/components/vision/Storyboard';
 import { SceneArt, type Scene } from '@/components/vision/SceneArt';
 import { PhoneShort } from '@/components/vision/PhoneShort';
 import { Panel, Chip } from '@/components/ui';
-import { SERIES, EPISODE, PILOTS } from '@/data/vision';
+import { SERIES, EPISODE, PILOTS, SPOTS } from '@/data/vision';
 
 export const metadata = { title: 'Genovus Studio · Growth Engine vision', robots: { index: false, follow: false } };
 
@@ -21,7 +21,8 @@ export default function Studio() {
         ] },
         { title: 'Models (replaceable)', items: [
           { k: 'Candidates', v: <>Veo 3.1, Kling 3.0, Runway, Higgsfield behind one adapter. <Src href="https://ai.google.dev/gemini-api/docs/veo">Veo</Src> · <Src href="https://geo.higgsfield.ai/task/blog/higgsfield-ai-pricing-plans">Higgsfield</Src></> },
-          { k: 'Bake-off', v: 'Same representative shots; chosen on usable takes, cost, latency and revision burden.' },
+          { k: 'Flow lane', v: <>Google Flow (Veo) and Nano Banana Pro on the team’s existing Google AI plan, operated by hand: scenes, character sheets, storyboard frames. Commercial-use terms confirmed per asset before anything runs as an ad. <Src href="https://labs.google/flow/about">Flow</Src></> },
+          { k: 'Bake-off', v: 'Same representative shots; chosen on usable takes, cost, latency and revision burden. The Flow lane enters at its subscription cost, so it competes on cost per accepted asset too.' },
           { k: 'Economics', v: 'Cost per accepted asset, not per clip. Budget reserved before generation; reconcile with the provider before any retry.' },
         ] },
         { title: 'Trust', items: [
@@ -53,6 +54,20 @@ export default function Studio() {
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>Preview built from the storyboard frames. Real episodes are produced shot by shot once the provider bake-off picks the models.</p>
         </Panel>
       </div>
+      <Panel tour="spots" title="Genovus Just Knows" sub="Comedy spots built to be shared: the scene is chaos, the agent with Genovus is calm. Same ending every time, so it becomes a catchphrase." actions={<Chip kind="dev">In development</Chip>}>
+        <div className="vgrid3" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,280px),1fr))' }}>
+          {SPOTS.map((p) => (
+            <div key={p.name} className="tile" style={{ gap: 10 }}>
+              <span className="division">Hook · {p.hook}</span>
+              <h3 style={{ margin: 0, font: '800 18px var(--display)' }}>{p.name}</h3>
+              <ol style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4, fontSize: 14, color: 'var(--soft)' }}>{p.beats.map((b) => <li key={b}>{b}</li>)}</ol>
+              <span className="muted" style={{ fontSize: 13 }}>Product moment (real capture): {p.product}</span>
+              <b style={{ font: '800 15px var(--display)' }}>{p.end}</b>
+            </div>
+          ))}
+        </div>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Made in the Flow lane: original characters (a storybook tin man and lion, not any film’s designs; our own leprechaun and showman), shot by shot, disclosed as AI. Viral reels inspire the energy only; their footage, music and performers are never used. No quotes or coverage claims; the phone shows real Genovus screens.</p>
+      </Panel>
       <Panel tour="pilots" title="First production milestone: two pilots" sub="Same workflow end to end; each ships with script, storyboard, references, finished edit, alternate hook, tracked destination and a cost record">
         <div className="vgrid2">
           {PILOTS.map((p) => (
