@@ -1,6 +1,6 @@
 // The Genovus signature frame for Studio thumbnails, as a plain element tree (no JSX) so the route and a local
-// render check share one design. Key art fills the frame; the Fib Circle's orange draws an inset border with a
-// gradient spine; the mark and wordmark sit top-left; the episode tag, series line and title sit bottom-left in
+// render check share one design. Key art fills the frame; the brand orange draws an inset border with a
+// gradient spine; the wordmark with the golden egg sits top-left; the episode tag, series line and title sit bottom-left in
 // Genovus Display; an AI label sits bottom-right.
 import { createElement as h, type ReactElement } from 'react';
 
@@ -22,9 +22,11 @@ export function thumbElement(p: ThumbProps): ReactElement {
     abs({ left: 0, right: 0, top: 0, height: 280 * s, background: 'linear-gradient(180deg, rgba(11,9,7,0.75) 0%, rgba(11,9,7,0) 100%)' }),
     abs({ left: 30, right: 30, top: 30, bottom: 30, borderRadius: 44 * s, border: '4px solid rgba(244,83,27,0.9)' }),
     abs({ left: 28, top: 30 + 170 * s, width: 10, height: H - 60 - 340 * s, borderRadius: 999, backgroundImage: GRAD_V }),
-    abs({ left: 72, top: 70 * s, alignItems: 'center', gap: 18 },
-      h('img', { src: p.mark, width: 80 * s, height: 80 * s }),
-      h('span', { style: { fontFamily: 'Genovus Display', fontSize: 40 * s, color: '#fff', letterSpacing: 5 } }, 'GENOVUS')),
+    // The wordmark: GEN · golden egg · VUS (egg 118% of cap height, tipped 8°, overlapping the N and V).
+    abs({ left: 72, top: 76 * s, alignItems: 'center', fontFamily: 'Genovus Display', fontSize: 46 * s, color: '#fff', letterSpacing: 0.5 },
+      h('span', null, 'GEN'),
+      h('img', { src: p.mark, width: 46 * s * 0.677, height: 46 * s * 0.867, style: { marginLeft: -46 * s * 0.09, marginRight: -46 * s * 0.09, transform: 'translateY(-1px) rotate(-8deg)' } }),
+      h('span', null, 'VUS')),
     abs({ left: 72, right: 72, bottom: 96 * s, flexDirection: 'column', gap: 22 * s },
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 16 } },
         h('span', { style: { display: 'flex', padding: `${10 * s}px ${22 * s}px`, borderRadius: 999, backgroundImage: GRAD_H, color: '#160a03', fontFamily: 'Genovus Display', fontSize: 28 * s, letterSpacing: 3 } }, p.tag),

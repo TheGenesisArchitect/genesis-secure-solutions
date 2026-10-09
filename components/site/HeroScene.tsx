@@ -1,15 +1,13 @@
 'use client';
-// The living ecosystem behind the hero: the Genovus G in 3D, lit by a light that sweeps across its
-// chambers, with carrier, agencies, agents and customers orbiting and light flowing between them.
+// The living ecosystem behind the hero: the Genovus golden egg in 3D, lit by a light that sweeps across
+// its shell, with carrier, agencies, agents and customers orbiting and light flowing between them.
 // Reacts gently to the cursor, pauses when off screen, and renders one still frame under reduced motion.
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { MARK_PATH, MARK_BOX } from '@/data/brand-mark';
 
 const NODES = [
   { label: 'Carrier', angle: -Math.PI / 2 },
@@ -31,7 +29,7 @@ export default function HeroScene({ onReady }: { onReady?: () => void }) {
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     } catch {
-      return; // No WebGL: the static mark stays.
+      return; // No WebGL: the static egg stays.
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -43,26 +41,28 @@ export default function HeroScene({ onReady }: { onReady?: () => void }) {
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
     camera.position.set(0, 0, 11);
 
-    // ---- the G, extruded from the real vector ----
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg"><path fill="#000" fill-rule="evenodd" d="${MARK_PATH}"/></svg>`;
-    const data = new SVGLoader().parse(svg);
-    const shapes = data.paths.flatMap((p) => p.toShapes());
-    const geo = new THREE.ExtrudeGeometry(shapes, { depth: 90, bevelEnabled: true, bevelThickness: 14, bevelSize: 9, bevelSegments: 4, curveSegments: 18 });
-    geo.translate(-(MARK_BOX.x + MARK_BOX.size / 2), -(MARK_BOX.y + MARK_BOX.size / 2), -45);
-    // Brand gradient as vertex colours: deep orange at the bottom left to amber at the top right.
+    // ---- the golden egg, turned on a lathe: narrower at the top, glossy orange, tipped like it was just laid ----
+    const profile: THREE.Vector2[] = [];
+    for (let i = 0; i <= 64; i++) {
+      const y = -1 + (2 * i) / 64;
+      const r = Math.sqrt(Math.max(0, 1 - y * y)) * (0.8 - 0.1 * y);
+      profile.push(new THREE.Vector2(r, y));
+    }
+    const geo = new THREE.LatheGeometry(profile, 96);
+    // Brand gradient as vertex colours: deep orange at the base to warm amber at the crown.
     const pos = geo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const c0 = new THREE.Color('#e2380f'), c1 = new THREE.Color('#f4531b'), c2 = new THREE.Color('#ffa21f'), tmp = new THREE.Color();
+    const c0 = new THREE.Color("#c42c0b"), c1 = new THREE.Color("#f6781c"), c2 = new THREE.Color("#ffb04a"), tmp = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
-      const t = THREE.MathUtils.clamp((pos.getX(i) - pos.getY(i)) / (MARK_BOX.size * 1.4) + 0.5, 0, 1);
+      const t = THREE.MathUtils.clamp((pos.getY(i) + 1) / 2 + pos.getX(i) * -0.15, 0, 1);
       tmp.copy(t < 0.5 ? c0 : c1).lerp(t < 0.5 ? c1 : c2, t < 0.5 ? t * 2 : (t - 0.5) * 2);
       colors.set([tmp.r, tmp.g, tmp.b], i * 3);
     }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    const markMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.18, emissive: new THREE.Color('#ff4a10'), emissiveIntensity: 0.1 });
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const markMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, metalness: 0.15, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 0.3, sheenColor: new THREE.Color("#ffd38a"), emissive: new THREE.Color("#ff4a10"), emissiveIntensity: 0.08 });
     const mark = new THREE.Mesh(geo, markMat);
-    const s = 3.1 / MARK_BOX.size;
-    mark.scale.set(s, -s, s); // SVG y runs down; flip it.
+    mark.scale.setScalar(1.75);
+    mark.rotation.z = -0.14; // tipped 8 degrees
 
     const world = new THREE.Group();
     world.add(mark);

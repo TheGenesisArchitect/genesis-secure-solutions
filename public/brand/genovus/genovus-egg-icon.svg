@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Genovus">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.3" r="0.8"><stop offset="0" stop-color="#2a1d14"/><stop offset="1" stop-color="#0b0907"/></radialGradient>
+    <radialGradient id="body" cx="0.36" cy="0.28" r="0.82" fx="0.34" fy="0.24"><stop offset="0" stop-color="#ffd38a"/><stop offset="0.2" stop-color="#ffa33a"/><stop offset="0.48" stop-color="#f6781c"/><stop offset="0.82" stop-color="#e2380f"/><stop offset="1" stop-color="#a8260a"/></radialGradient>
+    <radialGradient id="shine" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff" stop-opacity="0.95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <g transform="translate(32 33) rotate(-8) translate(-19.5 -25) scale(0.5)">
+    <path d="M39 0C61 0 78 38 78 62C78 85 61 100 39 100C17 100 0 85 0 62C0 38 17 0 39 0Z" fill="url(#body)"/>
+    <ellipse cx="27" cy="22" rx="11" ry="8" fill="url(#shine)" transform="rotate(-24 27 22)"/>
+  </g>
+</svg>

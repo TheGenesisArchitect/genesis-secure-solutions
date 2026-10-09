@@ -69,7 +69,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .dash{min-height:100dvh;display:grid;grid-template-columns:248px minmax(0,1fr);background:var(--bg);color:var(--ink)}
 .rail{position:sticky;top:0;height:100dvh;overflow-y:auto;border-right:1px solid var(--line);background:var(--surface);padding:18px 14px;display:flex;flex-direction:column;gap:18px}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);padding:4px 6px}
-.brand img{width:28px;height:28px;border-radius:8px;box-shadow:0 0 0 1px var(--line)}
+.brand>img{width:28px;height:28px;border-radius:8px;box-shadow:0 0 0 1px var(--line)}
 .brand b{font:800 14px/1 var(--display);letter-spacing:.12em}
 .brand small{display:block;font:500 9.5px/1.4 var(--mono);letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-top:3px}
 .nav{display:grid;gap:2px}
@@ -258,8 +258,8 @@ details>summary{cursor:pointer;color:var(--soft)}
 
 /* glass rail and top bar */
 .dash .rail{background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(18px) saturate(1.2);border-right:1px solid rgba(255,255,255,.07)}
-.brand img{filter:drop-shadow(0 0 14px rgba(255,106,43,.45));transition:transform .5s var(--ease),filter .5s var(--ease)}
-.brand:hover img{transform:rotate(-12deg) scale(1.06);filter:drop-shadow(0 0 22px rgba(255,140,60,.7))}
+.brand>img{filter:drop-shadow(0 0 14px rgba(255,106,43,.45));transition:transform .5s var(--ease),filter .5s var(--ease)}
+.brand:hover>img{transform:rotate(-12deg) scale(1.06);filter:drop-shadow(0 0 22px rgba(255,140,60,.7))}
 .dash .topbar{background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(16px) saturate(1.2)}
 
 /* lit surfaces: glass, a gradient hairline edge, a cursor spotlight and a small lift */
@@ -563,7 +563,7 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .gv-poster:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 0 0 2px #f4531b,0 24px 60px -16px rgba(244,83,27,.45)}
 .gv-poster>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .gv-poster-blank{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;padding:18px;text-align:center;background:radial-gradient(120% 80% at 50% 0%,rgba(244,83,27,.35),transparent 60%),linear-gradient(180deg,#17110c,#0b0907)}
-.gv-poster-blank img{width:56px;height:56px;opacity:.9}
+.gv-poster-blank img{width:44px;height:56px;transform:rotate(-8deg);filter:drop-shadow(0 6px 12px rgba(0,0,0,.5))}
 .gv-poster-blank b{font:800 20px var(--display);text-transform:uppercase;line-height:1.05}
 .gv-poster-blank small{color:#ffd7a8;font-size:12px}
 .gv-poster-meta{position:absolute;left:0;right:0;bottom:0;display:grid;gap:6px;padding:14px;background:linear-gradient(180deg,transparent,rgba(11,9,7,.92) 40%);opacity:0;transition:opacity .2s}
@@ -576,3 +576,19 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .gv-take video{box-shadow:0 0 0 1px rgba(244,83,27,.4)}
 .post-thumb{width:64px;aspect-ratio:9/16;object-fit:cover;border-radius:8px;box-shadow:0 0 0 1px rgba(244,83,27,.5)}
 @media (hover:none){.gv-poster-meta{opacity:1}}
+
+/* The Genovus wordmark: GEN · egg · VUS (egg 118% of cap height, tipped 8°, overlapping N and V) */
+.gv-wm{display:inline-flex;align-items:center;font-family:var(--display);font-weight:800;line-height:1;letter-spacing:.01em;color:#fff;white-space:nowrap}
+.gv-wm>span{position:relative;z-index:0}
+.gv-wm>img{position:relative;z-index:1;flex:none;width:.677em;height:.867em;margin:0 -.09em;transform:translateY(-.03em) rotate(-8deg);filter:drop-shadow(0 .06em .08em rgba(0,0,0,.5)) drop-shadow(0 0 .14em rgba(244,90,27,.3))}
+.gv-wm.flat>img{filter:drop-shadow(0 .03em .03em rgba(0,0,0,.35))}
+.gv-egg{display:inline-block;transform:rotate(-8deg);filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+/* Brand block: the wordmark when the rail is open, the egg alone when it is collapsed */
+.brand>.brand-egg{display:none;width:22px;height:28px;border-radius:0;box-shadow:none;transform:rotate(-8deg)}
+.brand .gv-wm>img{transition:transform .5s var(--ease)}
+.brand:hover .gv-wm>img{transform:translateY(-.06em) rotate(-16deg) scale(1.05)}
+.brand small{margin-top:5px}
+@media (min-width: 901px){
+  .dash[data-rail="collapsed"] .brand>.brand-egg{display:block}
+  .dash[data-rail="collapsed"]:not([data-peek="off"]) .rail:hover .brand>.brand-egg{display:none}
+}

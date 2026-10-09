@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { NavLink } from './NavLink';
+import { Wordmark } from './Wordmark';
 import { Icon, iconFor } from './icons';
 import { RailToggle, CommandBar, type JumpItem } from './RailControls';
 
@@ -35,9 +36,9 @@ export async function Shell(props: {
       <aside className="rail" aria-label="Main navigation">
         <div className="rail-head">
         <Link href={props.home} className="brand">
-          <img src="/brand/genovus/genovus-mark.svg" alt="" />
+          <img className="brand-egg" src="/brand/genovus/genovus-egg.svg" alt="" />
           <span>
-            <b>GENOVUS</b>
+            <Wordmark size={17} />
             <small>{props.surface}</small>
           </span>
         </Link>

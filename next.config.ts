@@ -26,7 +26,7 @@ const securityHeaders = process.env.NODE_ENV === 'production'
 
 const nextConfig: NextConfig = {
   // The thumbnail renderer reads the brand fonts and mark from disk.
-  outputFileTracingIncludes: { '/api/studio/thumb/[id]': ['./lib/fonts/*.woff', './public/brand/genovus/genovus-mark.svg'] },
+  outputFileTracingIncludes: { '/api/studio/thumb/[id]': ['./lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'] },
   poweredByHeader: false,
   // Friendly doors under the genovus.io mothership: app. for agencies, partners. for carriers. Everything
   // lives on genovus.io itself so one sign-in covers the whole ecosystem.

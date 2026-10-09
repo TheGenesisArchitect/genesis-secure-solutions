@@ -2,6 +2,7 @@
 // "Log in" menu takes agencies, carrier partners and the team straight to their own place.
 import Link from 'next/link';
 import { doors } from '@/lib/surfaces';
+import { Wordmark } from './Wordmark';
 
 export async function SiteChrome({ children }: { children: React.ReactNode }) {
   const d = await doors();
@@ -10,8 +11,7 @@ export async function SiteChrome({ children }: { children: React.ReactNode }) {
       <header className="site-nav">
         <div className="in">
           <Link href="/" className="brand" aria-label="Genovus home">
-            <img src="/brand/genovus/genovus-mark.svg" alt="" />
-            <span><b>GENOVUS</b><small>Turnkey agency platform</small></span>
+            <span><Wordmark size={19} /><small>Turnkey agency platform</small></span>
           </Link>
           <nav aria-label="Site">
             <Link href="/#platform">Platform</Link>

@@ -38,7 +38,7 @@ export default function ContentDesk() {
             <div key={p.id} style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
               <div className="spread"><b style={{ fontSize: 13 }}>{n.label} · {p.audience}</b><Chip kind={STATE[i].startsWith('Needs') ? 'pending' : 'done'}>{STATE[i]}</Chip></div>
               <article className={`post ${n.cls}`}>
-                <div className="post-top"><span className="av"><img src="/brand/genovus/genovus-mark.svg" alt="" /></span><span><b>Genovus</b><small>{n.meta}</small></span></div>
+                <div className="post-top"><span className="av"><img src="/brand/genovus/genovus-avatar.png" alt="" /></span><span><b>Genovus</b><small>{n.meta}</small></span></div>
                 <div className="art"><SceneArt scene={POST_SCENES[i % POST_SCENES.length]} label={p.hook} /><span className="hook">{p.hook}</span></div>
                 <div className="body">{p.body}</div>
                 <div className="meta"><span>genovus.io/for/captive-agents?c=columbus-organic</span><span>{p.network === 'linkedin' ? 'Like · Comment · Repost' : '♡ 💬 ↗'}</span></div>

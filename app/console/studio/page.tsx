@@ -75,7 +75,7 @@ export default async function Studio() {
               return (
                 <Link key={e.id} href={`/console/studio/${e.code}`} className="gv-poster">
                   {cover ? <img src={`/api/studio/thumb/${cover}`} alt={`${e.title} cover`} loading="lazy" /> : (
-                    <span className="gv-poster-blank"><img src="/brand/genovus/genovus-mark.svg" alt="" /><b>{e.title}</b><small>Generate a thumbnail →</small></span>
+                    <span className="gv-poster-blank"><img src="/brand/genovus/genovus-egg.svg" alt="" /><b>{e.title}</b><small>Generate a thumbnail →</small></span>
                   )}
                   <span className="gv-poster-meta">
                     <span className="row" style={{ gap: 6 }}><Chip kind="info">{KIND[e.kind]}</Chip><Chip kind={STAGE[e.status]}>{e.status}</Chip></span>

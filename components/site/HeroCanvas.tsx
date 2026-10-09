@@ -13,7 +13,7 @@ export function HeroCanvas() {
     <div className={'hero-visual' + (ready ? ' is-ready' : '')}>
       <div className="hero-still" aria-hidden="true">
         <span className="hero-halo" />
-        <img src="/brand/genovus/genovus-mark.svg" alt="" />
+        <img src="/brand/genovus/genovus-egg.svg" alt="" />
       </div>
       <HeroScene onReady={onReady} />
     </div>

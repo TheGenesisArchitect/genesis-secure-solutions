@@ -17,7 +17,7 @@ async function assets() {
   const [display, body, mark] = await Promise.all([
     readFile(path.join(root, 'lib/fonts/archivo-expanded-800.woff')),
     readFile(path.join(root, 'lib/fonts/inter-600.woff')),
-    readFile(path.join(root, 'public/brand/genovus/genovus-mark.svg')),
+    readFile(path.join(root, 'public/brand/genovus/genovus-egg.svg')),
   ]);
   cached = { display, body, mark: `data:image/svg+xml;base64,${mark.toString('base64')}` };
   return cached;
