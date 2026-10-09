@@ -17,7 +17,7 @@ const series = must(await db.from('studio_series').upsert({ slug: s.slug, name: 
 
 let shots = 0, posts = 0;
 for (const e of S.episodes) {
-  const ep = must(await db.from('studio_episodes').upsert({ series_id: series.id, code: e.code, kind: e.kind, title: e.title, runtime_s: e.runtime_s, logline: e.logline, script: e.script, music: e.music, sort: e.sort }, { onConflict: 'code' }).select('id').single(), `episode ${e.code}`);
+  const ep = must(await db.from('studio_episodes').upsert({ series_id: series.id, code: e.code, kind: e.kind, title: e.title, runtime_s: e.runtime_s, logline: e.logline, script: e.script, music: e.music, sort: e.sort, thumb_prompt: e.thumb ?? null }, { onConflict: 'code' }).select('id').single(), `episode ${e.code}`);
   for (const sh of e.shots) {
     must(await db.from('studio_shots').upsert({ episode_id: ep.id, n: sh.n, timing: sh.timing ?? null, description: sh.description, camera: sh.camera ?? null, dialogue: sh.dialogue ?? null, prompt: sh.prompt ?? null, tool: sh.tool }, { onConflict: 'episode_id,n' }), `shot ${e.code}/${sh.n}`);
     shots++;

@@ -154,3 +154,50 @@ export async function pollTake(id: string): Promise<{ status: string; error?: st
     return { status: 'running', error: e instanceof Error ? e.message : 'poll failed' };
   }
 }
+
+const THUMB_STYLE = 'Key art for a vertical 9:16 social video thumbnail (YouTube Shorts, Instagram Reels, TikTok cover). Cinematic, 35mm film look, rich warm practical light with deep shadows and a touch of orange-gold rim light, shallow depth of field, one clear focal subject with an expressive, readable face, strong silhouette, uncluttered background. Leave the bottom third calmer for a title overlay. Absolutely no text, letters, logos, watermarks or UI in the image. Original characters only, not resembling any real person or celebrity.';
+
+/** Generate one thumbnail key art (already reserved), using the cast's reference sheets for consistent faces. */
+export async function generateThumb(id: string): Promise<{ ok: boolean; error?: string }> {
+  const db = adminDb();
+  const { data: a } = await db.from('studio_art').select('*').eq('id', id).single();
+  if (!a) return { ok: false, error: 'not found' };
+  await db.from('studio_art').update({ status: 'running', updated_at: now() }).eq('id', id);
+  try {
+    const parts: Record<string, unknown>[] = [{ text: `${THUMB_STYLE}\n\n${a.prompt}` }];
+    if (a.ref_ids?.length) {
+      const { data: rows } = await db.from('studio_refs').select('character, blob_path').in('id', a.ref_ids).eq('status', 'ready');
+      for (const row of (rows ?? []).slice(0, 3)) {
+        const img = row.blob_path ? await blobBase64(row.blob_path) : null;
+        if (img) parts.push({ text: `Reference sheet for ${row.character}: match this person's face, hair and wardrobe exactly.` }, { inlineData: img });
+      }
+    }
+    const res = await fetch(`${BASE()}/models/${encodeURIComponent(a.model)}:generateContent`, {
+      method: 'POST', headers: headers(), signal: AbortSignal.timeout(110_000),
+      body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '9:16', imageSize: '2K' } } }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] }; finishReason?: string }[]; error?: { message?: string }; promptFeedback?: { blockReason?: string } };
+    if (!res.ok) throw new Error(j.error?.message || `HTTP ${res.status}`);
+    const part = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+    if (!part?.inlineData?.data) throw new Error(j.promptFeedback?.blockReason ? `Blocked: ${j.promptFeedback.blockReason}` : `No image returned (${j.candidates?.[0]?.finishReason ?? 'unknown'})`);
+    const ext = part.inlineData.mimeType === 'image/jpeg' ? 'jpg' : 'png';
+    const path = `studio/art/${id}.${ext}`;
+    await put(path, Buffer.from(part.inlineData.data, 'base64'), { access: 'private', contentType: part.inlineData.mimeType ?? 'image/png', addRandomSuffix: false, allowOverwrite: true });
+    await db.from('studio_art').update({ status: 'ready', blob_path: path, updated_at: now() }).eq('id', id);
+    // The first finished thumbnail of an episode becomes its thumbnail until someone picks another.
+    const { count } = await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('episode_id', a.episode_id).eq('chosen', true);
+    if (!count) await db.from('studio_art').update({ chosen: true }).eq('id', id);
+    await recordExpense(a.cost_cents, `Studio: thumbnail key art (${a.model})`, a.created_by);
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.slice(0, 300) : 'failed';
+    await db.from('studio_art').update({ status: 'failed', error: msg, cost_cents: 0, updated_at: now() }).eq('id', id);
+    return { ok: false, error: msg };
+  }
+}
+
+/** A private blob as a data URL (for composing the framed thumbnail). */
+export async function blobDataUrl(path: string): Promise<string | null> {
+  const img = await blobBase64(path);
+  return img ? `data:${img.mimeType};base64,${img.data}` : null;
+}

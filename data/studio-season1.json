@@ -1,5 +1,10 @@
 {
-  "campaign": { "slug": "gjk-soft-launch", "name": "Genovus Just Knows: soft launch", "starts_on": "2026-10-10", "ends_on": "2026-10-25" },
+  "campaign": {
+    "slug": "gjk-soft-launch",
+    "name": "Genovus Just Knows: soft launch",
+    "starts_on": "2026-10-10",
+    "ends_on": "2026-10-25"
+  },
   "link": "https://genovus.io/vision?c=gjk-soft-launch&src={src}",
   "series": {
     "slug": "genovus-just-knows",
@@ -10,10 +15,30 @@
       "premise": "Each episode drops our agents into something absurd and loud: a show, a strange appointment, a late-night meeting. Two of them realize they forgot something that matters. The third checks Genovus, and it's already handled. She breaks the fourth wall: “Genovus just knows.”",
       "tone": "Comedy first, warm, a little absurd, never mean. Under 60 seconds. Hook in the first 1.5 seconds. Music-driven, captions always on.",
       "characters": [
-        { "name": "Dee Carter", "role": "The calm one", "look": "Insurance agent, early 30s, natural curls pulled up, small gold hoops, cream blazer over a black tee. Unbothered, dry wit, one raised eyebrow does the talking.", "sheet": "Character sheet, original character (not resembling any real person): Dee Carter, a Black woman in her early 30s, natural curls pulled up, small gold hoop earrings, cream blazer over a black t-shirt, slim gold watch. Calm, confident, amused expression. Front, three-quarter, profile and full-body views; three expressions (unbothered, raised eyebrow, knowing smile to camera). Neutral studio background, soft key light, photoreal, consistent face across views." },
-        { "name": "Marcus Hale", "role": "The one who panics", "look": "Late 20s, tall, short fade, maroon bomber jacket. Big reactions.", "sheet": "Character sheet, original character (not resembling any real person): Marcus Hale, a tall man in his late 20s, short fade haircut, clean-shaven, maroon bomber jacket over a white tee. Expressive and animated. Front, three-quarter, profile and full-body views; expressions: cheering, sudden realization, panic. Neutral studio background, photoreal, consistent face." },
-        { "name": "Tasha Reyes", "role": "The one who thought you did", "look": "30s, sleek high ponytail, denim jacket, statement earrings. Dramatic.", "sheet": "Character sheet, original character (not resembling any real person): Tasha Reyes, a Latina woman in her 30s, sleek high ponytail, statement earrings, light denim jacket over a black top. Dramatic, funny. Front, three-quarter, profile and full-body views; expressions: laughing, slow horror, relief. Neutral studio background, photoreal, consistent face." },
-        { "name": "Velvet", "role": "The showman (E1)", "look": "Lanky stage dancer, sequined emerald jacket, white flared trousers, slick pompadour. Signature move: spin, freeze, one finger to the sky.", "sheet": "Character sheet, original character (not resembling any real person or performer): Velvet, a lanky stage dancer in his 40s, slick pompadour, sequined emerald-green jacket, white flared trousers, white platform shoes. Theatrical, joyful. Full-body views mid-spin, freeze pose with one finger pointed up, and bow. Stage spotlight on black, photoreal." }
+        {
+          "name": "Dee Carter",
+          "role": "The calm one",
+          "look": "Insurance agent, early 30s, natural curls pulled up, small gold hoops, cream blazer over a black tee. Unbothered, dry wit, one raised eyebrow does the talking.",
+          "sheet": "Character sheet, original character (not resembling any real person): Dee Carter, a Black woman in her early 30s, natural curls pulled up, small gold hoop earrings, cream blazer over a black t-shirt, slim gold watch. Calm, confident, amused expression. Front, three-quarter, profile and full-body views; three expressions (unbothered, raised eyebrow, knowing smile to camera). Neutral studio background, soft key light, photoreal, consistent face across views."
+        },
+        {
+          "name": "Marcus Hale",
+          "role": "The one who panics",
+          "look": "Late 20s, tall, short fade, maroon bomber jacket. Big reactions.",
+          "sheet": "Character sheet, original character (not resembling any real person): Marcus Hale, a tall man in his late 20s, short fade haircut, clean-shaven, maroon bomber jacket over a white tee. Expressive and animated. Front, three-quarter, profile and full-body views; expressions: cheering, sudden realization, panic. Neutral studio background, photoreal, consistent face."
+        },
+        {
+          "name": "Tasha Reyes",
+          "role": "The one who thought you did",
+          "look": "30s, sleek high ponytail, denim jacket, statement earrings. Dramatic.",
+          "sheet": "Character sheet, original character (not resembling any real person): Tasha Reyes, a Latina woman in her 30s, sleek high ponytail, statement earrings, light denim jacket over a black top. Dramatic, funny. Front, three-quarter, profile and full-body views; expressions: laughing, slow horror, relief. Neutral studio background, photoreal, consistent face."
+        },
+        {
+          "name": "Velvet",
+          "role": "The showman (E1)",
+          "look": "Lanky stage dancer, sequined emerald jacket, white flared trousers, slick pompadour. Signature move: spin, freeze, one finger to the sky.",
+          "sheet": "Character sheet, original character (not resembling any real person or performer): Velvet, a lanky stage dancer in his 40s, slick pompadour, sequined emerald-green jacket, white flared trousers, white platform shoes. Theatrical, joyful. Full-body views mid-spin, freeze pose with one finger pointed up, and bow. Stage spotlight on black, photoreal."
+        }
       ],
       "rules": [
         "Original characters only. The reference reels set the energy; their footage, music, performers and look are never used.",
@@ -35,92 +60,303 @@
   },
   "episodes": [
     {
-      "code": "gjk-t1", "kind": "teaser", "sort": 1, "title": "Did You Call Them Back?", "runtime_s": 8,
+      "code": "gjk-t1",
+      "kind": "teaser",
+      "sort": 1,
+      "title": "Did You Call Them Back?",
+      "runtime_s": 8,
       "logline": "Two friends at a show realize nobody called the Hendersons back. One of them isn't worried.",
       "script": "Cut from Episode 1 takes (no new footage).\n\n[E1 shot 3] MARCUS (mid-cheer, stops): “Wait… did you call the Hendersons back?”\n[E1 shot 4] TASHA (slow horror): “…I thought YOU did.”\n[Smash to black] TEXT: One of them isn't worried.\n[Logo] GENOVUS JUST KNOWS · Sunday 7PM ET",
       "music": "Live-band funk from E1, hard cut to silence on the smash to black, one horn stab on the logo.",
       "shots": [
-        { "n": 1, "timing": "0:00–0:03", "description": "E1 shot 3: Marcus stops cheering mid-clap and leans in.", "dialogue": "MARCUS: Wait… did you call the Hendersons back?", "tool": "edit", "prompt": "Use the approved take of Episode 1, shot 3." },
-        { "n": 2, "timing": "0:03–0:05", "description": "E1 shot 4: Tasha's slow horror close-up.", "dialogue": "TASHA: …I thought YOU did.", "tool": "edit", "prompt": "Use the approved take of Episode 1, shot 4. Hold one extra beat on her face." },
-        { "n": 3, "timing": "0:05–0:08", "description": "Smash to black. White text, then the Genovus wordmark and premiere time.", "dialogue": "TEXT: One of them isn't worried. / GENOVUS JUST KNOWS · Sunday 7PM ET", "tool": "edit", "prompt": "Black frame; Genovus display font, white; wordmark from /brand/genovus. Captions burned in. AI label in the corner." }
-      ]
+        {
+          "n": 1,
+          "timing": "0:00–0:03",
+          "description": "E1 shot 3: Marcus stops cheering mid-clap and leans in.",
+          "dialogue": "MARCUS: Wait… did you call the Hendersons back?",
+          "tool": "edit",
+          "prompt": "Use the approved take of Episode 1, shot 3."
+        },
+        {
+          "n": 2,
+          "timing": "0:03–0:05",
+          "description": "E1 shot 4: Tasha's slow horror close-up.",
+          "dialogue": "TASHA: …I thought YOU did.",
+          "tool": "edit",
+          "prompt": "Use the approved take of Episode 1, shot 4. Hold one extra beat on her face."
+        },
+        {
+          "n": 3,
+          "timing": "0:05–0:08",
+          "description": "Smash to black. White text, then the Genovus wordmark and premiere time.",
+          "dialogue": "TEXT: One of them isn't worried. / GENOVUS JUST KNOWS · Sunday 7PM ET",
+          "tool": "edit",
+          "prompt": "Black frame; Genovus display font, white; wordmark from /brand/genovus. Captions burned in. AI label in the corner."
+        }
+      ],
+      "thumb": "Tight two-shot in a dark theater crowd: Marcus (tall man, late 20s, short fade, maroon bomber) frozen mid-clap with a look of sudden dread, leaning toward Tasha (Latina woman, 30s, high ponytail, denim jacket) whose eyes go wide in comic horror. Warm stage light on their faces, haze, blurred cheering crowd behind."
     },
     {
-      "code": "gjk-t2", "kind": "teaser", "sort": 2, "title": "She's Not Worried", "runtime_s": 10,
+      "code": "gjk-t2",
+      "kind": "teaser",
+      "sort": 2,
+      "title": "She's Not Worried",
+      "runtime_s": 10,
       "logline": "While everyone panics, Dee sips her drink and checks her phone. What does she know?",
       "script": "Cut from Episode 1 takes plus the real app capture (blurred).\n\n[E1 shot 5] Marcus and Tasha turn to DEE. She sips, unbothered.\n[E1 shot 6, blurred] Her phone lights up: the glow of a list. We can't read it.\nTEXT: What does she know?\n[E1 shot 8, first second] Dee's eyes find the camera. No line.\n[Logo] GENOVUS JUST KNOWS · Sunday 7PM ET",
       "music": "Low bass groove under crowd noise, cut on Dee's look, horn stab on logo.",
       "shots": [
-        { "n": 1, "timing": "0:00–0:04", "description": "E1 shot 5: both friends turn; Dee sips, eyebrow up.", "tool": "edit", "prompt": "Approved take of Episode 1, shot 5." },
-        { "n": 2, "timing": "0:04–0:07", "description": "E1 shot 6 capture with a heavy blur: the phone's glow, list shapes only.", "dialogue": "TEXT: What does she know?", "tool": "edit", "prompt": "Gaussian blur 30px on the app capture so nothing is readable; keep the Genovus orange accent visible." },
-        { "n": 3, "timing": "0:07–0:10", "description": "E1 shot 8, first second: Dee looks into the lens. Then the logo card.", "dialogue": "TEXT: GENOVUS JUST KNOWS · Sunday 7PM ET", "tool": "edit", "prompt": "Freeze on Dee's look for 8 frames, cut to logo card. AI label in the corner." }
-      ]
+        {
+          "n": 1,
+          "timing": "0:00–0:04",
+          "description": "E1 shot 5: both friends turn; Dee sips, eyebrow up.",
+          "tool": "edit",
+          "prompt": "Approved take of Episode 1, shot 5."
+        },
+        {
+          "n": 2,
+          "timing": "0:04–0:07",
+          "description": "E1 shot 6 capture with a heavy blur: the phone's glow, list shapes only.",
+          "dialogue": "TEXT: What does she know?",
+          "tool": "edit",
+          "prompt": "Gaussian blur 30px on the app capture so nothing is readable; keep the Genovus orange accent visible."
+        },
+        {
+          "n": 3,
+          "timing": "0:07–0:10",
+          "description": "E1 shot 8, first second: Dee looks into the lens. Then the logo card.",
+          "dialogue": "TEXT: GENOVUS JUST KNOWS · Sunday 7PM ET",
+          "tool": "edit",
+          "prompt": "Freeze on Dee's look for 8 frames, cut to logo card. AI label in the corner."
+        }
+      ],
+      "thumb": "Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) sitting perfectly calm in a cheering theater crowd, one eyebrow raised, a knowing half-smile, her phone glowing softly in her hand. Everyone around her is a motion blur of panic and cheering; she is sharp and still."
     },
     {
-      "code": "gjk-e1", "kind": "episode", "sort": 3, "title": "The Night Out", "runtime_s": 45,
+      "code": "gjk-e1",
+      "kind": "episode",
+      "sort": 3,
+      "title": "The Night Out",
+      "runtime_s": 45,
       "logline": "Front-row seats, a showman mid-spin, and two friends who just remembered the Hendersons. Dee checks Genovus: it's already on tomorrow's list.",
       "script": "EXT. THEATER — NIGHT. A packed house. On stage, VELVET (sequined emerald jacket) spins, freezes, one finger to the sky. The crowd erupts.\n\nRow three: DEE, MARCUS and TASHA, out after work, cheering.\n\nMARCUS (stops mid-clap, leans in): Wait… did you call the Hendersons back?\nTASHA (slow horror): …I thought YOU did.\n\nThey both turn to DEE. She sips her drink. Unbothered. Pulls out her phone.\n\nINSERT — PHONE (real Genovus app, demo agency): FOLLOW-UPS · Tomorrow · your list is ready. 9:30 AM The Hendersons — Moving next month: review their coverage.\n\nDEE (turning the phone to them): Nine-thirty. It's on the list.\n\nRelief. Tasha clutches her chest. Marcus mouths “how?”\n\nOn stage, Velvet's finale: a knee slide into a freeze. The trio jumps up, cheering.\n\nDEE (to camera, deadpan): Genovus just knows.\n\nEND CARD: Genovus. “Don't take our word for it. Ask Helix.” genovus.io/vision · AI-generated video. App shown with demo data.",
       "music": "Original or commercially licensed live-band funk (horns, slap bass, ~112 BPM), diegetic from the stage, ducking under dialogue; drops out for “…I thought YOU did,” returns on Dee's phone reveal; stinger hit on “Genovus just knows.”",
       "shots": [
-        { "n": 1, "timing": "0:00–0:03", "description": "HOOK. Velvet mid-spin on stage, lands a freeze with one finger to the sky; spotlight flare; crowd erupts.", "camera": "Low angle from the front row, slow push-in, tiny whip on the landing.", "tool": "flow", "prompt": "Vertical 9:16 cinematic shot, 35mm film look. A lanky stage dancer in a sequined emerald-green jacket, white flared trousers and a slick pompadour spins fast on a vintage theater stage and lands a frozen pose with one finger pointed to the sky. Hard white spotlight, warm amber stage wash, haze in the air, silhouettes of a cheering crowd in the foreground. Low angle from the front row, slow push-in, a small whip-pan on the landing. Joyful, theatrical energy. Original character, not resembling any real person or performer." },
-        { "n": 2, "timing": "0:03–0:06", "description": "The crowd goes wild; we find our trio in row three, out after work, cheering.", "camera": "Crane down over the crowd, settle on the three friends.", "tool": "flow", "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Inside a packed vintage theater at night, the audience is on its feet cheering. The camera cranes down over the crowd and settles on three friends in the third row, dressed in after-work clothes: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer), Marcus (tall man, late 20s, short fade, maroon bomber) and Tasha (Latina woman, 30s, high ponytail, denim jacket). Warm stage light spill on their faces, haze, joyful. Use the character sheets for Dee, Marcus and Tasha. Original characters." },
-        { "n": 3, "timing": "0:06–0:10", "description": "Marcus stops mid-clap, his face drops, he leans to Tasha.", "camera": "Handheld two-shot, stage light flicker.", "dialogue": "MARCUS: Wait… did you call the Hendersons back?", "tool": "flow", "prompt": "Vertical 9:16 cinematic two-shot, 35mm film look, handheld. In a cheering theater crowd at night, Marcus (tall man, late 20s, short fade, maroon bomber) suddenly stops clapping, his smile drops, and he leans toward Tasha (Latina woman, 30s, high ponytail, denim jacket) and says: “Wait… did you call the Hendersons back?” Flickering stage light, crowd blur behind them. Comic timing. Use the character sheets. Original characters." },
-        { "n": 4, "timing": "0:10–0:13", "description": "Tasha's slow horror. The music drops out.", "camera": "Slow push-in to a close-up.", "dialogue": "TASHA: …I thought YOU did.", "tool": "flow", "prompt": "Vertical 9:16 cinematic close-up, 35mm film look. Tasha (Latina woman, 30s, high ponytail, statement earrings, denim jacket) in a dark theater crowd slowly turns her head, eyes widening in comic horror, and says quietly: “…I thought YOU did.” Slow push-in, background crowd soft and blurred, warm stage light on one side of her face. Use Tasha's character sheet. Original character." },
-        { "n": 5, "timing": "0:13–0:17", "description": "Both turn to Dee. She sips her drink, unbothered, one eyebrow up, and pulls out her phone.", "camera": "Quick whip-pan to Dee, then locked-off and still: the calm in the chaos.", "tool": "flow", "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Whip-pan to Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) sitting calmly in a cheering theater crowd. She takes a slow sip from a glass, raises one eyebrow, unbothered, and pulls a phone from her blazer pocket. The camera is locked-off and still on her while the crowd moves around her. Warm stage light. Use Dee's character sheet. Original character." },
-        { "n": 6, "timing": "0:17–0:23", "description": "INSERT, the proof: Dee's phone shows the real Genovus Follow-ups screen. Tomorrow · your list is ready · 9:30 AM The Hendersons.", "camera": "Over-the-shoulder macro on the phone; the screen is a real capture composited, or film a real phone.", "tool": "capture", "prompt": "Real app capture. Sign in as the Genovus team, open the demo agency's Follow-ups page on a phone (or Chrome device mode at 390 px), scroll to “Tomorrow · your list is ready” showing 9:30 AM The Hendersons. Screen-record 6 seconds with one slow scroll. Never film a real agency's data." },
-        { "n": 7, "timing": "0:23–0:28", "description": "Dee turns the phone to them. Relief: Tasha clutches her chest, Marcus mouths “how?”", "camera": "Reverse two-shot over Dee's shoulder, then a quick push on the friends.", "dialogue": "DEE: Nine-thirty. It's on the list.", "tool": "flow", "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Over Dee's shoulder (cream blazer, gold hoops) as she turns her phone screen toward her two friends and says calmly: “Nine-thirty. It's on the list.” Tasha (high ponytail, denim jacket) clutches her chest in relief; Marcus (maroon bomber, short fade) mouths “how?”. The phone screen faces away from camera. Warm stage light, theater crowd around them. Use the character sheets. Original characters." },
-        { "n": 8, "timing": "0:28–0:36", "description": "Back on stage: Velvet's finale knee-slide into a freeze; the trio jumps up cheering with the crowd.", "camera": "Wide from the back of the house, cut to the trio on their feet.", "tool": "flow", "prompt": "Vertical 9:16 cinematic shot, 35mm film look. The lanky stage dancer in a sequined emerald jacket and white flared trousers does a dramatic knee slide across a vintage theater stage into a frozen pose, spotlight and confetti, then cut to the audience where three friends (Dee in a cream blazer, Marcus in a maroon bomber, Tasha in a denim jacket) jump to their feet cheering. Euphoric, warm light, haze. Use the character sheets. Original characters." },
-        { "n": 9, "timing": "0:36–0:41", "description": "The button: the crowd keeps cheering, Dee turns her head and looks straight into the lens.", "camera": "Locked-off medium close-up on Dee; everything else in motion.", "dialogue": "DEE (to camera, deadpan): Genovus just knows.", "tool": "flow", "prompt": "Vertical 9:16 cinematic medium close-up, 35mm film look. In a cheering theater crowd, Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) calmly turns her head and looks straight into the camera lens, deadpan with the hint of a smile, and says: “Genovus just knows.” Camera locked-off; the crowd around her moves and cheers. Warm stage light. Use Dee's character sheet. Original character." },
-        { "n": 10, "timing": "0:41–0:45", "description": "End card: Genovus wordmark, “Don't take our word for it. Ask Helix.” genovus.io/vision. Disclosure line.", "tool": "edit", "prompt": "Dark end card in the Genovus palette, wordmark from /brand/genovus. Line 1: “Don't take our word for it. Ask Helix.” Line 2: genovus.io/vision. Small: “AI-generated video. App shown with demo data.” Stinger hit on the cut." }
-      ]
+        {
+          "n": 1,
+          "timing": "0:00–0:03",
+          "description": "HOOK. Velvet mid-spin on stage, lands a freeze with one finger to the sky; spotlight flare; crowd erupts.",
+          "camera": "Low angle from the front row, slow push-in, tiny whip on the landing.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. A lanky stage dancer in a sequined emerald-green jacket, white flared trousers and a slick pompadour spins fast on a vintage theater stage and lands a frozen pose with one finger pointed to the sky. Hard white spotlight, warm amber stage wash, haze in the air, silhouettes of a cheering crowd in the foreground. Low angle from the front row, slow push-in, a small whip-pan on the landing. Joyful, theatrical energy. Original character, not resembling any real person or performer."
+        },
+        {
+          "n": 2,
+          "timing": "0:03–0:06",
+          "description": "The crowd goes wild; we find our trio in row three, out after work, cheering.",
+          "camera": "Crane down over the crowd, settle on the three friends.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Inside a packed vintage theater at night, the audience is on its feet cheering. The camera cranes down over the crowd and settles on three friends in the third row, dressed in after-work clothes: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer), Marcus (tall man, late 20s, short fade, maroon bomber) and Tasha (Latina woman, 30s, high ponytail, denim jacket). Warm stage light spill on their faces, haze, joyful. Use the character sheets for Dee, Marcus and Tasha. Original characters."
+        },
+        {
+          "n": 3,
+          "timing": "0:06–0:10",
+          "description": "Marcus stops mid-clap, his face drops, he leans to Tasha.",
+          "camera": "Handheld two-shot, stage light flicker.",
+          "dialogue": "MARCUS: Wait… did you call the Hendersons back?",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic two-shot, 35mm film look, handheld. In a cheering theater crowd at night, Marcus (tall man, late 20s, short fade, maroon bomber) suddenly stops clapping, his smile drops, and he leans toward Tasha (Latina woman, 30s, high ponytail, denim jacket) and says: “Wait… did you call the Hendersons back?” Flickering stage light, crowd blur behind them. Comic timing. Use the character sheets. Original characters."
+        },
+        {
+          "n": 4,
+          "timing": "0:10–0:13",
+          "description": "Tasha's slow horror. The music drops out.",
+          "camera": "Slow push-in to a close-up.",
+          "dialogue": "TASHA: …I thought YOU did.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic close-up, 35mm film look. Tasha (Latina woman, 30s, high ponytail, statement earrings, denim jacket) in a dark theater crowd slowly turns her head, eyes widening in comic horror, and says quietly: “…I thought YOU did.” Slow push-in, background crowd soft and blurred, warm stage light on one side of her face. Use Tasha's character sheet. Original character."
+        },
+        {
+          "n": 5,
+          "timing": "0:13–0:17",
+          "description": "Both turn to Dee. She sips her drink, unbothered, one eyebrow up, and pulls out her phone.",
+          "camera": "Quick whip-pan to Dee, then locked-off and still: the calm in the chaos.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Whip-pan to Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) sitting calmly in a cheering theater crowd. She takes a slow sip from a glass, raises one eyebrow, unbothered, and pulls a phone from her blazer pocket. The camera is locked-off and still on her while the crowd moves around her. Warm stage light. Use Dee's character sheet. Original character."
+        },
+        {
+          "n": 6,
+          "timing": "0:17–0:23",
+          "description": "INSERT, the proof: Dee's phone shows the real Genovus Follow-ups screen. Tomorrow · your list is ready · 9:30 AM The Hendersons.",
+          "camera": "Over-the-shoulder macro on the phone; the screen is a real capture composited, or film a real phone.",
+          "tool": "capture",
+          "prompt": "Real app capture. Sign in as the Genovus team, open the demo agency's Follow-ups page on a phone (or Chrome device mode at 390 px), scroll to “Tomorrow · your list is ready” showing 9:30 AM The Hendersons. Screen-record 6 seconds with one slow scroll. Never film a real agency's data."
+        },
+        {
+          "n": 7,
+          "timing": "0:23–0:28",
+          "description": "Dee turns the phone to them. Relief: Tasha clutches her chest, Marcus mouths “how?”",
+          "camera": "Reverse two-shot over Dee's shoulder, then a quick push on the friends.",
+          "dialogue": "DEE: Nine-thirty. It's on the list.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Over Dee's shoulder (cream blazer, gold hoops) as she turns her phone screen toward her two friends and says calmly: “Nine-thirty. It's on the list.” Tasha (high ponytail, denim jacket) clutches her chest in relief; Marcus (maroon bomber, short fade) mouths “how?”. The phone screen faces away from camera. Warm stage light, theater crowd around them. Use the character sheets. Original characters."
+        },
+        {
+          "n": 8,
+          "timing": "0:28–0:36",
+          "description": "Back on stage: Velvet's finale knee-slide into a freeze; the trio jumps up cheering with the crowd.",
+          "camera": "Wide from the back of the house, cut to the trio on their feet.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. The lanky stage dancer in a sequined emerald jacket and white flared trousers does a dramatic knee slide across a vintage theater stage into a frozen pose, spotlight and confetti, then cut to the audience where three friends (Dee in a cream blazer, Marcus in a maroon bomber, Tasha in a denim jacket) jump to their feet cheering. Euphoric, warm light, haze. Use the character sheets. Original characters."
+        },
+        {
+          "n": 9,
+          "timing": "0:36–0:41",
+          "description": "The button: the crowd keeps cheering, Dee turns her head and looks straight into the lens.",
+          "camera": "Locked-off medium close-up on Dee; everything else in motion.",
+          "dialogue": "DEE (to camera, deadpan): Genovus just knows.",
+          "tool": "flow",
+          "prompt": "Vertical 9:16 cinematic medium close-up, 35mm film look. In a cheering theater crowd, Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) calmly turns her head and looks straight into the camera lens, deadpan with the hint of a smile, and says: “Genovus just knows.” Camera locked-off; the crowd around her moves and cheers. Warm stage light. Use Dee's character sheet. Original character."
+        },
+        {
+          "n": 10,
+          "timing": "0:41–0:45",
+          "description": "End card: Genovus wordmark, “Don't take our word for it. Ask Helix.” genovus.io/vision. Disclosure line.",
+          "tool": "edit",
+          "prompt": "Dark end card in the Genovus palette, wordmark from /brand/genovus. Line 1: “Don't take our word for it. Ask Helix.” Line 2: genovus.io/vision. Small: “AI-generated video. App shown with demo data.” Stinger hit on the cut."
+        }
+      ],
+      "thumb": "Hero key art: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) in the front of the frame, calm and amused, holding up her glowing phone, while behind her Marcus (maroon bomber) and Tasha (denim jacket) clutch each other in relief, and far behind them on a spotlit vintage stage a lanky showman in a sequined emerald jacket freezes mid-spin with one finger to the sky. Golden haze, confetti, theatrical light."
     },
     {
-      "code": "gjk-p1", "kind": "proof", "sort": 4, "title": "Ask Helix", "runtime_s": 30,
+      "code": "gjk-p1",
+      "kind": "proof",
+      "sort": 4,
+      "title": "Ask Helix",
+      "runtime_s": 30,
       "logline": "Not a commercial: a real screen recording of Helix, the AI inside Genovus, giving a live tour and taking questions.",
       "script": "Real screen recording, no AI video.\n\nTEXT (top): This isn't an ad. This is Helix, live.\nOpen genovus.io/vision on a phone, tap “Take the tour with Helix.” Helix greets you and opens the national map; it spotlights the office count.\nYOU (interrupting): “What does Genovus do for an agent like me?”\nHelix answers in two sentences and opens a chapter.\nTEXT (end): Talk to it yourself. genovus.io/vision\nDisclosure: Helix is an AI. Screens show the product vision with sample data.",
       "music": "None under Helix's voice. Optional soft bed on the end card only.",
       "shots": [
-        { "n": 1, "timing": "0:00–0:30", "description": "Phone screen recording of a real Helix tour, with your voice asking one question mid-tour.", "tool": "capture", "prompt": "On an iPhone or Android phone, turn on screen recording with the microphone on. Open genovus.io/vision?voice=YOUR_PICK, tap “Take the tour with Helix,” let it open the map and spotlight, then interrupt with: “What does Genovus do for an agent like me?” Stop after its answer. Trim to 30 seconds and add the two text cards." }
-      ]
+        {
+          "n": 1,
+          "timing": "0:00–0:30",
+          "description": "Phone screen recording of a real Helix tour, with your voice asking one question mid-tour.",
+          "tool": "capture",
+          "prompt": "On an iPhone or Android phone, turn on screen recording with the microphone on. Open genovus.io/vision?voice=YOUR_PICK, tap “Take the tour with Helix,” let it open the map and spotlight, then interrupt with: “What does Genovus do for an agent like me?” Stop after its answer. Trim to 30 seconds and add the two text cards."
+        }
+      ],
+      "thumb": "Close-up of a hand holding a phone in a warm, softly lit modern office at dusk; the phone screen glows with an abstract orange-gold voice waveform orb (no readable text, no UI words); bokeh lights behind; feeling of a live conversation with an AI assistant."
     }
   ],
   "posts": {
     "gjk-t1": {
       "when": "2026-10-10T10:00:00-04:00",
-      "facebook": { "caption": "Two of them forgot the follow-up. One of them didn't. 👀\n\nGenovus Just Knows, a new series for insurance agents. Premieres Sunday 7PM ET.\n\n{link}\n\nAI-generated video. #GenovusJustKnows" },
-      "instagram": { "caption": "Two forgot. One didn't. 👀\nGenovus Just Knows · premieres Sunday 7PM ET\nLink in bio.\n\nAI-generated video.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife #SmallBusinessOwner" },
-      "tiktok": { "caption": "POV: you realize nobody called them back 😳 #GenovusJustKnows #insuranceagent #agencylife #insurancetiktok" },
-      "youtube": { "title": "Did You Call Them Back? 😳 | Genovus Just Knows (Teaser)", "caption": "Two of them forgot the follow-up. One of them didn't. Genovus Just Knows premieres Sunday 7PM ET.\n\nAsk Helix how it works: {link}\n\nAI-generated video. #GenovusJustKnows #Shorts" }
+      "facebook": {
+        "caption": "Two of them forgot the follow-up. One of them didn't. 👀\n\nGenovus Just Knows, a new series for insurance agents. Premieres Sunday 7PM ET.\n\n{link}\n\nAI-generated video. #GenovusJustKnows"
+      },
+      "instagram": {
+        "caption": "Two forgot. One didn't. 👀\nGenovus Just Knows · premieres Sunday 7PM ET\nLink in bio.\n\nAI-generated video.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife #SmallBusinessOwner"
+      },
+      "tiktok": {
+        "caption": "POV: you realize nobody called them back 😳 #GenovusJustKnows #insuranceagent #agencylife #insurancetiktok"
+      },
+      "youtube": {
+        "title": "Did You Call Them Back? 😳 | Genovus Just Knows (Teaser)",
+        "caption": "Two of them forgot the follow-up. One of them didn't. Genovus Just Knows premieres Sunday 7PM ET.\n\nAsk Helix how it works: {link}\n\nAI-generated video. #GenovusJustKnows #Shorts"
+      }
     },
     "gjk-t2": {
       "when": "2026-10-10T18:00:00-04:00",
-      "facebook": { "caption": "Everyone's panicking. She's not. What does she know? 🤔\n\nGenovus Just Knows · Sunday 7PM ET\n\n{link}\n\nAI-generated video. #GenovusJustKnows" },
-      "instagram": { "caption": "Everyone's panicking. She's not. 🤔\nWhat does she know?\nGenovus Just Knows · Sunday 7PM ET · link in bio\n\nAI-generated video.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife" },
-      "tiktok": { "caption": "the coworker who's never stressed 💅 what does she know?? #GenovusJustKnows #insuranceagent #agencylife #coworkers" },
-      "youtube": { "title": "She's Not Worried 💅 | Genovus Just Knows (Teaser 2)", "caption": "Everyone's panicking. She's not. What does she know? Genovus Just Knows premieres Sunday 7PM ET.\n\n{link}\n\nAI-generated video. #GenovusJustKnows #Shorts" }
+      "facebook": {
+        "caption": "Everyone's panicking. She's not. What does she know? 🤔\n\nGenovus Just Knows · Sunday 7PM ET\n\n{link}\n\nAI-generated video. #GenovusJustKnows"
+      },
+      "instagram": {
+        "caption": "Everyone's panicking. She's not. 🤔\nWhat does she know?\nGenovus Just Knows · Sunday 7PM ET · link in bio\n\nAI-generated video.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife"
+      },
+      "tiktok": {
+        "caption": "the coworker who's never stressed 💅 what does she know?? #GenovusJustKnows #insuranceagent #agencylife #coworkers"
+      },
+      "youtube": {
+        "title": "She's Not Worried 💅 | Genovus Just Knows (Teaser 2)",
+        "caption": "Everyone's panicking. She's not. What does she know? Genovus Just Knows premieres Sunday 7PM ET.\n\n{link}\n\nAI-generated video. #GenovusJustKnows #Shorts"
+      }
     },
     "gjk-e1": {
       "when": "2026-10-11T19:00:00-04:00",
-      "facebook": { "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\n\nEpisode 1 of Genovus Just Knows: when the night gets loud, Genovus lines up every follow-up you logged, so tomorrow's list is ready the night before.\n\nDon't take our word for it. Ask Helix, the AI inside Genovus 👉 {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows" },
-      "instagram": { "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\nEp. 1 · The Night Out\n\nEvery follow-up you log, lined up by day. Tomorrow's list is ready the night before.\nDon't take our word for it: ask Helix. Link in bio.\n\nAI-generated video. App shown with demo data.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife #SmallBusinessOwner" },
-      "tiktok": { "caption": "she said what she said 💅 genovus just knows #GenovusJustKnows #insuranceagent #agencylife #insurancetiktok #coworkers" },
-      "youtube": { "title": "The Night Out | Genovus Just Knows (Ep. 1)", "caption": "Two of them forgot the follow-up. Dee checked Genovus.\n\nGenovus lines up every follow-up you log by day, so tomorrow's list is ready the night before. Ask Helix how it works: {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows #Shorts" }
+      "facebook": {
+        "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\n\nEpisode 1 of Genovus Just Knows: when the night gets loud, Genovus lines up every follow-up you logged, so tomorrow's list is ready the night before.\n\nDon't take our word for it. Ask Helix, the AI inside Genovus 👉 {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows"
+      },
+      "instagram": {
+        "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\nEp. 1 · The Night Out\n\nEvery follow-up you log, lined up by day. Tomorrow's list is ready the night before.\nDon't take our word for it: ask Helix. Link in bio.\n\nAI-generated video. App shown with demo data.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife #SmallBusinessOwner"
+      },
+      "tiktok": {
+        "caption": "she said what she said 💅 genovus just knows #GenovusJustKnows #insuranceagent #agencylife #insurancetiktok #coworkers"
+      },
+      "youtube": {
+        "title": "The Night Out | Genovus Just Knows (Ep. 1)",
+        "caption": "Two of them forgot the follow-up. Dee checked Genovus.\n\nGenovus lines up every follow-up you log by day, so tomorrow's list is ready the night before. Ask Helix how it works: {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows #Shorts"
+      }
     },
     "gjk-p1": {
       "when": "2026-10-12T09:30:00-04:00",
-      "facebook": { "caption": "This isn't an ad. It's Helix, the AI inside Genovus, giving a live tour. Interrupt it. Ask it anything.\n\nTry it yourself 👉 {link}\n\nHelix is an AI. The tour shows our product vision with sample data. #GenovusJustKnows" },
-      "instagram": { "caption": "This isn't an ad. This is Helix, live. 🎙️\nThe AI inside Genovus gives you the tour. Interrupt it. Ask it anything.\nTry it: link in bio.\n\nHelix is an AI. Tour shows our product vision with sample data.\n#GenovusJustKnows #InsuranceAgent #AI #AgencyLife" },
-      "tiktok": { "caption": "i interrupted the AI mid-tour and it just... answered 🤯 try it (link in bio) #GenovusJustKnows #AI #insuranceagent #agencylife" },
-      "youtube": { "title": "I Interrupted an AI Mid-Tour 🤯 | Ask Helix", "caption": "Not an ad: a real screen recording of Helix, the AI inside Genovus, giving a live tour and answering questions.\n\nTalk to it yourself: {link}\n\nHelix is an AI. The tour shows our product vision with sample data. #GenovusJustKnows #Shorts" }
+      "facebook": {
+        "caption": "This isn't an ad. It's Helix, the AI inside Genovus, giving a live tour. Interrupt it. Ask it anything.\n\nTry it yourself 👉 {link}\n\nHelix is an AI. The tour shows our product vision with sample data. #GenovusJustKnows"
+      },
+      "instagram": {
+        "caption": "This isn't an ad. This is Helix, live. 🎙️\nThe AI inside Genovus gives you the tour. Interrupt it. Ask it anything.\nTry it: link in bio.\n\nHelix is an AI. Tour shows our product vision with sample data.\n#GenovusJustKnows #InsuranceAgent #AI #AgencyLife"
+      },
+      "tiktok": {
+        "caption": "i interrupted the AI mid-tour and it just... answered 🤯 try it (link in bio) #GenovusJustKnows #AI #insuranceagent #agencylife"
+      },
+      "youtube": {
+        "title": "I Interrupted an AI Mid-Tour 🤯 | Ask Helix",
+        "caption": "Not an ad: a real screen recording of Helix, the AI inside Genovus, giving a live tour and answering questions.\n\nTalk to it yourself: {link}\n\nHelix is an AI. The tour shows our product vision with sample data. #GenovusJustKnows #Shorts"
+      }
     }
   },
-  "src": { "facebook": "fb", "instagram": "ig", "tiktok": "tiktok", "youtube": "yt" },
+  "src": {
+    "facebook": "fb",
+    "instagram": "ig",
+    "tiktok": "tiktok",
+    "youtube": "yt"
+  },
   "demo_follow_ups": [
-    { "who": "The Hendersons", "reason": "Moving next month: review their coverage", "day": 1, "at": "09:30" },
-    { "who": "Maria Delgado", "reason": "New teen driver in the house", "day": 1, "at": "10:15" },
-    { "who": "Okafor Bakery", "reason": "Asked about coverage for the new location", "day": 1, "at": "11:00" },
-    { "who": "Jim & Pat Larson", "reason": "Renewal questions: call after lunch", "day": 1, "at": "13:30" },
-    { "who": "Sofia Tran", "reason": "Just bought her first home", "day": 0, "at": "16:00" },
-    { "who": "Coach Rivera", "reason": "Youth league event: follow up on the sign-up sheet", "day": 3, "at": "10:00" }
+    {
+      "who": "The Hendersons",
+      "reason": "Moving next month: review their coverage",
+      "day": 1,
+      "at": "09:30"
+    },
+    {
+      "who": "Maria Delgado",
+      "reason": "New teen driver in the house",
+      "day": 1,
+      "at": "10:15"
+    },
+    {
+      "who": "Okafor Bakery",
+      "reason": "Asked about coverage for the new location",
+      "day": 1,
+      "at": "11:00"
+    },
+    {
+      "who": "Jim & Pat Larson",
+      "reason": "Renewal questions: call after lunch",
+      "day": 1,
+      "at": "13:30"
+    },
+    {
+      "who": "Sofia Tran",
+      "reason": "Just bought her first home",
+      "day": 0,
+      "at": "16:00"
+    },
+    {
+      "who": "Coach Rivera",
+      "reason": "Youth league event: follow up on the sign-up sheet",
+      "day": 3,
+      "at": "10:00"
+    }
   ]
 }

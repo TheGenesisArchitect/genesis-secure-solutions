@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioSetCanonical, studioRegisterUpload, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -169,6 +169,52 @@ export function FinalUpload({ episodeId, hasFinal }: { episodeId: string; hasFin
     <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
       <input ref={file} type="file" accept="video/mp4,video/quicktime,video/webm" hidden onChange={(e) => onFile(e.target.files?.[0])} />
       <button className="btn small primary" type="button" disabled={!!busy} onClick={() => file.current?.click()}>{busy || (hasFinal ? 'Upload a new cut' : 'Upload the final cut')}</button>
+    </div>
+  );
+}
+
+export type Art = { id: string; status: string; chosen: boolean; error: string | null; created_at: string };
+
+export function Thumbnails({ episodeId, defaultPrompt, art, costLabel }: { episodeId: string; defaultPrompt: string; art: Art[]; costLabel: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState(defaultPrompt);
+  const [edit, setEdit] = useState(false);
+  const generate = async () => {
+    setBusy(true);
+    ok('Making key art… about 20–40 seconds.');
+    const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'thumb', episode: episodeId, prompt: text }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+    setBusy(false);
+    if (r.okay) ok(`Thumbnail ready${r.j.refs ? ` (cast references: ${r.j.refs})` : ''}.`); else err(r.j.error ?? 'Could not generate.');
+    router.refresh();
+  };
+  return (
+    <div className="grid" style={{ gap: 10 }}>
+      {art.length ? (
+        <div className="take-strip">
+          {art.map((a) => (
+            <figure key={a.id} className={'take poster' + (a.chosen ? ' chosen' : '')}>
+              {a.status === 'ready' ? <a href={`/api/studio/thumb/${a.id}`} target="_blank" rel="noreferrer"><img src={`/api/studio/thumb/${a.id}`} alt="Thumbnail" loading="lazy" /></a> : <div className="take-wait">{a.status === 'failed' ? <span>✕ {a.error ?? 'Failed'}</span> : <><span className="take-spin" />Drawing…</>}</div>}
+              {a.status === 'ready' ? (
+                <figcaption>
+                  {a.chosen ? <b className="take-chosen">✓ Episode thumbnail</b> : (
+                    <button className="btn small" type="button" onClick={async () => { const f = new FormData(); f.set('id', a.id); toast(await studioChooseArt(null, f)); router.refresh(); }}>Use for posts</button>
+                  )}
+                  <span className="row" style={{ gap: 4 }}>
+                    <a className="btn small ghost" href={`/api/studio/thumb/${a.id}?download=1`}>9:16</a>
+                    <a className="btn small ghost" href={`/api/studio/thumb/${a.id}?size=1x1&download=1`}>1:1</a>
+                  </span>
+                </figcaption>
+              ) : null}
+            </figure>
+          ))}
+        </div>
+      ) : null}
+      {edit ? <textarea className="input" rows={4} value={text} onChange={(e) => setText(e.target.value)} aria-label="Thumbnail prompt" /> : null}
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn small primary" type="button" disabled={busy || text.trim().length < 10} onClick={generate}>{busy ? 'Drawing…' : `Generate thumbnail · ${costLabel}`}</button>
+        <button className="btn small ghost" type="button" onClick={() => setEdit(!edit)}>{edit ? 'Hide prompt' : 'Edit prompt'}</button>
+      </div>
     </div>
   );
 }

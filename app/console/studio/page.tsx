@@ -38,6 +38,11 @@ export default async function Studio() {
     supabase.from('studio_budget').select('monthly_cap_cents, approval_over_cents').maybeSingle(),
     supabase.rpc('studio_spent_cents'),
   ]);
+  const [{ data: covers }, { data: takes }] = await Promise.all([
+    supabase.from('studio_art').select('id, episode_id').eq('chosen', true).eq('status', 'ready'),
+    supabase.from('studio_takes').select('id, kind, studio_shots!inner(n, studio_episodes!inner(code, title))').eq('status', 'ready').order('created_at', { ascending: false }).limit(12),
+  ]);
+  const coverFor = new Map((covers ?? []).map((c) => [c.episode_id, c.id]));
   const cap = budget?.monthly_cap_cents ?? 15000;
   const used = Number(spent ?? 0);
   const bible = (series?.bible ?? {}) as Bible;
@@ -62,7 +67,42 @@ export default async function Studio() {
             <Tile label="Helix tours from the campaign" value={<span className="num">{tours?.length ?? 0}</span>} hint={`${inq?.length ?? 0} inquiries credited`} />
           </div>
 
-          <Panel title="Cast" sub={generationConfigured() ? 'Generate a reference sheet for each character, then pick the one that becomes their look in every shot (Nano Banana Pro)' : 'Generation runs on genovus.io (the Gemini key lives in production)'}>
+          <section className="gallery" aria-label="Season 1 gallery">
+            {(eps ?? []).map((e) => {
+              const s = (shots ?? []).filter((x) => x.episode_id === e.id);
+              const p = (posts ?? []).filter((x) => x.episode_id === e.id);
+              const cover = coverFor.get(e.id);
+              return (
+                <Link key={e.id} href={`/console/studio/${e.code}`} className="gv-poster">
+                  {cover ? <img src={`/api/studio/thumb/${cover}`} alt={`${e.title} cover`} loading="lazy" /> : (
+                    <span className="gv-poster-blank"><img src="/brand/genovus/genovus-mark.svg" alt="" /><b>{e.title}</b><small>Generate a thumbnail →</small></span>
+                  )}
+                  <span className="gv-poster-meta">
+                    <span className="row" style={{ gap: 6 }}><Chip kind="info">{KIND[e.kind]}</Chip><Chip kind={STAGE[e.status]}>{e.status}</Chip></span>
+                    <b>{e.title}</b>
+                    <small>{e.runtime_s}s · shots {s.filter((x) => x.status === 'approved' || x.status === 'take_ok').length}/{s.length} · posts {p.filter((x) => x.status === 'posted').length}/{p.length}</small>
+                  </span>
+                </Link>
+              );
+            })}
+          </section>
+          {(takes ?? []).length ? (
+            <Panel title="Fresh takes" sub="The latest shots out of the Studio">
+              <div className="take-strip">
+                {(takes ?? []).map((tk) => {
+                  const sh = tk.studio_shots as unknown as { n: number; studio_episodes: { code: string; title: string } };
+                  return (
+                    <Link key={tk.id} href={`/console/studio/${sh.studio_episodes.code}`} className="take gv-take">
+                      <video src={`/api/studio/media/take/${tk.id}#t=0.5`} muted playsInline preload="metadata" />
+                      <span className="muted" style={{ fontSize: 12 }}>{sh.studio_episodes.title} · shot {sh.n}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </Panel>
+          ) : null}
+
+          <Panel title="Cast · the faces of Genovus" sub={generationConfigured() ? 'Generate a reference sheet for each character, then pick the one that becomes their look in every shot (Nano Banana Pro)' : 'Generation runs on genovus.io (the Gemini key lives in production)'}>
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,300px),1fr))', alignItems: 'start' }}>
               {(bible.characters ?? []).map((ch) => (
                 <div key={ch.name} className="tile" style={{ gap: 8 }}>
@@ -81,22 +121,6 @@ export default async function Studio() {
             ) : null}
           </Panel>
 
-          <Panel title="Episodes" sub="Open one for its script, shots with ready-to-paste Flow prompts, and the posting kit">
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,260px),1fr))' }}>
-              {(eps ?? []).map((e) => {
-                const s = (shots ?? []).filter((x) => x.episode_id === e.id);
-                const p = (posts ?? []).filter((x) => x.episode_id === e.id);
-                return (
-                  <Link key={e.id} href={`/console/studio/${e.code}`} className="tile studio-ep">
-                    <span className="spread"><Chip kind="info">{KIND[e.kind]}</Chip><Chip kind={STAGE[e.status]}>{e.status}</Chip></span>
-                    <b style={{ font: '800 18px var(--display)' }}>{e.title}</b>
-                    <span className="muted" style={{ fontSize: 13 }}>{e.logline}</span>
-                    <span className="muted" style={{ fontSize: 12 }}>{e.runtime_s}s · shots {s.filter((x) => x.status === 'approved').length}/{s.length} · posts {p.filter((x) => x.status === 'posted').length}/{p.length}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </Panel>
 
           <div className="grid g2" style={{ alignItems: 'start' }}>
             <Panel title="Posting schedule" sub="Eastern time · organic only · each post approved before it goes out">

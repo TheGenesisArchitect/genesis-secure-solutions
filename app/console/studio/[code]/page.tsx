@@ -9,8 +9,8 @@ import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted } from '@/lib/actions';
-import { ShotTakes, FinalUpload, type Take } from '@/components/studio/StudioClient';
-import { VIDEO_CENTS, VIDEO_SECONDS } from '@/lib/studio-gen';
+import { ShotTakes, FinalUpload, Thumbnails, type Take, type Art } from '@/components/studio/StudioClient';
+import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS } from '@/lib/studio-gen';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +29,14 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const supabase = await db();
   const { data: e } = await supabase.from('studio_episodes').select('*, studio_series(name, bible)').eq('code', code).maybeSingle();
   if (!e) notFound();
-  const [{ data: shots }, { data: posts }, { data: takeRows }] = await Promise.all([
+  const [{ data: shots }, { data: posts }, { data: takeRows }, { data: artRows }] = await Promise.all([
     supabase.from('studio_shots').select('*').eq('episode_id', e.id).order('n'),
     supabase.from('studio_posts').select('*').eq('episode_id', e.id).order('platform'),
     supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, created_at, studio_shots!inner(episode_id)').eq('studio_shots.episode_id', e.id).order('created_at', { ascending: false }),
+    supabase.from('studio_art').select('id, status, chosen, error, created_at').eq('episode_id', e.id).order('created_at', { ascending: false }),
   ]);
+  const art = (artRows ?? []) as Art[];
+  const thumb = art.find((a) => a.chosen && a.status === 'ready');
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
   const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
   const series = e.studio_series as { name: string; bible: { platform_notes?: Record<string, string> } } | null;
@@ -62,6 +65,10 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
           {approved ? <Chip kind="done">Approved {e.approved_at ? new Date(e.approved_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) : ''}</Chip> : <span className="muted" style={{ fontSize: 13 }}>Before approving: AI label planned for every platform, captions burned in, no carrier names or logos, phone shows demo data only.</span>}
         </Panel>
       </div>
+
+      <Panel title="Thumbnails" sub="Key art with the Genovus signature frame. The chosen one is the cover for every post of this episode; download 9:16 for Reels, Shorts and TikTok, 1:1 for the feed.">
+        <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
+      </Panel>
 
       <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others.">
         <ol className="studio-shots">
@@ -108,6 +115,12 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
                 <label className="field"><span>Post at (Eastern)</span><input className="input" type="datetime-local" name="when" defaultValue={etInput(p.scheduled_for)} disabled={p.status === 'posted'} /></label>
                 {p.status !== 'posted' ? <button className="btn small" type="submit">Save edits</button> : null}
               </ActionForm>
+              {thumb ? (
+                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                  <img className="post-thumb" src={`/api/studio/thumb/${thumb.id}`} alt="Cover" loading="lazy" />
+                  <span className="grid" style={{ gap: 4 }}><span className="muted" style={{ fontSize: 12 }}>Cover image</span><a className="btn small ghost" href={`/api/studio/thumb/${thumb.id}?download=1`}>Download 9:16</a></span>
+                </div>
+              ) : <span className="muted" style={{ fontSize: 12 }}>No cover yet: generate a thumbnail above.</span>}
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                 <CopyButton text={p.platform === 'youtube' && p.title ? `${p.title}\n\n${p.caption}` : p.caption} label="Copy caption" />
                 <CopyButton text={p.link} label="Copy tracked link" />

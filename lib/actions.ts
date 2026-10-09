@@ -366,3 +366,7 @@ export async function studioRegisterUpload(kind: 'take' | 'final', target: strin
   revalidatePath('/', 'layout');
   return error ? fail(error.message) : done(kind === 'take' ? 'Recording added as a take.' : 'Final cut uploaded. Review it, then approve.');
 }
+
+export async function studioChooseArt(_: ActionResult, f: FormData) {
+  return call('studio_choose_art', { p_id: str(f, 'id', 64) }, 'Thumbnail set for every post of this episode.');
+}

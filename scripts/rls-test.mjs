@@ -154,7 +154,7 @@ try {
 
   // Genovus's own growth data (campaigns, scanner, prospects, finance) is staff-only: agency members and
   // network partners read nothing and can call nothing that writes it.
-  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage', 'helix_tour_sessions', 'helix_notes', 'studio_series', 'studio_episodes', 'studio_shots', 'studio_posts', 'studio_refs', 'studio_takes', 'studio_budget'];
+  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage', 'helix_tour_sessions', 'helix_notes', 'studio_series', 'studio_episodes', 'studio_shots', 'studio_posts', 'studio_refs', 'studio_takes', 'studio_budget', 'studio_art'];
   const seed = { prospect: (await admin.from('prospects').insert({ place_id: `rls-test-${stamp}`, segment: 'independent' }).select('id').single()).data };
   for (const [who, c] of [['agency owner', owner], ['network partner', netUser], ['signed out', anon]]) {
     for (const t of staffOnly) {
