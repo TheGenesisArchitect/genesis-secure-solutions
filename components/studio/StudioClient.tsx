@@ -11,7 +11,7 @@ const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
 const err = (msg: string) => toast({ err: msg, at: Date.now() });
 
-export type Take = { id: string; kind: string; status: string; chosen: boolean; error: string | null; cost_cents: number; created_at: string };
+export type Take = { id: string; kind: string; status: string; chosen: boolean; error: string | null; cost_cents: number; created_at: string; params?: { method?: string; cast?: string[] } | null };
 export type Ref = { id: string; character: string; status: string; canonical: boolean; error: string | null; created_at: string };
 
 async function sha256(file: File): Promise<string> {
@@ -92,6 +92,7 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
                 {t.status === 'ready' ? (t.chosen ? <b className="take-chosen">✓ In the edit</b> : <Choose id={t.id} />) : null}
                 {t.status === 'ready' ? <a className="btn small ghost" href={`/api/studio/media/take/${t.id}?download=1`}>Download</a> : null}
               </figcaption>
+              {t.params?.cast?.length ? <span className={'take-cast' + (t.params.method === 'prompt' ? ' off' : '')} title={t.params.cast.join(', ')}>Cast via {t.params.method === 'keyframe' ? 'keyframe' : t.params.method === 'references' ? 'references' : 'prompt only'}</span> : null}
               {t.error && t.status === 'ready' ? <span className="muted" style={{ fontSize: 11 }}>{t.error}</span> : null}
             </figure>
           ))}

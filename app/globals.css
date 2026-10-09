@@ -611,3 +611,5 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 
 .topbar-title{flex:1 1 auto}
 .topbar-extra{gap:8px}
+.take-cast{font:600 10.5px var(--mono);letter-spacing:.06em;color:var(--done)}
+.take-cast.off{color:var(--warn)}

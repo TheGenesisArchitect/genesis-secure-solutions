@@ -32,7 +32,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const [{ data: shots }, { data: posts }, { data: takeRows }, { data: artRows }] = await Promise.all([
     supabase.from('studio_shots').select('*').eq('episode_id', e.id).order('n'),
     supabase.from('studio_posts').select('*').eq('episode_id', e.id).order('platform'),
-    supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, created_at, studio_shots!inner(episode_id)').eq('studio_shots.episode_id', e.id).order('created_at', { ascending: false }),
+    supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, created_at, params, studio_shots!inner(episode_id)').eq('studio_shots.episode_id', e.id).order('created_at', { ascending: false }),
     supabase.from('studio_art').select('id, status, chosen, error, created_at').eq('episode_id', e.id).order('created_at', { ascending: false }),
   ]);
   const art = (artRows ?? []) as Art[];

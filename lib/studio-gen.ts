@@ -66,42 +66,93 @@ export async function generateRef(id: string): Promise<{ ok: boolean; error?: st
   }
 }
 
-/** Start a Veo take (already reserved): sends the shot prompt with the cast's canonical sheets as references. */
+/** One image from Nano Banana Pro: a prompt plus reference images (inline), at 9:16 2K. */
+async function nanoImage(model: string, parts: Record<string, unknown>[]): Promise<{ data: string; mimeType: string }> {
+  const res = await fetch(`${BASE()}/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST', headers: headers(), signal: AbortSignal.timeout(110_000),
+    body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '9:16', imageSize: '2K' } } }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] }; finishReason?: string }[]; error?: { message?: string }; promptFeedback?: { blockReason?: string } };
+  if (!res.ok) throw new Error(j.error?.message || `HTTP ${res.status}`);
+  const part = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+  if (!part?.inlineData?.data) throw new Error(j.promptFeedback?.blockReason ? `Blocked: ${j.promptFeedback.blockReason}` : `No image returned (${j.candidates?.[0]?.finishReason ?? 'unknown'})`);
+  return { data: part.inlineData.data, mimeType: part.inlineData.mimeType ?? 'image/png' };
+}
+
+const KEYFRAME_STYLE = 'The FIRST FRAME of a cinematic vertical 9:16 film shot, 35mm film look, photoreal, natural skin texture, warm practical light. Compose exactly the moment described. The people in it must be the characters from the reference sheets provided: identical faces, hair, skin tone, build and wardrobe. No text, logos or watermarks.';
+
+type VeoImage = { bytesBase64Encoded: string; mimeType: string } | { inlineData: { data: string; mimeType: string } };
+const asBytes = (i: { data: string; mimeType: string }): VeoImage => ({ bytesBase64Encoded: i.data, mimeType: i.mimeType });
+const asInline = (i: { data: string; mimeType: string }): VeoImage => ({ inlineData: i });
+
+/**
+ * Start a Veo take (already reserved). Continuity first: when the shot names cast members, their faces must come
+ * from the reference sheets. Route 1 sends the sheets as Veo reference images; if Veo refuses them, route 2 paints
+ * the shot's first frame with Nano Banana Pro from the sheets and has Veo animate that exact frame. If neither is
+ * accepted the take fails at no cost instead of inventing different people.
+ */
 export async function startTake(id: string): Promise<{ ok: boolean; error?: string }> {
   const db = adminDb();
   const { data: t } = await db.from('studio_takes').select('*').eq('id', id).single();
   if (!t) return { ok: false, error: 'not found' };
-  const refs: { image: { inlineData: { data: string; mimeType: string } }; referenceType: 'asset' }[] = [];
+  const sheets: { character: string; img: { data: string; mimeType: string } }[] = [];
   if (t.ref_ids?.length) {
-    const { data: rows } = await db.from('studio_refs').select('blob_path').in('id', t.ref_ids).eq('status', 'ready');
+    const { data: rows } = await db.from('studio_refs').select('character, blob_path').in('id', t.ref_ids).eq('status', 'ready');
     for (const row of (rows ?? []).slice(0, 3)) {
       const img = row.blob_path ? await blobBase64(row.blob_path) : null;
-      if (img) refs.push({ image: { inlineData: img }, referenceType: 'asset' });
+      if (img) sheets.push({ character: row.character, img });
     }
   }
-  const call = async (withRefs: boolean) => fetch(`${BASE()}/models/${encodeURIComponent(t.model)}:predictLongRunning`, {
-    method: 'POST', headers: headers(), signal: AbortSignal.timeout(60_000),
-    body: JSON.stringify({
-      instances: [{ prompt: t.prompt, ...(withRefs && refs.length ? { referenceImages: refs } : {}) }],
-      parameters: { aspectRatio: '9:16', durationSeconds: VIDEO_SECONDS, resolution: '1080p', personGeneration: withRefs && refs.length ? 'allow_adult' : 'allow_all' },
-    }),
-  });
+  const params = { aspectRatio: '9:16', durationSeconds: VIDEO_SECONDS, resolution: '1080p' };
+  const veo = async (instance: Record<string, unknown>, personGeneration: string) => {
+    const res = await fetch(`${BASE()}/models/${encodeURIComponent(t.model)}:predictLongRunning`, {
+      method: 'POST', headers: headers(), signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({ instances: [{ prompt: t.prompt, ...instance }], parameters: { ...params, personGeneration } }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { name?: string; error?: { message?: string } };
+    return (res.ok && j.name ? { name: j.name } : { error: j.error?.message ?? `HTTP ${res.status}` }) as { name: string } | { error: string };
+  };
+  const tried: string[] = [];
   try {
-    let res = await call(true);
-    let j = (await res.json().catch(() => ({}))) as { name?: string; error?: { message?: string } };
-    let note: string | null = null;
-    if (!res.ok && refs.length) {
-      // Reference images aren't accepted for this request: generate from the prompt alone and say so.
-      note = `References not accepted (${j.error?.message ?? res.status}); generated from the prompt only.`;
-      res = await call(false);
-      j = (await res.json().catch(() => ({}))) as { name?: string; error?: { message?: string } };
+    let started: { name: string } | null = null;
+    let method = 'prompt';
+    let extraCents = 0;
+    if (!sheets.length) {
+      const r = await veo({}, 'allow_all');
+      if ('error' in r) throw new Error(r.error);
+      started = r;
+    } else {
+      // Route 1: the sheets as reference images (both image encodings the API has documented).
+      for (const enc of [asBytes, asInline]) {
+        const r = await veo({ referenceImages: sheets.map((s) => ({ image: enc(s.img), referenceType: 'asset' })) }, 'allow_adult');
+        if ('name' in r) { started = r; method = 'references'; break; }
+        tried.push(`references: ${r.error}`);
+      }
+      // Route 2: a keyframe painted from the sheets, animated by Veo.
+      if (!started) {
+        const parts: Record<string, unknown>[] = [{ text: `${KEYFRAME_STYLE}
+
+The shot: ${t.prompt}` }];
+        for (const s of sheets) parts.push({ text: `Reference sheet for ${s.character}: match this person exactly.` }, { inlineData: s.img });
+        const frame = await nanoImage(IMAGE_MODEL(), parts);
+        extraCents = IMAGE_CENTS;
+        await put(`studio/frames/${id}.${frame.mimeType === 'image/jpeg' ? 'jpg' : 'png'}`, Buffer.from(frame.data, 'base64'), { access: 'private', contentType: frame.mimeType, addRandomSuffix: false, allowOverwrite: true });
+        for (const enc of [asBytes, asInline]) {
+          const r = await veo({ image: enc(frame) }, 'allow_adult');
+          if ('name' in r) { started = r; method = 'keyframe'; break; }
+          tried.push(`keyframe: ${r.error}`);
+        }
+      }
+      if (!started) throw new Error(`Veo wouldn't take the cast's reference images, so nothing was generated (no charge). ${tried.join(' | ')}`.slice(0, 600));
     }
-    if (!res.ok || !j.name) throw new Error(j.error?.message || `HTTP ${res.status}`);
-    await db.from('studio_takes').update({ status: 'running', operation: j.name, error: note, params: { ...(t.params ?? {}), refs: note ? 0 : refs.length }, updated_at: now() }).eq('id', id);
+    await db.from('studio_takes').update({
+      status: 'running', operation: started.name, error: null, cost_cents: t.cost_cents + extraCents,
+      params: { ...(t.params ?? {}), method, cast: sheets.map((s) => s.character), tried: tried.length ? tried : undefined }, updated_at: now(),
+    }).eq('id', id);
     return { ok: true };
   } catch (e) {
-    const msg = e instanceof Error ? e.message.slice(0, 300) : 'failed';
-    await db.from('studio_takes').update({ status: 'failed', error: msg, cost_cents: 0, updated_at: now() }).eq('id', id);
+    const msg = e instanceof Error ? e.message.slice(0, 600) : 'failed';
+    await db.from('studio_takes').update({ status: 'failed', error: msg, cost_cents: 0, params: { ...(t.params ?? {}), tried }, updated_at: now() }).eq('id', id);
     return { ok: false, error: msg };
   }
 }
