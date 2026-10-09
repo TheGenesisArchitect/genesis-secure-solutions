@@ -61,7 +61,7 @@ export default function HeroScene({ onReady }: { onReady?: () => void }) {
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     const markMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, metalness: 0.15, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 0.3, sheenColor: new THREE.Color("#ffd38a"), emissive: new THREE.Color("#ff4a10"), emissiveIntensity: 0.08 });
     const mark = new THREE.Mesh(geo, markMat);
-    mark.scale.setScalar(1.75);
+    mark.scale.setScalar(1.5);
     mark.rotation.z = -0.14; // tipped 8 degrees
 
     const world = new THREE.Group();
