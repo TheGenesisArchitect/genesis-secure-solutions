@@ -2,7 +2,7 @@
 // 975 x 610), so the browser receives finished SVG paths, never map data.
 import 'server-only';
 import { feature, mesh } from 'topojson-client';
-import { geoPath } from 'd3-geo';
+import { geoPath, geoAlbersUsa } from 'd3-geo';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import states from 'us-atlas/states-albers-10m.json';
 
@@ -35,4 +35,11 @@ export function usStates() {
   });
   cache = { shapes, borders: path(mesh(topo, topo.objects.states, (a, b) => a !== b)) ?? '' };
   return cache;
+}
+
+// The projection us-atlas used to pre-project states-albers-10m (975 x 610), so points line up with the shapes.
+const albers = geoAlbersUsa().scale(1300).translate([487.5, 305]);
+/** [x, y] on the 975 x 610 state map for a longitude/latitude, or null outside the projection. */
+export function projectLonLat(lon: number, lat: number): [number, number] | null {
+  return albers([lon, lat]) as [number, number] | null;
 }

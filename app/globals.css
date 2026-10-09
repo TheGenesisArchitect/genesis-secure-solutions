@@ -520,3 +520,4 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .nav-pending{position:absolute;right:-4px;bottom:-3px;width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse .8s ease-in-out infinite alternate}
 @keyframes pulse{from{opacity:.25;transform:scale(.7)}to{opacity:1;transform:scale(1.1)}}
 .dash .rail{will-change:width}
+@media (max-width:600px){.topbar .crumbs{display:none}.topbar h1{font-size:16px;line-height:1.25}}

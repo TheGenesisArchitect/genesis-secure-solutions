@@ -17,7 +17,7 @@ export async function Shell(props: {
   title: string;
   crumbs?: { href?: string; label: string }[];
   actions?: React.ReactNode;
-  who: { name: string; detail: string };
+  who: { name: string; detail: string; signedOut?: boolean };
   switcher?: React.ReactNode;
   /** Ctrl/⌘K also searches clients and agencies (row-level security decides what comes back). */
   searchClients?: boolean;
@@ -61,9 +61,11 @@ export async function Shell(props: {
             <div style={{ color: 'var(--ink)', fontWeight: 600 }}>{props.who.name}</div>
             <div>{props.who.detail}</div>
           </div>
-          <form action="/auth/signout" method="post">
-            <button className="btn small ghost signout" type="submit" title="Sign out"><Icon name="signout" size={16} /><span>Sign out</span></button>
-          </form>
+          {props.who.signedOut ? null : (
+            <form action="/auth/signout" method="post">
+              <button className="btn small ghost signout" type="submit" title="Sign out"><Icon name="signout" size={16} /><span>Sign out</span></button>
+            </form>
+          )}
         </div>
       </aside>
       <div className="main">
