@@ -5,13 +5,14 @@ import { createHash } from 'node:crypto';
 import { headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { LIVE_WS, liveConstraints, liveSetup, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS, HOURLY_PER_VISITOR } from '@/lib/helix-tour';
+import { LIVE_WS, liveSetup, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS, HOURLY_PER_VISITOR } from '@/lib/helix-tour';
 
 export const dynamic = 'force-dynamic';
 
 const KEY = () => (process.env.GEMINI_API_KEY || '').trim();
 
-async function mint(constraints: unknown) {
+// With bidiGenerateContentSetup present (and no fieldMask), the token's setup replaces whatever the browser sends.
+async function mint(setup?: unknown) {
   const now = Date.now();
   const res = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
     method: 'POST',
@@ -20,7 +21,7 @@ async function mint(constraints: unknown) {
       uses: 1,
       expireTime: new Date(now + (SESSION_SECONDS + 60) * 1000).toISOString(),
       newSessionExpireTime: new Date(now + 2 * 60 * 1000).toISOString(),
-      liveConnectConstraints: constraints,
+      ...(setup ? { bidiGenerateContentSetup: setup } : {}),
     }),
     signal: AbortSignal.timeout(15_000),
   });
@@ -49,13 +50,13 @@ export async function POST() {
   if ((today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
   if (!staff && (recent ?? 0) >= HOURLY_PER_VISITOR) return Response.json({ error: 'You’ve taken three tours this hour. Please try again a little later.' }, { status: 429 });
 
-  // Lock Helix's instructions and tools into the token; if the service won't accept the full lock, fall back to
-  // locking the model and audio output and send the same setup from the browser.
-  let minted = await mint(liveConstraints());
+  // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an
+  // unlocked token (the browser sends the same setup), which only the Genovus team may use.
+  let minted = await mint(liveSetup());
   let locked = true;
   if ('error' in minted) {
-    console.error(`[helix] full constraints refused: ${minted.error}`);
-    minted = await mint({ model: LIVE_MODEL(), config: { responseModalities: ['AUDIO'] } });
+    console.error(`[helix] locked setup refused: ${minted.error}`);
+    minted = await mint();
     locked = false;
   }
   // Unlocked tokens let the browser choose the instructions, so only the Genovus team may use them.

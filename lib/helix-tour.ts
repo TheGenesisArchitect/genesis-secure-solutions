@@ -55,7 +55,7 @@ const TOOLS = [{
   ],
 }];
 
-/** The Live API setup message (BidiGenerateContentSetup) the browser sends, identical to the locked constraints. */
+/** The Live API setup (BidiGenerateContentSetup): locked into each token, and also sent by the browser. */
 export function liveSetup() {
   return {
     model: `models/${LIVE_MODEL()}`,
@@ -64,22 +64,6 @@ export function liveSetup() {
     tools: TOOLS,
     inputAudioTranscription: {},
     outputAudioTranscription: {},
-  };
-}
-
-/** Constraints locked into the token (LiveConnectConfig shape). */
-export function liveConstraints() {
-  return {
-    model: LIVE_MODEL(),
-    config: {
-      responseModalities: ['AUDIO'],
-      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: LIVE_VOICE() } } },
-      temperature: 0.7,
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      tools: TOOLS,
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-    },
   };
 }
 
