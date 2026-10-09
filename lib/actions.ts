@@ -332,14 +332,14 @@ export async function resetDemoFollowUps(_: ActionResult) {
   const { requireStaff } = await import('./session');
   await requireStaff();
   const { adminDb } = await import('./supabase/admin');
-  const season = (await import('@/data/studio-season1.json')).default as { demo_follow_ups: { who: string; reason: string; day: number; at: string }[] };
+  const season = (await import('@/data/studio-season1.json')).default as { demo_follow_ups: { who: string; reason: string; day: number; at: string; priority?: boolean }[] };
   const admin = adminDb();
   const { data: t } = await admin.from('tenants').select('id, is_sample').eq('slug', 'demo-brooks').maybeSingle();
   if (!t?.is_sample) return fail('The demo agency (demo-brooks) is missing.');
   const today = businessToday();
   const day = (n: number) => { const x = new Date(`${today}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
   await admin.from('follow_ups').delete().eq('tenant_id', t.id);
-  const { error } = await admin.from('follow_ups').insert(season.demo_follow_ups.map((d) => ({ tenant_id: t.id, who: d.who, reason: d.reason, due_on: day(d.day), due_at: d.at })));
+  const { error } = await admin.from('follow_ups').insert(season.demo_follow_ups.map((d) => ({ tenant_id: t.id, who: d.who, reason: d.reason, due_on: day(d.day), due_at: d.at, priority: Boolean(d.priority) })));
   revalidatePath('/', 'layout');
   return error ? fail(error.message) : done('Demo follow-ups reset: tomorrow’s list is ready to film.');
 }
@@ -404,4 +404,24 @@ export async function studioRegisterLicense(sourceId: string, pathname: string):
 // ---------- Cast Character Bible ----------
 export async function studioApproveRef(_: ActionResult, f: FormData) {
   return call('studio_approve_ref', { p_id: str(f, 'id', 64), p_reason: str(f, 'reason', 300) }, 'Approved and logged in the bible’s decision record.');
+}
+
+export async function starFollowUp(_: ActionResult, f: FormData) {
+  const on = str(f, 'on', 5) === '1';
+  return call('set_follow_up_priority', { p_id: str(f, 'id', 64), p_on: on }, on ? 'Starred as a priority.' : 'Unstarred.');
+}
+
+export async function studioUpdateShotLog(_: ActionResult, f: FormData) {
+  const keys = ['camera', 'gaze', 'prop_hand', 'mood_in', 'mood_out', 'screen_asset', 'sound', 'src_in', 'src_out'];
+  const log: Record<string, string | number> = {};
+  for (const k of keys) if (f.has(k)) { const v = str(f, k, 300); log[k] = (k === 'src_in' || k === 'src_out') && v !== '' ? Number(v) : v; }
+  return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Shot log saved.');
+}
+
+export async function studioSetFormat(_: ActionResult, f: FormData) {
+  const format = str(f, 'format', 20) || 'original';
+  return call('studio_set_format', {
+    p_id: str(f, 'id', 64), p_format: format, p_mode: format === 'viral_fork' ? str(f, 'mode', 20) || 'split' : null,
+    p_target: Number(str(f, 'target', 4)) || null, p_source: str(f, 'source', 64) || null, p_cut: str(f, 'cut', 20) || null,
+  }, 'Episode format saved.');
 }

@@ -8,7 +8,7 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod } from '@/lib/actions';
+import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { ShotTakes, FinalUpload, Thumbnails, type Take, type Art } from '@/components/studio/StudioClient';
 import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS } from '@/lib/studio-gen';
@@ -18,6 +18,14 @@ export const dynamic = 'force-dynamic';
 const TOOL: Record<string, string> = { flow: 'Google Flow', 'nano-banana': 'Nano Banana Pro', capture: 'Real app capture', edit: 'Edit', veo: 'Veo' };
 const PLATFORM: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube Shorts' };
 const STAGES = ['writing', 'shooting', 'editing', 'review', 'approved', 'live'];
+const BEATS = ['Recognition', 'The fork', 'The problem', 'Escalation', 'The save', 'Viral payoff', 'Character payoff', 'Signature'];
+const KIND_LABEL: Record<string, string> = { source: 'Their footage', fork: 'Fork', product: 'Product · real capture', signature: 'Signature', sting: 'End card', pickup: 'Pickup' };
+const MODE: Record<string, { label: string; note: string }> = {
+  split: { label: 'Split-Screen Fork', note: 'Their reel plays whole in one half (Instagram Remix split / TikTok Duet); our fork plays in the other, timed to their hook and payoff. Made in the app; the payoff is never touched.' },
+  sequential: { label: 'Sequential Fork', note: 'Their hook first (Remix “Add to end” / Stitch), then our fork. Made in the app.' },
+  seamless: { label: 'Seamless Fork', note: 'The full intercut edit of their footage. Only with the creator’s written license on file.' },
+};
+const LOG_FIELDS: [string, string][] = [['camera', 'Camera'], ['gaze', 'Gaze target'], ['prop_hand', 'Prop hand'], ['mood_in', 'Emotional state in'], ['mood_out', 'Emotional state out'], ['screen_asset', 'Screen asset'], ['sound', 'Sound']];
 const etInput = (s: string | null) => (s ? new Date(new Date(s).getTime() - 4 * 3600_000).toISOString().slice(0, 16) : '');
 
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
@@ -44,16 +52,61 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const thumb = art.find((a) => a.chosen && a.status === 'ready');
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
   const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
+  const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
+  const who = (code: string) => (castRows ?? []).find((c) => c.code === code)?.name.split(' ')[0] ?? code.replace(/\d+$/, '');
+  const { data: forkSources } = await supabase.from('studio_sources').select('id, title, remix_allowed, route').eq('route', 'stitch');
   const series = e.studio_series as { name: string; bible: { platform_notes?: Record<string, string> } } | null;
   const notes = series?.bible?.platform_notes ?? {};
   const approved = e.status === 'approved' || e.status === 'live';
   return (
     <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]}>
       <p className="soft">{e.logline}</p>
+      {e.format === 'viral_fork' && e.fork_mode ? (
+        <div className="fork-banner">
+          <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}><Chip kind="info">{MODE[e.fork_mode].label}</Chip>{e.target_s ? <Chip kind="pending">{e.target_s}s target</Chip> : null}{e.cut_family ? <Chip kind="pending">{e.cut_family} cut</Chip> : null}</span>
+          <span className="soft" style={{ fontSize: 13 }}>{MODE[e.fork_mode].note}</span>
+          <span className="muted" style={{ fontSize: 12 }}>Rule: never change the original payoff. Build the GENOVUS story around it.</span>
+        </div>
+      ) : null}
+      {(shots ?? []).some((s) => s.beat) ? (
+        <div className="beat-strip" aria-label="Beat timeline">
+          {BEATS.map((label, i) => {
+            const inBeat = (shots ?? []).filter((s) => s.beat === i + 1 && s.shot_kind !== 'pickup');
+            const ready = inBeat.filter((s) => s.shot_kind === 'source' || s.status === 'take_ok' || s.status === 'approved').length;
+            return (
+              <div key={label} className={'beat' + (inBeat.length && ready === inBeat.length ? ' ok' : '') + (inBeat.some((s) => s.shot_kind === 'source') ? ' theirs' : '')}>
+                <b>{i + 1}</b><span>{label}</span><small>{inBeat.map((s) => s.timing).filter(Boolean).join(' · ') || '·'}</small>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+      {e.seat_map ? (
+        <div className="seat-map" aria-label="Seat and gaze map">
+          <span className="muted" style={{ fontSize: 12 }}>Seat map · audience camera</span>
+          <div className="seats"><span className="performer">Performer ←</span>{(e.seat_map as { order: string[] }).order.map((c) => <span key={c} className="seat">{who(c)}</span>)}</div>
+          <span className="muted" style={{ fontSize: 12 }}>Gaze: {(e.seat_map as { gaze?: string }).gaze}. Reverse angles need their own map.</span>
+        </div>
+      ) : null}
       <div className="grid g2" style={{ alignItems: 'start' }}>
         <Panel title="Script" sub={`${series?.name} · ${e.kind} · ${e.runtime_s}s`} actions={<CopyButton text={e.script ?? ''} label="Copy script" />}>
           <pre className="studio-script">{e.script}</pre>
           {e.music ? <p className="muted" style={{ margin: 0, fontSize: 13 }}><b>Music:</b> {e.music}</p> : null}
+        </Panel>
+        <Panel title="Format" sub="Original episode, or a Viral Fork of a remix-enabled moment from the trend board.">
+          <ActionForm action={studioSetFormat} className="form">
+            <input type="hidden" name="id" value={e.id} />
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <label className="field" style={{ flex: '1 1 160px' }}><span>Format</span><select className="select" name="format" defaultValue={e.format}><option value="original">Original</option><option value="viral_fork">Viral Fork</option></select></label>
+              <label className="field" style={{ flex: '1 1 180px' }}><span>Fork mode</span><select className="select" name="mode" defaultValue={e.fork_mode ?? 'split'}><option value="split">Split-Screen (in-app)</option><option value="sequential">Sequential (in-app)</option><option value="seamless">Seamless (needs license)</option></select></label>
+            </div>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <label className="field" style={{ flex: '2 1 220px' }}><span>Source (Remix / Stitch)</span><select className="select" name="source" defaultValue={e.source_id ?? ''}><option value="">None</option>{(forkSources ?? []).map((s) => <option key={s.id} value={s.id}>{s.title}{s.remix_allowed ? ' ✓' : ' (remix not confirmed)'}</option>)}</select></label>
+              <label className="field" style={{ flex: '1 1 100px' }}><span>Target (s)</span><input className="input" name="target" inputMode="numeric" defaultValue={e.target_s ?? ''} /></label>
+              <label className="field" style={{ flex: '1 1 140px' }}><span>Cut</span><select className="select" name="cut" defaultValue={e.cut_family ?? ''}><option value="">-</option><option value="quick">Quick 25–30s</option><option value="signature">Signature 40–45s</option><option value="extended">Extended 55–60s</option></select></label>
+            </div>
+            <button className="btn small" type="submit" style={{ justifySelf: 'start' }}>Save format</button>
+          </ActionForm>
         </Panel>
         <Panel title="Final render and approval" sub="Approval is bound to this exact render: a new link sends it back to review">
           <ActionForm action={studioSetEpisode} className="form">
@@ -84,12 +137,15 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
           {(shots ?? []).map((s) => (
             <li key={s.id} className="tile" style={{ gap: 8 }}>
               <div className="spread" style={{ flexWrap: 'wrap', gap: 6 }}>
-                <b>Shot {s.n} <span className="muted" style={{ fontWeight: 500 }}>{s.timing}</span></b>
-                <span className="row" style={{ gap: 6 }}><Chip kind={s.tool === 'capture' ? 'done' : 'info'}>{TOOL[s.tool]}</Chip><Chip kind={s.status === 'approved' ? 'done' : s.status === 'todo' ? 'pending' : 'info'}>{s.status}</Chip></span>
+                <b>{s.shot_code ?? `Shot ${s.n}`} <span className="muted" style={{ fontWeight: 500 }}>{s.timing}</span></b>
+                <span className="row" style={{ gap: 6 }}>{s.beat ? <Chip kind="pending">Beat {s.beat}</Chip> : null}{s.shot_kind ? <Chip kind={s.shot_kind === 'source' ? 'pending' : 'info'}>{KIND_LABEL[s.shot_kind]}</Chip> : <Chip kind={s.tool === 'capture' ? 'done' : 'info'}>{TOOL[s.tool]}</Chip>}<Chip kind={s.status === 'approved' ? 'done' : s.status === 'todo' ? 'pending' : 'info'}>{s.status}</Chip></span>
               </div>
               <span>{s.description}</span>
               {s.camera ? <span className="muted" style={{ fontSize: 13 }}>Camera: {s.camera}</span> : null}
-              {s.dialogue ? <span style={{ fontSize: 14, fontStyle: 'italic' }}>{s.dialogue}</span> : null}
+              {(s.lines as { who: string; text: string }[] | null)?.length ? (
+                <div className="lines">{(s.lines as { who: string; text: string }[]).map((l, i) => <p key={i}><b>{who(l.who).toUpperCase()}</b> {l.text}</p>)}</div>
+              ) : s.dialogue ? <span style={{ fontSize: 14, fontStyle: 'italic' }}>{s.dialogue}</span> : null}
+              {s.shot_kind === 'source' ? <span className="theirs-note">Their footage, played in the app as-is. Never generated or altered.{(s.log as { src_in?: number; src_out?: number })?.src_in != null ? ` In ${(s.log as { src_in: number }).src_in}s → out ${(s.log as { src_out: number }).src_out}s.` : ''}</span> : null}
               {s.prompt ? (
                 <details>
                   <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>{s.tool === 'capture' ? 'How to capture' : s.tool === 'edit' ? 'Edit notes' : 'Prompt'}</summary>
@@ -98,6 +154,24 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
                 </details>
               ) : null}
               {s.tool !== 'edit' ? <ShotTakes shotId={s.id} tool={s.tool} prompt={s.prompt ?? s.description} takes={takesFor(s.id)} costLabel={costLabel} /> : null}
+              {s.shot_code ? (
+                <details className="shot-log">
+                  <summary>Shot log</summary>
+                  <ActionForm action={studioUpdateShotLog} className="form" style={{ gap: 6 }}>
+                    <input type="hidden" name="id" value={s.id} />
+                    {(s.shot_kind === 'source' ? LOG_FIELDS.filter(([k]) => k === 'sound') : LOG_FIELDS).map(([k, label]) => (
+                      <label key={k} className="field"><span>{label}</span><input className="input" name={k} defaultValue={String((s.log as Record<string, unknown>)?.[k] ?? '')} /></label>
+                    ))}
+                    {s.shot_kind === 'source' ? (
+                      <div className="row" style={{ gap: 6 }}>
+                        <label className="field" style={{ flex: 1 }}><span>Source in (s)</span><input className="input" name="src_in" inputMode="decimal" defaultValue={String((s.log as Record<string, unknown>)?.src_in ?? '')} /></label>
+                        <label className="field" style={{ flex: 1 }}><span>Source out (s)</span><input className="input" name="src_out" inputMode="decimal" defaultValue={String((s.log as Record<string, unknown>)?.src_out ?? '')} /></label>
+                      </div>
+                    ) : null}
+                    <button className="btn small" type="submit" style={{ justifySelf: 'start' }}>Save shot log</button>
+                  </ActionForm>
+                </details>
+              ) : null}
               <ActionForm action={studioUpdateShot} className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
                 <input type="hidden" name="id" value={s.id} />
                 <select className="select" name="status" defaultValue={s.status} aria-label="Shot status" style={{ width: 130 }}>

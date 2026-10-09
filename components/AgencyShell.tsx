@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase/server';
 import { Shell } from './Shell';
 import { EcosystemSwitcher } from './EcosystemSwitcher';
 import { businessToday } from '@/lib/billing';
+import { AgencyTabBar } from './AgencyTabBar';
 
 export type AgencyCtx = { viewer: Viewer; tenant: Membership; asStaff: boolean; isOwner: boolean };
 
@@ -34,7 +35,7 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
       back={viewer.staff ? { href: `/console/clients/${tenant.slug}`, label: 'Enterprise' } : undefined}
       who={{ name: viewer.staff?.name ?? viewer.email, detail: asStaff ? 'Genovus team, viewing as the agency' : tenant.role === 'owner' ? 'Agency owner' : 'Office staff' }}
       nav={[
-        { items: [{ href: base, label: 'Home', exact: true }, { href: `${base}/follow-ups`, label: 'Follow-ups', count: due ?? 0 }] },
+        { items: [{ href: base, label: 'Home', exact: true }, { href: `${base}/today`, label: 'Today', icon: 'home' }, { href: `${base}/follow-ups`, label: 'Follow-ups', count: due ?? 0 }] },
         {
           title: 'Your program',
           items: [
@@ -58,6 +59,7 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
       {asStaff && !film ? <div className="notice">You are viewing {tenant.name}’s dashboard as the Genovus team. Client approvals can only be decided by the agency owner.</div> : null}
       {tenant.isSample && !film ? <div className="notice sample"><b>Sample agency.</b> {tenant.name} is fictional. Every number here is illustrative and marked Sample.</div> : null}
       {children}
+      <AgencyTabBar base={base} film={film} />
     </Shell>
   );
 }

@@ -16,28 +16,22 @@
       "tone": "Comedy first, warm, a little absurd, never mean. Under 60 seconds. Hook in the first 1.5 seconds. Music-driven, captions always on.",
       "characters": [
         {
-          "name": "Dee Carter",
-          "role": "The calm one",
-          "look": "Insurance agent, early 30s, natural curls pulled up, small gold hoops, cream blazer over a black tee. Unbothered, dry wit, one raised eyebrow does the talking.",
-          "sheet": "Character sheet, original character (not resembling any real person): Dee Carter, a Black woman in her early 30s, natural curls pulled up, small gold hoop earrings, cream blazer over a black t-shirt, slim gold watch. Calm, confident, amused expression. Front, three-quarter, profile and full-body views; three expressions (unbothered, raised eyebrow, knowing smile to camera). Neutral studio background, soft key light, photoreal, consistent face across views."
+          "name": "Maya Bennett",
+          "role": "The Unbothered Agent",
+          "look": "Center parted bob; small gold hoop earrings; slim gold watch on the left wrist; restrained gestures. About 5′7″, medium build, grounded stance; turns her eyes toward a disturbance before her whole body.",
+          "sheet": "Original fictional adult Black woman, apparent age 34, deep brown skin, oval face with softly defined cheekbones, almond shaped dark brown eyes, straight full eyebrows, black center parted smooth collarbone length bob, medium build, small gold hoop earrings, slim gold watch on left wrist. Relaxed shoulders, composed and approachable expression, subtle asymmetrical beginning of a smile. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain black top. No text, logos, phone, or props. Establish an original face, not a celebrity likeness."
         },
         {
-          "name": "Marcus Hale",
-          "role": "The one who panics",
-          "look": "Late 20s, tall, short fade, maroon bomber jacket. Big reactions.",
-          "sheet": "Character sheet, original character (not resembling any real person): Marcus Hale, a tall man in his late 20s, short fade haircut, clean-shaven, maroon bomber jacket over a white tee. Expressive and animated. Front, three-quarter, profile and full-body views; expressions: cheering, sudden realization, panic. Neutral studio background, photoreal, consistent face."
+          "name": "Trent Walker",
+          "role": "The Walking Emergency",
+          "look": "Short crop and boxed beard; silver watch on left wrist; active brows; forward lean under pressure. About 5′11″, lean to average build. Must be recognizable when completely relaxed.",
+          "sheet": "Original fictional adult Black man, apparent age 32, medium brown skin, gently rectangular face, expressive dark brown eyes and brows, short textured black crop with low taper, neatly trimmed short boxed beard, lean to average build. Warm and attentive neutral expression, relaxed jaw, shoulders settled. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain navy top. No text, logos, or props. Do not make worry his permanent facial expression. Establish an original face, not a celebrity likeness."
         },
         {
-          "name": "Tasha Reyes",
-          "role": "The one who thought you did",
-          "look": "30s, sleek high ponytail, denim jacket, statement earrings. Dramatic.",
-          "sheet": "Character sheet, original character (not resembling any real person): Tasha Reyes, a Latina woman in her 30s, sleek high ponytail, statement earrings, light denim jacket over a black top. Dramatic, funny. Front, three-quarter, profile and full-body views; expressions: laughing, slow horror, relief. Neutral studio background, photoreal, consistent face."
-        },
-        {
-          "name": "Velvet",
-          "role": "The showman (E1)",
-          "look": "A lanky Black stage dancer in his 40s, short twists with a sharp line-up, neat mustache, sequined emerald jacket, white flared trousers, white platform shoes. Pure joy on stage. Signature move: spin, freeze, one finger to the sky. Our own character, inspired by the energy of a viral theater dance, not modeled on any real performer.",
-          "sheet": "Character sheet, original character (not resembling any real person or performer): Velvet, a lanky Black man in his 40s, short twists with a sharp line-up, neat mustache, warm brown skin, sequined emerald-green jacket, white flared trousers, white platform shoes. Theatrical and joyful. Front, three-quarter, profile and full-body views; poses: mid-spin, freeze with one finger pointed up, a bow. Stage spotlight on black, photoreal, consistent face across views."
+          "name": "Bri Ellis",
+          "role": "The Human Reaction Camera",
+          "look": "Side-parted shoulder-length curls; medium gold hoops; wine and copper accents; exceptionally readable listening. About 5′5″, full medium build, expressive shoulders and hands. Distinct from Maya even in low light.",
+          "sheet": "Original fictional adult Black woman, apparent age 31, warm medium deep brown skin, softly heart shaped face, dark brown eyes, arched brows, full cheeks, defined shoulder length dark brown natural curls with a side part, full medium build, medium gold hoop earrings. Curious, warmly amused neutral expression with closed relaxed mouth. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain wine colored top. No text, logos, or props. Establish an original face, not a celebrity likeness."
         }
       ],
       "rules": [
@@ -50,7 +44,7 @@
         "Every post is approved in the Studio desk before it goes out, and the live link is recorded after."
       ],
       "tagline": "Genovus just knows.",
-      "look": "Vertical 9:16, 35mm film look, warm practical light, shallow depth of field, natural skin texture, handheld energy in the crowd and locked-off calm on Dee.",
+      "look": "Vertical 9:16, 35mm film look, warm practical light, shallow depth of field, natural skin texture, handheld energy in the crowd and locked-off calm on Maya.",
       "platform_notes": {
         "facebook": "Link works in the caption. Turn on the AI info label when uploading.",
         "instagram": "Links aren't clickable in captions: put the tracked link in bio (or a link sticker in Stories). Turn on the AI info label.",
@@ -66,36 +60,36 @@
       "sort": 1,
       "title": "Did You Call Them Back?",
       "runtime_s": 8,
-      "logline": "Two friends at a show realize nobody called the Hendersons back. One of them isn't worried.",
-      "script": "Cut from Episode 1 takes (no new footage).\n\n[E1 shot 3] MARCUS (mid-cheer, stops): “Wait… did you call the Hendersons back?”\n[E1 shot 4] TASHA (slow horror): “…I thought YOU did.”\n[Smash to black] TEXT: One of them isn't worried.\n[Logo] GENOVUS JUST KNOWS · Sunday 7PM ET",
-      "music": "Live-band funk from E1, hard cut to silence on the smash to black, one horn stab on the logo.",
+      "logline": "Two coworkers at a show realize nobody made tomorrow’s call list. One of them isn’t worried.",
+      "script": "Cut from Episode 001 takes (no new footage).\n\n[EP001_SH020] TRENT, leaning in: “Tell me tomorrow’s call list is ready.”\n[EP001_SH030] BRI, smile fading: “I thought you made it.”\n[Smash to black] TEXT: One of them isn’t worried.\n[Logo] GENOVUS JUST KNOWS · Sunday 7PM ET",
+      "music": "Live-band funk from Episode 001, hard cut to silence on the smash to black, one horn stab on the logo.",
       "shots": [
         {
           "n": 1,
           "timing": "0:00–0:03",
-          "description": "E1 shot 3: Marcus stops cheering mid-clap and leans in.",
-          "dialogue": "MARCUS: Wait… did you call the Hendersons back?",
+          "description": "EP001_SH020: Trent leans in to Bri.",
+          "dialogue": "TRENT: Tell me tomorrow’s call list is ready.",
           "tool": "edit",
-          "prompt": "Use the approved take of Episode 1, shot 3."
+          "prompt": "Use the approved take of EP001_SH020."
         },
         {
           "n": 2,
           "timing": "0:03–0:05",
-          "description": "E1 shot 4: Tasha's slow horror close-up.",
-          "dialogue": "TASHA: …I thought YOU did.",
+          "description": "EP001_SH030: Bri’s smile fades.",
+          "dialogue": "BRI: I thought you made it.",
           "tool": "edit",
-          "prompt": "Use the approved take of Episode 1, shot 4. Hold one extra beat on her face."
+          "prompt": "Use the approved take of EP001_SH030; hold one extra beat on her face."
         },
         {
           "n": 3,
           "timing": "0:05–0:08",
-          "description": "Smash to black. White text, then the Genovus wordmark and premiere time.",
-          "dialogue": "TEXT: One of them isn't worried. / GENOVUS JUST KNOWS · Sunday 7PM ET",
+          "description": "Smash to black, text, then the GEN·egg·VUS wordmark and premiere time.",
+          "dialogue": "TEXT: One of them isn’t worried. / GENOVUS JUST KNOWS · Sunday 7PM ET",
           "tool": "edit",
-          "prompt": "Black frame; Genovus display font, white; wordmark from /brand/genovus. Captions burned in. AI label in the corner."
+          "prompt": "Black frame, Genovus Display, the egg wordmark; captions burned in; AI label in the corner."
         }
       ],
-      "thumb": "Tight two-shot in a dark theater crowd: Marcus (tall man, late 20s, short fade, maroon bomber) frozen mid-clap with a look of sudden dread, leaning toward Tasha (Latina woman, 30s, high ponytail, denim jacket) whose eyes go wide in comic horror. Warm stage light on their faces, haze, blurred cheering crowd behind."
+      "thumb": "Tight two-shot in a warm amber theater audience: @TRENT01 frozen mid-cheer with a look of sudden dread, leaning toward @BRI01 whose smile has just stopped, eyebrow rising. Stage light spill from camera left, haze, blurred crowd behind."
     },
     {
       "code": "gjk-t2",
@@ -103,131 +97,378 @@
       "sort": 2,
       "title": "She's Not Worried",
       "runtime_s": 10,
-      "logline": "While everyone panics, Dee sips her drink and checks her phone. What does she know?",
-      "script": "Cut from Episode 1 takes plus the real app capture (blurred).\n\n[E1 shot 5] Marcus and Tasha turn to DEE. She sips, unbothered.\n[E1 shot 6, blurred] Her phone lights up: the glow of a list. We can't read it.\nTEXT: What does she know?\n[E1 shot 8, first second] Dee's eyes find the camera. No line.\n[Logo] GENOVUS JUST KNOWS · Sunday 7PM ET",
-      "music": "Low bass groove under crowd noise, cut on Dee's look, horn stab on logo.",
+      "logline": "While everyone panics, Maya keeps watching the show. What does she know?",
+      "script": "Cut from Episode 001 takes.\n\n[EP001_SH040] BRI: “Maya. You hearing this?” MAYA, eyes on the show: “Unfortunately.”\n[EP001_SH050, blurred] Her phone glows; we can’t read it.\nTEXT: What does she know?\n[EP001_SH100, first second] Maya’s eyes find the lens. No line.\n[Logo] GENOVUS JUST KNOWS · Sunday 7PM ET",
+      "music": "Low bass groove under crowd noise, cut on Maya’s look, a short sting on the logo.",
       "shots": [
         {
           "n": 1,
           "timing": "0:00–0:04",
-          "description": "E1 shot 5: both friends turn; Dee sips, eyebrow up.",
+          "description": "EP001_SH040: “Maya. You hearing this?” / “Unfortunately.”",
           "tool": "edit",
-          "prompt": "Approved take of Episode 1, shot 5."
+          "prompt": "Approved take of EP001_SH040."
         },
         {
           "n": 2,
           "timing": "0:04–0:07",
-          "description": "E1 shot 6 capture with a heavy blur: the phone's glow, list shapes only.",
+          "description": "EP001_SH050 with a heavy blur: the phone’s glow only.",
           "dialogue": "TEXT: What does she know?",
           "tool": "edit",
-          "prompt": "Gaussian blur 30px on the app capture so nothing is readable; keep the Genovus orange accent visible."
+          "prompt": "Gaussian blur so nothing is readable; keep the warm glow."
         },
         {
           "n": 3,
           "timing": "0:07–0:10",
-          "description": "E1 shot 8, first second: Dee looks into the lens. Then the logo card.",
+          "description": "EP001_SH100, first second: Maya finds the lens. Then the logo card.",
           "dialogue": "TEXT: GENOVUS JUST KNOWS · Sunday 7PM ET",
           "tool": "edit",
-          "prompt": "Freeze on Dee's look for 8 frames, cut to logo card. AI label in the corner."
+          "prompt": "Freeze on Maya’s look for 8 frames, cut to the logo card; AI label."
         }
       ],
-      "thumb": "Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) sitting perfectly calm in a cheering theater crowd, one eyebrow raised, a knowing half-smile, her phone glowing softly in her hand. Everyone around her is a motion blur of panic and cheering; she is sharp and still."
+      "thumb": "@MAYA01 sitting perfectly calm in a cheering theater audience, eyes on the stage camera left, one eyebrow raised and a knowing half smile, her phone glowing softly in her left hand; everyone around her a motion blur."
     },
     {
-      "code": "gjk-e1",
+      "code": "gjk-e001",
       "kind": "episode",
       "sort": 3,
       "title": "The Night Out",
       "runtime_s": 45,
-      "logline": "Front-row seats, a showman mid-spin, and two friends who just remembered the Hendersons. Dee checks Genovus: it's already on tomorrow's list.",
-      "script": "EXT. THEATER — NIGHT. A packed house. On stage, VELVET (sequined emerald jacket) spins, freezes, one finger to the sky. The crowd erupts.\n\nRow three: DEE, MARCUS and TASHA, out after work, cheering.\n\nMARCUS (stops mid-clap, leans in): Wait… did you call the Hendersons back?\nTASHA (slow horror): …I thought YOU did.\n\nThey both turn to DEE. She sips her drink. Unbothered. Pulls out her phone.\n\nINSERT — PHONE (real Genovus app, demo agency): FOLLOW-UPS · Tomorrow · your list is ready. 9:30 AM The Hendersons — Moving next month: review their coverage.\n\nDEE (turning the phone to them): Nine-thirty. It's on the list.\n\nRelief. Tasha clutches her chest. Marcus mouths “how?”\n\nOn stage, Velvet's finale: a knee slide into a freeze. The trio jumps up, cheering.\n\nDEE (to camera, deadpan): Genovus just knows.\n\nEND CARD: Genovus. “Don't take our word for it. Ask Helix.” genovus.io/vision · AI-generated video. App shown with demo data.",
-      "music": "Original or commercially licensed live-band funk (horns, slap bass, ~112 BPM), diegetic from the stage, ducking under dialogue; drops out for “…I thought YOU did,” returns on Dee's phone reveal; stinger hit on “Genovus just knows.”",
+      "format": "viral_fork",
+      "fork_mode": "split",
+      "target_s": 45,
+      "cut_family": "signature",
+      "source": "https://www.instagram.com/reel/DeBuukCvpY3/",
+      "seat_map": {
+        "order": [
+          "TRENT01",
+          "BRI01",
+          "MAYA01"
+        ],
+        "performer": "off camera beyond the audience camera’s left side",
+        "gaze": "just left of the lens"
+      },
+      "logline": "Front-row seats at a showman’s legendary performance. Trent remembers tomorrow’s call list at the worst possible moment; Bri wants her night back; Maya has it on her phone. Genovus was there the whole time.",
+      "script": "0–5 · ORIGINAL PERFORMANCE (their reel, in-app). No added exposition.\n\n5–12 · Audience three-shot, Bri reaction. TRENT, leaning in: “Tell me tomorrow’s call list is ready.” BRI, smile fading: “I thought you made it.” TRENT: “Oh, we’re cooked.” Maya keeps watching the stage.\n\n12–16 · BRI turns toward Maya: “Maya. You hearing this?” MAYA, eyes still on the performance: “Unfortunately.”\n\n16–25 · MAYA checks her phone and shares it: “Call list. Client notes. Right here.” Real Genovus Mobile Today insert. TRENT, shoulders relaxing: “So we’re good?” MAYA: “The list is. We call tomorrow. Watch this man.”\n\n25–31 · ORIGINAL PAYOFF (their reel): the low move with its lead-in and recovery. Never altered.\n\n31–37 · Back to the coworkers: Trent points at the stage; Bri’s laugh overtakes her; Maya loses her composure. BRI: “How are you always ready?” MAYA, to her: “Genovus just knows.”\n\n37–43 · Maya finishes the shared reaction, turns to the lens, the room recedes in the mix. MAYA, quietly certain: “Genovus just knows.” Small smile. Trent and Bri never look into the lens.\n\n43–45 · Brief brand finish. Keep Maya’s final face visible long enough to land.",
+      "music": "The source’s own sound carries the event: in split mode Instagram keeps their audio. Our pane: room tone and crowd texture under dialogue, music bed reduced; a short dip before the lens line, then a brief sting. Never an unrelated nightclub track.",
+      "thumb": "Maya (@MAYA01) in the foreground, composed and amused, phone in her left hand with a soft glow, while beside her Trent (@TRENT01) clutches his chest in relief and Bri (@BRI01) laughs, all three in a warm amber theater audience with stage light spilling from camera left.",
       "shots": [
         {
-          "n": 1,
-          "timing": "0:00–0:03",
-          "description": "HOOK. Velvet mid-spin on stage, lands a freeze with one finger to the sky; spotlight flare; crowd erupts.",
-          "camera": "Low angle from the front row, slow push-in, tiny whip on the landing.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Velvet, a lanky Black stage dancer with short twists and a neat mustache, in a sequined emerald-green jacket and white flared trousers, spins fast on a vintage theater stage and lands a frozen pose with one finger pointed to the sky. Hard white spotlight, warm amber stage wash, haze in the air, silhouettes of a cheering crowd in the foreground. Low angle from the front row, slow push-in, a small whip-pan on the landing. Joyful, theatrical energy. Original character, not resembling any real person or performer."
-        },
-        {
-          "n": 2,
-          "timing": "0:03–0:06",
-          "description": "The crowd goes wild; we find our trio in row three, out after work, cheering.",
-          "camera": "Crane down over the crowd, settle on the three friends.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Inside a packed vintage theater at night, the audience is on its feet cheering. The camera cranes down over the crowd and settles on three friends in the third row, dressed in after-work clothes: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer), Marcus (tall man, late 20s, short fade, maroon bomber) and Tasha (Latina woman, 30s, high ponytail, denim jacket). Warm stage light spill on their faces, haze, joyful. Use the character sheets for Dee, Marcus and Tasha. Original characters."
-        },
-        {
-          "n": 3,
-          "timing": "0:06–0:10",
-          "description": "Marcus stops mid-clap, his face drops, he leans to Tasha.",
-          "camera": "Handheld two-shot, stage light flicker.",
-          "dialogue": "MARCUS: Wait… did you call the Hendersons back?",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic two-shot, 35mm film look, handheld. In a cheering theater crowd at night, Marcus (tall man, late 20s, short fade, maroon bomber) suddenly stops clapping, his smile drops, and he leans toward Tasha (Latina woman, 30s, high ponytail, denim jacket) and says: “Wait… did you call the Hendersons back?” Flickering stage light, crowd blur behind them. Comic timing. Use the character sheets. Original characters."
-        },
-        {
-          "n": 4,
-          "timing": "0:10–0:13",
-          "description": "Tasha's slow horror. The music drops out.",
-          "camera": "Slow push-in to a close-up.",
-          "dialogue": "TASHA: …I thought YOU did.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic close-up, 35mm film look. Tasha (Latina woman, 30s, high ponytail, statement earrings, denim jacket) in a dark theater crowd slowly turns her head, eyes widening in comic horror, and says quietly: “…I thought YOU did.” Slow push-in, background crowd soft and blurred, warm stage light on one side of her face. Use Tasha's character sheet. Original character."
-        },
-        {
-          "n": 5,
-          "timing": "0:13–0:17",
-          "description": "Both turn to Dee. She sips her drink, unbothered, one eyebrow up, and pulls out her phone.",
-          "camera": "Quick whip-pan to Dee, then locked-off and still: the calm in the chaos.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Whip-pan to Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) sitting calmly in a cheering theater crowd. She takes a slow sip from a glass, raises one eyebrow, unbothered, and pulls a phone from her blazer pocket. The camera is locked-off and still on her while the crowd moves around her. Warm stage light. Use Dee's character sheet. Original character."
-        },
-        {
-          "n": 6,
-          "timing": "0:17–0:23",
-          "description": "INSERT, the proof: Dee's phone shows the real Genovus Follow-ups screen. Tomorrow · your list is ready · 9:30 AM The Hendersons.",
-          "camera": "Over-the-shoulder macro on the phone; the screen is a real capture composited, or film a real phone.",
-          "tool": "capture",
-          "prompt": "Real app capture, filmed on your phone: 1) In the Studio, press Reset demo follow-ups (so tomorrow's list shows The Hendersons at 9:30 AM). 2) On your phone, signed in, open genovus.io/app/demo-brooks/follow-ups?film=1 (filming mode hides the team and sample banners). 3) Start screen recording at the top of the page, then make one slow scroll down to the Tomorrow · your list is ready card with 9:30 AM The Hendersons, and hold for 2 seconds. Trim to 6 seconds. 4) Upload it here with Upload recording. Only ever film the demo agency (Brooks Family Insurance, fictional)."
-        },
-        {
-          "n": 7,
-          "timing": "0:23–0:28",
-          "description": "Dee turns the phone to them. Relief: Tasha clutches her chest, Marcus mouths “how?”",
-          "camera": "Reverse two-shot over Dee's shoulder, then a quick push on the friends.",
-          "dialogue": "DEE: Nine-thirty. It's on the list.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Over Dee's shoulder (cream blazer, gold hoops) as she turns her phone screen toward her two friends and says calmly: “Nine-thirty. It's on the list.” Tasha (high ponytail, denim jacket) clutches her chest in relief; Marcus (maroon bomber, short fade) mouths “how?”. The phone screen faces away from camera. Warm stage light, theater crowd around them. Use the character sheets. Original characters."
-        },
-        {
-          "n": 8,
-          "timing": "0:28–0:36",
-          "description": "Back on stage: Velvet's finale knee-slide into a freeze; the trio jumps up cheering with the crowd.",
-          "camera": "Wide from the back of the house, cut to the trio on their feet.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic shot, 35mm film look. Velvet, the lanky Black stage dancer in a sequined emerald jacket and white flared trousers, does a dramatic knee slide across a vintage theater stage into a frozen pose, spotlight and confetti, then cut to the audience where three friends (Dee in a cream blazer, Marcus in a maroon bomber, Tasha in a denim jacket) jump to their feet cheering. Euphoric, warm light, haze. Use the character sheets. Original characters."
-        },
-        {
-          "n": 9,
-          "timing": "0:36–0:41",
-          "description": "The button: the crowd keeps cheering, Dee turns her head and looks straight into the lens.",
-          "camera": "Locked-off medium close-up on Dee; everything else in motion.",
-          "dialogue": "DEE (to camera, deadpan): Genovus just knows.",
-          "tool": "flow",
-          "prompt": "Vertical 9:16 cinematic medium close-up, 35mm film look. In a cheering theater crowd, Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) calmly turns her head and looks straight into the camera lens, deadpan with the hint of a smile, and says: “Genovus just knows.” Camera locked-off; the crowd around her moves and cheers. Warm stage light. Use Dee's character sheet. Original character."
-        },
-        {
           "n": 10,
-          "timing": "0:41–0:45",
-          "description": "End card: Genovus wordmark, “Don't take our word for it. Ask Helix.” genovus.io/vision. Disclosure line.",
+          "shot_code": "EP001_SH010",
+          "beat": 1,
+          "shot_kind": "source",
+          "tool": "source",
+          "timing": "0:00–0:05",
+          "description": "Recognition: the original reel plays its first ~5 seconds, untouched.",
+          "prompt": "Their footage. In split mode it plays in the top half inside Instagram Remix; nothing is generated.",
+          "log": {
+            "src_in": 0,
+            "src_out": 5,
+            "sound": "Theirs, full."
+          }
+        },
+        {
+          "n": 20,
+          "shot_code": "EP001_SH020",
+          "beat": 2,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:05–0:08",
+          "description": "The fork: audience three-shot reveals our trio, Trent leaning toward Bri.",
+          "cast_codes": [
+            "TRENT01",
+            "BRI01",
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "Tell me tomorrow’s call list is ready."
+            }
+          ],
+          "log": {
+            "camera": "A · audience establishing, medium-wide, seated eye level",
+            "gaze": "camera left toward the unseen performer",
+            "prop_hand": "phones away",
+            "mood_in": "enjoying the show",
+            "mood_out": "Trent: sudden worry",
+            "sound": "Crowd texture continues; their music ducked under the line."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). Three coworkers seated close together in the audience, left to right @TRENT01, @BRI01, @MAYA01, all watching the stage camera left and enjoying it. @TRENT01 leans toward @BRI01 and says quietly: \"Tell me tomorrow's call list is ready.\" @MAYA01 keeps watching the show."
+        },
+        {
+          "n": 30,
+          "shot_code": "EP001_SH030",
+          "beat": 3,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:08–0:12",
+          "description": "The problem: Bri’s smile fades; Trent knows they are cooked.",
+          "cast_codes": [
+            "BRI01",
+            "TRENT01"
+          ],
+          "lines": [
+            {
+              "who": "BRI01",
+              "text": "I thought you made it."
+            },
+            {
+              "who": "TRENT01",
+              "text": "Oh, we’re cooked."
+            }
+          ],
+          "log": {
+            "camera": "B · comedy coverage, medium close-up two-shot",
+            "gaze": "Bri toward Trent",
+            "prop_hand": "phones away",
+            "mood_in": "Bri delighted",
+            "mood_out": "Bri offended, Trent doomed",
+            "sound": "Music ducks further; crowd continues."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). Medium close-up of @BRI01 and @TRENT01 seated in the audience. @BRI01's eyes stay on the stage while her smile stops; she turns slowly toward @TRENT01, one eyebrow lifting, and says: \"I thought you made it.\" @TRENT01 winces and says: \"Oh, we're cooked.\""
+        },
+        {
+          "n": 40,
+          "shot_code": "EP001_SH040",
+          "beat": 4,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:12–0:16",
+          "description": "Escalation: Bri turns to Maya, who doesn’t look away from the show.",
+          "cast_codes": [
+            "BRI01",
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "BRI01",
+              "text": "Maya. You hearing this?"
+            },
+            {
+              "who": "MAYA01",
+              "text": "Unfortunately."
+            }
+          ],
+          "log": {
+            "camera": "B · medium two-shot favoring Maya",
+            "gaze": "Maya stays on the stage (camera left)",
+            "prop_hand": "phones away",
+            "mood_in": "Maya absorbed in the show",
+            "mood_out": "Maya amused, unbothered",
+            "sound": "Crowd swell from the stage under the lines."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). @BRI01 turns to @MAYA01 seated beside her and says: \"Maya. You hearing this?\" @MAYA01 keeps her eyes on the stage camera left, a slight head tilt, a held smile, and answers dryly: \"Unfortunately.\""
+        },
+        {
+          "n": 50,
+          "shot_code": "EP001_SH050",
+          "beat": 5,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:16–0:20",
+          "description": "The save begins: Maya takes out her phone (left hand) and shares it.",
+          "cast_codes": [
+            "MAYA01",
+            "TRENT01",
+            "BRI01"
+          ],
+          "lines": [
+            {
+              "who": "MAYA01",
+              "text": "Call list. Client notes. Right here."
+            }
+          ],
+          "log": {
+            "camera": "A · audience three-shot",
+            "gaze": "Maya to her phone, then to Trent and Bri",
+            "prop_hand": "Maya: phone in LEFT hand (matte olive case), right index finger taps",
+            "mood_in": "Maya amused",
+            "mood_out": "Trent hopeful",
+            "look_codes": [
+              "EP001_MAYA_LOOK01"
+            ],
+            "sound": "Their music low, crowd texture."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). @MAYA01 takes her phone in her left hand (matte olive case), taps it once with her right index finger, and tilts the screen toward @TRENT01 and @BRI01 with an amused small smile, saying: \"Call list. Client notes. Right here.\" The phone screen faces away from camera."
+        },
+        {
+          "n": 60,
+          "shot_code": "EP001_SH060",
+          "beat": 5,
+          "shot_kind": "product",
+          "tool": "capture",
+          "timing": "0:20–0:23",
+          "description": "Product insert: over-the-shoulder, the real Genovus Mobile Today screen.",
+          "log": {
+            "camera": "C · over-the-shoulder product insert",
+            "prop_hand": "left hand holds, right index taps",
+            "screen_asset": "EP001_PHONE_UI01: Genovus Mobile Today (demo agency): Tomorrow’s call list + Client notes",
+            "mood_in": "-",
+            "mood_out": "-",
+            "sound": "Room tone continues; no abrupt silence."
+          },
+          "prompt": "Real app capture: Studio home → Reset demo follow-ups; on a phone, open genovus.io/app/demo-brooks/today?film=1; record a slow 3-second scroll across “Tomorrow’s call list” and “Client notes”. The screen is composited exactly in the edit; never generated lettering. Shows prepared work, never completed calls."
+        },
+        {
+          "n": 70,
+          "shot_code": "EP001_SH070",
+          "beat": 5,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:23–0:25",
+          "description": "Trent’s shoulders release; Maya sends them back to the show.",
+          "cast_codes": [
+            "TRENT01",
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "So we’re good?"
+            },
+            {
+              "who": "MAYA01",
+              "text": "The list is. We call tomorrow. Watch this man."
+            }
+          ],
+          "log": {
+            "camera": "B · medium two-shot",
+            "gaze": "Trent to Maya; Maya back to the stage",
+            "prop_hand": "Maya puts the phone away into the same bag",
+            "mood_in": "Trent anxious",
+            "mood_out": "Trent relieved; all back to the show",
+            "sound": "Their music rises back toward the payoff."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). @TRENT01's shoulders release before he speaks: \"So we're good?\" @MAYA01 slips her phone into her bag and nods toward the stage camera left: \"The list is. We call tomorrow. Watch this man.\""
+        },
+        {
+          "n": 80,
+          "shot_code": "EP001_SH080",
+          "beat": 6,
+          "shot_kind": "source",
+          "tool": "source",
+          "timing": "0:25–0:31",
+          "description": "Viral payoff: the original’s low move with its lead-in and recovery, untouched.",
+          "prompt": "Their footage. Choose the in/out around the payoff (near 27–28 s in the supplied timing reference) so the move reads with its setup and recovery. Never altered.",
+          "log": {
+            "src_in": 25,
+            "src_out": 31,
+            "sound": "Theirs, full energy."
+          }
+        },
+        {
+          "n": 90,
+          "shot_code": "EP001_SH090",
+          "beat": 7,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:31–0:37",
+          "description": "Character payoff: Trent points, Bri can’t finish her line for laughing, Maya loses it.",
+          "cast_codes": [
+            "TRENT01",
+            "BRI01",
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "BRI01",
+              "text": "How are you always ready?"
+            },
+            {
+              "who": "MAYA01",
+              "text": "Genovus just knows."
+            }
+          ],
+          "log": {
+            "camera": "A · audience three-shot",
+            "gaze": "camera left to the stage, then Bri to Maya",
+            "prop_hand": "phones away",
+            "mood_in": "stunned by the payoff",
+            "mood_out": "pure joy",
+            "sound": "Crowd erupts; their music at full."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). The crowd erupts at the stage camera left. @TRENT01 points at the stage involuntarily, mouth open. @BRI01's laugh overtakes her as she tries to say: \"How are you always ready?\" @MAYA01 genuinely loses her composure laughing, then answers her: \"Genovus just knows.\""
+        },
+        {
+          "n": 100,
+          "shot_code": "EP001_SH100",
+          "beat": 8,
+          "shot_kind": "signature",
+          "tool": "veo",
+          "timing": "0:37–0:43",
+          "description": "The signature: Maya’s stage-to-lens turn. Camera D locked.",
+          "cast_codes": [
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "MAYA01",
+              "text": "Genovus just knows."
+            }
+          ],
+          "log": {
+            "camera": "D · signature, locked-off medium close-up",
+            "gaze": "stage (camera left) → the lens",
+            "prop_hand": "none",
+            "mood_in": "laughing with friends",
+            "mood_out": "quiet certainty, small smile",
+            "sound": "Short music dip clears space; the room recedes but never mutes; sting after the line."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, warm amber stage spill from camera left, darker audience behind, light haze. Locked-off medium close-up of @MAYA01 seated in the audience, finishing a laugh while looking toward the stage camera left; her eyes settle, she turns her head, finds the lens, holds a beat, and says with quiet certainty: \"Genovus just knows.\" A small smile beginning at one corner. The camera does not move. Friends beside her stay inside the scene."
+        },
+        {
+          "n": 110,
+          "shot_code": "EP001_SH110",
+          "beat": 8,
+          "shot_kind": "sting",
           "tool": "edit",
-          "prompt": "Dark end card in the Genovus palette, wordmark from /brand/genovus. Line 1: “Don't take our word for it. Ask Helix.” Line 2: genovus.io/vision. Small: “AI-generated video. App shown with demo data.” Stinger hit on the cut."
+          "timing": "0:43–0:45",
+          "description": "Brand finish: the GEN·egg·VUS end card under Maya’s last beat.",
+          "prompt": "Edit: end card from the Genovus brand kit, with the AI-generated label. Keep Maya’s face visible long enough to land; no second message."
+        },
+        {
+          "n": 120,
+          "shot_code": "EP001_SH120",
+          "beat": 3,
+          "shot_kind": "pickup",
+          "tool": "veo",
+          "timing": "pickup",
+          "description": "Pickup: Bri’s silent turn toward Trent (bridge or replacement for a line).",
+          "cast_codes": [
+            "BRI01",
+            "TRENT01"
+          ],
+          "log": {
+            "camera": "B · medium close-up",
+            "gaze": "stage → Trent",
+            "mood_in": "delighted",
+            "mood_out": "silently offended",
+            "sound": "Room tone."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). @BRI01 enjoys the show camera left; her smile stops; she turns slowly toward @TRENT01 with one eyebrow raised and lips pressed, saying nothing."
+        },
+        {
+          "n": 130,
+          "shot_code": "EP001_SH130",
+          "beat": 5,
+          "shot_kind": "pickup",
+          "tool": "veo",
+          "timing": "pickup",
+          "description": "Pickup: Trent’s visible release of tension, no dialogue.",
+          "cast_codes": [
+            "TRENT01"
+          ],
+          "log": {
+            "camera": "B · medium close-up",
+            "gaze": "Maya (camera right)",
+            "mood_in": "anxious, leaning forward",
+            "mood_out": "relieved, smoothing his shirt",
+            "sound": "Room tone."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). @TRENT01 leaning forward anxiously, then his shoulders drop, a slow exhale, a relieved half smile, and he smooths his shirt as if the panic never happened."
         }
-      ],
-      "thumb": "Hero key art: Dee (Black woman, early 30s, curls pulled up, gold hoops, cream blazer) in the front of the frame, calm and amused, holding up her glowing phone, while behind her Marcus (maroon bomber) and Tasha (denim jacket) clutch each other in relief, and far behind them on a spotlit vintage stage Velvet, a lanky Black showman in a sequined emerald jacket, freezes mid-spin with one finger to the sky. Golden haze, confetti, theatrical light."
+      ]
     },
     {
       "code": "gjk-p1",
@@ -283,22 +524,6 @@
         "caption": "Everyone's panicking. She's not. What does she know? Genovus Just Knows premieres Sunday 7PM ET.\n\n{link}\n\nAI-generated video. #GenovusJustKnows #Shorts"
       }
     },
-    "gjk-e1": {
-      "when": "2026-10-11T19:00:00-04:00",
-      "facebook": {
-        "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\n\nEpisode 1 of Genovus Just Knows: when the night gets loud, Genovus lines up every follow-up you logged, so tomorrow's list is ready the night before.\n\nDon't take our word for it. Ask Helix, the AI inside Genovus 👉 {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows"
-      },
-      "instagram": {
-        "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\nEp. 1 · The Night Out\n\nEvery follow-up you log, lined up by day. Tomorrow's list is ready the night before.\nDon't take our word for it: ask Helix. Link in bio.\n\nAI-generated video. App shown with demo data.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife #SmallBusinessOwner"
-      },
-      "tiktok": {
-        "caption": "she said what she said 💅 genovus just knows #GenovusJustKnows #insuranceagent #agencylife #insurancetiktok #coworkers"
-      },
-      "youtube": {
-        "title": "The Night Out | Genovus Just Knows (Ep. 1)",
-        "caption": "Two of them forgot the follow-up. Dee checked Genovus.\n\nGenovus lines up every follow-up you log by day, so tomorrow's list is ready the night before. Ask Helix how it works: {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows #Shorts"
-      }
-    },
     "gjk-p1": {
       "when": "2026-10-12T09:30:00-04:00",
       "facebook": {
@@ -313,6 +538,22 @@
       "youtube": {
         "title": "I Interrupted an AI Mid-Tour 🤯 | Ask Helix",
         "caption": "Not an ad: a real screen recording of Helix, the AI inside Genovus, giving a live tour and answering questions.\n\nTalk to it yourself: {link}\n\nHelix is an AI. The tour shows our product vision with sample data. #GenovusJustKnows #Shorts"
+      }
+    },
+    "gjk-e001": {
+      "when": "2026-10-11T19:00:00-04:00",
+      "facebook": {
+        "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\n\nEpisode 1 of Genovus Just Knows: when the night gets loud, Genovus lines up every follow-up you logged, so tomorrow's list is ready the night before.\n\nDon't take our word for it. Ask Helix, the AI inside Genovus 👉 {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows"
+      },
+      "instagram": {
+        "caption": "Front-row seats. Zero forgotten follow-ups. 🕺\nEp. 1 · The Night Out\n\nEvery follow-up you log, lined up by day. Tomorrow's list is ready the night before.\nDon't take our word for it: ask Helix. Link in bio.\n\nAI-generated video. App shown with demo data.\n#GenovusJustKnows #InsuranceAgent #AgencyLife #InsuranceAgentLife #SmallBusinessOwner"
+      },
+      "tiktok": {
+        "caption": "she said what she said 💅 genovus just knows #GenovusJustKnows #insuranceagent #agencylife #insurancetiktok #coworkers"
+      },
+      "youtube": {
+        "title": "The Night Out | Genovus Just Knows (Ep. 1)",
+        "caption": "Two of them forgot the follow-up. Maya checked Genovus.\n\nGenovus lines up every follow-up you log by day, so tomorrow's list is ready the night before. Ask Helix how it works: {link}\n\nAI-generated video. App shown with demo data. #GenovusJustKnows #Shorts"
       }
     }
   },
@@ -339,7 +580,8 @@
       "who": "Okafor Bakery",
       "reason": "Asked about coverage for the new location",
       "day": 1,
-      "at": "11:00"
+      "at": "11:00",
+      "priority": true
     },
     {
       "who": "Jim & Pat Larson",
@@ -358,6 +600,13 @@
       "reason": "Youth league event: follow up on the sign-up sheet",
       "day": 3,
       "at": "10:00"
+    },
+    {
+      "who": "Grace Whitfield",
+      "reason": "Asked for a callback about bundling home and auto",
+      "day": -1,
+      "at": "15:00",
+      "priority": true
     }
   ],
   "sources": [
@@ -367,7 +616,7 @@
       "platform": "instagram",
       "creator": "",
       "route": "stitch",
-      "episode": "gjk-e1",
+      "episode": "gjk-e001",
       "notes": "Instagram Remix: their first ~5 seconds, then our scene from shot 2. Check the reel allows remixing (the Remix option appears in its menu). The owned version of the episode (with our Velvet) runs everywhere else."
     },
     {
@@ -390,11 +639,14 @@
     }
   ],
   "post_methods": {
-    "gjk-e1": {
+    "gjk-e001": {
       "instagram": {
         "method": "remix",
         "source": "https://www.instagram.com/reel/DeBuukCvpY3/"
       }
     }
-  }
+  },
+  "retire_episodes": [
+    "gjk-e1"
+  ]
 }
