@@ -9,6 +9,8 @@ import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted } from '@/lib/actions';
+import { ShotTakes, FinalUpload, type Take } from '@/components/studio/StudioClient';
+import { VIDEO_CENTS, VIDEO_SECONDS } from '@/lib/studio-gen';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,10 +29,13 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const supabase = await db();
   const { data: e } = await supabase.from('studio_episodes').select('*, studio_series(name, bible)').eq('code', code).maybeSingle();
   if (!e) notFound();
-  const [{ data: shots }, { data: posts }] = await Promise.all([
+  const [{ data: shots }, { data: posts }, { data: takeRows }] = await Promise.all([
     supabase.from('studio_shots').select('*').eq('episode_id', e.id).order('n'),
     supabase.from('studio_posts').select('*').eq('episode_id', e.id).order('platform'),
+    supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, created_at, studio_shots!inner(episode_id)').eq('studio_shots.episode_id', e.id).order('created_at', { ascending: false }),
   ]);
+  const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
+  const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
   const series = e.studio_series as { name: string; bible: { platform_notes?: Record<string, string> } } | null;
   const notes = series?.bible?.platform_notes ?? {};
   const approved = e.status === 'approved' || e.status === 'live';
@@ -45,13 +50,15 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <Panel title="Final render and approval" sub="Approval is bound to this exact render: a new link sends it back to review">
           <ActionForm action={studioSetEpisode} className="form">
             <input type="hidden" name="id" value={e.id} />
-            <label className="field"><span>Final render link (Drive, Flow export or YouTube unlisted)</span><input className="input" name="final" type="url" defaultValue={e.final_url ?? ''} placeholder="https://…" /></label>
+            {e.final_blob ? <input type="hidden" name="final" value={e.final_url ?? ''} /> : <label className="field"><span>Final render link (or upload the cut below)</span><input className="input" name="final" type="url" defaultValue={e.final_url ?? ''} placeholder="https://…" /></label>}
             <label className="field"><span>Stage</span>
               <select className="select" name="status" defaultValue={e.status}>{STAGES.map((s) => <option key={s} value={s}>{s}</option>)}</select>
             </label>
             <button className="btn primary" type="submit">Save</button>
           </ActionForm>
-          {e.final_url ? <a className="btn small" href={e.final_url} target="_blank" rel="noreferrer" style={{ justifySelf: 'start' }}>Watch the render ↗</a> : null}
+          {e.final_blob ? <video className="final-video" src={`/api/studio/media/final/${e.id}`} controls playsInline preload="metadata" /> : e.final_url ? <a className="btn small" href={e.final_url} target="_blank" rel="noreferrer" style={{ justifySelf: 'start' }}>Watch the render ↗</a> : null}
+          {e.final_sha256 ? <span className="muted" style={{ fontSize: 12, fontFamily: 'var(--mono)' }}>Fingerprint {e.final_sha256.slice(0, 16)}… approval is bound to this exact file.</span> : null}
+          <FinalUpload episodeId={e.id} hasFinal={Boolean(e.final_blob)} />
           {approved ? <Chip kind="done">Approved {e.approved_at ? new Date(e.approved_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) : ''}</Chip> : <span className="muted" style={{ fontSize: 13 }}>Before approving: AI label planned for every platform, captions burned in, no carrier names or logos, phone shows demo data only.</span>}
         </Panel>
       </div>
@@ -74,6 +81,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
                   <CopyButton text={s.prompt} label={s.tool === 'flow' ? 'Copy Flow prompt' : 'Copy'} />
                 </details>
               ) : null}
+              {s.tool !== 'edit' ? <ShotTakes shotId={s.id} tool={s.tool} prompt={s.prompt ?? s.description} takes={takesFor(s.id)} costLabel={costLabel} /> : null}
               <ActionForm action={studioUpdateShot} className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
                 <input type="hidden" name="id" value={s.id} />
                 <select className="select" name="status" defaultValue={s.status} aria-label="Shot status" style={{ width: 130 }}>

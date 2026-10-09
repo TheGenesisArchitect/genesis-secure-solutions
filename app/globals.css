@@ -544,3 +544,15 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .studio-script{margin:0;white-space:pre-wrap;font:500 13.5px/1.6 var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:14px;max-height:520px;overflow:auto}
 .studio-shots{list-style:none;margin:0;padding:0;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr))}
 .studio-prompt{margin:8px 0;font-size:13px;line-height:1.5;color:var(--soft);background:var(--sunk);border-radius:10px;padding:10px}
+.take-box{display:grid;gap:8px}
+.take-strip{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.take{flex:0 0 auto;width:150px;margin:0;display:grid;gap:6px;border:1px solid var(--line);border-radius:12px;padding:6px;background:var(--sunk)}
+.take.chosen{border-color:var(--done);box-shadow:0 0 0 1px var(--done)}
+.take video,.take img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:8px;background:#000;display:block}
+.take.sheet{width:130px}
+.take figcaption{display:grid;gap:4px;font-size:12px}
+.take-wait{aspect-ratio:9/16;display:grid;place-items:center;align-content:center;gap:8px;text-align:center;font-size:12px;color:var(--muted);border-radius:8px;background:var(--raise);padding:8px}
+.take-spin{width:22px;height:22px;border-radius:50%;border:2px solid var(--line-2);border-top-color:var(--accent);animation:spin 1s linear infinite}
+.take-chosen{color:var(--done);font-size:12px}
+.final-video{width:min(100%,280px);aspect-ratio:9/16;border-radius:12px;background:#000}
+@keyframes spin{to{transform:rotate(360deg)}}

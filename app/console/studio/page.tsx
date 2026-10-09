@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { ActionForm } from '@/components/ActionForm';
 import { CopyButton } from '@/components/CopyButton';
-import { Panel, Chip, Tile, Empty } from '@/components/ui';
+import { Panel, Chip, Tile, Empty, money } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { resetDemoFollowUps } from '@/lib/actions';
+import { resetDemoFollowUps, studioSetBudget } from '@/lib/actions';
+import { CastSheets, type Ref } from '@/components/studio/StudioClient';
+import { IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
 
 export const metadata = { title: 'Studio' };
 export const dynamic = 'force-dynamic';
@@ -21,7 +23,7 @@ const KIND: Record<string, string> = { teaser: 'Teaser', episode: 'Episode', pro
 const when = (s: string | null) => (s ? new Date(s).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : 'Not scheduled');
 
 export default async function Studio() {
-  await requireStaff();
+  const viewer = await requireStaff();
   const supabase = await db();
   const [{ data: series }, { data: eps }, { data: shots }, { data: posts }, { data: tours }, { data: inq }] = await Promise.all([
     supabase.from('studio_series').select('*').order('created_at').limit(1).maybeSingle(),
@@ -31,6 +33,13 @@ export default async function Studio() {
     supabase.from('helix_tour_sessions').select('src, seconds').eq('campaign', 'gjk-soft-launch'),
     supabase.from('inquiries').select('source, campaigns!inner(slug)').eq('campaigns.slug', 'gjk-soft-launch'),
   ]);
+  const [{ data: refRows }, { data: budget }, { data: spent }] = await Promise.all([
+    supabase.from('studio_refs').select('id, character, status, canonical, error, created_at').order('created_at', { ascending: false }),
+    supabase.from('studio_budget').select('monthly_cap_cents, approval_over_cents').maybeSingle(),
+    supabase.rpc('studio_spent_cents'),
+  ]);
+  const cap = budget?.monthly_cap_cents ?? 15000;
+  const used = Number(spent ?? 0);
   const bible = (series?.bible ?? {}) as Bible;
   const epTitle = new Map((eps ?? []).map((e) => [e.id, e]));
   const posted = (posts ?? []).filter((p) => p.status === 'posted').length;
@@ -48,10 +57,29 @@ export default async function Studio() {
           </div>
           <div className="grid g4">
             <Tile label="Episodes" value={<span className="num">{eps?.length ?? 0}</span>} hint={`${(eps ?? []).filter((e) => e.status === 'approved' || e.status === 'live').length} approved`} />
-            <Tile label="Shots approved" value={<span className="num">{(shots ?? []).filter((s) => s.status === 'approved').length}/{shots?.length ?? 0}</span>} hint="Across the season" />
+            <Tile label="Studio budget" value={<span className="num">{money(used)}</span>} hint={`of ${money(cap)} this month · ${Math.max(0, Math.round(100 - (100 * used) / Math.max(1, cap)))}% left`} />
             <Tile label="Posts live" value={<span className="num">{posted}/{posts?.length ?? 0}</span>} hint="Facebook, Instagram, TikTok, YouTube" />
             <Tile label="Helix tours from the campaign" value={<span className="num">{tours?.length ?? 0}</span>} hint={`${inq?.length ?? 0} inquiries credited`} />
           </div>
+
+          <Panel title="Cast" sub={generationConfigured() ? 'Generate a reference sheet for each character, then pick the one that becomes their look in every shot (Nano Banana Pro)' : 'Generation runs on genovus.io (the Gemini key lives in production)'}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,300px),1fr))', alignItems: 'start' }}>
+              {(bible.characters ?? []).map((ch) => (
+                <div key={ch.name} className="tile" style={{ gap: 8 }}>
+                  <span className="spread"><b style={{ font: '800 16px var(--display)' }}>{ch.name}</b><span className="muted" style={{ fontSize: 12 }}>{ch.role}</span></span>
+                  <span className="soft" style={{ fontSize: 13 }}>{ch.look}</span>
+                  <CastSheets seriesId={series.id} character={ch.name} prompt={ch.sheet} refs={((refRows ?? []) as Ref[]).filter((r) => r.character === ch.name)} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
+                </div>
+              ))}
+            </div>
+            {viewer.staff.role === 'admin' ? (
+              <ActionForm action={studioSetBudget} className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+                <label className="field" style={{ width: 160 }}><span>Monthly cap (USD)</span><input className="input" name="cap" defaultValue={(cap / 100).toFixed(0)} inputMode="decimal" /></label>
+                <label className="field" style={{ width: 220 }}><span>Admin needed above (USD)</span><input className="input" name="approval" defaultValue={((budget?.approval_over_cents ?? 500) / 100).toFixed(2)} inputMode="decimal" /></label>
+                <button className="btn small" type="submit">Save budget</button>
+              </ActionForm>
+            ) : null}
+          </Panel>
 
           <Panel title="Episodes" sub="Open one for its script, shots with ready-to-paste Flow prompts, and the posting kit">
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,260px),1fr))' }}>

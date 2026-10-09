@@ -343,3 +343,26 @@ export async function resetDemoFollowUps(_: ActionResult) {
   revalidatePath('/', 'layout');
   return error ? fail(error.message) : done('Demo follow-ups reset: tomorrow’s list is ready to film.');
 }
+
+export async function studioChooseTake(_: ActionResult, f: FormData) {
+  return call('studio_choose_take', { p_id: str(f, 'id', 64) }, 'Take chosen for the edit.');
+}
+
+export async function studioSetCanonical(_: ActionResult, f: FormData) {
+  return call('studio_set_canonical', { p_id: str(f, 'id', 64) }, 'This sheet is now the character’s reference for every shot.');
+}
+
+export async function studioSetBudget(_: ActionResult, f: FormData) {
+  const dollars = (k: string) => Math.round(Number(str(f, k, 12).replace(/[$,\s]/g, '') || '0') * 100);
+  return call('studio_set_budget', { p_cap_cents: dollars('cap'), p_approval_cents: dollars('approval') }, 'Studio budget updated.');
+}
+
+/** Registers a file the browser uploaded straight to storage: a take for a capture shot, or an episode's final cut. */
+export async function studioRegisterUpload(kind: 'take' | 'final', target: string, pathname: string, sha256: string): Promise<ActionResult> {
+  const supabase = await db();
+  const { error } = kind === 'take'
+    ? await supabase.rpc('studio_add_upload_take', { p_shot: target, p_blob: pathname })
+    : await supabase.rpc('studio_set_final', { p_episode: target, p_blob: pathname, p_sha256: sha256 });
+  revalidatePath('/', 'layout');
+  return error ? fail(error.message) : done(kind === 'take' ? 'Recording added as a take.' : 'Final cut uploaded. Review it, then approve.');
+}
