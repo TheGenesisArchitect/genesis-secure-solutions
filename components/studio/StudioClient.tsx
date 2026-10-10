@@ -5,13 +5,89 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioChooseFrame, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, studioRegisterCasting, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioChooseFrame, studioCourtOverride, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, studioRegisterCasting, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
 const err = (msg: string) => toast({ err: msg, at: Date.now() });
 
-export type Take = { id: string; kind: string; status: string; chosen: boolean; error: string | null; cost_cents: number; created_at: string; params?: { method?: string; cast?: string[] } | null };
+export type Court = {
+  total?: number; verdict?: 'reject' | 'review' | 'production' | 'hero'; passes_tier?: boolean; scores?: Record<string, number>; notes?: Record<string, string>;
+  hard_fails?: string[]; failures?: string[]; beats?: { expected: string; observed: string; hit: boolean; note?: string }[]; usable?: { in: number; out: number } | null;
+  best_moment?: string | null; summary?: string; retry_advice?: string; error?: string; override?: { verdict: string; reason: string };
+};
+export type Take = { id: string; kind: string; status: string; chosen: boolean; error: string | null; cost_cents: number; created_at: string; params?: { method?: string; cast?: string[] } | null; court?: Court | null; court_score?: number | null; court_status?: string | null };
+
+const MAX: Record<string, number> = { performance: 30, story: 20, character: 15, cinematography: 15, continuity: 10, sound: 5, brand: 5 };
+const VERDICT: Record<string, string> = { reject: 'Reject', review: 'Director review', production: 'Production acceptable', hero: 'Hero candidate' };
+const VERDICT_KIND: Record<string, string> = { reject: 'blocked', review: 'pending', production: 'info', hero: 'live' };
+
+/** SWIS™ Creative Court on a take: score, verdict, breakdown, timing, the usable window, and a director's override. */
+function CourtCard({ take, best }: { take: Take; best: boolean }) {
+  const router = useRouter();
+  const c = take.court ?? {};
+  const [busy, setBusy] = useState(false);
+  const rescore = async () => {
+    setBusy(true);
+    ok('The Court is watching this take… up to a couple of minutes.');
+    const r = await fetch('/api/studio/court', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ take: take.id }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+    setBusy(false);
+    if (r.okay) ok(`Court: ${r.j.score} · ${VERDICT[r.j.verdict] ?? r.j.verdict}`); else err(r.j.error ?? 'The Court could not score it.');
+    router.refresh();
+  };
+  if (take.status !== 'ready' || take.kind !== 'video') return null;
+  if (take.court_status === 'running') return <span className="court-line muted"><span className="take-spin" /> Court reviewing…</span>;
+  if (take.court_status !== 'scored') {
+    return (
+      <span className="court-line">
+        <span className="muted">{take.court_status === 'failed' ? `Court could not score: ${c.error ?? 'error'}` : take.court_status === 'skipped' ? 'No Shot Contract: not scored' : 'Waiting for the Court'}</span>
+        {take.court_status !== 'skipped' ? <button className="btn small ghost" type="button" disabled={busy} onClick={rescore}>{busy ? 'Scoring…' : 'Score now'}</button> : null}
+      </span>
+    );
+  }
+  const shown = c.override?.verdict ?? c.verdict ?? 'review';
+  return (
+    <details className={'court' + (best ? ' best' : '')}>
+      <summary>
+        <b className="court-score">{c.total}</b>
+        <span className={'chip ' + VERDICT_KIND[shown]}>{VERDICT[shown]}{c.override ? ' · overridden' : ''}</span>
+        {best ? <span className="chip live">Court’s pick</span> : null}
+        {c.hard_fails?.length ? <span className="chip blocked">Hard fail</span> : null}
+      </summary>
+      {c.summary ? <p style={{ margin: '6px 0' }}>{c.summary}</p> : null}
+      <div className="court-dims">
+        {Object.keys(MAX).map((k) => (
+          <div key={k} title={c.notes?.[k] ?? ''}>
+            <small>{k}</small>
+            <b>{c.scores?.[k] ?? 0}<span className="muted">/{MAX[k]}</span></b>
+            <i style={{ width: `${((c.scores?.[k] ?? 0) / MAX[k]) * 100}%` }} />
+          </div>
+        ))}
+      </div>
+      {c.hard_fails?.length ? <p className="court-fail">Hard fails: {c.hard_fails.join(', ').replace(/_/g, ' ')}</p> : null}
+      {c.beats?.length ? (
+        <ol className="contract-beats">
+          {c.beats.map((b, i) => <li key={i}><time>{b.expected}</time><span>{b.hit ? '✓' : '✕'} seen {b.observed}{b.note ? ` · ${b.note}` : ''}</span></li>)}
+        </ol>
+      ) : null}
+      <p className="muted" style={{ fontSize: 12, margin: '6px 0' }}>
+        {c.usable ? <>Usable for the cut: {c.usable.in.toFixed(1)}–{c.usable.out.toFixed(1)}s. </> : null}
+        {c.best_moment ? <>Strongest frame {c.best_moment}. </> : null}
+        {c.failures?.length ? <>Tags: {c.failures.join(', ')}. </> : null}
+        Timings are the Court’s estimate.
+      </p>
+      {c.retry_advice ? <p style={{ fontSize: 13, margin: '0 0 6px' }}><b>If you retake:</b> {c.retry_advice}</p> : null}
+      {c.override ? <p className="muted" style={{ fontSize: 12 }}>Director override: {VERDICT[c.override.verdict]} · “{c.override.reason}”</p> : null}
+      <form className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }} onSubmit={async (e) => { e.preventDefault(); toast(await studioCourtOverride(null, new FormData(e.currentTarget))); router.refresh(); }}>
+        <input type="hidden" name="id" value={take.id} />
+        <select className="select" name="verdict" defaultValue={shown} aria-label="Your verdict">{Object.entries(VERDICT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+        <input className="input" name="reason" placeholder="Why (calibrates the Court)" style={{ minWidth: 200 }} />
+        <button className="btn small" type="submit">Override</button>
+        <button className="btn small ghost" type="button" disabled={busy} onClick={rescore}>{busy ? 'Scoring…' : 'Score again'}</button>
+      </form>
+    </details>
+  );
+}
 export type Ref = { id: string; character: string; status: string; canonical: boolean; error: string | null; created_at: string };
 
 async function sha256(file: File): Promise<string> {
@@ -90,6 +166,9 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
   const [edit, setEdit] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   usePolling(takes.filter((t) => t.status === 'running' || t.status === 'queued').map((t) => t.id));
+  // The Creative Court ranks takes: scored takes first, best score first; the top passing take is the Court's pick.
+  const ranked = [...takes].sort((a, b) => (b.court_score ?? -1) - (a.court_score ?? -1));
+  const bestId = ranked.find((t) => t.court?.passes_tier && t.court?.verdict !== 'reject')?.id;
 
   const generate = async () => {
     setBusy(true);
@@ -114,18 +193,19 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
     <div className="take-box">
       {takes.length ? (
         <div className="take-strip">
-          {takes.map((t, i) => (
+          {ranked.map((t) => (
             <figure key={t.id} className={'take' + (t.chosen ? ' chosen' : '')}>
               {t.status === 'ready' ? <video src={`/api/studio/media/take/${t.id}`} controls playsInline preload="metadata" /> : (
                 <div className="take-wait">{t.status === 'failed' ? <span>✕ {t.error ?? 'Failed'}</span> : <><span className="take-spin" />{t.status === 'queued' && t.error ? t.error : 'Generating…'}</>}</div>
               )}
               <figcaption>
-                <span className="muted">Take {takes.length - i}{t.kind === 'upload' ? ' · uploaded' : t.cost_cents ? ` · $${(t.cost_cents / 100).toFixed(2)}` : ''}</span>
+                <span className="muted">Take {takes.length - takes.indexOf(t)}{t.kind === 'upload' ? ' · uploaded' : t.cost_cents ? ` · $${(t.cost_cents / 100).toFixed(2)}` : ''}</span>
                 {t.status === 'ready' ? (t.chosen ? <b className="take-chosen">✓ In the edit</b> : <Choose id={t.id} />) : null}
                 {t.status === 'ready' ? <a className="btn small ghost" href={`/api/studio/media/take/${t.id}?download=1`}>Download</a> : null}
               </figcaption>
               {t.params?.cast?.length ? <span className={'take-cast' + (t.params.method === 'prompt' ? ' off' : '')} title={t.params.cast.join(', ')}>Cast via {t.params.method === 'keyframe' ? 'keyframe' : t.params.method === 'references' ? 'references' : 'prompt only'}</span> : null}
               {t.error && t.status === 'ready' ? <span className="muted" style={{ fontSize: 11 }}>{t.error}</span> : null}
+              <CourtCard take={t} best={t.id === bestId} />
             </figure>
           ))}
         </div>

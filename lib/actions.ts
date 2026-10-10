@@ -397,6 +397,11 @@ export async function studioRegisterUpload(kind: 'take' | 'final', target: strin
   return error ? fail(error.message) : done(kind === 'take' ? 'Recording added as a take.' : 'Final cut uploaded. Review it, then approve.');
 }
 
+/** A director's override of the Creative Court's verdict, with the reason that calibrates the Court. */
+export async function studioCourtOverride(_: ActionResult, f: FormData) {
+  return call('studio_court_override', { p_take: str(f, 'id', 64), p_verdict: str(f, 'verdict', 20), p_reason: str(f, 'reason', 500) }, 'Override recorded: it calibrates the Court.');
+}
+
 export async function studioChooseFrame(_: ActionResult, f: FormData) {
   return call('studio_choose_frame', { p_id: str(f, 'id', 64) }, 'Frame set: the next take animates it.');
 }

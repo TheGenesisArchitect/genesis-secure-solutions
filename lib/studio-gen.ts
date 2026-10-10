@@ -27,14 +27,14 @@ export const generationConfigured = () => Boolean(KEY());
 const now = () => new Date().toISOString();
 const headers = () => ({ 'x-goog-api-key': KEY(), 'content-type': 'application/json' });
 
-async function blobBase64(path: string): Promise<{ data: string; mimeType: string } | null> {
+export async function blobBase64(path: string): Promise<{ data: string; mimeType: string } | null> {
   const res = await get(path, { access: 'private', useCache: false });
   if (!res || res.statusCode !== 200 || !res.stream) return null;
   const buf = Buffer.from(await new Response(res.stream).arrayBuffer());
   return { data: buf.toString('base64'), mimeType: path.endsWith('.jpg') ? 'image/jpeg' : 'image/png' };
 }
 
-async function recordExpense(cents: number, note: string, by: string | null) {
+export async function recordExpense(cents: number, note: string, by: string | null) {
   if (cents <= 0) return;
   const { error } = await adminDb().from('expenses').insert({ spent_on: businessToday(), category: 'ai', vendor: 'Google Gemini', amount_cents: cents, note: note.slice(0, 300), created_by: by });
   if (error) console.error(`[studio] expense not recorded: ${error.message}`);

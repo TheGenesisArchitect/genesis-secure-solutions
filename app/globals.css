@@ -732,3 +732,15 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .contract-beats li{display:grid;grid-template-columns:76px 1fr;gap:8px}
 .contract-beats time{font-variant-numeric:tabular-nums;color:var(--muted)}
 .frame-forge{border-top:1px dashed var(--line);padding-top:8px}
+
+/* SWIS Creative Court on a take */
+.court{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--sunk);font-size:13px}
+.court.best{border-color:color-mix(in srgb,var(--done) 60%,var(--line))}
+.court summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.court-score{font:800 20px var(--display);font-variant-numeric:tabular-nums}
+.court-dims{display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin:6px 0}
+.court-dims div{position:relative;display:grid;gap:1px;padding:6px 8px 9px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.court-dims small{color:var(--muted);text-transform:capitalize;font-size:11px}
+.court-dims i{position:absolute;left:0;bottom:0;height:3px;background:var(--done)}
+.court-fail{color:var(--danger,#e5484d);margin:4px 0;font-weight:600}
+.court-line{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}
