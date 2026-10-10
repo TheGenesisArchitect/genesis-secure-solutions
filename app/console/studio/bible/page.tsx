@@ -42,7 +42,7 @@ export default async function BiblePage() {
         <header className="studio-hero bible-hero">
           <div className="grid" style={{ gap: 8 }}>
             <span className="v-eyebrow">Version {b.version} · {when(b.date)} · {b.owner}</span>
-            <h2>{/^GENOVUS/.test(b.title) ? <><Wordmark size={30} /><span>{b.title.replace(/^GENOVUSs*/, '')}</span></> : b.title}</h2>
+            <h2>{/^GENOVUS\b/.test(b.title) ? <><Wordmark size={30} /><span>{b.title.replace(/^GENOVUS\s*/, '')}</span></> : b.title}</h2>
             <p style={{ margin: 0 }}><b>Premise.</b> {b.premise}</p>
             <p className="soft" style={{ margin: 0 }}><b>The emotional promise.</b> {b.promise}</p>
           </div>
