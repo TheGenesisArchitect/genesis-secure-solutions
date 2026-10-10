@@ -326,3 +326,13 @@
   .world-day li{grid-template-columns:44px minmax(0,1fr)}
   .world-day em{grid-column:2;justify-self:start}
 }
+.world-real{display:grid;gap:12px;padding:16px;border:1px solid color-mix(in srgb,var(--done) 40%,var(--line));border-radius:16px;background:var(--surface)}
+.world-real-tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr))}
+.world-real-tiles div{display:grid;gap:2px;align-content:start;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);min-width:0}
+.world-real-tiles small{color:var(--muted);font-size:12px}
+.world-real-tiles b{font:800 22px var(--display);font-variant-numeric:tabular-nums}
+.world-real-tiles .hero{grid-column:span 2}
+.world-real-tiles .hero b{font-size:34px;color:var(--done)}
+.world-real-tiles .hero span{color:var(--soft);font-size:13px}
+.world-real-grow{margin:0;font-size:14.5px;color:var(--soft);line-height:1.5}
+@media (max-width:520px){.world-real-tiles .hero{grid-column:1/-1}}

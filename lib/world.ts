@@ -48,7 +48,7 @@ export const MODULES: WorldModule[] = [
   // ---------- Enterprise ----------
   { key: 'radar', surface: 'enterprise', name: 'Radar & Prospects', icon: 'map', status: 'live', route: '/console/prospects',
     blurb: 'Maps every agency office by carrier and fit, then lines up the markets to win next.',
-    kpis: [['Offices mapped', '2,750+'], ['Markets ranked', '14'], ['Top market', 'Columbus 86']], items: ['Sweep: Alabama 62% complete', 'New this week: 38 offices, 4 closures'] },
+    items: ['Sweeps state by state with adaptive tiling; closures drop off after two missed sweeps', 'Every office scored for fit, with the reasons'] },
   { key: 'calls', surface: 'enterprise', name: 'Call Desk', icon: 'team', status: 'live', route: '/console/prospects/calls',
     blurb: 'The next best call with the reason, dialed by hand; outcomes logged in one tap.',
     kpis: [['Calls today', '24'], ['Consults booked', '3']], items: ['Next: Peachtree office · warm (opened the brief twice)'] },

@@ -6,6 +6,7 @@ import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
 import { studioSystem, BIBLE_TOOLS, type StudioFocus } from '@/lib/helix-bible';
+import { worldStats, statsLine } from '@/lib/world-stats';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
 
 export const dynamic = 'force-dynamic';
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   const { count: today } = await db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('is_staff', false).gte('started_at', dayStart.toISOString());
   // Ask Helix in the Studio is for the Genovus team only.
   if (context === 'studio' && !staff) return Response.json({ error: 'Ask Helix in the Studio is for the Genovus team.' }, { status: 403 });
-  const setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), BIBLE_TOOLS, voice) : liveSetup(voice);
+  const setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
   if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 
   // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an

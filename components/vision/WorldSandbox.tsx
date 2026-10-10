@@ -9,7 +9,8 @@ import { MODULES, SURFACES, TIERS, HELIX_ROLES, WORLD, STATUS_LABEL, tierRank, t
 
 type View = Surface | 'helix';
 
-export function WorldSandbox() {
+/** `radar`: the live scanner's real counts, shown on the Radar module (labeled live, not sample). */
+export function WorldSandbox({ radar }: { radar?: [string, string][] }) {
   const [view, setView] = useState<View>('enterprise');
   const [tier, setTier] = useState<Tier>('growth');
   const [pick, setPick] = useState<Record<string, string>>({});
@@ -21,6 +22,8 @@ export function WorldSandbox() {
   const current = mods.find((m) => m.key === pick[view]) ?? mods.find(included) ?? mods[0];
   const r = HELIX_ROLES.find((x) => x.key === role)!;
   const roleLocked = tierRank[r.tier] > tierRank[tier];
+  const realKpis = current?.key === 'radar' && radar ? radar : null;
+  const kpis = realKpis ?? current?.kpis;
 
   return (
     <div className="world">
@@ -70,11 +73,11 @@ export function WorldSandbox() {
                 </div>
                 {!included(current) ? <p className="world-upsell">Included in <b>{TIERS.find((t) => t.key === current.tier)!.name}</b>. <button className="btn small" onClick={() => setTier(current.tier!)}>See it in {TIERS.find((t) => t.key === current.tier)!.name}</button></p> : null}
                 <p className="world-blurb">{current.blurb}</p>
-                {current.kpis ? <div className="world-kpis">{current.kpis.map(([k, v]) => <div key={k}><small>{k}</small><b>{v}</b></div>)}</div> : null}
+                {kpis ? <div className="world-kpis">{kpis.map(([k, v]) => <div key={k}><small>{k}</small><b>{v}</b></div>)}</div> : null}
                 {current.items ? <ul className="world-items">{current.items.map((x) => <li key={x}>{x}</li>)}</ul> : null}
                 <div className="row" style={{ gap: 8 }}>
                   {current.route ? <Link className="btn small primary" href={current.route}>{current.status === 'live' ? 'Open the live page →' : 'See it in the vision →'}</Link> : null}
-                  <span className="chip sample">Sample data</span>
+                  {realKpis ? <span className="chip live">Live data</span> : <span className="chip sample">Sample data</span>}
                 </div>
               </article>
             ) : null}
