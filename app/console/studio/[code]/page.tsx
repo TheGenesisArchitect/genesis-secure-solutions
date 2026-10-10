@@ -10,8 +10,9 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics, studioSetShotBudget } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
-import { ShotTakes, GenerateFirstTakes, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type VoiceClip } from '@/components/studio/StudioClient';
-import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS, generationConfigured, shotBudget } from '@/lib/studio-gen';
+import { ShotTakes, GenerateFirstTakes, FrameForge, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type Frame, type VoiceClip } from '@/components/studio/StudioClient';
+import type { ShotContract } from '@/lib/studio-direct';
+import { VIDEO_SECONDS, IMAGE_CENTS, generationConfigured, shotBudget, videoFor } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const dynamic = 'force-dynamic';
@@ -43,20 +44,22 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     supabase.from('studio_shots').select('*').eq('episode_id', e.id).order('n'),
     supabase.from('studio_posts').select('*').eq('episode_id', e.id).order('platform'),
     supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, created_at, params, studio_shots!inner(episode_id)').eq('studio_shots.episode_id', e.id).order('created_at', { ascending: false }),
-    supabase.from('studio_art').select('id, status, chosen, error, created_at').eq('episode_id', e.id).order('created_at', { ascending: false }),
+    supabase.from('studio_art').select('id, kind, shot_id, role, status, chosen, error, created_at').eq('episode_id', e.id).order('created_at', { ascending: false }),
   ]);
-  const art = (artRows ?? []) as Art[];
+  const art = (artRows ?? []).filter((a) => a.kind !== 'frame') as Art[];
+  const framesFor = (shot: string) => (artRows ?? []).filter((a) => a.kind === 'frame' && a.shot_id === shot).reverse() as unknown as Frame[];
+  const contractOf = (s: { contract?: unknown }) => { const c = s.contract as ShotContract | null; return c?.timeline?.length ? c : null; };
   const { data: srcRows } = await supabase.from('studio_sources').select('*').or(`episode_id.eq.${e.id},and(series_id.eq.${e.series_id},route.eq.stitch)`).order('created_at');
   const allSources = (srcRows ?? []) as unknown as Source[];
   const mine = allSources.filter((s) => (s as unknown as { episode_id: string | null }).episode_id === e.id);
   const remixable = allSources.filter((s) => s.route === 'stitch');
   const thumb = art.find((a) => a.chosen && a.status === 'ready');
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
-  const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
+  const costLabel = (tier: string) => `${(videoFor(tier).cents / 100).toFixed(2)} · ${VIDEO_SECONDS}s${tier === 'hero' ? ' · hero' : ''}`;
   // Cast shots still waiting for their first take (a failed take doesn't count), for the one-tap first pass.
   // The shot budget (default 12, set per episode in the pitch) caps how many distinct shots it generates.
   const sb = await shotBudget(e.id);
-  const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string })).slice(0, Math.max(0, sb.budget - sb.used.length)) : [];
+  const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string, takes: s.tier === 'hero' ? (contractOf(s)?.takes ?? 3) : 1, cents: videoFor(s.tier).cents })).slice(0, Math.max(0, sb.budget - sb.used.length)) : [];
   const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
   const [{ data: lineClips }, { data: qaRows }] = await Promise.all([
     supabase.from('studio_voice_clips').select('id, shot_id, slot, voice_name, status, error, text, created_at').eq('kind', 'line').in('shot_id', (shots ?? []).map((s) => s.id)).order('created_at', { ascending: false }),
@@ -145,7 +148,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
       </Panel>
 
-      <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><Chip kind={sb.used.length >= sb.budget ? 'pending' : 'info'}>Shot budget {sb.used.length}/{sb.budget}</Chip><GenerateFirstTakes shots={firstPass} centsEach={VIDEO_CENTS} /></span>}>
+      <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><Chip kind={sb.used.length >= sb.budget ? 'pending' : 'info'}>Shot budget {sb.used.length}/{sb.budget}</Chip><GenerateFirstTakes shots={firstPass} /></span>}>
         {viewer.staff.role === 'admin' ? (
           <ActionForm action={studioSetShotBudget} className="row" style={{ gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
             <input type="hidden" name="code" value={e.code} />
@@ -174,7 +177,17 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
                   <CopyButton text={s.prompt} label={s.tool === 'flow' ? 'Copy Flow prompt' : 'Copy'} />
                 </details>
               ) : null}
-              {s.tool !== 'edit' ? <ShotTakes shotId={s.id} tool={s.tool} prompt={s.prompt ?? s.description} takes={takesFor(s.id)} costLabel={costLabel} /> : null}
+              {contractOf(s) ? (
+                <details className="shot-contract" open={s.tier === 'hero'}>
+                  <summary><b>Shot Contract</b> <Chip kind={s.tier === 'hero' ? 'live' : 'info'}>{s.tier === 'hero' ? 'Hero · standard Veo · ' + (contractOf(s)!.takes ?? 3) + ' takes' : s.tier}</Chip> <span className="muted">{contractOf(s)!.duration_s}s in the cut</span></summary>
+                  <p style={{ margin: '6px 0' }}>{contractOf(s)!.function}</p>
+                  <p className="muted" style={{ margin: '0 0 6px', fontSize: 13 }}>{contractOf(s)!.composition}. {contractOf(s)!.camera}</p>
+                  <ol className="contract-beats">{contractOf(s)!.timeline.map((b, i) => <li key={i}><time>{b.t[0].toFixed(1)}–{b.t[1].toFixed(1)}s</time><span>{b.who ? <b>{who(b.who).toUpperCase()} </b> : null}{b.do.replace(/@([A-Z]+)\d+/g, (_, n: string) => n.charAt(0) + n.slice(1).toLowerCase())}</span></li>)}</ol>
+                  <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Never: {contractOf(s)!.negative.join(' · ')}</p>
+                </details>
+              ) : null}
+              {contractOf(s) && s.tool === 'veo' && generationConfigured() ? <FrameForge shotId={s.id} frames={framesFor(s.id)} centsEach={IMAGE_CENTS} /> : null}
+              {s.tool !== 'edit' ? <ShotTakes shotId={s.id} tool={s.tool} prompt={s.prompt ?? s.description} takes={takesFor(s.id)} costLabel={costLabel(s.tier ?? 'production')} /> : null}
               {s.shot_code ? (
                 <details className="shot-log">
                   <summary>Shot log</summary>

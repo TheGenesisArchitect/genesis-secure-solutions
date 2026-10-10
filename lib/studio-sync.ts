@@ -6,27 +6,29 @@
 // No path aliases or server-only imports here: plain Node imports this file too (type stripping).
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { compileVideo, type CastMember } from './studio-direct.ts';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Season = any;
 
 const KEY = 'studio_sync_hash';
 /** Bump when the sync logic itself changes, so production re-syncs even if the data file didn't. */
-const SYNC_VERSION = 1;
+const SYNC_VERSION = 2;
 
-export const seasonHash = (season: Season) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}`).digest('hex').slice(0, 16);
+export const seasonHash = (season: Season, cast: CastMember[] = []) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast.map((c) => (c as { performance_dna?: unknown }).performance_dna ?? null))}`).digest('hex').slice(0, 16);
 
 /** Sync only when the data (or the sync logic) changed since the last run. Cheap when nothing did: one row read. */
-export async function syncStudioIfChanged(db: SupabaseClient, season: Season): Promise<{ synced: boolean; hash: string; summary?: string }> {
-  const hash = seasonHash(season);
+export async function syncStudioIfChanged(db: SupabaseClient, season: Season, cast: CastMember[] = []): Promise<{ synced: boolean; hash: string; summary?: string }> {
+  const hash = seasonHash(season, cast);
   const { data } = await db.from('app_settings').select('value').eq('key', KEY).maybeSingle();
   if (data?.value === hash) return { synced: false, hash };
-  const summary = await syncStudio(db, season);
+  const summary = await syncStudio(db, season, cast);
   await db.from('app_settings').upsert({ key: KEY, value: hash, updated_at: new Date().toISOString() });
   return { synced: true, hash, summary };
 }
 
-export async function syncStudio(db: SupabaseClient, S: Season): Promise<string> {
+/** `cast`: the characters with their Performance DNA (data/studio-cast.json), for compiling Shot Contracts. */
+export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember[] = []): Promise<string> {
   const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what}: ${r.error.message}`); return r.data; };
 
   const c = S.campaign;
@@ -42,8 +44,11 @@ export async function syncStudio(db: SupabaseClient, S: Season): Promise<string>
   for (const e of S.episodes) {
     const ep = must(await db.from('studio_episodes').upsert({ series_id: series.id, code: e.code, kind: e.kind, title: e.title, runtime_s: e.runtime_s, logline: e.logline, script: e.script, music: e.music, sort: e.sort, thumb_prompt: e.thumb ?? null, format: e.format ?? 'original', fork_mode: e.fork_mode ?? null, target_s: e.target_s ?? null, cut_family: e.cut_family ?? null, seat_map: e.seat_map ?? null }, { onConflict: 'code' }).select('id').single(), `episode ${e.code}`) as { id: string };
     for (const sh of e.shots) {
+      // A shot with a Shot Contract gets its prompt compiled (Director OS); the frame shape comes from its own prompt.
+      const aspect = /\bwidescreen 16:9\b/i.test(sh.prompt ?? '') ? '16:9' : '9:16';
+      const prompt = sh.contract && S.series.genome ? compileVideo(sh.contract, S.series.genome, cast, aspect) : sh.prompt ?? null;
       const dialogue = sh.dialogue ?? (sh.lines?.length ? sh.lines.map((l: { who: string; text: string }) => `${l.who.replace(/\d+$/, '')}: ${l.text}`).join(' / ') : null);
-      const saved = must(await db.from('studio_shots').upsert({ episode_id: ep.id, n: sh.n, timing: sh.timing ?? null, description: sh.description, camera: sh.camera ?? sh.log?.camera ?? null, dialogue, prompt: sh.prompt ?? null, tool: sh.tool,
+      const saved = must(await db.from('studio_shots').upsert({ episode_id: ep.id, n: sh.n, timing: sh.timing ?? null, description: sh.description, camera: sh.camera ?? sh.log?.camera ?? null, dialogue, prompt, tool: sh.tool, contract: sh.contract ?? {}, tier: sh.tier ?? 'production',
         shot_code: sh.shot_code ?? null, beat: sh.beat ?? null, shot_kind: sh.shot_kind ?? null, cast_codes: sh.cast_codes ?? [], lines: sh.lines ?? [] }, { onConflict: 'episode_id,n' }).select('id').single(), `shot ${e.code}/${sh.n}`) as { id: string };
       // The shot log is a working record: only filled when still empty, so edits made in the Studio survive a reload.
       if (sh.log) await db.from('studio_shots').update({ log: sh.log }).eq('id', saved.id).eq('log', '{}');

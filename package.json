@@ -12,7 +12,8 @@
     "prebuild": "node scripts/build-template.mjs",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vercel-build": "node scripts/build-template.mjs && node scripts/migrate-on-deploy.mjs && next build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

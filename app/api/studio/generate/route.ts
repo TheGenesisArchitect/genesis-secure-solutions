@@ -2,11 +2,14 @@
 // bible's production order for identity slots) with the caller's own session; then the provider is called
 // server-side. Reference images finish in this request; a video take starts here and finishes via polling.
 import { db } from '@/lib/supabase/server';
-import { generateRef, scheduleTake, shotBudget, generateThumb, generationConfigured, shotAspect, IMAGE_MODEL, VIDEO_MODEL, IMAGE_CENTS, VIDEO_CENTS } from '@/lib/studio-gen';
+import { generateRef, scheduleTake, shotBudget, generateThumb, generateFrame, generationConfigured, shotAspect, videoFor, IMAGE_MODEL, IMAGE_CENTS } from '@/lib/studio-gen';
+import { compileFrame, type ShotContract, type CastMember } from '@/lib/studio-direct';
+import season from '@/data/studio-season1.json';
+import castData from '@/data/studio-cast.json';
 import { findSlot, ENSEMBLE } from '@/lib/studio-cast';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 300; // four Frame Forge candidates paint one after another
 
 const uuid = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f-]{36}$/.test(s);
 type Supa = Awaited<ReturnType<typeof db>>;
@@ -38,7 +41,7 @@ async function castFor(supabase: Supa, seriesId: string, episodeId: string | nul
 
 export async function POST(req: Request) {
   if (!generationConfigured()) return Response.json({ error: 'Generation isn’t connected here (no Gemini key).' }, { status: 503 });
-  const b = (await req.json().catch(() => ({}))) as { kind?: string; series?: string; character?: string; slot?: string; shot?: string; episode?: string; prompt?: string };
+  const b = (await req.json().catch(() => ({}))) as { kind?: string; series?: string; character?: string; slot?: string; shot?: string; episode?: string; prompt?: string; role?: string; count?: number };
   const supabase = await db();
   const prompt = String(b.prompt ?? '').trim().slice(0, 4000);
 
@@ -85,17 +88,47 @@ export async function POST(req: Request) {
 
   if (b.kind === 'video') {
     if (!uuid(b.shot)) return Response.json({ error: 'Unknown shot.' }, { status: 400 });
-    const { data: shot } = await supabase.from('studio_shots').select('id, episode_id, studio_episodes(series_id)').eq('id', b.shot).maybeSingle();
+    const { data: shot } = await supabase.from('studio_shots').select('id, episode_id, tier, studio_episodes(series_id)').eq('id', b.shot).maybeSingle();
     if (!shot) return Response.json({ error: 'Unknown shot.' }, { status: 404 });
     const seriesId = (shot.studio_episodes as unknown as { series_id: string } | null)?.series_id ?? '';
     const cast = await castFor(supabase, seriesId, shot.episode_id, prompt);
     if (cast.missing?.length) return Response.json({ error: `Approve a front portrait (or seated image) for ${cast.missing.join(', ')} first, so their face is locked.` }, { status: 400 });
+    // Render ladder: hero shots on standard Veo; the chosen Frame Forge frames (if any) are what Veo animates.
+    const render = videoFor(shot.tier);
+    const { data: frameRows } = await supabase.from('studio_art').select('id, role').eq('shot_id', shot.id).eq('kind', 'frame').eq('chosen', true);
+    const frames = (frameRows ?? []) as { id: string; role: string }[];
     const sb = await shotBudget(shot.episode_id);
     if (!sb.used.includes(shot.id) && sb.used.length >= sb.budget) return Response.json({ error: `This episode’s shot budget is ${sb.budget} and all ${sb.budget} are in use. Retake one of them, or raise the budget in the pitch.` }, { status: 400 });
-    const { data: id, error } = await supabase.rpc('studio_reserve', { p_kind: 'video', p_target: b.shot, p_character: null, p_prompt: cast.prompt, p_model: VIDEO_MODEL(), p_cents: VIDEO_CENTS, p_params: { aspectRatio: shotAspect(cast.prompt), resolution: '1080p' }, p_refs: cast.refs });
+    const { data: id, error } = await supabase.rpc('studio_reserve', { p_kind: 'video', p_target: b.shot, p_character: null, p_prompt: cast.prompt, p_model: render.model, p_cents: render.cents, p_params: { aspectRatio: shotAspect(cast.prompt), resolution: '1080p', tier: shot.tier, start_frame: frames.find((f) => f.role === 'start')?.id, end_frame: frames.find((f) => f.role === 'end')?.id }, p_refs: cast.refs });
     if (error) return Response.json({ error: error.message }, { status: 400 });
     const r = await scheduleTake(id as string);
     return Response.json({ id, status: r.ok ? (r.waiting ? 'waiting' : 'running') : 'failed', error: r.error, refs: cast.refs.length }, { status: r.ok ? 200 : 502 });
+  }
+
+  // Frame Forge: candidate start or end frames for a shot with a Shot Contract, painted from the compiled frame prompt.
+  if (b.kind === 'frame') {
+    if (!uuid(b.shot)) return Response.json({ error: 'Unknown shot.' }, { status: 400 });
+    const role = b.role === 'end' ? 'end' : 'start';
+    const count = Math.min(4, Math.max(1, Math.floor(Number(b.count) || 4)));
+    const { data: shot } = await supabase.from('studio_shots').select('id, episode_id, contract, prompt, studio_episodes(series_id)').eq('id', b.shot).maybeSingle();
+    if (!shot) return Response.json({ error: 'Unknown shot.' }, { status: 404 });
+    const contract = shot.contract as ShotContract | null;
+    if (!contract?.timeline?.length) return Response.json({ error: 'This shot has no Shot Contract yet.' }, { status: 400 });
+    const genome = (season.series as { genome?: unknown }).genome as Parameters<typeof compileFrame>[1];
+    const framePrompt = compileFrame(contract, genome, castData.characters as unknown as CastMember[], shotAspect(shot.prompt), role);
+    const seriesId = (shot.studio_episodes as unknown as { series_id: string } | null)?.series_id ?? '';
+    const cast = await castFor(supabase, seriesId, shot.episode_id, framePrompt);
+    if (cast.missing?.length) return Response.json({ error: `Approve a front portrait (or seated image) for ${cast.missing.join(', ')} first, so their face is locked.` }, { status: 400 });
+    const results: { id: string; status: string; error?: string }[] = [];
+    for (let i = 0; i < count; i++) {
+      const { data: id, error } = await supabase.rpc('studio_reserve_frame', { p_shot: shot.id, p_role: role, p_prompt: cast.prompt, p_model: IMAGE_MODEL(), p_cents: IMAGE_CENTS, p_refs: cast.refs });
+      if (error) { results.push({ id: '', status: 'failed', error: error.message }); break; }
+      const r = await generateFrame(id as string);
+      results.push({ id: id as string, status: r.ok ? 'ready' : 'failed', error: r.error });
+      if (!r.ok) break;
+    }
+    const ready = results.filter((r) => r.status === 'ready').length;
+    return Response.json({ ready, results, error: ready ? undefined : results.at(-1)?.error }, { status: ready ? 200 : 502 });
   }
 
   if (b.kind === 'thumb') {

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, studioRegisterCasting, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioChooseFrame, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, studioRegisterCasting, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -54,16 +54,18 @@ function Choose({ id, label = 'Use this take' }: { id: string; label?: string })
 /** One tap for the episode's first pass: a Veo take for every cast shot that has none yet, one at a time. Each take
  * reserves its own cost against the Studio budget (the run stops cleanly at the cap); takes that hit Gemini's quota
  * wait and start on their own from the Studio cron. */
-export function GenerateFirstTakes({ shots, centsEach }: { shots: { id: string; code: string; prompt: string }[]; centsEach: number }) {
+export function GenerateFirstTakes({ shots }: { shots: { id: string; code: string; prompt: string; takes: number; cents: number }[] }) {
   const router = useRouter();
   const [done, setDone] = useState<number | null>(null);
   if (!shots.length) return null;
   const run = async () => {
     setDone(0);
     let started = 0, waiting = 0, stop: string | null = null, i = 0;
+    // Hero shots get their contract's take count (the pick between takes is where timing is won).
+    const jobs = shots.flatMap((s) => Array.from({ length: Math.max(1, s.takes) }, () => s));
     const next = async (): Promise<void> => {
-      while (!stop && i < shots.length) {
-        const s = shots[i++];
+      while (!stop && i < jobs.length) {
+        const s = jobs[i++];
         const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'video', shot: s.id, prompt: s.prompt }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
         if (r.okay) { if (r.j.status === 'waiting') waiting++; else started++; setDone(started + waiting); } else stop = `${s.code}: ${r.j.error ?? 'could not start'}`;
       }
@@ -76,7 +78,7 @@ export function GenerateFirstTakes({ shots, centsEach }: { shots: { id: string; 
   };
   return (
     <button className="btn small primary" type="button" disabled={done !== null} onClick={run}>
-      {done !== null ? `Starting… ${done}/${shots.length}` : `Generate first takes · ${shots.length} shots · $${((shots.length * centsEach) / 100).toFixed(2)}`}
+      {done !== null ? `Starting… ${done}/${shots.reduce((n, s) => n + Math.max(1, s.takes), 0)}` : `Generate first takes · ${shots.length} shots · ${(shots.reduce((n, s) => n + Math.max(1, s.takes) * s.cents, 0) / 100).toFixed(2)}`}
     </button>
   );
 }
@@ -249,6 +251,55 @@ export function Thumbnails({ episodeId, defaultPrompt, art, costLabel }: { episo
         <button className="btn small primary" type="button" disabled={busy || text.trim().length < 10} onClick={generate}>{busy ? 'Drawing…' : `Generate thumbnail · ${costLabel}`}</button>
         <button className="btn small ghost" type="button" onClick={() => setEdit(!edit)}>{edit ? 'Hide prompt' : 'Edit prompt'}</button>
       </div>
+    </div>
+  );
+}
+
+export type Frame = { id: string; role: string; status: string; chosen: boolean; error: string | null };
+
+/** Frame Forge: candidate first (and last) frames for a shot with a Shot Contract. Choose one; Veo animates it. */
+export function FrameForge({ shotId, frames, centsEach }: { shotId: string; frames: Frame[]; centsEach: number }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const make = async (role: 'start' | 'end') => {
+    setBusy(role);
+    ok(`Painting 4 ${role} frames… about a minute.`);
+    const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'frame', shot: shotId, role, count: 4 }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+    setBusy(null);
+    if (r.okay) ok(`${r.j.ready} ${role} frame${r.j.ready === 1 ? '' : 's'} ready: choose one.`); else err(r.j.error ?? 'Could not paint frames.');
+    router.refresh();
+  };
+  const row = (role: 'start' | 'end', label: string) => {
+    const list = frames.filter((f) => f.role === role);
+    return (
+      <div className="grid" style={{ gap: 6 }}>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <b style={{ fontSize: 13 }}>{label}</b>
+          <button className="btn small" type="button" disabled={busy !== null} onClick={() => make(role)}>{busy === role ? 'Painting…' : `${list.length ? 'More' : 'Paint 4'} candidates · ${((4 * centsEach) / 100).toFixed(2)}`}</button>
+        </div>
+        {list.length ? (
+          <div className="take-strip">
+            {list.map((f) => (
+              <figure key={f.id} className={'take poster' + (f.chosen ? ' chosen' : '')}>
+                {f.status === 'ready'
+                  ? <a href={`/api/studio/media/frame/${f.id}`} target="_blank" rel="noreferrer"><img src={`/api/studio/media/frame/${f.id}`} alt={`${role} frame candidate`} loading="lazy" /></a>
+                  : <div className="take-wait">{f.status === 'failed' ? <span>✕ {f.error ?? 'Failed'}</span> : <><span className="take-spin" />Painting…</>}</div>}
+                {f.status === 'ready' ? (
+                  <figcaption>
+                    <button className={'btn small' + (f.chosen ? ' primary' : '')} type="button" onClick={async () => { const fd = new FormData(); fd.set('id', f.id); toast(await studioChooseFrame(null, fd)); router.refresh(); }}>{f.chosen ? '✓ Chosen' : 'Choose'}</button>
+                  </figcaption>
+                ) : null}
+              </figure>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+  return (
+    <div className="grid frame-forge" style={{ gap: 10 }}>
+      {row('start', 'First frame (Veo starts here)')}
+      {row('end', 'Last frame (optional: Veo lands here)')}
     </div>
   );
 }

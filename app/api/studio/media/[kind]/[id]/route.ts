@@ -16,6 +16,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string; i
   if (!auth.user) return NO(401);
   let path: string | null = null;
   if (kind === 'ref') path = (await supabase.from('studio_refs').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
+  else if (kind === 'frame') path = (await supabase.from('studio_art').select('blob_path').eq('id', id).eq('kind', 'frame').maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'take') path = (await supabase.from('studio_takes').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'final') path = (await supabase.from('studio_episodes').select('final_blob').eq('id', id).maybeSingle()).data?.final_blob ?? null;
   else if (kind === 'voice') path = (await supabase.from('studio_voice_clips').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;

@@ -372,13 +372,14 @@ export async function studioSetVeoLimits(_: ActionResult, f: FormData) {
   const viewer = await requireStaff();
   if (viewer.staff?.role !== 'admin') return fail('Only an admin can change the Veo limits.');
   const n = (k: string) => Math.floor(Number(str(f, k, 6)));
-  const rpm = n('rpm'), rpd = n('rpd');
-  if (!(rpm >= 1 && rpm <= 100) || !(rpd >= 1 && rpd <= 10000)) return fail('Use whole numbers: per minute 1–100, per day 1–10,000.');
+  const rpm = n('rpm'), rpd = n('rpd'), srpm = n('std_rpm'), srpd = n('std_rpd');
+  const okPair = (m: number, d: number) => m >= 1 && m <= 100 && d >= 1 && d <= 10000;
+  if (!okPair(rpm, rpd) || !okPair(srpm, srpd)) return fail('Use whole numbers: per minute 1–100, per day 1–10,000.');
   const { adminDb } = await import('./supabase/admin');
   const at = new Date().toISOString();
-  const { error } = await adminDb().from('app_settings').upsert([{ key: 'studio_veo_rpm', value: String(rpm), updated_at: at }, { key: 'studio_veo_rpd', value: String(rpd), updated_at: at }]);
+  const { error } = await adminDb().from('app_settings').upsert([{ key: 'studio_veo_rpm', value: String(rpm), updated_at: at }, { key: 'studio_veo_rpd', value: String(rpd), updated_at: at }, { key: 'studio_veo_std_rpm', value: String(srpm), updated_at: at }, { key: 'studio_veo_std_rpd', value: String(srpd), updated_at: at }]);
   revalidatePath('/console/studio');
-  return error ? fail(error.message) : done(`Veo limits saved: ${rpm} a minute, ${rpd} a day. The Studio schedules inside them.`);
+  return error ? fail(error.message) : done(`Veo limits saved: Fast ${rpm}/min · ${rpd}/day, standard ${srpm}/min · ${srpd}/day. The Studio schedules inside them.`);
 }
 
 export async function studioSetBudget(_: ActionResult, f: FormData) {
@@ -394,6 +395,10 @@ export async function studioRegisterUpload(kind: 'take' | 'final', target: strin
     : await supabase.rpc('studio_set_final', { p_episode: target, p_blob: pathname, p_sha256: sha256 });
   revalidatePath('/', 'layout');
   return error ? fail(error.message) : done(kind === 'take' ? 'Recording added as a take.' : 'Final cut uploaded. Review it, then approve.');
+}
+
+export async function studioChooseFrame(_: ActionResult, f: FormData) {
+  return call('studio_choose_frame', { p_id: str(f, 'id', 64) }, 'Frame set: the next take animates it.');
 }
 
 export async function studioChooseArt(_: ActionResult, f: FormData) {

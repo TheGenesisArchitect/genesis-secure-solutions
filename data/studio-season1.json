@@ -51,6 +51,30 @@
         "tiktok": "Put the tracked link in bio. Turn on “AI-generated content” in the post settings.",
         "youtube": "Upload as a Short (vertical, under 60s). In Details, answer Yes to “altered or synthetic content”. Put the tracked link in the description and pin it as the first comment."
       }
+    },
+    "genome": {
+      "version": 1,
+      "frame_rate": "24 fps master (screen captures conform from 30)",
+      "aspect": "set by the cut: 16:9 for the home page, 9:16 for social",
+      "lenses": "28 mm for groups, 40 mm for singles and two-shots, 65 mm for close reactions (full-frame equivalents)",
+      "camera": "eye level; mostly locked off; a move only when the story motivates it; the camera never tells the joke",
+      "depth": "shallow but readable: the background stays legible",
+      "lighting": "motivated: soft window key from camera left plus practical desk lamps; restrained contrast",
+      "skin": "natural texture, real pores, no beauty filter",
+      "color": "warm neutrals; Genovus orange appears only through props and screens, never as a color cast",
+      "texture": "subtle 35 mm grain, gentle halation on highlights",
+      "reactions": "medium close-ups and close-ups; hold the reaction longer than feels safe",
+      "forbidden": [
+        "glossy plastic AI skin",
+        "lens flares",
+        "unmotivated push-ins or floating camera",
+        "rack focus for effect",
+        "wardrobe or prop drift between shots",
+        "sitcom overacting or mugging",
+        "haze or smoke without a source",
+        "any legible text on screens or paper (real screens are cut in)",
+        "extra people appearing"
+      ]
     }
   },
   "episodes": [
@@ -1145,7 +1169,99 @@
             "mood_out": "shared laugh",
             "sound": "Laughter, room tone."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Three-shot across the desks: @TRENT01 leans back, hands behind his head: \"Great. I was never worried.\" @BRI01, completely flat: \"You said 'we're cooked' four times.\" The laugh escapes her first, then Trent; @MAYA01 smiles into her coffee. Bri crumples her last sticky note."
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Three-shot across the desks: @TRENT01 leans back, hands behind his head: \"Great. I was never worried.\" @BRI01, completely flat: \"You said 'we're cooked' four times.\" The laugh escapes her first, then Trent; @MAYA01 smiles into her coffee. Bri crumples her last sticky note.",
+          "contract": {
+            "function": "Payoff: Trent claims he was never worried, Bri flattens him, the shared laugh, and Bri crumples her last sticky note.",
+            "duration_s": 6.2,
+            "cast": [
+              "TRENT01",
+              "BRI01",
+              "MAYA01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "relaxed and pleased with himself, leaning back, hands behind his head",
+                "BRI01": "at her desk, last sticky note in hand, poker face",
+                "MAYA01": "at her desk with her coffee, watching, amused"
+              },
+              "end": {
+                "TRENT01": "caught, laughing at himself",
+                "BRI01": "laughing first, the crumpled note tossed",
+                "MAYA01": "smiling into her coffee"
+              }
+            },
+            "composition": "28 mm three-shot across the desks: Trent left leaning back in his chair, Bri center-right turned toward him, Maya right in soft focus with her coffee; eye level",
+            "camera": "Locked off. No movement, no push-in.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; desk phone hung up beside his laptop",
+              "Bri: deep teal blouse; one yellow sticky note in her right hand; her monitor bezel still covered in notes",
+              "Maya: olive unstructured blazer over cream, coffee mug in her right hand",
+              "Late-morning window light from camera left"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.6
+                ],
+                "do": "@TRENT01 leans back, hands behind his head, satisfied."
+              },
+              {
+                "t": [
+                  0.6,
+                  2
+                ],
+                "who": "TRENT01",
+                "do": "says easily, a little too casual: \"Great. I was never worried.\""
+              },
+              {
+                "t": [
+                  2,
+                  2.6
+                ],
+                "do": "@BRI01 does not react: her eyes stay on him, her smile has stopped. Silence."
+              },
+              {
+                "t": [
+                  2.6,
+                  4.4
+                ],
+                "who": "BRI01",
+                "do": "starting bright and landing completely flat, with a pause before \"four\": \"You said we're cooked... four times.\""
+              },
+              {
+                "t": [
+                  4.4,
+                  5
+                ],
+                "do": "Silence. @TRENT01's shoulders drop."
+              },
+              {
+                "t": [
+                  5,
+                  6.2
+                ],
+                "do": "@BRI01's laugh escapes first; @TRENT01 breaks; @MAYA01 smiles into her coffee."
+              },
+              {
+                "t": [
+                  6.2,
+                  8
+                ],
+                "do": "@BRI01 crumples the sticky note and tosses it toward the bin; the laughter settles naturally."
+              }
+            ],
+            "negative": [
+              "Nobody looks into the lens",
+              "No mugging, no sitcom overacting, no slapstick",
+              "Trent is never cartoonish",
+              "No camera movement",
+              "No laugh track feel: the laugh is small and real"
+            ],
+            "sound": "Room tone; natural small laughter; paper crumple; no score.",
+            "takes": 3
+          },
+          "tier": "hero"
         },
         {
           "n": 175,
@@ -1178,7 +1294,99 @@
             "mood_out": "shared laugh",
             "sound": "Laughter, room tone."
           },
-          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Three-shot across the desks: @TRENT01 leans back, hands behind his head: \"Great. I was never worried.\" @BRI01, completely flat: \"You said 'we're cooked' four times.\" The laugh escapes her first, then Trent; @MAYA01 smiles into her coffee. Bri crumples her last sticky note."
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Three-shot across the desks: @TRENT01 leans back, hands behind his head: \"Great. I was never worried.\" @BRI01, completely flat: \"You said 'we're cooked' four times.\" The laugh escapes her first, then Trent; @MAYA01 smiles into her coffee. Bri crumples her last sticky note.",
+          "contract": {
+            "function": "Payoff: Trent claims he was never worried, Bri flattens him, the shared laugh, and Bri crumples her last sticky note.",
+            "duration_s": 6.2,
+            "cast": [
+              "TRENT01",
+              "BRI01",
+              "MAYA01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "relaxed and pleased with himself, leaning back, hands behind his head",
+                "BRI01": "at her desk, last sticky note in hand, poker face",
+                "MAYA01": "at her desk with her coffee, watching, amused"
+              },
+              "end": {
+                "TRENT01": "caught, laughing at himself",
+                "BRI01": "laughing first, the crumpled note tossed",
+                "MAYA01": "smiling into her coffee"
+              }
+            },
+            "composition": "Vertical two-shot of Trent and Bri across their desks, faces in the upper-middle of the frame, Maya just out of frame right (her smile carried by the cut); clear space at the bottom for captions",
+            "camera": "Locked off. No movement, no push-in.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; desk phone hung up beside his laptop",
+              "Bri: deep teal blouse; one yellow sticky note in her right hand; her monitor bezel still covered in notes",
+              "Maya: olive unstructured blazer over cream, coffee mug in her right hand",
+              "Late-morning window light from camera left"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.6
+                ],
+                "do": "@TRENT01 leans back, hands behind his head, satisfied."
+              },
+              {
+                "t": [
+                  0.6,
+                  2
+                ],
+                "who": "TRENT01",
+                "do": "says easily, a little too casual: \"Great. I was never worried.\""
+              },
+              {
+                "t": [
+                  2,
+                  2.6
+                ],
+                "do": "@BRI01 does not react: her eyes stay on him, her smile has stopped. Silence."
+              },
+              {
+                "t": [
+                  2.6,
+                  4.4
+                ],
+                "who": "BRI01",
+                "do": "starting bright and landing completely flat, with a pause before \"four\": \"You said we're cooked... four times.\""
+              },
+              {
+                "t": [
+                  4.4,
+                  5
+                ],
+                "do": "Silence. @TRENT01's shoulders drop."
+              },
+              {
+                "t": [
+                  5,
+                  6.2
+                ],
+                "do": "@BRI01's laugh escapes first; @TRENT01 breaks; @MAYA01 smiles into her coffee."
+              },
+              {
+                "t": [
+                  6.2,
+                  8
+                ],
+                "do": "@BRI01 crumples the sticky note and tosses it toward the bin; the laughter settles naturally."
+              }
+            ],
+            "negative": [
+              "Nobody looks into the lens",
+              "No mugging, no sitcom overacting, no slapstick",
+              "Trent is never cartoonish",
+              "No camera movement",
+              "No laugh track feel: the laugh is small and real"
+            ],
+            "sound": "Room tone; natural small laughter; paper crumple; no score.",
+            "takes": 3
+          },
+          "tier": "hero"
         },
         {
           "n": 180,
@@ -1205,7 +1413,86 @@
             "mood_out": "quietly certain",
             "sound": "The room recedes; a dip before the line."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 turns from her laughing coworkers to the lens; the room behind her softens; recognition in her eyes, a held smile, and quietly: \"Genovus just knows.\" @TRENT01 and @BRI01 never look into the lens."
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 turns from her laughing coworkers to the lens; the room behind her softens; recognition in her eyes, a held smile, and quietly: \"Genovus just knows.\" @TRENT01 and @BRI01 never look into the lens.",
+          "contract": {
+            "function": "Signature: Maya turns from her laughing coworkers to the lens and lands \"Genovus just knows.\"",
+            "duration_s": 3.4,
+            "cast": [
+              "MAYA01",
+              "TRENT01",
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "MAYA01": "amused, watching Trent and Bri laugh, coffee in hand"
+              },
+              "end": {
+                "MAYA01": "quietly certain, a held smile into the lens"
+              }
+            },
+            "composition": "40 mm medium close-up on Maya at her desk, framed center-left; Trent and Bri soft in the background right, still laughing; eye level",
+            "camera": "Locked off. No push-in.",
+            "continuity": [
+              "Maya: olive unstructured blazer over cream, coffee mug in her right hand, phone face down on the desk",
+              "Trent and Bri at their desks behind her, laughter fading",
+              "Late-morning window light from camera left"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1.6
+                ],
+                "do": "@MAYA01 watches @TRENT01 and @BRI01 laughing off to the right, amused; a small breath of a laugh, not an open laugh."
+              },
+              {
+                "t": [
+                  1.6,
+                  2.2
+                ],
+                "do": "Her eyes come to the lens first; her head follows a beat later, about 15 degrees."
+              },
+              {
+                "t": [
+                  2.2,
+                  2.6
+                ],
+                "do": "Recognition in her eyes, a held closed-mouth smile, a small exhale."
+              },
+              {
+                "t": [
+                  2.6,
+                  4.2
+                ],
+                "who": "MAYA01",
+                "do": "quiet, warm, unhurried, emphasis on \"knows\": \"Genovus just knows.\""
+              },
+              {
+                "t": [
+                  4.2,
+                  5.4
+                ],
+                "do": "She holds the look; the smile stays held; stillness."
+              },
+              {
+                "t": [
+                  5.4,
+                  8
+                ],
+                "do": "The laughter behind her settles; a slow blink; nothing else changes."
+              }
+            ],
+            "negative": [
+              "No wink, no nod, no eyebrow raise",
+              "No open-mouth grin",
+              "Her head never turns before her eyes",
+              "Trent and Bri never look into the lens",
+              "No camera movement"
+            ],
+            "sound": "Room tone; laughter fades under; a short dip before the line; no score until after it.",
+            "takes": 3
+          },
+          "tier": "hero"
         },
         {
           "n": 185,
@@ -1232,7 +1519,86 @@
             "mood_out": "quietly certain",
             "sound": "The room recedes; a dip before the line."
           },
-          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 turns from her laughing coworkers to the lens; the room behind her softens; recognition in her eyes, a held smile, and quietly: \"Genovus just knows.\" @TRENT01 and @BRI01 never look into the lens."
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 turns from her laughing coworkers to the lens; the room behind her softens; recognition in her eyes, a held smile, and quietly: \"Genovus just knows.\" @TRENT01 and @BRI01 never look into the lens.",
+          "contract": {
+            "function": "Signature: Maya turns from her laughing coworkers to the lens and lands \"Genovus just knows.\"",
+            "duration_s": 3.4,
+            "cast": [
+              "MAYA01",
+              "TRENT01",
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "MAYA01": "amused, watching Trent and Bri laugh, coffee in hand"
+              },
+              "end": {
+                "MAYA01": "quietly certain, a held smile into the lens"
+              }
+            },
+            "composition": "Vertical medium close-up of Maya, face in the upper-middle of the frame, Trent and Bri soft behind her; clear space at the bottom for captions",
+            "camera": "Locked off. No push-in.",
+            "continuity": [
+              "Maya: olive unstructured blazer over cream, coffee mug in her right hand, phone face down on the desk",
+              "Trent and Bri at their desks behind her, laughter fading",
+              "Late-morning window light from camera left"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1.6
+                ],
+                "do": "@MAYA01 watches @TRENT01 and @BRI01 laughing off to the right, amused; a small breath of a laugh, not an open laugh."
+              },
+              {
+                "t": [
+                  1.6,
+                  2.2
+                ],
+                "do": "Her eyes come to the lens first; her head follows a beat later, about 15 degrees."
+              },
+              {
+                "t": [
+                  2.2,
+                  2.6
+                ],
+                "do": "Recognition in her eyes, a held closed-mouth smile, a small exhale."
+              },
+              {
+                "t": [
+                  2.6,
+                  4.2
+                ],
+                "who": "MAYA01",
+                "do": "quiet, warm, unhurried, emphasis on \"knows\": \"Genovus just knows.\""
+              },
+              {
+                "t": [
+                  4.2,
+                  5.4
+                ],
+                "do": "She holds the look; the smile stays held; stillness."
+              },
+              {
+                "t": [
+                  5.4,
+                  8
+                ],
+                "do": "The laughter behind her settles; a slow blink; nothing else changes."
+              }
+            ],
+            "negative": [
+              "No wink, no nod, no eyebrow raise",
+              "No open-mouth grin",
+              "Her head never turns before her eyes",
+              "Trent and Bri never look into the lens",
+              "No camera movement"
+            ],
+            "sound": "Room tone; laughter fades under; a short dip before the line; no score until after it.",
+            "takes": 3
+          },
+          "tier": "hero"
         },
         {
           "n": 190,

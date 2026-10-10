@@ -16,6 +16,12 @@ export const VIDEO_MODEL = () => (process.env.STUDIO_VIDEO_MODEL || 'veo-3.1-fas
 export const IMAGE_CENTS = 14;
 export const VIDEO_SECONDS = 8;
 export const VIDEO_CENTS = 12 * VIDEO_SECONDS;
+// Render ladder (Director OS): hero shots (cold open, payoff, signature) render on standard Veo 3.1, the
+// fidelity tier, at $0.40/s at 1080p; production and draft shots on Fast.
+export const HERO_VIDEO_MODEL = () => (process.env.STUDIO_VIDEO_MODEL_HERO || 'veo-3.1-generate-preview').trim();
+export const HERO_VIDEO_CENTS = 40 * VIDEO_SECONDS;
+export type Tier = 'draft' | 'production' | 'hero';
+export const videoFor = (tier: string | null | undefined) => (tier === 'hero' ? { model: HERO_VIDEO_MODEL(), cents: HERO_VIDEO_CENTS } : { model: VIDEO_MODEL(), cents: VIDEO_CENTS });
 export const generationConfigured = () => Boolean(KEY());
 
 const now = () => new Date().toISOString();
@@ -154,7 +160,24 @@ export async function startTake(id: string): Promise<{ ok: boolean; error?: stri
     let started: { name: string } | null = null;
     let method = 'prompt';
     let extraCents = 0;
-    if (!sheets.length) {
+    const frameIds = (t.params ?? {}) as { start_frame?: string; end_frame?: string };
+    const frameImg = async (artId?: string) => {
+      if (!artId) return null;
+      const { data: a } = await db.from('studio_art').select('blob_path').eq('id', artId).eq('kind', 'frame').maybeSingle();
+      return a?.blob_path ? blobBase64(a.blob_path) : null;
+    };
+    const startImg = await frameImg(frameIds.start_frame);
+    const endImg = startImg ? await frameImg(frameIds.end_frame) : null;
+    if (startImg) {
+      // Frame Forge: the person-approved frames carry the faces, wardrobe and composition, so no reference sheets.
+      for (const enc of [asInline, asBytes]) {
+        const r = await veo({ image: enc(startImg), ...(endImg ? { lastFrame: enc(endImg) } : {}) }, 'allow_adult');
+        if ('name' in r) { started = r; method = endImg ? 'frames' : 'start-frame'; break; }
+        if (isQuota(r.error)) throw new Error(r.error);
+        tried.push(`frames: ${r.error}`);
+      }
+      if (!started) throw new Error(`Veo wouldn't take the approved frames, so nothing was generated (no charge). ${tried.join(' | ')}`.slice(0, 600));
+    } else if (!sheets.length) {
       const r = await veo({}, 'allow_all');
       if ('error' in r) throw new Error(r.error);
       started = r;
@@ -240,10 +263,14 @@ export async function shotBudget(episodeId: string): Promise<{ budget: number; u
 export type VeoLimits = { perMinute: number; perDay: number };
 export const VEO_LIMIT_DEFAULTS: VeoLimits = { perMinute: 2, perDay: 10 };
 
-export async function veoLimits(): Promise<VeoLimits> {
-  const { data } = await adminDb().from('app_settings').select('key, value').in('key', ['studio_veo_rpm', 'studio_veo_rpd']);
+/** The settings keys for a model's limits: Fast keeps the original keys, standard (hero) has its own. */
+export const limitKeys = (model: string) => (model === HERO_VIDEO_MODEL() ? ['studio_veo_std_rpm', 'studio_veo_std_rpd'] : ['studio_veo_rpm', 'studio_veo_rpd']);
+
+export async function veoLimits(model = VIDEO_MODEL()): Promise<VeoLimits> {
+  const [rpm, rpd] = limitKeys(model);
+  const { data } = await adminDb().from('app_settings').select('key, value').in('key', [rpm, rpd]);
   const get = (k: string, d: number) => { const v = Number(data?.find((r) => r.key === k)?.value); return Number.isFinite(v) && v > 0 ? Math.floor(v) : d; };
-  return { perMinute: get('studio_veo_rpm', VEO_LIMIT_DEFAULTS.perMinute), perDay: get('studio_veo_rpd', VEO_LIMIT_DEFAULTS.perDay) };
+  return { perMinute: get(rpm, VEO_LIMIT_DEFAULTS.perMinute), perDay: get(rpd, VEO_LIMIT_DEFAULTS.perDay) };
 }
 
 /** The start of today in Pacific time, when Gemini's daily quotas reset. */
@@ -258,11 +285,11 @@ function pacificMidnight(): Date {
 export type VeoRoom = { now: number; limits: VeoLimits; usedToday: number; usedMinute: number; waiting: number };
 
 /** How many Veo takes may start right now without crossing the per-minute or per-day limit. */
-export async function veoRoom(): Promise<VeoRoom> {
+export async function veoRoom(model = VIDEO_MODEL()): Promise<VeoRoom> {
   const db = adminDb();
-  const limits = await veoLimits();
+  const limits = await veoLimits(model);
   const midnight = pacificMidnight().getTime();
-  const { data } = await db.from('studio_takes').select('status, created_at, params').eq('kind', 'video').gte('created_at', new Date(Date.now() - 72 * 3_600_000).toISOString()).limit(2000);
+  const { data } = await db.from('studio_takes').select('status, created_at, params').eq('kind', 'video').eq('model', model).gte('created_at', new Date(Date.now() - 72 * 3_600_000).toISOString()).limit(2000);
   const rows = (data ?? []) as { status: string; created_at: string; params: { started_at?: string; waiting_since?: string } | null }[];
   // A start is a request Google accepted: recorded as started_at (older takes: running or ready since they were made).
   const starts = rows.map((r) => r.params?.started_at ?? (['running', 'ready'].includes(r.status) ? r.created_at : null)).filter((t): t is string => Boolean(t)).map((t) => new Date(t).getTime());
@@ -278,10 +305,10 @@ const waitNote = (r: VeoRoom) => r.usedToday >= r.limits.perDay
 
 /** Start a reserved take now if the limits allow, otherwise queue it for the Studio cron. */
 export async function scheduleTake(id: string): Promise<{ ok: boolean; error?: string; waiting?: boolean }> {
-  const room = await veoRoom();
-  if (room.now > 0) return startTake(id);
   const db = adminDb();
-  const { data: t } = await db.from('studio_takes').select('params').eq('id', id).single();
+  const { data: t } = await db.from('studio_takes').select('params, model').eq('id', id).single();
+  const room = await veoRoom(t?.model ?? VIDEO_MODEL());
+  if (room.now > 0) return startTake(id);
   await db.from('studio_takes').update({ status: 'queued', error: waitNote(room), params: { ...((t?.params as object) ?? {}), waiting_since: now() }, updated_at: now() }).eq('id', id);
   return { ok: true, waiting: true };
 }
@@ -289,24 +316,28 @@ export async function scheduleTake(id: string): Promise<{ ok: boolean; error?: s
 /** Every minute: start as many queued takes as the limits allow, oldest first (the Studio cron calls this). */
 export async function drainVeoQueue(): Promise<{ started: number; waiting: number; room: number }> {
   const db = adminDb();
-  const { data } = await db.from('studio_takes').select('id, params').eq('status', 'queued').not('params->>waiting_since', 'is', null).order('created_at').limit(100);
-  const queued = (data ?? []) as { id: string; params: { next_at?: string } | null }[];
+  const { data } = await db.from('studio_takes').select('id, params, model').eq('status', 'queued').not('params->>waiting_since', 'is', null).order('created_at').limit(100);
+  const queued = (data ?? []) as { id: string; model: string; params: { next_at?: string } | null }[];
   if (!queued.length) return { started: 0, waiting: 0, room: 0 };
-  let room = await veoRoom();
+  // Each model has its own room; a model that hits Google's quota stops for this minute without blocking the other.
+  const rooms = new Map<string, number>();
+  const blocked = new Set<string>();
   let started = 0;
   for (const t of queued.filter((q) => !q.params?.next_at || new Date(q.params.next_at).getTime() <= Date.now())) {
-    if (room.now <= 0) break;
+    if (blocked.has(t.model)) continue;
+    if (!rooms.has(t.model)) rooms.set(t.model, (await veoRoom(t.model)).now);
+    if ((rooms.get(t.model) ?? 0) <= 0) continue;
     const r = await startTake(t.id);
-    if (r.waiting) break; // Google said quota: the backstop has it; stop for this minute.
+    if (r.waiting) { blocked.add(t.model); continue; }
     if (r.ok) started++;
-    room = { ...room, now: room.now - 1 };
+    rooms.set(t.model, (rooms.get(t.model) ?? 1) - 1);
   }
   // Keep the scheduled takes' notes current (after midnight, "starts after midnight" becomes "in a minute or two").
-  if (queued.length > started) {
-    const fresh = await veoRoom();
-    await db.from('studio_takes').update({ error: waitNote(fresh) }).eq('status', 'queued').not('params->>waiting_since', 'is', null).is('params->>next_at', null);
+  for (const model of new Set(queued.map((q) => q.model))) {
+    const fresh = await veoRoom(model);
+    await db.from('studio_takes').update({ error: waitNote(fresh) }).eq('status', 'queued').eq('model', model).not('params->>waiting_since', 'is', null).is('params->>next_at', null);
   }
-  return { started, waiting: queued.length - started, room: room.now };
+  return { started, waiting: queued.length - started, room: [...rooms.values()].reduce((a, b) => a + b, 0) };
 }
 
 type Operation = {
@@ -391,6 +422,34 @@ export async function generateThumb(id: string): Promise<{ ok: boolean; error?: 
     const { count } = await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('episode_id', a.episode_id).eq('chosen', true);
     if (!count) await db.from('studio_art').update({ chosen: true }).eq('id', id);
     await recordExpense(a.cost_cents, `Studio: thumbnail key art (${a.model})`, a.created_by);
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.slice(0, 300) : 'failed';
+    await db.from('studio_art').update({ status: 'failed', error: msg, cost_cents: 0, updated_at: now() }).eq('id', id);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Frame Forge: paint one start or end frame candidate (already reserved) with Nano Banana Pro, at the shot's shape. */
+export async function generateFrame(id: string): Promise<{ ok: boolean; error?: string }> {
+  const db = adminDb();
+  const { data: a } = await db.from('studio_art').select('*').eq('id', id).eq('kind', 'frame').single();
+  if (!a) return { ok: false, error: 'not found' };
+  await db.from('studio_art').update({ status: 'running', updated_at: now() }).eq('id', id);
+  try {
+    const parts: Record<string, unknown>[] = [{ text: a.prompt }];
+    if (a.ref_ids?.length) {
+      const { data: rows } = await db.from('studio_refs').select('character, blob_path').in('id', a.ref_ids).eq('status', 'ready');
+      for (const row of (rows ?? []).slice(0, 3)) {
+        const img = row.blob_path ? await blobBase64(row.blob_path) : null;
+        if (img) parts.push({ text: `Reference sheet for ${row.character}: match this person's face, hair and wardrobe exactly.` }, { inlineData: img });
+      }
+    }
+    const frame = await nanoImage(a.model, parts, shotAspect(a.prompt));
+    const path = `studio/frames/art-${id}.${frame.mimeType === 'image/jpeg' ? 'jpg' : 'png'}`;
+    await put(path, Buffer.from(frame.data, 'base64'), { access: 'private', contentType: frame.mimeType, addRandomSuffix: false, allowOverwrite: true });
+    await db.from('studio_art').update({ status: 'ready', blob_path: path, updated_at: now() }).eq('id', id);
+    await recordExpense(a.cost_cents, `Studio: ${a.role} frame candidate (${a.model})`, a.created_by);
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 300) : 'failed';

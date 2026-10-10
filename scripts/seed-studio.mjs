@@ -7,7 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import { syncStudio, seasonHash } from '../lib/studio-sync.ts';
 
 const S = JSON.parse(fs.readFileSync(new URL('../data/studio-season1.json', import.meta.url), 'utf8'));
+const cast = JSON.parse(fs.readFileSync(new URL('../data/studio-cast.json', import.meta.url), 'utf8')).characters;
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-console.log(`Studio synced: ${await syncStudio(db, S)}.`);
-await db.from('app_settings').upsert({ key: 'studio_sync_hash', value: seasonHash(S), updated_at: new Date().toISOString() });
+console.log(`Studio synced: ${await syncStudio(db, S, cast)}.`);
+await db.from('app_settings').upsert({ key: 'studio_sync_hash', value: seasonHash(S, cast), updated_at: new Date().toISOString() });
 process.exit(0);
