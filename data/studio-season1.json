@@ -489,6 +489,97 @@
         }
       ],
       "thumb": "Close-up of a hand holding a phone in a warm, softly lit modern office at dusk; the phone screen glows with an abstract orange-gold voice waveform orb (no readable text, no UI words); bokeh lights behind; feeling of a live conversation with an AI assistant."
+    },
+    {
+      "code": "gjk-poc",
+      "kind": "proof",
+      "sort": 2,
+      "title": "Proof of concept: do they belong?",
+      "runtime_s": 12,
+      "format": "viral_fork",
+      "fork_mode": "split",
+      "target_s": 12,
+      "cut_family": "quick",
+      "source": "https://www.instagram.com/reel/DeBuukCvpY3/",
+      "seat_map": {
+        "order": [
+          "TRENT01",
+          "BRI01",
+          "MAYA01"
+        ],
+        "performer": "off camera beyond the audience camera’s left side",
+        "gaze": "just left of the lens"
+      },
+      "logline": "Internal test before the full episode: their reel plays in the top half; our trio in the bottom half must read as people who were really there. Generated twice, once with Veo’s own dialogue and once with the locked voices + lip-sync, to choose the voice method.",
+      "script": "Split screen, ~12 seconds, a segment of their reel leading into the payoff.\n\n0–6 · Our trio watches; TRENT leans to BRI: “Tell me tomorrow’s call list is ready.” BRI’s smile fades.\n6–12 · Their payoff lands up top; below, Trent points, Bri’s laugh escapes, Maya loses her composure.\n\nPass if a viewer would believe all three were in that room. Compare: Veo native dialogue vs. TTS (locked voice) + lip-sync.",
+      "music": "Their audio carries the event (split mode keeps it). Our pane: crowd texture and the one line.",
+      "shots": [
+        {
+          "n": 10,
+          "shot_code": "POC_SH010",
+          "beat": 6,
+          "shot_kind": "source",
+          "tool": "source",
+          "timing": "0:00–0:12",
+          "description": "Top half: their reel, a segment leading into the payoff, untouched.",
+          "prompt": "Their footage, in Instagram Remix split layout. Pick the segment so the payoff lands around 0:07.",
+          "log": {
+            "src_in": 19,
+            "src_out": 31,
+            "sound": "Theirs."
+          }
+        },
+        {
+          "n": 20,
+          "shot_code": "POC_SH020",
+          "beat": 2,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:00–0:06",
+          "description": "Our trio in the audience; Trent leans to Bri; her smile fades.",
+          "cast_codes": [
+            "TRENT01",
+            "BRI01",
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "Tell me tomorrow’s call list is ready."
+            }
+          ],
+          "log": {
+            "camera": "A · audience medium-wide",
+            "gaze": "camera left toward the stage",
+            "mood_in": "enjoying",
+            "mood_out": "Bri: offended",
+            "sound": "Crowd texture, one line."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). Three coworkers seated close together in the audience, left to right @TRENT01, @BRI01, @MAYA01, enjoying the show camera left. @TRENT01 leans toward @BRI01 and says quietly: \"Tell me tomorrow's call list is ready.\" @BRI01's eyes stay on the stage while her smile stops. @MAYA01 keeps watching."
+        },
+        {
+          "n": 30,
+          "shot_code": "POC_SH030",
+          "beat": 7,
+          "shot_kind": "fork",
+          "tool": "veo",
+          "timing": "0:06–0:12",
+          "description": "Reaction to the payoff: Trent points, Bri laughs, Maya loses her composure.",
+          "cast_codes": [
+            "TRENT01",
+            "BRI01",
+            "MAYA01"
+          ],
+          "log": {
+            "camera": "A · audience medium-wide",
+            "gaze": "camera left to the stage",
+            "mood_in": "stunned",
+            "mood_out": "joy",
+            "sound": "Crowd erupts."
+          },
+          "prompt": "Vertical 9:16, 35mm film look, live runway-style performance venue at night: warm amber stage spill from camera left on the faces, the surrounding audience falling darker, believable crowd density, light haze, restrained handheld texture, seated eye level. No neon nightclub, no corporate office, no interface text, never a duplicate of the performer. Compose the faces in the middle band of the frame (this plays in the lower half of a split screen). The crowd erupts at something on the stage camera left. @TRENT01 points at the stage involuntarily, mouth open; @BRI01's laugh escapes before she can compose herself; @MAYA01 genuinely loses her composure laughing. No dialogue."
+        }
+      ]
     }
   ],
   "posts": {

@@ -6,7 +6,7 @@ import { db } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 const NO = (status: number) => new Response(status === 404 ? 'Not found' : 'Sign in required', { status, headers: { 'Cache-Control': 'no-store' } });
-const TYPE: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+const TYPE: Record<string, string> = { wav: 'audio/wav', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
 
 export async function GET(req: Request, ctx: { params: Promise<{ kind: string; id: string }> }) {
   const { kind, id } = await ctx.params;
@@ -18,6 +18,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string; i
   if (kind === 'ref') path = (await supabase.from('studio_refs').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'take') path = (await supabase.from('studio_takes').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'final') path = (await supabase.from('studio_episodes').select('final_blob').eq('id', id).maybeSingle()).data?.final_blob ?? null;
+  else if (kind === 'voice') path = (await supabase.from('studio_voice_clips').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'rights') path = (await supabase.from('studio_sources').select('license_blob').eq('id', id).maybeSingle()).data?.license_blob ?? null;
   if (!path) return NO(404);
   const range = req.headers.get('range');

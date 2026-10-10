@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -111,6 +111,8 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
           <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
             <button className="btn small primary" type="button" disabled={busy || text.trim().length < 10} onClick={generate}>{busy ? 'Starting…' : `Generate take · ${costLabel}`}</button>
             <button className="btn small ghost" type="button" onClick={() => setEdit(!edit)}>{edit ? 'Hide prompt' : 'Edit prompt'}</button>
+            <input ref={file} type="file" accept="video/mp4,video/quicktime,video/webm" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+            <button className="btn small ghost" type="button" disabled={busy} onClick={() => file.current?.click()} title="A take finished elsewhere, e.g. lip-synced to the locked voice in Higgsfield or Kling">Upload a take (e.g. lip-synced)</button>
           </div>
         </div>
       ) : null}
@@ -285,5 +287,69 @@ export function IdentitySlot({ target, label, slot, refs, locked, costLabel }: {
         <button className="btn small primary" type="button" disabled={busy} onClick={generate}>{busy ? 'Drawing…' : `${refs.length ? 'New version' : 'Generate'} · ${costLabel}`}</button>
       )}
     </div>
+  );
+}
+
+export type VoiceClip = { id: string; slot: string; voice_name: string; status: string; error: string | null; text: string; created_at: string };
+
+/** Audition a voice for a character: the bible's five-clip voice set, then lock the winner. */
+export function VoiceAudition({ characterId, current, voices, clips, locked }: { characterId: string; current: string; voices: string[]; clips: VoiceClip[]; locked: boolean }) {
+  const router = useRouter();
+  const [voice, setVoice] = useState(current || voices[0]);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    ok(`Recording the ${voice} voice set… about 20 seconds.`);
+    const r = await fetch('/api/studio/voice', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'audition', character: characterId, voice }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+    setBusy(false);
+    if (r.okay && r.j.ok !== false) ok('Voice set ready. Listen below.'); else err(r.j.error ?? 'Could not record.');
+    router.refresh();
+  };
+  const byVoice = [...new Set(clips.map((c) => c.voice_name))];
+  return (
+    <div className="grid" style={{ gap: 10 }}>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <select className="select" value={voice} onChange={(e) => setVoice(e.target.value)} aria-label="Candidate voice" style={{ width: 180 }}>{voices.map((v) => <option key={v} value={v}>{v}</option>)}</select>
+        <button className="btn small primary" type="button" disabled={busy} onClick={run}>{busy ? 'Recording…' : 'Hear the voice set · $0.05'}</button>
+      </div>
+      {byVoice.map((v) => (
+        <div key={v} className="voice-set">
+          <div className="spread"><b>{v}</b>{locked && v === current ? <span className="take-chosen">✓ Locked</span> : null}</div>
+          {clips.filter((c) => c.voice_name === v).map((c) => (
+            <div key={c.id} className="voice-row">
+              <span className="muted">{c.slot}</span>
+              {c.status === 'ready' ? <audio controls preload="none" src={`/api/studio/media/voice/${c.id}`} /> : <span className="muted" style={{ fontSize: 12 }}>{c.status === 'failed' ? `✕ ${c.error}` : 'Recording…'}</span>}
+            </div>
+          ))}
+          {!(locked && v === current) ? (
+            <form className="row" style={{ gap: 6, flexWrap: 'wrap' }} onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); toast(await studioLockVoice(null, f)); router.refresh(); }}>
+              <input type="hidden" name="id" value={characterId} /><input type="hidden" name="voice" value={v} />
+              <select className="select" name="method" defaultValue="tts_lipsync" aria-label="Voice method" style={{ width: 210 }}><option value="tts_lipsync">Fixed voice + lip-sync</option><option value="veo_native">Veo native dialogue</option></select>
+              <button className="btn small" type="submit">Lock {v}</button>
+            </form>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Voice one line of a shot in the speaking character's locked voice. */
+export function LineVoice({ shotId, index, clips }: { shotId: string; index: number; clips: VoiceClip[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const latest = clips.find((c) => c.status === 'ready');
+  return (
+    <span className="line-voice">
+      {latest ? <audio controls preload="none" src={`/api/studio/media/voice/${latest.id}`} /> : null}
+      <button className="btn small ghost" type="button" disabled={busy} onClick={async () => {
+        setBusy(true);
+        const r = await fetch('/api/studio/voice', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'line', shot: shotId, line: index }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+        setBusy(false);
+        if (!r.okay) err(r.j.error ?? 'Could not voice it.');
+        router.refresh();
+      }}>{busy ? 'Voicing…' : latest ? 'Re-voice' : 'Voice it'}</button>
+      {latest ? <a className="btn small ghost" href={`/api/studio/media/voice/${latest.id}?download=1`}>Download</a> : null}
+    </span>
   );
 }

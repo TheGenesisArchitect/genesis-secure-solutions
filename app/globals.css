@@ -695,3 +695,11 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .lines b{font:700 11px var(--mono);letter-spacing:.08em;color:var(--accent);margin-right:4px}
 .theirs-note{font-size:12.5px;color:var(--warn)}
 .shot-log summary{cursor:pointer;font-size:13px;font-weight:600}
+.voice-set{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--raise)}
+.voice-row{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:8px;font-size:12px}
+.voice-row audio,.line-voice audio{width:100%;height:34px}
+.line-voice{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 6px}
+.line-voice audio{max-width:240px}
+.qa-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.qa-row:first-child{border-top:0}
+.qa-row.pass b{color:var(--done)}.qa-row.fail b{color:var(--bad)}

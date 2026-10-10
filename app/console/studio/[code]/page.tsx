@@ -8,9 +8,9 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat } from '@/lib/actions';
+import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
-import { ShotTakes, FinalUpload, Thumbnails, type Take, type Art } from '@/components/studio/StudioClient';
+import { ShotTakes, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type VoiceClip } from '@/components/studio/StudioClient';
 import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS } from '@/lib/studio-gen';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +53,14 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
   const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
   const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
+  const [{ data: lineClips }, { data: qaRows }] = await Promise.all([
+    supabase.from('studio_voice_clips').select('id, shot_id, slot, voice_name, status, error, text, created_at').eq('kind', 'line').in('shot_id', (shots ?? []).map((s) => s.id)).order('created_at', { ascending: false }),
+    supabase.from('studio_qa').select('check_key, category, pass, note, reviewed_at').eq('episode_id', e.id),
+  ]);
+  const acceptance = ((e.studio_series as { bible?: { cast_bible?: { acceptance?: Record<string, string[]> } } } | null)?.bible?.cast_bible?.acceptance) ?? {};
+  const checks = (['script', 'visual', 'brand'] as const).flatMap((cat) => (acceptance[cat] ?? []).map((label, i) => ({ key: `${cat}-${i + 1}`, cat, label })));
+  const qa = (k: string) => (qaRows ?? []).find((r) => r.check_key === k);
+  const passed = checks.filter((c) => qa(c.key)?.pass).length;
   const who = (code: string) => (castRows ?? []).find((c) => c.code === code)?.name.split(' ')[0] ?? code.replace(/\d+$/, '');
   const { data: forkSources } = await supabase.from('studio_sources').select('id, title, remix_allowed, route').eq('route', 'stitch');
   const series = e.studio_series as { name: string; bible: { platform_notes?: Record<string, string> } } | null;
@@ -143,7 +151,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
               <span>{s.description}</span>
               {s.camera ? <span className="muted" style={{ fontSize: 13 }}>Camera: {s.camera}</span> : null}
               {(s.lines as { who: string; text: string }[] | null)?.length ? (
-                <div className="lines">{(s.lines as { who: string; text: string }[]).map((l, i) => <p key={i}><b>{who(l.who).toUpperCase()}</b> {l.text}</p>)}</div>
+                <div className="lines">{(s.lines as { who: string; text: string }[]).map((l, i) => <div key={i}><p><b>{who(l.who).toUpperCase()}</b> {l.text}</p><LineVoice shotId={s.id} index={i} clips={((lineClips ?? []) as (VoiceClip & { shot_id: string })[]).filter((c) => c.shot_id === s.id && c.slot === `line-${i}`)} /></div>)}</div>
               ) : s.dialogue ? <span style={{ fontSize: 14, fontStyle: 'italic' }}>{s.dialogue}</span> : null}
               {s.shot_kind === 'source' ? <span className="theirs-note">Their footage, played in the app as-is. Never generated or altered.{(s.log as { src_in?: number; src_out?: number })?.src_in != null ? ` In ${(s.log as { src_in: number }).src_in}s → out ${(s.log as { src_out: number }).src_out}s.` : ''}</span> : null}
               {s.prompt ? (
@@ -185,6 +193,30 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
           ))}
         </ol>
       </Panel>
+
+      {e.kind === 'episode' && checks.length ? (
+        <Panel title={`Acceptance checks · ${passed}/${checks.length} passed`} sub="From the Character Bible. Watch once silent, once audio-only, at normal speed through the transitions, and on a phone-sized preview. Every check must pass before the episode can be approved.">
+          {(['script', 'visual', 'brand'] as const).map((cat) => (
+            <div key={cat} className="grid" style={{ gap: 0 }}>
+              <b style={{ font: '700 12px var(--mono)', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', marginTop: 6 }}>{cat === 'visual' ? 'Performance & visual' : cat}</b>
+              {checks.filter((c) => c.cat === cat).map((c) => {
+                const r = qa(c.key);
+                return (
+                  <div key={c.key} className={'qa-row' + (r ? (r.pass ? ' pass' : ' fail') : '')}>
+                    <span>{r ? <b>{r.pass ? '✓ ' : '✕ '}</b> : null}{c.label}{r?.note ? <span className="muted" style={{ display: 'block', fontSize: 12 }}>{r.note}</span> : null}</span>
+                    <ActionForm action={studioSetQa} className="row" style={{ gap: 4 }}>
+                      <input type="hidden" name="episode" value={e.id} /><input type="hidden" name="key" value={c.key} /><input type="hidden" name="category" value={c.cat} />
+                      <input className="input" name="note" placeholder="Note (required to fail)" aria-label="Note" style={{ width: 170 }} />
+                      <button className="btn small" type="submit" name="pass" value="1">Pass</button>
+                      <button className="btn small ghost" type="submit" name="pass" value="0">Fail</button>
+                    </ActionForm>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </Panel>
+      ) : null}
 
       <Panel title="Posting kit" sub={approved ? 'Approve each post, publish it by hand on the platform with its AI label on, then paste the live link.' : 'Posts can be approved once the episode’s final render is approved.'}>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,340px),1fr))', alignItems: 'start' }}>
@@ -241,6 +273,21 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
               <span className="muted" style={{ fontSize: 12 }}>{notes[p.platform]}</span>
               {p.status === 'draft' ? (
                 <ActionForm action={studioApprovePost}><input type="hidden" name="id" value={p.id} /><button className="btn small primary" type="submit" disabled={!approved}>Approve this post</button></ActionForm>
+              ) : null}
+              {p.status === 'posted' ? (
+                <details>
+                  <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Performance{p.metrics_at ? ' ✓' : ''}</summary>
+                  <ActionForm action={studioSaveMetrics} className="form" style={{ gap: 6 }}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                      {([['retention_3s', '3s retention %', p.m_retention_3s], ['avg_watch', 'Avg watch %', p.m_avg_watch], ['completion', 'Completion %', p.m_completion], ['rewatches', 'Rewatches', p.m_rewatches], ['shares', 'Shares', p.m_shares], ['comments', 'Comments', p.m_comments], ['profile_visits', 'Profile visits', p.m_profile_visits]] as [string, string, number | null][]).map(([k, label, v]) => (
+                        <label key={k} className="field" style={{ flex: '1 1 110px' }}><span>{label}</span><input className="input" name={k} inputMode="decimal" defaultValue={v ?? ''} /></label>
+                      ))}
+                    </div>
+                    <label className="field"><span>At the two transitions (leaving and returning to the source)</span><input className="input" name="transition_note" defaultValue={p.m_transition_note ?? ''} placeholder="e.g. 8% drop at the fork, back up at the payoff" /></label>
+                    <button className="btn small" type="submit" style={{ justifySelf: 'start' }}>Save metrics</button>
+                  </ActionForm>
+                </details>
               ) : null}
               {p.status === 'approved' ? (
                 <ActionForm action={studioMarkPosted} className="form">

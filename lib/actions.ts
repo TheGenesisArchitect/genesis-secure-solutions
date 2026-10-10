@@ -425,3 +425,16 @@ export async function studioSetFormat(_: ActionResult, f: FormData) {
     p_target: Number(str(f, 'target', 4)) || null, p_source: str(f, 'source', 64) || null, p_cut: str(f, 'cut', 20) || null,
   }, 'Episode format saved.');
 }
+
+export async function studioLockVoice(_: ActionResult, f: FormData) {
+  return call('studio_lock_voice', { p_character: str(f, 'id', 64), p_voice: str(f, 'voice', 40), p_method: str(f, 'method', 20), p_reason: str(f, 'reason', 300) }, 'Voice locked and recorded in the bible’s decisions.');
+}
+
+export async function studioSetQa(_: ActionResult, f: FormData) {
+  return call('studio_set_qa', { p_episode: str(f, 'episode', 64), p_key: str(f, 'key', 40), p_category: str(f, 'category', 10), p_pass: str(f, 'pass', 5) === '1', p_note: str(f, 'note', 500) }, 'Check recorded.');
+}
+
+export async function studioSaveMetrics(_: ActionResult, f: FormData) {
+  const n = (k: string) => { const v = str(f, k, 12).replace(/[%,\s]/g, ''); return v === '' ? null : Number(v); };
+  return call('studio_save_metrics', { p_post: str(f, 'id', 64), p_m: { retention_3s: n('retention_3s'), avg_watch: n('avg_watch'), completion: n('completion'), rewatches: n('rewatches'), shares: n('shares'), comments: n('comments'), profile_visits: n('profile_visits'), transition_note: str(f, 'transition_note', 500) } }, 'Metrics saved.');
+}

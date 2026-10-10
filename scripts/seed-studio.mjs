@@ -13,7 +13,10 @@ const c = S.campaign;
 must(await db.from('campaigns').upsert({ slug: c.slug, name: c.name, channel: 'social', segment: 'mixed', starts_on: c.starts_on, ends_on: c.ends_on, notes: 'Studio Season 1 soft launch: Facebook, Instagram, TikTok, YouTube Shorts. Organic only. Links carry src per platform.' }, { onConflict: 'slug', ignoreDuplicates: true }), 'campaign');
 
 const s = S.series;
-const series = must(await db.from('studio_series').upsert({ slug: s.slug, name: s.name, division: s.division, logline: s.logline, bible: s.bible }, { onConflict: 'slug' }).select('id').single(), 'series');
+// Keep the Cast Character Bible (loaded by seed-cast.mjs) when refreshing the series bible.
+const { data: existing } = await db.from('studio_series').select('bible').eq('slug', s.slug).maybeSingle();
+const castBible = existing?.bible?.cast_bible;
+const series = must(await db.from('studio_series').upsert({ slug: s.slug, name: s.name, division: s.division, logline: s.logline, bible: { ...s.bible, ...(castBible ? { cast_bible: castBible } : {}) } }, { onConflict: 'slug' }).select('id').single(), 'series');
 
 let shots = 0, posts = 0;
 for (const e of S.episodes) {
@@ -68,6 +71,6 @@ for (const e of S.episodes) {
   if (!src) continue;
   const { data: ep } = await db.from('studio_episodes').select('id').eq('code', e.code).single();
   await db.from('studio_episodes').update({ source_id: src.id }).eq('id', ep.id);
-  await db.from('studio_sources').update({ episode_id: ep.id }).eq('id', src.id);
+  if (e.kind === 'episode') await db.from('studio_sources').update({ episode_id: ep.id }).eq('id', src.id);
 }
 console.log('Fork sources linked; retired episodes tidied.');

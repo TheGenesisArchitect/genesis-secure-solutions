@@ -5,7 +5,8 @@ import { notFound } from 'next/navigation';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { Panel, Chip } from '@/components/ui';
 import { CopyButton } from '@/components/CopyButton';
-import { IdentitySlot, type SlotRef } from '@/components/studio/StudioClient';
+import { IdentitySlot, VoiceAudition, type SlotRef, type VoiceClip } from '@/components/studio/StudioClient';
+import { VOICES } from '@/lib/studio-voice';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { PORTRAIT, PERFORMANCE, signatureSlot, lookSlot } from '@/lib/studio-cast';
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 type Sig = { slot: string; label: string; direction: string };
 type Profile = Record<string, string> & { signature_slot?: Sig };
-type Voice = { direction?: string; timing?: string; listening?: string; reaction?: string; samples?: string[]; tts_voice?: string };
+type Voice = { direction?: string; timing?: string; listening?: string; reaction?: string; samples?: string[]; tts_voice?: string; locked?: boolean; method?: string };
 
 const SECTIONS: [string, string][] = [
   ['sentence', 'Character sentence'], ['history', 'History and inner life'], ['wants', 'Wants and private fear'], ['belief', 'The belief that trips them up'],
@@ -33,9 +34,10 @@ export default async function Character({ params }: { params: Promise<{ code: st
   const supabase = await db();
   const { data: c } = await supabase.from('studio_characters').select('*').eq('code', code.toUpperCase()).maybeSingle();
   if (!c) notFound();
-  const [{ data: refs }, { data: looks }] = await Promise.all([
+  const [{ data: refs }, { data: looks }, { data: clips }] = await Promise.all([
     supabase.from('studio_refs').select('id, slot, status, approved, error, asset_code, version, created_at').eq('character_id', c.id).order('created_at', { ascending: false }),
     supabase.from('studio_looks').select('code, description, prop_hand, phone_case').eq('character_id', c.id),
+    supabase.from('studio_voice_clips').select('id, slot, voice_name, status, error, text, created_at').eq('character_id', c.id).eq('kind', 'audition').order('created_at', { ascending: false }).limit(60),
   ]);
   const profile = (c.profile ?? {}) as Profile;
   const voice = (c.voice ?? {}) as Voice;
@@ -87,7 +89,8 @@ export default async function Character({ params }: { params: Promise<{ code: st
         <Panel title="Who they are" sub="GENOVUS Cast Character Bible v1.0">
           <dl className="bible-sec">{SECTIONS.filter(([k]) => profile[k]).flatMap(([k, label]) => [<dt key={`${k}t`}>{label}</dt>, <dd key={`${k}d`}>{profile[k]}</dd>])}</dl>
         </Panel>
-        <Panel title="Voice and performance" sub={voice.tts_voice ? `Audition voice: ${voice.tts_voice} (locked after the proof-of-concept)` : undefined}>
+        <Panel title="Voice and performance" sub={voice.locked ? `Locked voice: ${voice.tts_voice} · ${voice.method === 'veo_native' ? 'Veo native dialogue' : 'fixed voice + lip-sync'}` : 'Audition candidate voices with the bible’s voice set; lock the winner after the proof-of-concept.'}>
+          <VoiceAudition characterId={c.id} current={voice.tts_voice ?? ''} voices={VOICES} clips={(clips ?? []) as VoiceClip[]} locked={Boolean(voice.locked)} />
           <dl className="bible-sec">
             {voice.direction ? <><dt>Voice direction</dt><dd>{voice.direction}</dd></> : null}
             {voice.timing ? <><dt>Timing</dt><dd>{voice.timing}</dd></> : null}
