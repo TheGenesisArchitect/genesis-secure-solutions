@@ -10,8 +10,8 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
-import { ShotTakes, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type VoiceClip } from '@/components/studio/StudioClient';
-import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS } from '@/lib/studio-gen';
+import { ShotTakes, GenerateFirstTakes, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type VoiceClip } from '@/components/studio/StudioClient';
+import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +53,8 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const thumb = art.find((a) => a.chosen && a.status === 'ready');
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
   const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
+  // Cast shots still waiting for their first take (a failed take doesn't count), for the one-tap first pass.
+  const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string })) : [];
   const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
   const [{ data: lineClips }, { data: qaRows }] = await Promise.all([
     supabase.from('studio_voice_clips').select('id, shot_id, slot, voice_name, status, error, text, created_at').eq('kind', 'line').in('shot_id', (shots ?? []).map((s) => s.id)).order('created_at', { ascending: false }),
@@ -141,7 +143,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
       </Panel>
 
-      <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others.">
+      <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<GenerateFirstTakes shots={firstPass} centsEach={VIDEO_CENTS} />}>
         <ol className="studio-shots">
           {(shots ?? []).map((s) => (
             <li key={s.id} className="tile" style={{ gap: 8 }}>

@@ -51,6 +51,34 @@ function Choose({ id, label = 'Use this take' }: { id: string; label?: string })
   );
 }
 
+/** One tap for the episode's first pass: a Veo take for every cast shot that has none yet, three at a time. Each
+ * take still reserves its own cost against the Studio budget, so the run stops cleanly at the cap. */
+export function GenerateFirstTakes({ shots, centsEach }: { shots: { id: string; code: string; prompt: string }[]; centsEach: number }) {
+  const router = useRouter();
+  const [done, setDone] = useState<number | null>(null);
+  if (!shots.length) return null;
+  const run = async () => {
+    setDone(0);
+    let started = 0, stop: string | null = null, i = 0;
+    const next = async (): Promise<void> => {
+      while (!stop && i < shots.length) {
+        const s = shots[i++];
+        const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'video', shot: s.id, prompt: s.prompt }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+        if (r.okay) { started++; setDone(started); } else stop = `${s.code}: ${r.j.error ?? 'could not start'}`;
+      }
+    };
+    await Promise.all([next(), next(), next()]);
+    if (stop) err(`Started ${started} of ${shots.length}. Stopped at ${stop}`); else ok(`Generating ${started} takes… usually 1–3 minutes each; they land on their shots below.`);
+    setDone(null);
+    router.refresh();
+  };
+  return (
+    <button className="btn small primary" type="button" disabled={done !== null} onClick={run}>
+      {done !== null ? `Starting… ${done}/${shots.length}` : `Generate first takes · ${shots.length} shots · $${((shots.length * centsEach) / 100).toFixed(2)}`}
+    </button>
+  );
+}
+
 export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: string; tool: string; prompt: string; takes: Take[]; costLabel: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
