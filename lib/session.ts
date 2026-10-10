@@ -9,7 +9,8 @@ import { db } from './supabase/server';
 import { supabaseConfigured } from './supabase/env';
 
 export type StaffRole = 'admin' | 'account_lead' | 'operator' | 'reviewer';
-export type Membership = { tenantId: string; slug: string; name: string; role: 'owner' | 'staff'; isSample: boolean };
+/** `plan`: the agency's program (launch, growth, premium, vip) or null before one is chosen. */
+export type Membership = { tenantId: string; slug: string; name: string; role: 'owner' | 'staff'; isSample: boolean; plan: string | null };
 export type Viewer = {
   userId: string;
   email: string;
@@ -26,7 +27,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   const uid = auth.user.id;
   const [staff, members, nets] = await Promise.all([
     supabase.from('staff').select('role, display_name').eq('user_id', uid).maybeSingle(),
-    supabase.from('memberships').select('role, tenants(id, slug, name, is_sample)').eq('user_id', uid),
+    supabase.from('memberships').select('role, tenants(id, slug, name, is_sample, plan)').eq('user_id', uid),
     supabase.from('network_members').select('networks(id, slug, name, is_sample)').eq('user_id', uid),
   ]);
   type T = { id: string; slug: string; name: string; is_sample: boolean };
@@ -35,8 +36,8 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     email: auth.user.email ?? '',
     staff: staff.data ? { role: staff.data.role as StaffRole, name: staff.data.display_name } : null,
     memberships: (members.data ?? []).flatMap((m) => {
-      const t = m.tenants as unknown as T | null;
-      return t ? [{ tenantId: t.id, slug: t.slug, name: t.name, role: m.role as 'owner' | 'staff', isSample: t.is_sample }] : [];
+      const t = m.tenants as unknown as (T & { plan: string | null }) | null;
+      return t ? [{ tenantId: t.id, slug: t.slug, name: t.name, role: m.role as 'owner' | 'staff', isSample: t.is_sample, plan: t.plan }] : [];
     }),
     networks: (nets.data ?? []).flatMap((n) => {
       const t = n.networks as unknown as T | null;
@@ -75,9 +76,9 @@ export async function requireTenant(slug: string): Promise<{ viewer: Viewer; ten
   if (m) return { viewer: v, tenant: m, asStaff: false };
   if (!v.staff) notFound();
   const supabase = await db();
-  const { data } = await supabase.from('tenants').select('id, slug, name, is_sample').eq('slug', slug).maybeSingle();
+  const { data } = await supabase.from('tenants').select('id, slug, name, is_sample, plan').eq('slug', slug).maybeSingle();
   if (!data) notFound();
-  return { viewer: v, tenant: { tenantId: data.id, slug: data.slug, name: data.name, role: 'owner', isSample: data.is_sample }, asStaff: true };
+  return { viewer: v, tenant: { tenantId: data.id, slug: data.slug, name: data.name, role: 'owner', isSample: data.is_sample, plan: data.plan }, asStaff: true };
 }
 
 export async function requireNetwork(): Promise<Viewer> {

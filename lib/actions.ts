@@ -291,6 +291,19 @@ export async function handOffHelixNote(_: ActionResult, f: FormData) {
 }
 
 // ---------- Follow-ups (agency reminders) ----------
+const LEAD_DONE: Record<string, string> = { new: 'Moved back to new.', contacted: 'Marked contacted.', booked: 'Marked booked.', won: 'Marked won. Nice.', lost: 'Marked lost.' };
+export async function updateLead(_: ActionResult, f: FormData) {
+  const status = str(f, 'status', 12);
+  return call('update_lead', { p_id: str(f, 'id', 64), p_status: status, p_note: str(f, 'note', 2000) }, LEAD_DONE[status] ?? 'Saved.');
+}
+
+/** Book a consult for a lead: the day and time are the office's (Eastern), passed to Postgres with the zone name. */
+export async function bookLead(_: ActionResult, f: FormData) {
+  const day = str(f, 'day', 10), time = str(f, 'time', 5) || '10:00';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return fail('Pick a day and time.');
+  return call('book_lead', { p_id: str(f, 'id', 64), p_when: `${day} ${time} America/New_York`, p_note: str(f, 'note', 2000) }, `Booked for ${day} at ${time}. It’s on your calendar.`);
+}
+
 export async function addFollowUp(_: ActionResult, f: FormData) {
   return call('add_follow_up', { p_tenant: str(f, 'tenant', 64), p_who: str(f, 'who', 120), p_reason: str(f, 'reason', 300), p_due: str(f, 'due', 10) || null, p_at: str(f, 'at', 5) },
     `Follow-up saved for ${str(f, 'due', 10) === businessToday() ? 'today' : str(f, 'due', 10)}.`);

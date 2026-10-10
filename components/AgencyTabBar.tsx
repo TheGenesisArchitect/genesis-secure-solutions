@@ -1,5 +1,5 @@
 'use client';
-// Genovus Mobile's tab bar for an agency on a phone: Today · Follow-ups · Care · More (opens the full menu).
+// Genovus Mobile's tab bar for an agency on a phone: Today · Leads · Follow-ups · More (opens the full menu).
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from './icons';
@@ -15,8 +15,8 @@ export function AgencyTabBar({ base, film }: { base: string; film?: boolean }) {
       <div className="tabbar-spacer" aria-hidden="true" />
       <nav className="tabbar" aria-label="Genovus Mobile">
         {tab(`${base}/today`, 'Today', 'home')}
+        {tab(`${base}/leads`, 'Leads', 'inbox')}
         {tab(`${base}/follow-ups`, 'Follow-ups', 'check')}
-        {tab(`${base}/care`, 'Care', 'care')}
         <label htmlFor="nav-open"><Icon name="menu" size={22} />More</label>
       </nav>
     </>

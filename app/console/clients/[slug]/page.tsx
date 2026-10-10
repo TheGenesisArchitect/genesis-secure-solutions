@@ -10,6 +10,9 @@ import { moveStage, setGate, decideApproval, setCareStatus, saveRecord } from '@
 import { inviteMember } from '@/lib/invite';
 import { issueWelcomeLink } from '@/lib/actions';
 import { BillingConsole } from '@/components/BillingConsole';
+import { StaffAccess } from '@/components/StaffAccess';
+import { ModuleGrants } from '@/components/ModuleGrants';
+import { programOf } from '@/lib/programs';
 import { findClientBySlug } from '@/lib/clients';
 
 const TABS = [
@@ -42,7 +45,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const { data: t } = await supabase.from('tenants').select('*').eq('slug', slug).maybeSingle();
   if (!t) notFound();
   const here = `/console/clients/${slug}${tab === 'overview' ? '' : `?tab=${tab}`}`;
-  const [records, gates, approvals, care, invoices, assets, audit, events, members, live] = await Promise.all([
+  const [records, gates, approvals, care, invoices, assets, audit, events, members, leadKeys, grants, live] = await Promise.all([
     supabase.from('agent_records').select('version, data, is_current, note, created_at').eq('tenant_id', t.id).order('version', { ascending: false }).limit(10),
     supabase.from('gates').select('*').eq('tenant_id', t.id).order('kind'),
     supabase.from('approvals').select('*').eq('tenant_id', t.id).order('requested_at', { ascending: false }),
@@ -52,6 +55,8 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     supabase.from('audit_events').select('id, action, subject, actor_label, at, before, after').eq('tenant_id', t.id).order('id', { ascending: false }).limit(60),
     supabase.from('lifecycle_events').select('from_stage, to_stage, note, at').eq('tenant_id', t.id).order('at', { ascending: false }).limit(12),
     supabase.from('memberships').select('role, user_id, created_at').eq('tenant_id', t.id),
+    supabase.from('lead_keys').select('id, label, created_at, last_used_at, revoked_at').eq('tenant_id', t.id).order('created_at', { ascending: false }),
+    supabase.from('module_grants').select('module_key, until').eq('tenant_id', t.id).is('revoked_at', null),
     tab === 'overview' ? liveSetup(slug) : Promise.resolve(null),
   ]);
   const links = await supabase.from('client_links').select('created_at').eq('tenant_id', t.id).is('revoked_at', null).order('created_at', { ascending: false }).limit(1);
@@ -180,6 +185,11 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               </ActionForm>
             </Panel>
           ) : null}
+          {t.kind === 'agency' ? (
+            <Panel title="Modules and trials" sub="One dashboard, scaled by program. Turn on Growth or Premium modules for this agency, as a trial or for good.">
+              <ModuleGrants tenantId={t.id} program={programOf(t.plan)} grants={(grants.data ?? []) as never} />
+            </Panel>
+          ) : null}
           <Panel title="People" sub="Who can sign in to this agency’s dashboard">
             {members.data?.length ? (
               <p className="soft">{members.data.length} member{members.data.length > 1 ? 's' : ''}: {members.data.map((m) => m.role).join(', ')}.</p>
@@ -195,6 +205,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <button className="btn small primary" type="submit">Send sign-in invitation</button>
               </ActionForm>
             ) : null}
+            {t.kind === 'agency' ? <StaffAccess tenantId={t.id} keys={(leadKeys.data ?? []) as never} /> : null}
           </Panel>
         </>
       )}
