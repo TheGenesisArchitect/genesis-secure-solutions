@@ -7,7 +7,7 @@ import { handOffNote } from '@/lib/helix-notes';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const KINDS = ['idea', 'action_item', 'question', 'risk'];
-const CHAPTERS = ['map', 'market', 'mission', 'content', 'studio', 'calendar', 'calls', 'funnel', 'flywheel', 'helix'];
+const CHAPTERS = ['world', 'map', 'market', 'mission', 'content', 'studio', 'calendar', 'calls', 'funnel', 'flywheel', 'helix'];
 const uuid = (s: unknown) => typeof s === 'string' && /^[0-9a-f-]{36}$/.test(s);
 
 async function liveSession(id: string) {

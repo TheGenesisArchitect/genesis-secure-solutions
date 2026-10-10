@@ -267,3 +267,62 @@
 .hx-cta b{font:800 14px var(--body)}
 .hx-cta span{font:600 12.5px var(--body)}
 .hx-cta:hover{filter:brightness(1.08)}
+/* ---------- The Genovus World sandbox ---------- */
+.world-summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.world-sum{display:grid;gap:6px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.world-sum b{font:800 16px var(--display)}
+.world-sum small{color:var(--muted)}
+.world{display:grid;gap:14px;min-width:0}
+.world-tabs{display:grid;gap:8px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.world-tab{display:grid;gap:2px;justify-items:start;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-family:var(--body);position:relative;min-width:0}
+.world-tab b{font:800 15px var(--display)}
+.world-tab small{color:var(--muted);font-size:12px}
+.world-tab.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 10px 30px -14px rgba(244,90,27,.6)}
+.world-tab.helix img{position:absolute;right:12px;top:10px;width:18px;height:23px;transform:rotate(-8deg)}
+.world-tiers{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.world-tier{display:grid;gap:2px;justify-items:start;text-align:left;padding:10px 14px;border-radius:12px;border:1px dashed var(--line-2);background:transparent;color:var(--ink);cursor:pointer;font-family:var(--body);min-width:0}
+.world-tier b{font:800 14px var(--display)}
+.world-tier span{font:500 12px var(--mono);color:var(--accent)}
+.world-tier small{color:var(--muted);font-size:12px}
+.world-tier.on{border-style:solid;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.world-frame{border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;min-width:0}
+.world-frame-head{padding:14px 18px;border-bottom:1px solid var(--line);display:grid;gap:6px;background:color-mix(in srgb,var(--sunk) 60%,transparent)}
+.world-frame-head p{margin:0;color:var(--soft);font-size:14px}
+.world-body{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr);min-height:360px}
+.world-rail{display:grid;align-content:start;gap:2px;padding:10px;border-right:1px solid var(--line)}
+.world-mod{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:0;background:none;color:var(--soft);text-align:left;cursor:pointer;font:500 13.5px var(--body)}
+.world-mod:hover{background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--ink)}
+.world-mod.on{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--ink)}
+.world-mod.locked{opacity:.55}
+.world-dot{width:8px;height:8px;border-radius:50%}
+.world-dot.live{background:#3dd691}.world-dot.building{background:#ffb020}.world-dot.vision{background:var(--ai)}
+.world-lock{font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.world-card{display:grid;align-content:start;gap:12px;padding:18px 20px;animation:rise .35s var(--ease) both;min-width:0}
+.world-card h3{margin:0;display:flex;align-items:center;gap:8px;font:800 19px var(--display)}
+.world-blurb{margin:0;color:var(--soft);font-size:15px;line-height:1.55;max-width:640px}
+.world-status{font:600 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid}
+.world-status.live{color:#3dd691;border-color:color-mix(in srgb,#3dd691 50%,transparent)}
+.world-status.building{color:#ffb020;border-color:color-mix(in srgb,#ffb020 50%,transparent)}
+.world-status.vision{color:var(--ai);border-color:color-mix(in srgb,var(--ai) 50%,transparent)}
+.world-kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.world-kpis div{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--sunk)}
+.world-kpis small{color:var(--muted);font-size:11.5px}
+.world-kpis b{font:800 17px var(--display)}
+.world-items{margin:0;padding-left:18px;display:grid;gap:6px;color:var(--soft);font-size:14px}
+.world-upsell{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 10%,transparent);font-size:14px}
+.world-egg{width:18px;height:23px;transform:rotate(-8deg)}
+.world-day{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.world-day li{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);font-size:14px;color:var(--soft)}
+.world-day time{font:600 12px var(--mono);color:var(--accent);padding-top:2px}
+.world-day em{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;font-style:normal;padding:3px 7px;border-radius:999px}
+.world-day em.auto{color:#3dd691;background:color-mix(in srgb,#3dd691 12%,transparent)}
+.world-day em.tap{color:#ffb020;background:color-mix(in srgb,#ffb020 12%,transparent)}
+@media (max-width:760px){
+  .world-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .world-tiers{grid-template-columns:minmax(0,1fr)}
+  .world-body{grid-template-columns:minmax(0,1fr)}
+  .world-rail{border-right:0;border-bottom:1px solid var(--line);grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto;align-content:center}
+  .world-mod{grid-template-columns:auto auto auto}
+  .world-day li{grid-template-columns:44px minmax(0,1fr)}
+  .world-day em{grid-column:2;justify-self:start}
+}

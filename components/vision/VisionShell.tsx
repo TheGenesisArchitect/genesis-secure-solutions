@@ -19,7 +19,7 @@ export function VisionShell({ slug, lede, spec, children }: { slug: string; lede
       title={ch.title}
       crumbs={[{ href: '/vision', label: 'Genovus Growth Engine' }, { label: `Chapter ${ch.n} of ${CHAPTERS.length}` }]}
       who={{ name: 'Growth Engine vision', detail: 'Sample data · the platform as it will be', signedOut: true }}
-      nav={[{ title: 'The story', items: CHAPTERS.map((c) => ({ href: href(c.slug), label: `${c.n}. ${c.short}`, exact: true, icon: c.icon })) }]}
+      nav={[{ title: 'The world', items: [{ href: '/vision/world', label: 'The whole platform', exact: true, icon: 'globe' }] }, { title: 'The story', items: CHAPTERS.map((c) => ({ href: href(c.slug), label: `${c.n}. ${c.short}`, exact: true, icon: c.icon })) }]}
       actions={<Chip kind="sample">Sample data</Chip>}
     >
       <div className="v-head">

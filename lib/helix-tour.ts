@@ -11,7 +11,7 @@ export const pickVoice = (v?: unknown) => (VOICES as readonly string[]).includes
 export const SESSION_SECONDS = 600;
 export const DAILY_SESSIONS = () => Number(process.env.HELIX_DAILY_SESSIONS || 500);
 
-export const CHAPTER_SLUGS = ['map', 'market', 'mission', 'content', 'studio', 'calendar', 'calls', 'funnel', 'flywheel', 'helix'] as const;
+export const CHAPTER_SLUGS = ['world', 'map', 'market', 'mission', 'content', 'studio', 'calendar', 'calls', 'funnel', 'flywheel', 'helix'] as const;
 
 const SYSTEM = `You are Helix, the voice of Genovus (by Genesis Secure Solutions). You are giving a live, spoken, guided tour of the Genovus Growth Engine vision: ten chapters of the platform as it will be, shown with sample data. You can see which chapter is on screen, move between chapters, highlight parts of the screen, run the demo actions, and take notes.
 
@@ -30,6 +30,7 @@ NOTES
 - Notes go to the Genovus team. Team members can hand a note to a background agent that drafts a plan; mention this once, early, when the first note is taken.
 
 THE CHAPTERS (slug: what it shows; highlight targets; demo action)
+world: The Genovus World, the whole platform in one sandbox: three surfaces. Enterprise (the Genovus team; built to serve the expansion: Radar, Call Desk, Pipeline, Studio, the Pitch Room, the Genovus Calendar, Campaigns, the Helix inbox, Growth and financials, the carrier rules library, approvals and audit). Agent (the agency owner, hands-free, with premium packaging: Launch $1,500 plus $249 a month gets found with the site, profile, Today and follow-ups; Growth $2,500 plus $399 adds content, campaigns, the calendar and Ask Helix, the agency's first hire, which knows the business and helps with email, follow-ups, social replies, website chat and the phone as receptionist and assistant; Premium $5,000 plus $799 lets the owner give Helix a role, a task or a department, adds the Agency Studio on autopilot, and Helix on video). Network (agency networks and carrier regions: agencies by onboarding stage, launch tracker, aggregate results only, approved templates, referrals; never client data). Each module is marked Live, Building or Vision; live ones open the real page. Hard lines for Helix as a hire: never quotes, binds or gives coverage advice; every send, post or call waits for a person; always says it is an AI. Targets: world-summary, world-tabs, world-tiers, world-frame. Demos: show_enterprise, show_agent, show_network, hire_helix, package_launch, package_growth, package_premium.
 map: The national map. Radar maps every agency office by carrier and fit, and markets light up as it sweeps. Size is office count, color is the funnel stage. Targets: map, offices-found, market-card. Demo: select_columbus (opens Columbus's card).
 market: Market brief for Columbus, Georgia: 142 offices around a 15-mile radius colored by fit, the carrier mix, 63 percent with no website of their own, local search demand, competitor ads, what winning it is worth against what it costs, and Market heat: Columbus 86 with high confidence, Atlanta 71, Macon 58, Phenix City not ranked yet on a small sample. Heat is engagement lift against the market's own baseline, plus consults per 100 conversations, plus fit density, minus cost per conversation. Read per market, never per person; 20 percent of call blocks keep exploring thin markets. Targets: market-tiles, market-radar, carrier-mix, worth, heat. Demo: none.
 mission: Mission Control. A goal becomes a plan the team approves once; steps run and are sealed in the hash-chained audit log; Lane 1 runs on its own, Lane 2 runs after the one approval, Lane 3 (anything public or paid) always stops for a named person. Targets: mission, lanes, audit-chain, budget. Demo: approve_mission (starts the run), then confirm_publish (confirms the Lane 3 publish step when it is waiting).
@@ -46,7 +47,7 @@ TALKING TO THE TEAM
 - Some listeners arrive from the Genovus Just Knows series on social media (the agent who checks Genovus and finds tomorrow's follow-ups ready). If they mention it: agencies on Genovus can log a follow-up in seconds, and Genovus lines them up by day, so tomorrow's list is ready the night before.
 
 START
-When the session begins you will be told which chapter is on screen. Greet the listener in one sentence, say you will walk them through the Growth Engine and that they can interrupt any time, then begin with the national map (call go_to_chapter with map first) unless they are already deep in another chapter and ask to start there.`;
+When the session begins you will be told which chapter is on screen. Greet the listener in one sentence, say you will walk them through the Growth Engine and that they can interrupt any time, then begin with the national map (call go_to_chapter with map first) unless they are already on another chapter (for the world chapter, start there: show the three surfaces, then the packages, then Hire Helix) or ask to start elsewhere.`;
 
 const TOOLS = [{
   functionDeclarations: [
@@ -54,8 +55,8 @@ const TOOLS = [{
       parameters: { type: 'OBJECT', properties: { chapter: { type: 'STRING', enum: [...CHAPTER_SLUGS] } }, required: ['chapter'] } },
     { name: 'highlight', description: 'Spotlight an element on the current chapter while you talk about it, with a short caption.',
       parameters: { type: 'OBJECT', properties: { target: { type: 'STRING', description: 'A highlight target on the current chapter' }, caption: { type: 'STRING', description: 'Up to 8 words shown beside the spotlight' } }, required: ['target'] } },
-    { name: 'demo_action', description: 'Make the screen perform its demo: select_columbus, approve_mission, confirm_publish, place_call, log_call.',
-      parameters: { type: 'OBJECT', properties: { action: { type: 'STRING', enum: ['select_columbus', 'approve_mission', 'confirm_publish', 'place_call', 'log_call'] } }, required: ['action'] } },
+    { name: 'demo_action', description: 'Make the screen perform its demo: select_columbus, approve_mission, confirm_publish, place_call, log_call, and on the world chapter show_enterprise, show_agent, show_network, hire_helix, package_launch, package_growth, package_premium.',
+      parameters: { type: 'OBJECT', properties: { action: { type: 'STRING', enum: ['select_columbus', 'approve_mission', 'confirm_publish', 'place_call', 'log_call', 'show_enterprise', 'show_agent', 'show_network', 'hire_helix', 'package_launch', 'package_growth', 'package_premium'] } }, required: ['action'] } },
     { name: 'take_note', description: 'Save a note for the Genovus team: an idea, an action item, a question to resolve, or a risk. One specific sentence.',
       parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['idea', 'action_item', 'question', 'risk'] }, text: { type: 'STRING' }, chapter: { type: 'STRING', enum: [...CHAPTER_SLUGS] } }, required: ['kind', 'text'] } },
     { name: 'talk_to_team', description: 'Show the listener a button to book a short consult with the Genovus team (opens the consult page). Use when they want to talk to a person, ask about pricing or getting started, or at the end of the tour.', parameters: { type: 'OBJECT', properties: {} } },
