@@ -45,6 +45,9 @@ await send('Page.enable'); await send('Runtime.enable');
 
 // Taps show as a soft ripple (the edit adds Maya's highlight on top); the caret blinks like a real field.
 await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+  // The Next.js dev indicator never belongs in a frame.
+  const hide = document.createElement('style'); hide.textContent = 'nextjs-portal{display:none!important}';
+  document.addEventListener('DOMContentLoaded', () => document.head.appendChild(hide));
   addEventListener('pointerdown', (e) => {
     const d = document.createElement('div');
     d.style.cssText = 'position:fixed;left:'+(e.clientX-28)+'px;top:'+(e.clientY-28)+'px;width:56px;height:56px;border-radius:50%;background:rgba(255,138,30,.38);border:2px solid rgba(255,138,30,.9);pointer-events:none;z-index:2147483647;transform:scale(.4);opacity:1;transition:transform .45s ease-out,opacity .6s ease-out';
@@ -58,7 +61,9 @@ const VIEW = {
   desktop: { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false },
   phone: { width: 430, height: 932, deviceScaleFactor: 2, mobile: true },
 };
+let current = 'desktop';
 async function view(kind) {
+  current = kind;
   await send('Emulation.setDeviceMetricsOverride', VIEW[kind]);
   await send('Emulation.setTouchEmulationEnabled', { enabled: kind === 'phone' });
 }
@@ -75,9 +80,16 @@ const byText = (sel, text) => `[...document.querySelectorAll(${JSON.stringify(se
 async function tap(js) {
   const p = await centerOf(js);
   if (!p) throw new Error(`nothing to tap: ${js}`);
-  for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
-    await send('Input.dispatchMouseEvent', { type, x: p.x, y: p.y, button: 'left', clickCount: 1 });
-    if (type === 'mousePressed') await sleep(90);
+  if (current === 'phone') {
+    // A real finger: touch events (the page synthesizes the click), so phone taps behave like the device.
+    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.x, y: p.y }] });
+    await sleep(90);
+    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
+      await send('Input.dispatchMouseEvent', { type, x: p.x, y: p.y, button: 'left', clickCount: 1 });
+      if (type === 'mousePressed') await sleep(90);
+    }
   }
   await sleep(350);
 }
@@ -98,7 +110,9 @@ async function scroll(target, ms = 1400, at = 0.35) {
 }
 
 // ---------- recording: CDP screencast frames → constant-frame-rate MP4 ----------
-async function record(name, kind, body) {
+async function record(name, kind, url, body) {
+  // Load and warm the page first (dev compiles routes on first visit), so the clip opens on its own screen.
+  await go(url); await go(url);
   const dir = path.join(OUT, `_frames-${name}`);
   fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   const frames = [];
@@ -135,23 +149,23 @@ const T = plan.typed_live, C = plan.typed_care;
 const APPROVE_STORM = `[...document.querySelectorAll('button[value=approved]')].find((b) => { let el = b; for (let i = 0; i < 6 && el; i++, el = el.parentElement) if (el.textContent.toLowerCase().includes('storm season')) return true; return false; })`;
 const CLIPS = {
   // 14–24 "Your calls are ready the night before: who, when and why. Anything urgent stays on top."
-  'today-phone': ['phone', false, async () => {
-    await go(`${A}/today?film=1`); await sleep(2600);
+  'today-phone': ['phone', false, `${A}/today?film=1`, async () => {
+    await sleep(2600);
     await scroll(byText('section', 'Client notes'), 1600, 0.12); await sleep(2000);
     await scroll(byText('section', 'Priority follow-ups'), 1400, 0.2); await sleep(2400);
   }],
   // 24–34 Trent's Garcia renewal, already on the right day.
-  'followups-desktop': ['desktop', false, async () => {
-    await go(`${A}/follow-ups?film=1`); await sleep(2400);
+  'followups-desktop': ['desktop', false, `${A}/follow-ups?film=1`, async () => {
+    await sleep(2400);
     await scroll(byText('li, tr, article', 'The Garcias'), 1500, 0.4); await sleep(3000);
   }],
-  'followups-phone': ['phone', false, async () => {
-    await go(`${A}/follow-ups?film=1`); await sleep(2200);
+  'followups-phone': ['phone', false, `${A}/follow-ups?film=1`, async () => {
+    await sleep(2200);
     await scroll(byText('li, tr, article', 'The Garcias'), 1500, 0.35); await sleep(2800);
   }],
   // 34–42 Bri logs the Thompsons in seconds.
-  'followups-add-phone': ['phone', true, async () => {
-    await go(`${A}/follow-ups?film=1`); await sleep(1500);
+  'followups-add-phone': ['phone', true, `${A}/follow-ups?film=1`, async () => {
+    await sleep(1500);
     await scroll('document.querySelector("input[name=who]")', 1200, 0.25); await sleep(600);
     await type('document.querySelector("input[name=who]")', T.who);
     await type('document.querySelector("input[name=reason]")', T.reason, 22);
@@ -162,28 +176,28 @@ const CLIPS = {
     await scroll(byText('li, tr, article', T.who), 1500, 0.35); await sleep(2600);
   }],
   // 42–50 One tap to approve, and the record of every decision.
-  'approvals-desktop': ['desktop', true, async () => {
-    await go(`${A}/approvals?film=1`); await sleep(2000);
+  'approvals-desktop': ['desktop', true, `${A}/approvals?film=1`, async () => {
+    await sleep(2000);
     await scroll(byText('article, .panel, .card, li', 'storm season'), 1300, 0.2); await sleep(1800);
     await tap(APPROVE_STORM);
     await sleep(2600);
     await scroll(byText('h2, h3, .panel-title, section', 'Your approval record'), 1500, 0.2); await sleep(2600);
   }],
-  'approvals-phone': ['phone', true, async () => {
-    await go(`${A}/approvals?film=1`); await sleep(1800);
+  'approvals-phone': ['phone', true, `${A}/approvals?film=1`, async () => {
+    await sleep(1800);
     await scroll(byText('article, .panel, .card, li', 'storm season'), 1300, 0.15); await sleep(1600);
     await tap(APPROVE_STORM);
     await sleep(2600);
   }],
   // 50–58 Every lead, link by link.
-  'performance-desktop': ['desktop', false, async () => {
-    await go(`${A}/performance?film=1`); await sleep(2600);
+  'performance-desktop': ['desktop', false, `${A}/performance?film=1`, async () => {
+    await sleep(2600);
     await scroll(byText('h2, h3, .panel-title, section', 'This month, link by link'), 1800, 0.15); await sleep(2400);
     await scroll(byText('h2, h3, .panel-title, section', 'Time to first reply'), 1600, 0.2); await sleep(2200);
   }],
   // 58–64 Ask for a change; posts already on the calendar.
-  'care-desktop': ['desktop', true, async () => {
-    await go(`${A}/care?film=1`); await sleep(1800);
+  'care-desktop': ['desktop', true, `${A}/care?film=1`, async () => {
+    await sleep(1800);
     await setValue('document.querySelector("select[name=kind]")', C.kind); await sleep(300);
     await type('document.querySelector("input[name=title]")', C.title);
     await type('document.querySelector("textarea[name=detail]")', C.detail, 26);
@@ -191,8 +205,8 @@ const CLIPS = {
     await scroll(byText('h2, h3, .panel-title, section', 'Content calendar'), 1600, 0.15); await sleep(2600);
   }],
   // Establishing: the agency's home.
-  'home-desktop': ['desktop', false, async () => {
-    await go(`${A}?film=1`); await sleep(3000);
+  'home-desktop': ['desktop', false, `${A}?film=1`, async () => {
+    await sleep(3000);
     await scroll(700, 2600); await sleep(2000);
   }],
 };
@@ -206,11 +220,11 @@ try {
   for (let i = 0; i < 60 && !(await ev('location.pathname')).startsWith('/app/demo-brooks'); i++) await sleep(250);
   if (!(await ev('location.pathname')).startsWith('/app/demo-brooks')) throw new Error(`sign-in did not land on the agency (at ${await ev('location.href')})`);
   console.log(`signed in as the filming owner · writing to ${OUT}`);
-  for (const [name, [kind, mutates, body]] of Object.entries(CLIPS)) {
+  for (const [name, [kind, mutates, url, body]] of Object.entries(CLIPS)) {
     if (ONLY.length && !ONLY.includes(name)) continue;
     if (mutates) await stage(ORIGIN);
     await view(kind);
-    try { await record(name, kind, body); } catch (e) { console.log(`  ${name}: FAILED ${e.message}`); }
+    try { await record(name, kind, url, body); } catch (e) { console.log(`  ${name}: FAILED ${e.message}`); }
   }
   await stage(ORIGIN); // leave the demo agency in its filming state
 } finally {

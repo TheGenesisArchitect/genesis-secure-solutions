@@ -33,7 +33,7 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
       actions={actions}
       switcher={<EcosystemSwitcher current="agency" slug={tenant.slug} />}
       back={viewer.staff ? { href: `/console/clients/${tenant.slug}`, label: 'Enterprise' } : undefined}
-      who={{ name: viewer.staff?.name ?? viewer.email, detail: asStaff ? 'Genovus team, viewing as the agency' : tenant.role === 'owner' ? 'Agency owner' : 'Office staff' }}
+      who={{ name: film ? tenant.name : viewer.staff?.name ?? viewer.email, detail: asStaff ? 'Genovus team, viewing as the agency' : tenant.role === 'owner' ? 'Agency owner' : 'Office staff' }}
       nav={[
         { items: [{ href: base, label: 'Home', exact: true }, { href: `${base}/today`, label: 'Today', icon: 'home' }, { href: `${base}/follow-ups`, label: 'Follow-ups', count: due ?? 0 }] },
         {
