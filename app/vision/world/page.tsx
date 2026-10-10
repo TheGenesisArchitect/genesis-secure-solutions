@@ -19,7 +19,7 @@ export default async function WorldPage() {
   const count = (s: string, st: Status) => MODULES.filter((m) => m.surface === s && m.status === st).length;
   const stats = await worldStats();
   const radar: [string, string][] | undefined = stats
-    ? [['Offices mapped', n(stats.offices)], ['States', String(stats.states)], ['Carriers', String(stats.carriers)], ['Fit 70+', n(stats.highFit)]]
+    ? [['Offices mapped', n(stats.offices)], ['States', String(stats.states)], ['Carriers', String(stats.carriers)], stats.highFit !== stats.captive ? ['Fit 70+', n(stats.highFit)] : ['Captive · independent', `${n(stats.captive)} · ${n(stats.independent)}`]]
     : undefined;
   return (
     <Shell
@@ -48,8 +48,9 @@ export default async function WorldPage() {
             <div className="hero"><small>Agency offices mapped</small><b>{n(stats.offices)}</b><span>{n(stats.captive)} captive · {n(stats.independent)} independent</span></div>
             <div><small>States swept</small><b>{stats.states}</b></div>
             <div><small>Carriers represented</small><b>{stats.carriers}</b></div>
-            <div><small>Fit score 70+</small><b>{n(stats.highFit)}</b></div>
-            <div><small>In conversation</small><b>{n(stats.engaged)}</b></div>
+            {/* Fit 70+ only when it says something the captive count doesn't; conversations once there are any. */}
+            {stats.highFit !== stats.captive ? <div><small>Fit score 70+</small><b>{n(stats.highFit)}</b></div> : null}
+            {stats.engaged ? <div><small>In conversation</small><b>{n(stats.engaged)}</b></div> : null}
           </div>
           <p className="world-real-grow">
             <b>Room to grow:</b> the goal of {GOAL_AGENCIES} agencies is <b>{(GOAL_AGENCIES / stats.offices * 100).toFixed(1)}%</b> of the offices already mapped.
