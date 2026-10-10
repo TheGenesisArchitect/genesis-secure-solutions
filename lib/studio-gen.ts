@@ -126,7 +126,7 @@ const asInline = (i: { data: string; mimeType: string }): VeoImage => ({ inlineD
  * the shot's first frame with Nano Banana Pro from the sheets and has Veo animate that exact frame. If neither is
  * accepted the take fails at no cost instead of inventing different people.
  */
-export async function startTake(id: string): Promise<{ ok: boolean; error?: string }> {
+export async function startTake(id: string): Promise<{ ok: boolean; error?: string; waiting?: boolean }> {
   const db = adminDb();
   const { data: t } = await db.from('studio_takes').select('*').eq('id', id).single();
   if (!t) return { ok: false, error: 'not found' };
@@ -158,10 +158,12 @@ export async function startTake(id: string): Promise<{ ok: boolean; error?: stri
       if ('error' in r) throw new Error(r.error);
       started = r;
     } else {
-      // Route 1: the sheets as reference images (both image encodings the API has documented).
+      // Route 1: the sheets as reference images (both image encodings the API has documented). A quota refusal
+      // stops here: the take waits for quota instead of painting a keyframe that Veo would refuse anyway.
       for (const enc of [asBytes, asInline]) {
         const r = await veo({ referenceImages: sheets.map((s) => ({ image: enc(s.img), referenceType: 'asset' })) }, 'allow_adult');
         if ('name' in r) { started = r; method = 'references'; break; }
+        if (isQuota(r.error)) throw new Error(r.error);
         tried.push(`references: ${r.error}`);
       }
       // Route 2: a keyframe painted from the sheets, animated by Veo.
@@ -188,9 +190,32 @@ The shot: ${t.prompt}` }];
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 600) : 'failed';
-    await db.from('studio_takes').update({ status: 'failed', error: msg, cost_cents: 0, params: { ...(t.params ?? {}), tried }, updated_at: now() }).eq('id', id);
+    // Out of Gemini quota: the take keeps its reservation and waits; the Studio cron starts it again with backoff.
+    const p = (t.params ?? {}) as { waiting_since?: string; attempts?: number };
+    const since = p.waiting_since ?? now();
+    if (isQuota(msg) && Date.now() - new Date(since).getTime() < QUOTA_GIVE_UP_MS) {
+      const attempts = (p.attempts ?? 0) + 1;
+      const nextAt = new Date(Date.now() + Math.min(30, 2 ** (attempts - 1)) * 60_000).toISOString();
+      await db.from('studio_takes').update({ status: 'queued', error: 'Waiting for Gemini quota: starts on its own.', params: { ...p, tried, waiting_since: since, attempts, next_at: nextAt }, updated_at: now() }).eq('id', id);
+      return { ok: true, waiting: true };
+    }
+    await db.from('studio_takes').update({ status: 'failed', error: isQuota(msg) ? 'Gemini quota stayed exhausted for 36 hours. Check the plan’s limits, then generate again.' : msg, cost_cents: 0, params: { ...(t.params ?? {}), tried }, updated_at: now() }).eq('id', id);
     return { ok: false, error: msg };
   }
+}
+
+/** Google's "out of quota" refusals (per-minute and per-day limits): worth waiting for, not a failed take. */
+const isQuota = (msg: string) => /exceeded your current quota|resource[_ ]exhausted|rate limit|too many requests|\b429\b/i.test(msg);
+const QUOTA_GIVE_UP_MS = 36 * 3_600_000;
+
+/** Start the oldest take that is waiting for quota and due for a retry (the Studio cron calls this every minute). */
+export async function retryWaitingTake(): Promise<{ id: string; status: string } | null> {
+  const db = adminDb();
+  const { data } = await db.from('studio_takes').select('id, params').eq('status', 'queued').not('params->>waiting_since', 'is', null).order('created_at').limit(50);
+  const due = (data ?? []).find((t) => !(t.params as { next_at?: string })?.next_at || new Date((t.params as { next_at: string }).next_at).getTime() <= Date.now());
+  if (!due) return null;
+  const r = await startTake(due.id);
+  return { id: due.id, status: r.ok ? ('waiting' in r && r.waiting ? 'waiting' : 'running') : 'failed' };
 }
 
 type Operation = {
@@ -205,7 +230,7 @@ export async function pollTake(id: string): Promise<{ status: string; error?: st
   const { data: t } = await db.from('studio_takes').select('*').eq('id', id).single();
   if (!t) return { status: 'missing' };
   if (t.status !== 'running' || !t.operation) {
-    if (t.status === 'queued' && Date.now() - new Date(t.created_at).getTime() > 10 * 60_000) {
+    if (t.status === 'queued' && !(t.params as { waiting_since?: string } | null)?.waiting_since && Date.now() - new Date(t.created_at).getTime() > 10 * 60_000) {
       await db.from('studio_takes').update({ status: 'failed', error: 'Never started.', cost_cents: 0, updated_at: now() }).eq('id', id);
       return { status: 'failed' };
     }

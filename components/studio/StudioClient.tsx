@@ -51,24 +51,26 @@ function Choose({ id, label = 'Use this take' }: { id: string; label?: string })
   );
 }
 
-/** One tap for the episode's first pass: a Veo take for every cast shot that has none yet, three at a time. Each
- * take still reserves its own cost against the Studio budget, so the run stops cleanly at the cap. */
+/** One tap for the episode's first pass: a Veo take for every cast shot that has none yet, one at a time. Each take
+ * reserves its own cost against the Studio budget (the run stops cleanly at the cap); takes that hit Gemini's quota
+ * wait and start on their own from the Studio cron. */
 export function GenerateFirstTakes({ shots, centsEach }: { shots: { id: string; code: string; prompt: string }[]; centsEach: number }) {
   const router = useRouter();
   const [done, setDone] = useState<number | null>(null);
   if (!shots.length) return null;
   const run = async () => {
     setDone(0);
-    let started = 0, stop: string | null = null, i = 0;
+    let started = 0, waiting = 0, stop: string | null = null, i = 0;
     const next = async (): Promise<void> => {
       while (!stop && i < shots.length) {
         const s = shots[i++];
         const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'video', shot: s.id, prompt: s.prompt }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
-        if (r.okay) { started++; setDone(started); } else stop = `${s.code}: ${r.j.error ?? 'could not start'}`;
+        if (r.okay) { if (r.j.status === 'waiting') waiting++; else started++; setDone(started + waiting); } else stop = `${s.code}: ${r.j.error ?? 'could not start'}`;
       }
     };
-    await Promise.all([next(), next(), next()]);
-    if (stop) err(`Started ${started} of ${shots.length}. Stopped at ${stop}`); else ok(`Generating ${started} takes… usually 1–3 minutes each; they land on their shots below.`);
+    await next();
+    const line = `Generating ${started}${waiting ? `; ${waiting} waiting for Gemini quota will start on their own` : ''}.`;
+    if (stop) err(`${line} Stopped at ${stop}`); else ok(`${line} Takes land on their shots below.`);
     setDone(null);
     router.refresh();
   };
@@ -113,7 +115,7 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
           {takes.map((t, i) => (
             <figure key={t.id} className={'take' + (t.chosen ? ' chosen' : '')}>
               {t.status === 'ready' ? <video src={`/api/studio/media/take/${t.id}`} controls playsInline preload="metadata" /> : (
-                <div className="take-wait">{t.status === 'failed' ? <span>✕ {t.error ?? 'Failed'}</span> : <><span className="take-spin" />Generating…</>}</div>
+                <div className="take-wait">{t.status === 'failed' ? <span>✕ {t.error ?? 'Failed'}</span> : <><span className="take-spin" />{t.status === 'queued' && t.error ? t.error : 'Generating…'}</>}</div>
               )}
               <figcaption>
                 <span className="muted">Take {takes.length - i}{t.kind === 'upload' ? ' · uploaded' : t.cost_cents ? ` · $${(t.cost_cents / 100).toFixed(2)}` : ''}</span>
