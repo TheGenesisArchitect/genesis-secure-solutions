@@ -247,10 +247,11 @@ export function LicenseUpload({ sourceId }: { sourceId: string }) {
   );
 }
 
-export type SlotRef = { id: string; status: string; approved: boolean; error: string | null; asset_code: string | null; version: number | null };
+export type SlotRef = { id: string; status: string; approved: boolean; error: string | null; asset_code: string | null; version: number | null; basis_id?: string | null };
 
 /** One identity slot: its versions, generate, approve. Locked until the character's front portrait is approved. */
-export function IdentitySlot({ target, label, slot, refs, locked, costLabel }: { target: { character?: string; series?: string }; label: string; slot: string; refs: SlotRef[]; locked?: string; costLabel: string }) {
+/** `basis`: the current face this slot must be made from (approved casting for the front, approved front otherwise); older versions are stale. */
+export function IdentitySlot({ target, label, slot, refs, locked, costLabel, basis }: { target: { character?: string; series?: string }; label: string; slot: string; refs: SlotRef[]; locked?: string; costLabel: string; basis?: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const approvedRef = refs.find((r) => r.approved && r.status === 'ready');
@@ -277,7 +278,8 @@ export function IdentitySlot({ target, label, slot, refs, locked, costLabel }: {
                 : <div className="take-wait">{r.status === 'failed' ? <span>✕ {r.error ?? 'Failed'}</span> : <><span className="take-spin" />Drawing…</>}</div>}
               <figcaption>
                 <span className="muted">v{String(r.version ?? 1).padStart(2, '0')}</span>
-                {r.status === 'ready' && !r.approved ? <button className="btn small" type="button" onClick={() => approve(r.id)}>Approve</button> : null}
+                {r.status === 'ready' && !r.approved && basis !== undefined && r.basis_id !== basis ? <span className="stale" title="Made from an older face. Generate a new version.">Older face</span>
+                  : r.status === 'ready' && !r.approved ? <button className="btn small" type="button" onClick={() => approve(r.id)}>Approve</button> : null}
               </figcaption>
             </figure>
           ))}

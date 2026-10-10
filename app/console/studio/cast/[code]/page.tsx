@@ -35,7 +35,7 @@ export default async function Character({ params }: { params: Promise<{ code: st
   const { data: c } = await supabase.from('studio_characters').select('*').eq('code', code.toUpperCase()).maybeSingle();
   if (!c) notFound();
   const [{ data: refs }, { data: looks }, { data: clips }] = await Promise.all([
-    supabase.from('studio_refs').select('id, slot, status, approved, error, asset_code, version, created_at').eq('character_id', c.id).order('created_at', { ascending: false }),
+    supabase.from('studio_refs').select('id, slot, status, approved, error, asset_code, version, created_at, basis_id').eq('character_id', c.id).order('created_at', { ascending: false }),
     supabase.from('studio_looks').select('code, description, prop_hand, phone_case').eq('character_id', c.id),
     supabase.from('studio_voice_clips').select('id, slot, voice_name, status, error, text, created_at').eq('character_id', c.id).eq('kind', 'audition').order('created_at', { ascending: false }).limit(60),
   ]);
@@ -43,6 +43,8 @@ export default async function Character({ params }: { params: Promise<{ code: st
   const voice = (c.voice ?? {}) as Voice;
   const all = (refs ?? []) as (SlotRef & { slot: string })[];
   const frontApproved = all.some((r) => r.slot === 'FACE_FRONT' && r.approved);
+  const castingId = all.find((r) => r.slot === 'CASTING' && r.approved)?.id ?? null;
+  const frontId = all.find((r) => r.slot === 'FACE_FRONT' && r.approved)?.id ?? null;
   const lock = frontApproved ? undefined : `Approve ${c.name.split(' ')[0]}’s front portrait first.`;
   const cost = `$${(IMAGE_CENTS / 100).toFixed(2)}`;
   const sig = signatureSlot(profile.signature_slot);
@@ -63,13 +65,13 @@ export default async function Character({ params }: { params: Promise<{ code: st
           <CastingUpload characterId={c.id} />
         </div>
         <div className="id-grid">
-          {PORTRAIT.map((s) => <IdentitySlot key={s.slot} target={{ character: c.id }} label={s.label} slot={s.slot} refs={slotRefs(s.slot)} locked={s.slot === 'FACE_FRONT' ? undefined : lock} costLabel={cost} />)}
+          {PORTRAIT.map((s) => <IdentitySlot key={s.slot} target={{ character: c.id }} label={s.label} slot={s.slot} refs={slotRefs(s.slot)} locked={s.slot === 'FACE_FRONT' ? undefined : lock} costLabel={cost} basis={s.slot === 'FACE_FRONT' ? castingId : frontId} />)}
         </div>
       </Panel>
 
       <Panel title="Performance set" sub={`Seated neutral, listening, concern, surprise, laughter, reassurance, disappointment, a quiet moment${sig ? `, and ${c.name.split(' ')[0]}’s signature: ${sig.label.toLowerCase()}` : ''}.`}>
         <div className="id-grid">
-          {[...PERFORMANCE, ...(sig ? [sig] : [])].map((s) => <IdentitySlot key={s.slot} target={{ character: c.id }} label={s.label} slot={s.slot} refs={slotRefs(s.slot)} locked={lock} costLabel={cost} />)}
+          {[...PERFORMANCE, ...(sig ? [sig] : [])].map((s) => <IdentitySlot key={s.slot} target={{ character: c.id }} label={s.label} slot={s.slot} refs={slotRefs(s.slot)} locked={lock} costLabel={cost} basis={frontId} />)}
         </div>
       </Panel>
 
@@ -80,7 +82,7 @@ export default async function Character({ params }: { params: Promise<{ code: st
               const s = lookSlot(l);
               return (
                 <div key={l.code} className="grid" style={{ gap: 6 }}>
-                  <IdentitySlot target={{ character: c.id }} label={l.code} slot={s.slot} refs={slotRefs(s.slot)} locked={lock} costLabel={cost} />
+                  <IdentitySlot target={{ character: c.id }} label={l.code} slot={s.slot} refs={slotRefs(s.slot)} locked={lock} costLabel={cost} basis={frontId} />
                   <span className="soft" style={{ fontSize: 12 }}>{l.description}{l.prop_hand ? ` ${l.prop_hand}` : ''}</span>
                 </div>
               );

@@ -50,6 +50,7 @@ export async function generateRef(id: string): Promise<{ ok: boolean; error?: st
   await db.from('studio_refs').update({ status: 'running', updated_at: now() }).eq('id', id);
   try {
     const parts: Record<string, unknown>[] = [];
+    let basis: string | null = null; // what this image is made from (casting sheet or front portrait)
     let aspect = '9:16';
     if (!r.slot) {
       parts.push({ text: `${SHEET_STYLE}
@@ -63,16 +64,18 @@ ${r.prompt}` });
         for (const fr of fronts ?? []) {
           const img = fr.blob_path ? await blobBase64(fr.blob_path) : null;
           const code = (fr.studio_characters as unknown as { code: string }).code;
-          if (img) parts.push({ text: `Reference portrait for ${fr.character} (${code.replace(/d+$/, '')}): this exact person.` }, { inlineData: img });
+          if (img) parts.push({ text: `Reference portrait for ${fr.character} (${code.replace(/\d+$/, '')}): this exact person.` }, { inlineData: img });
         }
       } else if (r.character_id) {
         // The approved casting sheet (uploaded by the team) anchors the face, the build and the wardrobe.
-        const { data: casting } = await db.from('studio_refs').select('blob_path').eq('character_id', r.character_id).eq('slot', 'CASTING').eq('approved', true).maybeSingle();
+        const { data: casting } = await db.from('studio_refs').select('id, blob_path').eq('character_id', r.character_id).eq('slot', 'CASTING').eq('approved', true).maybeSingle();
         const cast = casting?.blob_path ? await blobBase64(casting.blob_path) : null;
         if (r.slot === 'FACE_FRONT') {
+          basis = casting?.id ?? null;
           if (cast) parts.push({ text: `Casting reference sheet for ${r.character}: produce ONE clean single portrait of exactly this person (same face, skin tone, hair, build and jewelry). Ignore the caption text and the panel layout of the sheet.` }, { inlineData: cast });
         } else {
-          const { data: front } = await db.from('studio_refs').select('blob_path').eq('character_id', r.character_id).eq('slot', 'FACE_FRONT').eq('approved', true).maybeSingle();
+          const { data: front } = await db.from('studio_refs').select('id, blob_path').eq('character_id', r.character_id).eq('slot', 'FACE_FRONT').eq('approved', true).maybeSingle();
+          basis = front?.id ?? null;
           const img = front?.blob_path ? await blobBase64(front.blob_path) : null;
           if (!img) throw new Error('The approved front portrait is missing.');
           parts.push({ text: `Reference portrait of ${r.character}: this exact person.` }, { inlineData: img });
@@ -84,7 +87,7 @@ ${r.prompt}` });
     const ext = out.mimeType === 'image/jpeg' ? 'jpg' : 'png';
     const path = `studio/refs/${id}.${ext}`;
     await put(path, Buffer.from(out.data, 'base64'), { access: 'private', contentType: out.mimeType, addRandomSuffix: false, allowOverwrite: true });
-    await db.from('studio_refs').update({ status: 'ready', blob_path: path, updated_at: now() }).eq('id', id);
+    await db.from('studio_refs').update({ status: 'ready', blob_path: path, basis_id: basis, updated_at: now() }).eq('id', id);
     await recordExpense(r.cost_cents, `Studio: ${r.asset_code ?? `character sheet for ${r.character}`} (${r.model})`, r.created_by);
     return { ok: true };
   } catch (e) {
