@@ -643,7 +643,84 @@
             "mood_out": "quietly alarmed",
             "sound": "A run of soft notification chimes."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 at his desk, lit by his laptop, stares as a run of notification chimes keeps coming; a small freeze, eyes shift toward the next desk, and he asks quietly: \"Quick question. Is it normal for email to multiply?\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 at his desk, lit by his laptop, stares as a run of notification chimes keeps coming; a small freeze, eyes shift toward the next desk, and he asks quietly: \"Quick question. Is it normal for email to multiply?\"",
+          "contract": {
+            "function": "Cold open: Trent watches his inbox multiply and asks the room, quietly, if that is normal.",
+            "duration_s": 4.4,
+            "cast": [
+              "TRENT01",
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "at his desk, trying to stay on top of it, hand on the trackpad"
+              },
+              "end": {
+                "TRENT01": "quietly alarmed, turned toward Bri’s desk"
+              }
+            },
+            "composition": "40 mm medium close-up across Trent’s desk, Trent center, the laptop glow on his face (screen angled away), Bri’s sticky-note monitor soft in the background left; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Bri: deep teal blouse; her monitor bezel covered edge to edge in blank colorful sticky notes; a pen",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1
+                ],
+                "do": "@TRENT01 scrolls, focused. A soft notification chime."
+              },
+              {
+                "t": [
+                  1,
+                  1.8
+                ],
+                "do": "Two more chimes in quick succession; his hand stops on the trackpad. A small freeze."
+              },
+              {
+                "t": [
+                  1.8,
+                  2.4
+                ],
+                "do": "Another chime. His eyes shift toward Bri’s desk before his head follows."
+              },
+              {
+                "t": [
+                  2.4,
+                  4.4
+                ],
+                "who": "TRENT01",
+                "do": "quiet, measured, not panicked: \"Quick question. Is it normal for email to multiply?\""
+              },
+              {
+                "t": [
+                  4.4,
+                  5.4
+                ],
+                "do": "He holds, eyebrows barely up, waiting for the verdict."
+              },
+              {
+                "t": [
+                  5.4,
+                  8
+                ],
+                "do": "One more chime; he glances back at the screen and exhales through his nose."
+              }
+            ],
+            "negative": [
+              "No cartoon panic, no hands on his head, no shouting",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "A run of soft notification chimes, keyboard, room tone. No score.",
+            "takes": 3
+          },
+          "tier": "hero"
         },
         {
           "n": 15,
@@ -670,7 +747,84 @@
             "mood_out": "quietly alarmed",
             "sound": "A run of soft notification chimes."
           },
-          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 at his desk, lit by his laptop, stares as a run of notification chimes keeps coming; a small freeze, eyes shift toward the next desk, and he asks quietly: \"Quick question. Is it normal for email to multiply?\""
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 at his desk, lit by his laptop, stares as a run of notification chimes keeps coming; a small freeze, eyes shift toward the next desk, and he asks quietly: \"Quick question. Is it normal for email to multiply?\"",
+          "contract": {
+            "function": "Cold open: Trent watches his inbox multiply and asks the room, quietly, if that is normal.",
+            "duration_s": 4.4,
+            "cast": [
+              "TRENT01",
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "at his desk, trying to stay on top of it, hand on the trackpad"
+              },
+              "end": {
+                "TRENT01": "quietly alarmed, turned toward Bri’s desk"
+              }
+            },
+            "composition": "Vertical medium close-up of Trent at his laptop, face in the upper-middle of the frame, the screen glow on his face, Bri’s monitor soft behind; clear space at the bottom for captions",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Bri: deep teal blouse; her monitor bezel covered edge to edge in blank colorful sticky notes; a pen",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1
+                ],
+                "do": "@TRENT01 scrolls, focused. A soft notification chime."
+              },
+              {
+                "t": [
+                  1,
+                  1.8
+                ],
+                "do": "Two more chimes in quick succession; his hand stops on the trackpad. A small freeze."
+              },
+              {
+                "t": [
+                  1.8,
+                  2.4
+                ],
+                "do": "Another chime. His eyes shift toward Bri’s desk before his head follows."
+              },
+              {
+                "t": [
+                  2.4,
+                  4.4
+                ],
+                "who": "TRENT01",
+                "do": "quiet, measured, not panicked: \"Quick question. Is it normal for email to multiply?\""
+              },
+              {
+                "t": [
+                  4.4,
+                  5.4
+                ],
+                "do": "He holds, eyebrows barely up, waiting for the verdict."
+              },
+              {
+                "t": [
+                  5.4,
+                  8
+                ],
+                "do": "One more chime; he glances back at the screen and exhales through his nose."
+              }
+            ],
+            "negative": [
+              "No cartoon panic, no hands on his head, no shouting",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "A run of soft notification chimes, keyboard, room tone. No score.",
+            "takes": 3
+          },
+          "tier": "hero"
         },
         {
           "n": 20,
@@ -701,7 +855,90 @@
             "mood_out": "resigned, amused",
             "sound": "Paper flutter."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 at her desk, her monitor bezel covered edge to edge in colorful sticky notes. One drops to the desk; she says brightly: \"I have a system.\" A second note slides off; she watches it land and says, completely flat: \"...Had a system.\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 at her desk, her monitor bezel covered edge to edge in colorful sticky notes. One drops to the desk; she says brightly: \"I have a system.\" A second note slides off; she watches it land and says, completely flat: \"...Had a system.\"",
+          "contract": {
+            "function": "Cold open: Bri’s sticky-note system gives up on her, one note at a time.",
+            "duration_s": 4.6,
+            "cast": [
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "BRI01": "confident, pen in hand, pressing one more note onto her monitor"
+              },
+              "end": {
+                "BRI01": "resigned, quietly amused, deadpan"
+              }
+            },
+            "composition": "40 mm medium shot of Bri at her monitor from a slight three-quarter angle, the note-covered bezel prominent in frame; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Bri: deep teal blouse; her monitor bezel covered edge to edge in blank colorful sticky notes; a pen",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.8
+                ],
+                "do": "@BRI01 presses one more yellow note onto the monitor bezel."
+              },
+              {
+                "t": [
+                  0.8,
+                  1.2
+                ],
+                "do": "A different note slips off and drops to the desk."
+              },
+              {
+                "t": [
+                  1.2,
+                  2.4
+                ],
+                "who": "BRI01",
+                "do": "bright, sure of herself: \"I have a system.\""
+              },
+              {
+                "t": [
+                  2.4,
+                  3
+                ],
+                "do": "A second note slides off. Her eyes follow it down; her smile stops."
+              },
+              {
+                "t": [
+                  3,
+                  3.4
+                ],
+                "do": "A beat of silence."
+              },
+              {
+                "t": [
+                  3.4,
+                  4.6
+                ],
+                "who": "BRI01",
+                "do": "completely flat: \"...Had a system.\""
+              },
+              {
+                "t": [
+                  4.6,
+                  8
+                ],
+                "do": "She holds a still, deadpan look at the notes; a third note sways but stays."
+              }
+            ],
+            "negative": [
+              "No mugging, no eye-roll",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Paper flutter as each note falls; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 25,
@@ -732,7 +969,90 @@
             "mood_out": "resigned, amused",
             "sound": "Paper flutter."
           },
-          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 at her desk, her monitor bezel covered edge to edge in colorful sticky notes. One drops to the desk; she says brightly: \"I have a system.\" A second note slides off; she watches it land and says, completely flat: \"...Had a system.\""
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 at her desk, her monitor bezel covered edge to edge in colorful sticky notes. One drops to the desk; she says brightly: \"I have a system.\" A second note slides off; she watches it land and says, completely flat: \"...Had a system.\"",
+          "contract": {
+            "function": "Cold open: Bri’s sticky-note system gives up on her, one note at a time.",
+            "duration_s": 4.6,
+            "cast": [
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "BRI01": "confident, pen in hand, pressing one more note onto her monitor"
+              },
+              "end": {
+                "BRI01": "resigned, quietly amused, deadpan"
+              }
+            },
+            "composition": "Vertical medium shot of Bri and her note-covered monitor, her face in the upper-middle of the frame; clear space at the bottom for captions",
+            "camera": "Locked off.",
+            "continuity": [
+              "Bri: deep teal blouse; her monitor bezel covered edge to edge in blank colorful sticky notes; a pen",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.8
+                ],
+                "do": "@BRI01 presses one more yellow note onto the monitor bezel."
+              },
+              {
+                "t": [
+                  0.8,
+                  1.2
+                ],
+                "do": "A different note slips off and drops to the desk."
+              },
+              {
+                "t": [
+                  1.2,
+                  2.4
+                ],
+                "who": "BRI01",
+                "do": "bright, sure of herself: \"I have a system.\""
+              },
+              {
+                "t": [
+                  2.4,
+                  3
+                ],
+                "do": "A second note slides off. Her eyes follow it down; her smile stops."
+              },
+              {
+                "t": [
+                  3,
+                  3.4
+                ],
+                "do": "A beat of silence."
+              },
+              {
+                "t": [
+                  3.4,
+                  4.6
+                ],
+                "who": "BRI01",
+                "do": "completely flat: \"...Had a system.\""
+              },
+              {
+                "t": [
+                  4.6,
+                  8
+                ],
+                "do": "She holds a still, deadpan look at the notes; a third note sways but stays."
+              }
+            ],
+            "negative": [
+              "No mugging, no eye-roll",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Paper flutter as each note falls; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 30,
@@ -764,7 +1084,88 @@
             "mood_out": "Trent curious",
             "sound": "Door, footsteps, coffee set down."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 walks in with a coffee and her phone, relaxed, and sets the coffee down at her desk. @TRENT01 turns in his chair and asks: \"How are you calm? It's Monday.\" @MAYA01, a held smile, a small exhale: \"It's Monday for me too. I just already know what's in it.\" She turns her phone toward him; the screen is a soft glow, nothing legible."
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 walks in with a coffee and her phone, relaxed, and sets the coffee down at her desk. @TRENT01 turns in his chair and asks: \"How are you calm? It's Monday.\" @MAYA01, a held smile, a small exhale: \"It's Monday for me too. I just already know what's in it.\" She turns her phone toward him; the screen is a soft glow, nothing legible.",
+          "contract": {
+            "function": "Maya arrives unbothered; Trent asks how she is calm; she already knows what the day holds.",
+            "duration_s": 6.4,
+            "cast": [
+              "MAYA01",
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "MAYA01": "walking in, relaxed, coffee and phone in hand",
+                "TRENT01": "rattled at his desk"
+              },
+              "end": {
+                "MAYA01": "turning her phone toward him, a held smile",
+                "TRENT01": "curious, leaning in"
+              }
+            },
+            "composition": "28 mm medium-wide two-shot: Trent seated left turning in his chair, Maya entering from frame right to her desk; eye level",
+            "camera": "Locked off; Maya walks into the composition.",
+            "continuity": [
+              "Maya: olive unstructured blazer over cream; coffee mug in her right hand; phone in her left",
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1.2
+                ],
+                "do": "@MAYA01 walks in from frame right, unhurried, and sets her coffee down on her desk."
+              },
+              {
+                "t": [
+                  1.2,
+                  1.5
+                ],
+                "do": "@TRENT01 turns in his chair toward her."
+              },
+              {
+                "t": [
+                  1.5,
+                  3
+                ],
+                "who": "TRENT01",
+                "do": "a little too fast: \"How are you calm? It's Monday.\""
+              },
+              {
+                "t": [
+                  3,
+                  3.5
+                ],
+                "do": "@MAYA01: a held smile, a small exhale."
+              },
+              {
+                "t": [
+                  3.5,
+                  6.4
+                ],
+                "who": "MAYA01",
+                "do": "relaxed, unhurried: \"It's Monday for me too. I just already know what's in it.\""
+              },
+              {
+                "t": [
+                  6.4,
+                  8
+                ],
+                "do": "She turns her phone screen toward him, a soft glow with nothing legible; @TRENT01 leans in."
+              }
+            ],
+            "negative": [
+              "No smug look from Maya, no wink",
+              "Trent is never cartoonish",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Door, footsteps, the mug set down; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 35,
@@ -796,7 +1197,88 @@
             "mood_out": "Trent curious",
             "sound": "Door, footsteps, coffee set down."
           },
-          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 walks in with a coffee and her phone, relaxed, and sets the coffee down at her desk. @TRENT01 turns in his chair and asks: \"How are you calm? It's Monday.\" @MAYA01, a held smile, a small exhale: \"It's Monday for me too. I just already know what's in it.\" She turns her phone toward him; the screen is a soft glow, nothing legible."
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 walks in with a coffee and her phone, relaxed, and sets the coffee down at her desk. @TRENT01 turns in his chair and asks: \"How are you calm? It's Monday.\" @MAYA01, a held smile, a small exhale: \"It's Monday for me too. I just already know what's in it.\" She turns her phone toward him; the screen is a soft glow, nothing legible.",
+          "contract": {
+            "function": "Maya arrives unbothered; Trent asks how she is calm; she already knows what the day holds.",
+            "duration_s": 6.4,
+            "cast": [
+              "MAYA01",
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "MAYA01": "walking in, relaxed, coffee and phone in hand",
+                "TRENT01": "rattled at his desk"
+              },
+              "end": {
+                "MAYA01": "turning her phone toward him, a held smile",
+                "TRENT01": "curious, leaning in"
+              }
+            },
+            "composition": "Vertical two-shot: Maya standing at her desk in the upper-middle of the frame, Trent seated at the lower left edge turning toward her; clear space at the bottom for captions",
+            "camera": "Locked off; Maya walks into the composition.",
+            "continuity": [
+              "Maya: olive unstructured blazer over cream; coffee mug in her right hand; phone in her left",
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1.2
+                ],
+                "do": "@MAYA01 walks in from frame right, unhurried, and sets her coffee down on her desk."
+              },
+              {
+                "t": [
+                  1.2,
+                  1.5
+                ],
+                "do": "@TRENT01 turns in his chair toward her."
+              },
+              {
+                "t": [
+                  1.5,
+                  3
+                ],
+                "who": "TRENT01",
+                "do": "a little too fast: \"How are you calm? It's Monday.\""
+              },
+              {
+                "t": [
+                  3,
+                  3.5
+                ],
+                "do": "@MAYA01: a held smile, a small exhale."
+              },
+              {
+                "t": [
+                  3.5,
+                  6.4
+                ],
+                "who": "MAYA01",
+                "do": "relaxed, unhurried: \"It's Monday for me too. I just already know what's in it.\""
+              },
+              {
+                "t": [
+                  6.4,
+                  8
+                ],
+                "do": "She turns her phone screen toward him, a soft glow with nothing legible; @TRENT01 leans in."
+              }
+            ],
+            "negative": [
+              "No smug look from Maya, no wink",
+              "Trent is never cartoonish",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Door, footsteps, the mug set down; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 40,
@@ -844,7 +1326,74 @@
             "mood_out": "worried",
             "sound": "Room tone."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Close-up of @TRENT01, the realization landing; he leans toward Maya and says: \"The Garcias emailed me three days ago...\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Close-up of @TRENT01, the realization landing; he leans toward Maya and says: \"The Garcias emailed me three days ago...\"",
+          "contract": {
+            "function": "Trent remembers the Garcias’ email and the worry lands.",
+            "duration_s": 3,
+            "cast": [
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "watching Maya’s phone, curious"
+              },
+              "end": {
+                "TRENT01": "worried, waiting for the verdict"
+              }
+            },
+            "composition": "65 mm close-up on Trent, Maya’s shoulder soft at the right edge of frame; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1
+                ],
+                "do": "@TRENT01 watches Maya’s phone, nodding along."
+              },
+              {
+                "t": [
+                  1,
+                  1.4
+                ],
+                "do": "A small freeze; his eyes drop as he remembers."
+              },
+              {
+                "t": [
+                  1.4,
+                  1.8
+                ],
+                "do": "His eyes lift back to Maya."
+              },
+              {
+                "t": [
+                  1.8,
+                  3.8
+                ],
+                "who": "TRENT01",
+                "do": "slowing down, quiet: \"The Garcias emailed me three days ago...\""
+              },
+              {
+                "t": [
+                  3.8,
+                  8
+                ],
+                "do": "He holds, waiting for the verdict; swallows once."
+              }
+            ],
+            "negative": [
+              "No big gasp, no hand to the forehead",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 60,
@@ -892,7 +1441,74 @@
             "mood_out": "purposeful",
             "sound": "Handset lift, dial tones."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 picks up his desk phone, shoulders releasing into focus, and says while dialing: \"Renewal's in fourteen days. I'm calling. With urgency.\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 picks up his desk phone, shoulders releasing into focus, and says while dialing: \"Renewal's in fourteen days. I'm calling. With urgency.\"",
+          "contract": {
+            "function": "Trent’s win: he sees the renewal exposure and makes the call now.",
+            "duration_s": 3,
+            "cast": [
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "alarmed, reaching for the desk phone"
+              },
+              "end": {
+                "TRENT01": "purposeful, handset at his ear"
+              }
+            },
+            "composition": "40 mm medium shot on Trent at his desk, the desk phone in frame; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.6
+                ],
+                "do": "@TRENT01 reaches for the desk phone."
+              },
+              {
+                "t": [
+                  0.6,
+                  1
+                ],
+                "do": "He lifts the handset; his shoulders release into focus."
+              },
+              {
+                "t": [
+                  1,
+                  3.8
+                ],
+                "who": "TRENT01",
+                "do": "dialing, purposeful, quick but clear: \"Renewal's in fourteen days. I'm calling. With urgency.\""
+              },
+              {
+                "t": [
+                  3.8,
+                  5
+                ],
+                "do": "Handset to his ear, listening to it ring, sitting up straight."
+              },
+              {
+                "t": [
+                  5,
+                  8
+                ],
+                "do": "A small nod as the call connects; no dialogue."
+              }
+            ],
+            "negative": [
+              "No frantic dialing, no shouting",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Handset lift, dial tones, a ring; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 75,
@@ -919,7 +1535,74 @@
             "mood_out": "purposeful",
             "sound": "Handset lift, dial tones."
           },
-          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 picks up his desk phone, shoulders releasing into focus, and says while dialing: \"Renewal's in fourteen days. I'm calling. With urgency.\""
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 picks up his desk phone, shoulders releasing into focus, and says while dialing: \"Renewal's in fourteen days. I'm calling. With urgency.\"",
+          "contract": {
+            "function": "Trent’s win: he sees the renewal exposure and makes the call now.",
+            "duration_s": 3,
+            "cast": [
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "alarmed, reaching for the desk phone"
+              },
+              "end": {
+                "TRENT01": "purposeful, handset at his ear"
+              }
+            },
+            "composition": "Vertical medium shot of Trent with the desk phone, face in the upper-middle of the frame; clear space at the bottom for captions",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.6
+                ],
+                "do": "@TRENT01 reaches for the desk phone."
+              },
+              {
+                "t": [
+                  0.6,
+                  1
+                ],
+                "do": "He lifts the handset; his shoulders release into focus."
+              },
+              {
+                "t": [
+                  1,
+                  3.8
+                ],
+                "who": "TRENT01",
+                "do": "dialing, purposeful, quick but clear: \"Renewal's in fourteen days. I'm calling. With urgency.\""
+              },
+              {
+                "t": [
+                  3.8,
+                  5
+                ],
+                "do": "Handset to his ear, listening to it ring, sitting up straight."
+              },
+              {
+                "t": [
+                  5,
+                  8
+                ],
+                "do": "A small nod as the call connects; no dialogue."
+              }
+            ],
+            "negative": [
+              "No frantic dialing, no shouting",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Handset lift, dial tones, a ring; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 80,
@@ -946,7 +1629,75 @@
             "mood_out": "open to it",
             "sound": "Paper rustle."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 holds up a fistful of sticky notes toward Maya, one eyebrow lifted: \"My follow-ups live here.\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 holds up a fistful of sticky notes toward Maya, one eyebrow lifted: \"My follow-ups live here.\"",
+          "contract": {
+            "function": "Bri admits where her follow-ups actually live.",
+            "duration_s": 2.6,
+            "cast": [
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "BRI01": "gathering sticky notes off her monitor, a little sheepish"
+              },
+              "end": {
+                "BRI01": "open to it, almost smiling"
+              }
+            },
+            "composition": "40 mm medium close-up on Bri turned toward Maya (off frame left); eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Bri: deep teal blouse; her monitor bezel covered edge to edge in blank colorful sticky notes; a pen",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.8
+                ],
+                "do": "@BRI01 gathers a fistful of sticky notes off her monitor."
+              },
+              {
+                "t": [
+                  0.8,
+                  1.2
+                ],
+                "do": "She turns toward Maya, holding them up."
+              },
+              {
+                "t": [
+                  1.2,
+                  2.6
+                ],
+                "who": "BRI01",
+                "do": "one eyebrow lifted, a little sheepish: \"My follow-ups live here.\""
+              },
+              {
+                "t": [
+                  2.6,
+                  4
+                ],
+                "do": "She holds them up, waiting; her mouth twitches toward a smile."
+              },
+              {
+                "t": [
+                  4,
+                  8
+                ],
+                "do": "She lowers the notes slowly, open to it."
+              }
+            ],
+            "negative": [
+              "No mugging",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Paper rustle; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 90,
@@ -998,7 +1749,67 @@
             "mood_out": "checking the exposure",
             "sound": "Room tone."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01, phone call finished, leans back toward Maya and asks: \"Who's approving all this?\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01, phone call finished, leans back toward Maya and asks: \"Who's approving all this?\"",
+          "contract": {
+            "function": "Call made, Trent checks the exposure: who approves what goes out?",
+            "duration_s": 2,
+            "cast": [
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "hanging up the desk phone, satisfied"
+              },
+              "end": {
+                "TRENT01": "leaning in, checking the exposure"
+              }
+            },
+            "composition": "65 mm close-up on Trent turning toward Maya; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  1
+                ],
+                "do": "@TRENT01 hangs up the desk phone, satisfied."
+              },
+              {
+                "t": [
+                  1,
+                  1.4
+                ],
+                "do": "He turns toward Maya."
+              },
+              {
+                "t": [
+                  1.4,
+                  2.8
+                ],
+                "who": "TRENT01",
+                "do": "checking, not worried: \"Who's approving all this?\""
+              },
+              {
+                "t": [
+                  2.8,
+                  8
+                ],
+                "do": "He waits, a small lean forward."
+              }
+            ],
+            "negative": [
+              "No anxiety spike, no cartoon worry",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Handset set down; room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 110,
@@ -1046,7 +1857,61 @@
             "mood_out": "curious",
             "sound": "Room tone."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01, phone in hand, asks Maya with a pause before the last word: \"Is any of it... working?\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01, phone in hand, asks Maya with a pause before the last word: \"Is any of it... working?\"",
+          "contract": {
+            "function": "Bri asks the question every agency asks: is any of it working?",
+            "duration_s": 2,
+            "cast": [
+              "BRI01"
+            ],
+            "states": {
+              "start": {
+                "BRI01": "looking up from her phone, curious"
+              },
+              "end": {
+                "BRI01": "genuinely curious, one eyebrow lifted"
+              }
+            },
+            "composition": "65 mm close-up on Bri, phone low in frame; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Bri: deep teal blouse; her monitor bezel covered edge to edge in blank colorful sticky notes; a pen",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.8
+                ],
+                "do": "@BRI01 looks up from her phone toward Maya."
+              },
+              {
+                "t": [
+                  0.8,
+                  2.6
+                ],
+                "who": "BRI01",
+                "do": "with a pause before the last word: \"Is any of it... working?\""
+              },
+              {
+                "t": [
+                  2.6,
+                  8
+                ],
+                "do": "She holds, one eyebrow lifted, genuinely curious."
+              }
+            ],
+            "negative": [
+              "No skeptical eye-roll",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 130,
@@ -1115,7 +1980,68 @@
             "mood_out": "hopeful",
             "sound": "Room tone."
           },
-          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01, hopeful, nodding at his laptop: \"Can it write my emails too?\""
+          "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01, hopeful, nodding at his laptop: \"Can it write my emails too?\"",
+          "contract": {
+            "function": "Trent, hopeful: can it write his emails too?",
+            "duration_s": 2,
+            "cast": [
+              "TRENT01"
+            ],
+            "states": {
+              "start": {
+                "TRENT01": "glancing at his laptop"
+              },
+              "end": {
+                "TRENT01": "hopeful, waiting for the answer"
+              }
+            },
+            "composition": "65 mm close-up on Trent, the laptop edge soft in the foreground; eye level",
+            "camera": "Locked off.",
+            "continuity": [
+              "Trent: navy knit polo, sleeves pushed up; laptop open with its screen angled away; desk phone beside it",
+              "Morning window light from camera left; the same small office, three desks close together"
+            ],
+            "timeline": [
+              {
+                "t": [
+                  0,
+                  0.8
+                ],
+                "do": "@TRENT01 glances at his laptop."
+              },
+              {
+                "t": [
+                  0.8,
+                  1.2
+                ],
+                "do": "He looks back to Maya, hopeful."
+              },
+              {
+                "t": [
+                  1.2,
+                  2.6
+                ],
+                "who": "TRENT01",
+                "do": "hopeful, nodding at the laptop: \"Can it write my emails too?\""
+              },
+              {
+                "t": [
+                  2.6,
+                  8
+                ],
+                "do": "A hopeful hold, eyebrows slightly up; he waits."
+              }
+            ],
+            "negative": [
+              "No begging face, no overacting",
+              "No legible text on any screen or note",
+              "No camera movement, no push-in",
+              "Nobody looks into the lens"
+            ],
+            "sound": "Room tone.",
+            "takes": 1
+          },
+          "tier": "production"
         },
         {
           "n": 160,
