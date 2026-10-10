@@ -32,7 +32,7 @@ export async function bibleSystem(): Promise<string> {
   ]);
   const b = (series?.bible as { cast_bible?: Bible } | null)?.cast_bible;
   const lines: string[] = [];
-  lines.push(`You are Helix, the voice of Genovus, speaking with the Genovus Studio team about the GENOVUS Cast Character Bible (version ${b?.version ?? '1.0'}) and the series "${series?.name ?? 'Genovus Just Knows'}". You know the bible and the characters backwards and forward, and you are their creative partner: answer questions, quote the bible precisely, suggest lines in each character's voice, check scripts against the rules, and flag continuity risks.`);
+  lines.push(`You are Helix, the voice of Genovus, speaking with the Genovus Studio team inside the Studio. You know the GENOVUS Cast Character Bible (version ${b?.version ?? '1.0'}), the series "${series?.name ?? 'Genovus Just Knows'}" and its production backwards and forward, and you are their creative partner: answer questions, quote the bible precisely, suggest lines in each character's voice, check scripts against the rules, and flag continuity risks.`);
   lines.push(`HOW YOU SPEAK: warm, sharp, concise, like a showrunner's right hand. Two to four sentences unless asked for more. You are speaking out loud: no lists or markdown. When you suggest dialogue, keep each character in their voice per the voice test. Stay on the bible, the characters, the series and Genovus Studio production; politely decline anything else. Never invent canon: if something isn't in the bible, say it's not decided yet and offer to note it as a question. When the team decides something or raises an action item, call take_note and confirm in a few words.`);
   if (b) {
     lines.push(`PREMISE: ${b.premise}\nEMOTIONAL PROMISE: ${b.promise}\nWORLD: ${b.world}\nSOCIAL CONTRACT: ${b.contract}\nTHREE INTELLIGENCES: ${b.intelligences.join(' ')}\nCOMEDY RULES: ${b.comedy_rules.join(' ')}\nCONTINUITY: ${b.continuity}`);
@@ -58,4 +58,40 @@ Voice: ${v?.direction ?? ''} Timing: ${v?.timing ?? ''} Listening: ${v?.listenin
   lines.push(`CURRENT PRODUCTION STATE. Episodes: ${(eps ?? []).map((e) => `${e.code} "${e.title}" (${e.kind}, ${e.status}${e.format === 'viral_fork' ? `, ${e.fork_mode} fork` : ''}${e.target_s ? `, ${e.target_s}s` : ''})`).join('; ')}. Episode looks: ${(looks ?? []).map((l) => `${l.code}: ${l.description}`).join(' ')} Approved reference assets: ${(approved ?? []).map((r) => r.asset_code).join(', ') || 'none yet'}.`);
   lines.push(`START: when the session begins, greet the team in one sentence, say you know the bible and the cast, and ask what they want to work on.`);
   return lines.join('\n\n');
+}
+
+export type StudioFocus = { kind: 'home' | 'bible' | 'cast' | 'episode' | 'character'; code?: string };
+
+/** What the person is looking at in the Studio, in detail, so Helix can work on it with them. */
+async function focusBlock(focus: StudioFocus): Promise<string> {
+  const db = adminDb();
+  if (focus.kind === 'episode' && focus.code) {
+    const { data: e } = await db.from('studio_episodes').select('id, code, title, kind, status, logline, script, music, format, fork_mode, target_s, cut_family, final_url').eq('code', focus.code).maybeSingle();
+    if (!e) return '';
+    const [{ data: shots }, { data: posts }, { data: qa }] = await Promise.all([
+      db.from('studio_shots').select('n, shot_code, beat, shot_kind, timing, description, lines, status, log').eq('episode_id', e.id).order('n'),
+      db.from('studio_posts').select('platform, status, method, scheduled_for').eq('episode_id', e.id),
+      db.from('studio_qa').select('check_key, pass, note').eq('episode_id', e.id),
+    ]);
+    const shotLines = (shots ?? []).map((s) => `${s.shot_code ?? `Shot ${s.n}`} (beat ${s.beat ?? '-'}, ${s.shot_kind ?? 'shot'}, ${s.timing ?? ''}, ${s.status}): ${s.description}${((s.lines as { who: string; text: string }[]) ?? []).map((l) => ` ${l.who.replace(/\d+$/, '')}: "${l.text}"`).join('')}`).join('\n');
+    return `ON SCREEN NOW: the episode ${e.code} "${e.title}" (${e.kind}, status ${e.status}${e.format === 'viral_fork' ? `, ${e.fork_mode} Viral Fork, target ${e.target_s}s, ${e.cut_family ?? ''} cut` : ''}${e.final_url ? ', final cut uploaded' : ', no final cut yet'}).\nLogline: ${e.logline}\nScript:\n${e.script}\nMusic/sound: ${e.music}\nShots:\n${shotLines}\nPosts: ${(posts ?? []).map((p) => `${p.platform} ${p.status}${p.method !== 'upload' ? ` (${p.method})` : ''}`).join(', ') || 'none'}.\nAcceptance checks recorded: ${(qa ?? []).length ? (qa ?? []).map((q) => `${q.check_key} ${q.pass ? 'pass' : `FAIL (${q.note})`}`).join('; ') : 'none yet'}.\nHelp them finish this episode: what is left, what to shoot next, whether lines fit the characters, and anything that would fail a check.`;
+  }
+  if (focus.kind === 'character' && focus.code) {
+    const { data: c } = await db.from('studio_characters').select('id, code, name').eq('code', focus.code).maybeSingle();
+    if (!c) return '';
+    const { data: refs } = await db.from('studio_refs').select('slot, asset_code, approved, status').eq('character_id', c.id).order('created_at', { ascending: false });
+    const approved = (refs ?? []).filter((r) => r.approved).map((r) => r.asset_code);
+    const slots = [...new Set((refs ?? []).map((r) => r.slot))];
+    return `ON SCREEN NOW: ${c.name} (${c.code})'s character page: their bible profile, voice, and identity package. Approved: ${approved.join(', ') || 'nothing yet'}. Slots generated so far: ${slots.join(', ') || 'none'}. The production order is casting sheet, then the front portrait from it, then every other view derived from the approved front. Help them with this character: who they are, how they'd react or speak, and what to generate or approve next.`;
+  }
+  if (focus.kind === 'cast') return 'ON SCREEN NOW: the cast page with Maya, Trent and Bri and the ensemble set. Help with the ensemble: chemistry, seat order, relative scale, and what each character still needs.';
+  if (focus.kind === 'home') return 'ON SCREEN NOW: the Studio home: the season gallery, the trend board of viral moments (Remix / licensed / inspired), fresh takes, the cast and the posting schedule. Help them decide what to make next and keep the season on track.';
+  return '';
+}
+
+/** The Studio brief: the whole bible and production state, plus what is on screen. */
+export async function studioSystem(focus: StudioFocus): Promise<string> {
+  const base = await bibleSystem();
+  const block = await focusBlock(focus);
+  return block ? `${base}\n\n${block}` : base;
 }

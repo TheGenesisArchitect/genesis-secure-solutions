@@ -10,6 +10,7 @@ import { db } from '@/lib/supabase/server';
 import { resetDemoFollowUps, studioSetBudget, studioSaveSource } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
+import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const metadata = { title: 'Studio' };
 export const dynamic = 'force-dynamic';
@@ -54,7 +55,7 @@ export default async function Studio() {
   const tourBy = (s: string) => (tours ?? []).filter((t) => t.src === s).length;
   const inqBy = (s: string) => (inq ?? []).filter((i) => i.source === s).length;
   return (
-    <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]}>
+    <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]} actions={<StudioHelix focus={{ kind: 'home', label: 'the Studio' }} />}>
       {series ? (
         <>
           <div className="studio-hero">

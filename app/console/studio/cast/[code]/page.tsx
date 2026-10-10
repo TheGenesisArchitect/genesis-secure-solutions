@@ -11,6 +11,7 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { PORTRAIT, PERFORMANCE, signatureSlot, lookSlot } from '@/lib/studio-cast';
 import { IMAGE_CENTS } from '@/lib/studio-gen';
+import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,7 @@ export default async function Character({ params }: { params: Promise<{ code: st
   const sig = signatureSlot(profile.signature_slot);
   const slotRefs = (s: string) => all.filter((r) => r.slot === s);
   return (
-    <ConsoleShell title={c.name} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/cast', label: 'Cast' }, { label: c.name }]}>
+    <ConsoleShell title={c.name} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/cast', label: 'Cast' }, { label: c.name }]} actions={<StudioHelix focus={{ kind: 'character', code: c.code, label: c.name }} />}>
       <div className="studio-hero">
         <span className="v-eyebrow">{c.code} · {c.archetype}</span>
         <h2>{c.name}</h2>

@@ -9,6 +9,7 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { ENSEMBLE, slotsFor } from '@/lib/studio-cast';
 import { IMAGE_CENTS } from '@/lib/studio-gen';
+import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const metadata = { title: 'Cast · Studio' };
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,7 @@ export default async function Cast() {
   const allFronts = (chars ?? []).every((c) => all.some((r) => r.character_id === c.id && r.slot === 'FACE_FRONT' && r.approved));
   const cost = `$${(IMAGE_CENTS / 100).toFixed(2)}`;
   return (
-    <ConsoleShell title="Cast" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: 'Cast' }]} actions={<Link className="btn small" href="/console/studio/bible">Open the Character Bible</Link>}>
+    <ConsoleShell title="Cast" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: 'Cast' }]} actions={<span className="row" style={{ gap: 8 }}><Link className="btn small" href="/console/studio/bible">Open the Character Bible</Link><StudioHelix focus={{ kind: 'cast', label: 'the cast' }} /></span>}>
       <p className="soft">Maya, Trent and Bri, from the GENOVUS Cast Character Bible v1.0. Each face is locked once: the front portrait comes from the bible’s identity prompt, and every other view is derived from it, so every angle is the same person.</p>
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,340px),1fr))' }}>
         {(chars ?? []).map((c) => {

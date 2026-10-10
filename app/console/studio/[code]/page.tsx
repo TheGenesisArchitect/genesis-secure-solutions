@@ -12,6 +12,7 @@ import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, 
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { ShotTakes, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type VoiceClip } from '@/components/studio/StudioClient';
 import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS } from '@/lib/studio-gen';
+import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +68,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const notes = series?.bible?.platform_notes ?? {};
   const approved = e.status === 'approved' || e.status === 'live';
   return (
-    <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]}>
+    <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]} actions={<StudioHelix focus={{ kind: 'episode', code: e.code, label: `the episode “${e.title}”` }} />}>
       <p className="soft">{e.logline}</p>
       {e.format === 'viral_fork' && e.fork_mode ? (
         <div className="fork-banner">

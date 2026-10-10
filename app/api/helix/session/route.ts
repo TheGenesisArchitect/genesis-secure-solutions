@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { bibleSystem, BIBLE_TOOLS } from '@/lib/helix-bible';
+import { studioSystem, BIBLE_TOOLS, type StudioFocus } from '@/lib/helix-bible';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
 
 export const dynamic = 'force-dynamic';
@@ -40,9 +40,12 @@ function campaignRef(raw?: string): { c: string | null; src: string | null } {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string };
+  const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string; focus?: { kind?: string; code?: string } };
   const voice = pickVoice(body.voice);
-  const context = body.context === 'bible' ? 'bible' : 'tour';
+  const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : 'tour';
+  // What the person is looking at in the Studio (validated: a known kind and a simple code).
+  const kinds = ['home', 'bible', 'cast', 'episode', 'character'];
+  const focus: StudioFocus = { kind: (kinds.includes(String(body.focus?.kind)) ? body.focus!.kind : body.context === 'bible' ? 'bible' : 'home') as StudioFocus['kind'], code: /^[A-Za-z0-9-]{1,30}$/.test(String(body.focus?.code ?? '')) ? body.focus!.code : undefined };
   // Local testing only: no key, a stand-in token; the test page supplies its own voice socket.
   if (!KEY() && process.env.NODE_ENV !== 'production' && process.env.HELIX_STANDIN === '1') {
     const { data: s } = await adminDb().from('helix_tour_sessions').insert({ ip_hash: 'standin', is_staff: true, model: 'standin' }).select('id').single();
@@ -60,9 +63,9 @@ export async function POST(req: Request) {
   // No per-visitor limit: the link is meant to be shared and replayed. One high daily ceiling stays as a
   // runaway-spend guard (HELIX_DAILY_SESSIONS); the team's own tours never count against it.
   const { count: today } = await db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('is_staff', false).gte('started_at', dayStart.toISOString());
-  // Ask Helix on the Character Bible is for the Genovus team only.
-  if (context === 'bible' && !staff) return Response.json({ error: 'Ask Helix on the Character Bible is for the Genovus team.' }, { status: 403 });
-  const setup = context === 'bible' ? liveSetupWith(await bibleSystem(), BIBLE_TOOLS, voice) : liveSetup(voice);
+  // Ask Helix in the Studio is for the Genovus team only.
+  if (context === 'studio' && !staff) return Response.json({ error: 'Ask Helix in the Studio is for the Genovus team.' }, { status: 403 });
+  const setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), BIBLE_TOOLS, voice) : liveSetup(voice);
   if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 
   // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an
@@ -80,7 +83,7 @@ export async function POST(req: Request) {
     console.error(`[helix] token refused: ${minted.error}`);
     return Response.json({ error: 'Helix couldn’t start a voice session right now.' }, { status: 502 });
   }
-  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}${context === 'bible' ? ' · bible' : ''}`, campaign: ref.c, src: ref.src }).select('id').single();
+  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}${context === 'studio' ? ` · studio:${focus.kind}${focus.code ? `:${focus.code}` : ''}` : ''}`, campaign: ref.c, src: ref.src }).select('id').single();
   return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup, voice, context, locked, staff, maxSeconds: SESSION_SECONDS });
 }
 

@@ -720,3 +720,7 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .bible-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center}
 .bible-hero h2{display:flex;align-items:center;gap:.35em;flex-wrap:wrap}
 @media (max-width:760px){.bible-hero{grid-template-columns:minmax(0,1fr)}.bible-hero .ask-egg{justify-self:start}}
+.ask-egg-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 14px 5px 8px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--ink);font:700 13px var(--body);cursor:pointer;min-height:36px}
+.ask-egg-pill img{width:20px;height:26px;transform:rotate(-8deg);filter:drop-shadow(0 3px 5px rgba(0,0,0,.45));transition:transform .4s var(--ease)}
+.ask-egg-pill:hover{border-color:var(--accent);box-shadow:0 0 22px -6px rgba(244,90,27,.6)}
+.ask-egg-pill:hover img{transform:rotate(-16deg) scale(1.08)}
