@@ -110,7 +110,11 @@ async function nanoImage(model: string, parts: Record<string, unknown>[], aspect
   return { data: part.inlineData.data, mimeType: part.inlineData.mimeType ?? 'image/png' };
 }
 
-const KEYFRAME_STYLE = 'The FIRST FRAME of a cinematic vertical 9:16 film shot, 35mm film look, photoreal, natural skin texture, warm practical light. Compose exactly the moment described. The people in it must be the characters from the reference sheets provided: identical faces, hair, skin tone, build and wardrobe. No text, logos or watermarks.';
+/** A shot is vertical 9:16 (social) unless its prompt says "Widescreen 16:9" (the home page and other widescreen
+ * cuts). Takes carry the shot's prompt (after the cast line), so the frame shape travels with it. */
+export const shotAspect = (prompt: string | null | undefined): '9:16' | '16:9' => (/\bwidescreen 16:9\b/i.test(prompt ?? '') ? '16:9' : '9:16');
+
+const KEYFRAME_STYLE = (aspect: '9:16' | '16:9') => `The FIRST FRAME of a cinematic ${aspect === '16:9' ? 'widescreen 16:9' : 'vertical 9:16'} film shot, 35mm film look, photoreal, natural skin texture, warm practical light. Compose exactly the moment described. The people in it must be the characters from the reference sheets provided: identical faces, hair, skin tone, build and wardrobe. No text, logos or watermarks.`;
 
 type VeoImage = { bytesBase64Encoded: string; mimeType: string } | { inlineData: { data: string; mimeType: string } };
 const asBytes = (i: { data: string; mimeType: string }): VeoImage => ({ bytesBase64Encoded: i.data, mimeType: i.mimeType });
@@ -134,7 +138,8 @@ export async function startTake(id: string): Promise<{ ok: boolean; error?: stri
       if (img) sheets.push({ character: row.character, img });
     }
   }
-  const params = { aspectRatio: '9:16', durationSeconds: VIDEO_SECONDS, resolution: '1080p' };
+  const aspect = shotAspect(t.prompt);
+  const params = { aspectRatio: aspect, durationSeconds: VIDEO_SECONDS, resolution: '1080p' };
   const veo = async (instance: Record<string, unknown>, personGeneration: string) => {
     const res = await fetch(`${BASE()}/models/${encodeURIComponent(t.model)}:predictLongRunning`, {
       method: 'POST', headers: headers(), signal: AbortSignal.timeout(60_000),
@@ -161,11 +166,11 @@ export async function startTake(id: string): Promise<{ ok: boolean; error?: stri
       }
       // Route 2: a keyframe painted from the sheets, animated by Veo.
       if (!started) {
-        const parts: Record<string, unknown>[] = [{ text: `${KEYFRAME_STYLE}
+        const parts: Record<string, unknown>[] = [{ text: `${KEYFRAME_STYLE(aspect)}
 
 The shot: ${t.prompt}` }];
         for (const s of sheets) parts.push({ text: `Reference sheet for ${s.character}: match this person exactly.` }, { inlineData: s.img });
-        const frame = await nanoImage(IMAGE_MODEL(), parts);
+        const frame = await nanoImage(IMAGE_MODEL(), parts, aspect);
         extraCents = IMAGE_CENTS;
         await put(`studio/frames/${id}.${frame.mimeType === 'image/jpeg' ? 'jpg' : 'png'}`, Buffer.from(frame.data, 'base64'), { access: 'private', contentType: frame.mimeType, addRandomSuffix: false, allowOverwrite: true });
         for (const enc of [asBytes, asInline]) {

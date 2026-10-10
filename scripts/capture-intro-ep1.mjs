@@ -58,7 +58,8 @@ await send('Page.addScriptToEvaluateOnNewDocument', { source: `
 ` });
 
 const VIEW = {
-  desktop: { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false },
+  // Desktop renders at 2x (3840x2160) so the edit can zoom into what Maya names and stay sharp.
+  desktop: { width: 1920, height: 1080, deviceScaleFactor: 2, mobile: false },
   phone: { width: 430, height: 932, deviceScaleFactor: 2, mobile: true },
 };
 let current = 'desktop';
@@ -145,8 +146,9 @@ async function record(name, kind, url, body) {
 // ---------- the beats (see the episode script) ----------
 const A = '/app/demo-brooks';
 const T = plan.typed_live, C = plan.typed_care;
-// The Approve button on the storm-season post's card (the decision form sits inside the card with the post text).
-const APPROVE_STORM = `[...document.querySelectorAll('button[value=approved]')].find((b) => { let el = b; for (let i = 0; i < 6 && el; i++, el = el.parentElement) if (el.textContent.toLowerCase().includes('storm season')) return true; return false; })`;
+// The Approve button on the storm-season post's card: widen from the button to the largest box holding only that
+// one Approve button (the post's own card), then check that card's text.
+const APPROVE_STORM = `[...document.querySelectorAll('button[value=approved]')].find((b) => { let card = b; while (card.parentElement && card.parentElement.querySelectorAll('button[value=approved]').length === 1) card = card.parentElement; return card.textContent.toLowerCase().includes('storm season'); })`;
 const CLIPS = {
   // 14–24 "Your calls are ready the night before: who, when and why. Anything urgent stays on top."
   'today-phone': ['phone', false, `${A}/today?film=1`, async () => {
@@ -169,8 +171,7 @@ const CLIPS = {
     await scroll('document.querySelector("input[name=who]")', 1200, 0.25); await sleep(600);
     await type('document.querySelector("input[name=who]")', T.who);
     await type('document.querySelector("input[name=reason]")', T.reason, 22);
-    const d = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + T.day);
-    await setValue('document.querySelector("input[name=due]")', d.toISOString().slice(0, 10));
+    // Day stays the form's default (tomorrow), so the Thompsons land on tomorrow's list beside the Garcias.
     await setValue('document.querySelector("input[name=at]")', T.at); await sleep(500);
     await tap(byText('button', 'Save follow-up')); await sleep(2200);
     await scroll(byText('li, tr, article', T.who), 1500, 0.35); await sleep(2600);

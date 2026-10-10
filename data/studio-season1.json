@@ -590,7 +590,7 @@
       "format": "original",
       "cut_family": "extended",
       "logline": "Monday at the office: Trent is drowning in email, Bri’s sticky-note system is falling off her monitor, and Maya already knows what’s in the day. She walks them (and us) through the real Genovus screens: Today, Follow-ups, Approvals, Performance and Care. Everyone gets a win; Genovus just knows.",
-      "script": "0–8 · COLD OPEN. Trent at his laptop, the unread count climbing (insert graphic). TRENT: “Quick question. Is it normal for email to multiply?” Bri’s desk: a sticky note drops off her monitor. BRI: “I have a system.” Another falls. “…Had a system.”\n\n8–14 · Maya walks in with coffee. TRENT: “How are you calm? It’s Monday.” MAYA: “It’s Monday for me too. I just already know what’s in it.” She turns her phone toward them.\n\n14–24 · REAL SCREEN: Today (phone). MAYA (VO): “My calls are ready the night before. Who, when, and why. Anything urgent stays on top.”\n\n24–34 · TRENT: “The Garcias emailed me three days ago…” REAL SCREEN: Follow-ups, the Garcia renewal on the right day. MAYA (VO): “It’s already on your list. With the date.” TRENT, seeing the exposure, already dialing: “Renewal’s in fourteen days. I’m calling. With urgency.”\n\n34–42 · BRI, holding up her sticky notes: “My follow-ups live here.” REAL SCREEN: Bri logs the Thompsons on her phone in seconds. MAYA (VO): “Log it once, in seconds. It comes back the day it’s due.” BRI: “Thompsons. New baby. That’s my kind of call.”\n\n42–50 · TRENT: “Who’s approving all this?” REAL SCREEN: Approvals, one tap, then the approval record. MAYA (VO): “Nothing goes public until you tap approve. And there’s a record of every decision.”\n\n50–58 · BRI: “Is any of it working?” REAL SCREEN: Performance, link by link. MAYA (VO): “Every lead shows where it came from. Which post. Which page.”\n\n58–64 · REAL SCREEN: Monthly care, a request typed and sent, then the content calendar. MAYA (VO): “Need a change? Ask right here. Your posts are already on the calendar.”\n\n64–70 · TRENT: “Can it write my emails too?” CONCEPT INSERT, labeled In development: a Helix draft waiting for one tap. MAYA (VO): “Helix drafts. You send. You’re still the one they trust.”\n\n70–76 · PAYOFF. TRENT, leaning back: “Great. I was never worried.” BRI, flat: “You said ‘we’re cooked’ four times.” The laugh breaks; Bri crumples her last sticky note.\n\n76–80 · SIGNATURE. Maya to the lens, the room recedes: “Genovus just knows.” End card: GEN·egg·VUS · Book your setup call · AI label.",
+      "script": "0–8 · COLD OPEN. Trent at his laptop, the unread count climbing (insert graphic). TRENT: “Quick question. Is it normal for email to multiply?” Bri’s desk: a sticky note drops off her monitor. BRI: “I have a system.” Another falls. “…Had a system.”\n\n8–14 · Maya walks in with coffee. TRENT: “How are you calm? It’s Monday.” MAYA: “It’s Monday for me too. I just already know what’s in it.” She turns her phone toward them.\n\n14–24 · REAL SCREEN: Today (phone). MAYA (VO): “My calls are ready the night before. Who, when, and why. Anything urgent stays on top.”\n\n24–34 · TRENT: “The Garcias emailed me three days ago…” REAL SCREEN: Follow-ups, the Garcia renewal on the right day. MAYA (VO): “It’s already on your list. With the date.” TRENT, seeing the exposure, already dialing: “Renewal’s in fourteen days. I’m calling. With urgency.”\n\n34–42 · BRI, holding up her sticky notes: “My follow-ups live here.” REAL SCREEN: Bri logs the Thompsons on her phone in seconds. MAYA (VO): “Log it once, in seconds. It comes back the day it’s due.” BRI: “Thompsons. New baby. That’s my kind of call.”\n\n42–50 · TRENT: “Who’s approving all this?” REAL SCREEN: Approvals, one tap, then the approval record. MAYA (VO): “Nothing goes public until you tap approve. And there’s a record of every decision.”\n\n50–58 · BRI: “Is any of it working?” REAL SCREEN: Performance, link by link. MAYA (VO): “Every lead shows where it came from. Which post. Which page.”\n\n58–64 · REAL SCREEN: Monthly care, a request typed and sent, then the content calendar. MAYA (VO): “Need a change? Ask right here. Your posts are already on the calendar.”\n\n64–70 · TRENT: “Can it write my emails too?” CONCEPT INSERT, labeled In development: a Helix draft waiting for one tap. MAYA (VO): “Helix drafts. You send. You’re still the one they trust.”\n\n70–76 · PAYOFF. TRENT, leaning back: “Great. I was never worried.” BRI, flat: “You said ‘we’re cooked’ four times.” The laugh breaks; Bri crumples her last sticky note.\n\n76–80 · SIGNATURE. Maya to the lens, the room recedes: “Genovus just knows.” End card: GEN·egg·VUS · Book your setup call · AI label.\n\nVERTICAL CUT (30–45 s, social): native 9:16 takes (shots ending in 5, codes ending V) for the cold open, Maya’s entrance, Trent’s call, the payoff and the signature, around the phone captures (Today, add a follow-up, Approvals). Captions burned in for sound-off.",
       "music": "Light, warm office groove under the cold open; drops to a soft bed under every screen beat so Maya’s voice-over leads; small lift on each win (Trent dials, Bri lights up, the approve tap); dip before the lens line, then the brief Genovus sting.",
       "thumb": "Maya (@MAYA01) at center, composed and amused, holding her phone with a soft glow, while behind her Trent (@TRENT01) stares wide-eyed at his laptop and Bri (@BRI01) holds a fistful of sticky notes, all in a sunlit small Atlanta insurance office.",
       "shots": [
@@ -620,6 +620,33 @@
             "sound": "A run of soft notification chimes."
           },
           "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 at his desk, lit by his laptop, stares as a run of notification chimes keeps coming; a small freeze, eyes shift toward the next desk, and he asks quietly: \"Quick question. Is it normal for email to multiply?\""
+        },
+        {
+          "n": 15,
+          "shot_code": "IN001_SH010V",
+          "beat": 1,
+          "shot_kind": null,
+          "tool": "veo",
+          "timing": "0:00–0:04",
+          "description": "Cold open: Trent and the multiplying inbox. (vertical 9:16, social cut)",
+          "cast_codes": [
+            "TRENT01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "Quick question. Is it normal for email to multiply?"
+            }
+          ],
+          "log": {
+            "camera": "A · medium close-up across his desk · vertical",
+            "gaze": "at his laptop, then off to Bri",
+            "prop_hand": "hand on trackpad",
+            "mood_in": "trying to stay on top of it",
+            "mood_out": "quietly alarmed",
+            "sound": "A run of soft notification chimes."
+          },
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 at his desk, lit by his laptop, stares as a run of notification chimes keeps coming; a small freeze, eyes shift toward the next desk, and he asks quietly: \"Quick question. Is it normal for email to multiply?\""
         },
         {
           "n": 20,
@@ -653,6 +680,37 @@
           "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 at her desk, her monitor bezel covered edge to edge in colorful sticky notes. One drops to the desk; she says brightly: \"I have a system.\" A second note slides off; she watches it land and says, completely flat: \"...Had a system.\""
         },
         {
+          "n": 25,
+          "shot_code": "IN001_SH020V",
+          "beat": 1,
+          "shot_kind": null,
+          "tool": "veo",
+          "timing": "0:04–0:08",
+          "description": "Bri’s sticky-note system gives up. (vertical 9:16, social cut)",
+          "cast_codes": [
+            "BRI01"
+          ],
+          "lines": [
+            {
+              "who": "BRI01",
+              "text": "I have a system."
+            },
+            {
+              "who": "BRI01",
+              "text": "…Had a system."
+            }
+          ],
+          "log": {
+            "camera": "B · medium on Bri at her monitor · vertical",
+            "gaze": "at the monitor, then the desk",
+            "prop_hand": "a pen",
+            "mood_in": "confident",
+            "mood_out": "resigned, amused",
+            "sound": "Paper flutter."
+          },
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @BRI01 at her desk, her monitor bezel covered edge to edge in colorful sticky notes. One drops to the desk; she says brightly: \"I have a system.\" A second note slides off; she watches it land and says, completely flat: \"...Had a system.\""
+        },
+        {
           "n": 30,
           "shot_code": "IN001_SH030",
           "beat": 1,
@@ -683,6 +741,38 @@
             "sound": "Door, footsteps, coffee set down."
           },
           "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 walks in with a coffee and her phone, relaxed, and sets the coffee down at her desk. @TRENT01 turns in his chair and asks: \"How are you calm? It's Monday.\" @MAYA01, a held smile, a small exhale: \"It's Monday for me too. I just already know what's in it.\" She turns her phone toward him; the screen is a soft glow, nothing legible."
+        },
+        {
+          "n": 35,
+          "shot_code": "IN001_SH030V",
+          "beat": 1,
+          "shot_kind": null,
+          "tool": "veo",
+          "timing": "0:08–0:14",
+          "description": "Maya arrives, unbothered. (vertical 9:16, social cut)",
+          "cast_codes": [
+            "MAYA01",
+            "TRENT01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "How are you calm? It’s Monday."
+            },
+            {
+              "who": "MAYA01",
+              "text": "It’s Monday for me too. I just already know what’s in it."
+            }
+          ],
+          "log": {
+            "camera": "A · medium-wide two-shot as she reaches her desk · vertical",
+            "gaze": "Trent to Maya",
+            "prop_hand": "Maya: coffee, phone",
+            "mood_in": "Trent rattled, Maya easy",
+            "mood_out": "Trent curious",
+            "sound": "Door, footsteps, coffee set down."
+          },
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 walks in with a coffee and her phone, relaxed, and sets the coffee down at her desk. @TRENT01 turns in his chair and asks: \"How are you calm? It's Monday.\" @MAYA01, a held smile, a small exhale: \"It's Monday for me too. I just already know what's in it.\" She turns her phone toward him; the screen is a soft glow, nothing legible."
         },
         {
           "n": 40,
@@ -779,6 +869,33 @@
             "sound": "Handset lift, dial tones."
           },
           "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 picks up his desk phone, shoulders releasing into focus, and says while dialing: \"Renewal's in fourteen days. I'm calling. With urgency.\""
+        },
+        {
+          "n": 75,
+          "shot_code": "IN001_SH070V",
+          "beat": 3,
+          "shot_kind": null,
+          "tool": "veo",
+          "timing": "0:32–0:34",
+          "description": "Trent’s win: he sees the exposure and calls now. (vertical 9:16, social cut)",
+          "cast_codes": [
+            "TRENT01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "Renewal’s in fourteen days. I’m calling. With urgency."
+            }
+          ],
+          "log": {
+            "camera": "A · medium, he picks up the desk phone · vertical",
+            "gaze": "down to the phone",
+            "prop_hand": "desk phone",
+            "mood_in": "alarmed",
+            "mood_out": "purposeful",
+            "sound": "Handset lift, dial tones."
+          },
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @TRENT01 picks up his desk phone, shoulders releasing into focus, and says while dialing: \"Renewal's in fourteen days. I'm calling. With urgency.\""
         },
         {
           "n": 80,
@@ -1031,6 +1148,39 @@
           "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Three-shot across the desks: @TRENT01 leans back, hands behind his head: \"Great. I was never worried.\" @BRI01, completely flat: \"You said 'we're cooked' four times.\" The laugh escapes her first, then Trent; @MAYA01 smiles into her coffee. Bri crumples her last sticky note."
         },
         {
+          "n": 175,
+          "shot_code": "IN001_SH170V",
+          "beat": 8,
+          "shot_kind": null,
+          "tool": "veo",
+          "timing": "1:10–1:16",
+          "description": "Payoff: “I was never worried.” (vertical 9:16, social cut)",
+          "cast_codes": [
+            "TRENT01",
+            "BRI01",
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "TRENT01",
+              "text": "Great. I was never worried."
+            },
+            {
+              "who": "BRI01",
+              "text": "You said ‘we’re cooked’ four times."
+            }
+          ],
+          "log": {
+            "camera": "A · three-shot across the desks · vertical",
+            "gaze": "to each other",
+            "prop_hand": "Bri: last sticky note",
+            "mood_in": "relieved",
+            "mood_out": "shared laugh",
+            "sound": "Laughter, room tone."
+          },
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. Three-shot across the desks: @TRENT01 leans back, hands behind his head: \"Great. I was never worried.\" @BRI01, completely flat: \"You said 'we're cooked' four times.\" The laugh escapes her first, then Trent; @MAYA01 smiles into her coffee. Bri crumples her last sticky note."
+        },
+        {
           "n": 180,
           "shot_code": "IN001_SH180",
           "beat": 8,
@@ -1056,6 +1206,33 @@
             "sound": "The room recedes; a dip before the line."
           },
           "prompt": "Widescreen 16:9, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Keep the faces in the center third so a vertical crop still works. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 turns from her laughing coworkers to the lens; the room behind her softens; recognition in her eyes, a held smile, and quietly: \"Genovus just knows.\" @TRENT01 and @BRI01 never look into the lens."
+        },
+        {
+          "n": 185,
+          "shot_code": "IN001_SH180V",
+          "beat": 8,
+          "shot_kind": "signature",
+          "tool": "veo",
+          "timing": "1:16–1:19",
+          "description": "Signature: Maya to the lens. (vertical 9:16, social cut)",
+          "cast_codes": [
+            "MAYA01"
+          ],
+          "lines": [
+            {
+              "who": "MAYA01",
+              "text": "Genovus just knows."
+            }
+          ],
+          "log": {
+            "camera": "C · Maya’s lens look, medium close-up · vertical",
+            "gaze": "into the lens",
+            "prop_hand": "phone",
+            "mood_in": "amused",
+            "mood_out": "quietly certain",
+            "sound": "The room recedes; a dip before the line."
+          },
+          "prompt": "Vertical 9:16 for the phone, 35mm film look, a small independent insurance office in metro Atlanta on a Monday morning: warm daylight through blinds, plants, framed community photos, three desks close together, laptops and phones, lived-in but tidy. Compose for a phone screen: faces in the upper-middle of the frame, clear space at the bottom for captions. No legible text on any screen or paper (real product screens are cut in during the edit), no logos. @MAYA01 turns from her laughing coworkers to the lens; the room behind her softens; recognition in her eyes, a held smile, and quietly: \"Genovus just knows.\" @TRENT01 and @BRI01 never look into the lens."
         },
         {
           "n": 190,
