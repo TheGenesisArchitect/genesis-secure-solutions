@@ -1250,7 +1250,8 @@
           },
           "prompt": "Edit-built end card with the real wordmark asset; the AI label stays legible."
         }
-      ]
+      ],
+      "shot_budget": 17
     }
   ],
   "posts": {

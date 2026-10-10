@@ -6,6 +6,7 @@ import 'server-only';
 import { get, put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
+import season from '@/data/studio-season1.json';
 
 const BASE = () => (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
 const KEY = () => (process.env.GEMINI_API_KEY || '').trim();
@@ -208,6 +209,28 @@ The shot: ${t.prompt}` }];
 /** Google's "out of quota" refusals (per-minute and per-day limits): worth waiting for, not a failed take. */
 const isQuota = (msg: string) => /exceeded your current quota|resource[_ ]exhausted|rate limit|too many requests|\b429\b/i.test(msg);
 const QUOTA_GIVE_UP_MS = 36 * 3_600_000;
+
+// ---------- Shot budget: how many shots an episode may generate ----------
+// Each episode generates at most N distinct shots (default 12; an episode package can carry its own, e.g. Intro Ep. 1
+// at 17); retakes of a shot already in the budget are fine.
+// The default lives in app_settings (studio_shot_budget); a pitch session can set an episode's own budget
+// (studio_shot_budget:<episode code>).
+export const SHOT_BUDGET_DEFAULT = 12;
+
+export async function shotBudget(episodeId: string): Promise<{ budget: number; used: string[] }> {
+  const db = adminDb();
+  const { data: ep } = await db.from('studio_episodes').select('code').eq('id', episodeId).single();
+  const { data: rows } = await db.from('app_settings').select('key, value').in('key', ['studio_shot_budget', `studio_shot_budget:${ep?.code ?? ''}`]);
+  const num = (k: string) => { const v = Number(rows?.find((r) => r.key === k)?.value); return Number.isFinite(v) && v > 0 ? Math.floor(v) : null; };
+  // Set in the pitch (this episode) → the episode's own package (shot_budget in the season data) → the Studio default.
+  const packaged = (season.episodes as { code: string; shot_budget?: number }[]).find((x) => x.code === ep?.code)?.shot_budget ?? null;
+  const budget = num(`studio_shot_budget:${ep?.code ?? ''}`) ?? packaged ?? num('studio_shot_budget') ?? SHOT_BUDGET_DEFAULT;
+  // A shot counts once it has any take that was not refused (running, ready, queued or generated then failed by Google).
+  const { data: takes } = await db.from('studio_takes').select('shot_id, status, params, studio_shots!inner(episode_id)').eq('kind', 'video').eq('studio_shots.episode_id', episodeId);
+  const used = [...new Set(((takes ?? []) as unknown as { shot_id: string; status: string; params: { started_at?: string } | null }[])
+    .filter((t) => t.status !== 'failed' || t.params?.started_at).map((t) => t.shot_id))];
+  return { budget, used };
+}
 
 // ---------- Veo scheduling: build inside the Gemini rate limits ----------
 // Every Veo take is reserved against the Studio budget, then started only while the last minute and today

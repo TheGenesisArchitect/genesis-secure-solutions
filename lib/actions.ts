@@ -352,6 +352,20 @@ export async function studioSetCanonical(_: ActionResult, f: FormData) {
   return call('studio_set_canonical', { p_id: str(f, 'id', 64) }, 'This sheet is now the character’s reference for every shot.');
 }
 
+/** An episode's shot budget (how many distinct shots it may generate), set in the pitch. Admins only. */
+export async function studioSetShotBudget(_: ActionResult, f: FormData) {
+  const { requireStaff } = await import('./session');
+  const viewer = await requireStaff();
+  if (viewer.staff?.role !== 'admin') return fail('Only an admin can change a shot budget.');
+  const code = str(f, 'code', 40);
+  const n = Math.floor(Number(str(f, 'budget', 4)));
+  if (!/^[a-z0-9-]+$/.test(code) || !(n >= 1 && n <= 60)) return fail('Use a whole number from 1 to 60.');
+  const { adminDb } = await import('./supabase/admin');
+  const { error } = await adminDb().from('app_settings').upsert({ key: `studio_shot_budget:${code}`, value: String(n), updated_at: new Date().toISOString() });
+  revalidatePath(`/console/studio/${code}`);
+  return error ? fail(error.message) : done(`Shot budget for this episode: ${n}.`);
+}
+
 /** The Gemini account's Veo rate limits (from its AI Studio rate-limit page), so the Studio schedules inside them. Admins only. */
 export async function studioSetVeoLimits(_: ActionResult, f: FormData) {
   const { requireStaff } = await import('./session');

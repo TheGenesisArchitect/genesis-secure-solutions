@@ -8,10 +8,10 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics } from '@/lib/actions';
+import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics, studioSetShotBudget } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { ShotTakes, GenerateFirstTakes, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type VoiceClip } from '@/components/studio/StudioClient';
-import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
+import { VIDEO_CENTS, VIDEO_SECONDS, IMAGE_CENTS, generationConfigured, shotBudget } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 }
 
 export default async function Episode({ params }: { params: Promise<{ code: string }> }) {
-  await requireStaff();
+  const viewer = await requireStaff();
   const { code } = await params;
   const supabase = await db();
   const { data: e } = await supabase.from('studio_episodes').select('*, studio_series(name, bible)').eq('code', code).maybeSingle();
@@ -54,7 +54,9 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const takesFor = (shot: string) => ((takeRows ?? []).filter((t) => t.shot_id === shot) as unknown as Take[]);
   const costLabel = `${(VIDEO_CENTS / 100).toFixed(2)} · ${VIDEO_SECONDS}s`;
   // Cast shots still waiting for their first take (a failed take doesn't count), for the one-tap first pass.
-  const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string })) : [];
+  // The shot budget (default 12, set per episode in the pitch) caps how many distinct shots it generates.
+  const sb = await shotBudget(e.id);
+  const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string })).slice(0, Math.max(0, sb.budget - sb.used.length)) : [];
   const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
   const [{ data: lineClips }, { data: qaRows }] = await Promise.all([
     supabase.from('studio_voice_clips').select('id, shot_id, slot, voice_name, status, error, text, created_at').eq('kind', 'line').in('shot_id', (shots ?? []).map((s) => s.id)).order('created_at', { ascending: false }),
@@ -143,7 +145,15 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
       </Panel>
 
-      <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<GenerateFirstTakes shots={firstPass} centsEach={VIDEO_CENTS} />}>
+      <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><Chip kind={sb.used.length >= sb.budget ? 'pending' : 'info'}>Shot budget {sb.used.length}/{sb.budget}</Chip><GenerateFirstTakes shots={firstPass} centsEach={VIDEO_CENTS} /></span>}>
+        {viewer.staff.role === 'admin' ? (
+          <ActionForm action={studioSetShotBudget} className="row" style={{ gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
+            <input type="hidden" name="code" value={e.code} />
+            <label className="field" style={{ width: 200 }}><span>Shot budget (set in the pitch)</span><input className="input" name="budget" defaultValue={sb.budget} inputMode="numeric" /></label>
+            <button className="btn small" type="submit">Save</button>
+            <span className="muted" style={{ fontSize: 12 }}>Distinct shots this episode may generate; retakes of those shots don’t count.</span>
+          </ActionForm>
+        ) : null}
         <ol className="studio-shots">
           {(shots ?? []).map((s) => (
             <li key={s.id} className="tile" style={{ gap: 8 }}>

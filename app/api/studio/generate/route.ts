@@ -2,7 +2,7 @@
 // bible's production order for identity slots) with the caller's own session; then the provider is called
 // server-side. Reference images finish in this request; a video take starts here and finishes via polling.
 import { db } from '@/lib/supabase/server';
-import { generateRef, scheduleTake, generateThumb, generationConfigured, shotAspect, IMAGE_MODEL, VIDEO_MODEL, IMAGE_CENTS, VIDEO_CENTS } from '@/lib/studio-gen';
+import { generateRef, scheduleTake, shotBudget, generateThumb, generationConfigured, shotAspect, IMAGE_MODEL, VIDEO_MODEL, IMAGE_CENTS, VIDEO_CENTS } from '@/lib/studio-gen';
 import { findSlot, ENSEMBLE } from '@/lib/studio-cast';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +90,8 @@ export async function POST(req: Request) {
     const seriesId = (shot.studio_episodes as unknown as { series_id: string } | null)?.series_id ?? '';
     const cast = await castFor(supabase, seriesId, shot.episode_id, prompt);
     if (cast.missing?.length) return Response.json({ error: `Approve a front portrait (or seated image) for ${cast.missing.join(', ')} first, so their face is locked.` }, { status: 400 });
+    const sb = await shotBudget(shot.episode_id);
+    if (!sb.used.includes(shot.id) && sb.used.length >= sb.budget) return Response.json({ error: `This episode’s shot budget is ${sb.budget} and all ${sb.budget} are in use. Retake one of them, or raise the budget in the pitch.` }, { status: 400 });
     const { data: id, error } = await supabase.rpc('studio_reserve', { p_kind: 'video', p_target: b.shot, p_character: null, p_prompt: cast.prompt, p_model: VIDEO_MODEL(), p_cents: VIDEO_CENTS, p_params: { aspectRatio: shotAspect(cast.prompt), resolution: '1080p' }, p_refs: cast.refs });
     if (error) return Response.json({ error: error.message }, { status: 400 });
     const r = await scheduleTake(id as string);
