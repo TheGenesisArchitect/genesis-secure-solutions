@@ -744,3 +744,24 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .court-dims i{position:absolute;left:0;bottom:0;height:3px;background:var(--done)}
 .court-fail{color:var(--danger,#e5484d);margin:4px 0;font-weight:600}
 .court-line{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}
+
+/* Screening Room: the auto rough cut */
+.screen{display:grid;gap:12px}
+.screen-stage{display:grid;place-items:center;background:#05060a;border-radius:16px;padding:16px}
+.screen-frame{position:relative;width:100%;max-width:1100px;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+.screen.vertical .screen-frame{max-width:min(420px,100%);aspect-ratio:9/16}
+.screen-frame video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0}
+.screen-frame video.on{opacity:1}
+.screen-card{position:absolute;inset:0;display:grid;place-items:center;padding:24px;color:#f4f1ea;background:radial-gradient(circle at 50% 40%,#1b1a22,#07070b)}
+.screen-card p{margin:0;color:#c9c4ba;max-width:52ch}
+.screen-card.placeholder{background:repeating-linear-gradient(135deg,#101016 0 14px,#15151d 14px 28px)}
+.screen-helix{display:grid;gap:10px;justify-items:start;max-width:420px;padding:18px;border-radius:14px;background:#14141c;border:1px solid #2a2a36}
+.screen-caption{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);max-width:86%;padding:8px 14px;border-radius:10px;background:rgba(0,0,0,.66);color:#fff;font-size:clamp(14px,2.2vw,22px);line-height:1.3;text-align:center}
+.screen-caption b{color:#ffa53a;margin-right:6px}
+.screen-tag{position:absolute;top:10px;left:10px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#ddd;font-size:11px}
+.screen-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.screen-timeline{display:flex;gap:2px;list-style:none;margin:0;padding:0}
+.screen-timeline li{min-width:0}
+.screen-timeline .seg{width:100%;height:34px;border:0;border-radius:4px;cursor:pointer;font-size:10px;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 4px}
+.seg.picked{background:#1f8a5b}.seg.best{background:#2f6f9a}.seg.draft{background:#5a5a72}.seg.missing{background:#3a2a2a}.seg.card{background:#6b4a1f}
+.seg.on{outline:2px solid #ffa53a;outline-offset:1px}

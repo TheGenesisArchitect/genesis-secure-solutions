@@ -172,6 +172,10 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
               <button className={'btn small' + (auto.on ? '' : ' primary')} type="submit">{auto.on ? 'Pause autopilot' : auto.at ? 'Resume autopilot' : 'Start autopilot'}</button>
               <span className="muted" style={{ fontSize: 12 }}>Spends only inside the ceiling and the monthly Studio cap; stops and says why if either is reached.</span>
             </ActionForm>
+            <div className="row" style={{ gap: 6 }}>
+              <Link className="btn small" href={`/console/studio/screen/${e.code}`}>Screening Room · 16:9</Link>
+              <Link className="btn small ghost" href={`/console/studio/screen/${e.code}?format=vertical`}>9:16 social cut</Link>
+            </div>
             <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
               {castShots.map((s) => { const st = stageFor(s); return <a key={s.id} href={`#shot-${s.id}`} className={'chip ' + (st === 'picked' ? 'live' : st === 'your-look' || st === 'needs-you' ? 'pending' : 'info')} title={STAGE_LABEL[st]}>{s.shot_code?.replace('IN001_', '')} · {STAGE_LABEL[st]}</a>; })}
             </div>
