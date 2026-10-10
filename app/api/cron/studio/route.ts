@@ -1,9 +1,9 @@
 // Every minute: sync Studio content from the repo when it changed (so a release carries new episodes and shots to
 // this environment by itself), then finish any running Studio takes, so nothing is lost if the page that started
-// them was closed, and start takes that were waiting for Gemini quota.
+// them was closed, and start queued takes as the Veo rate limits allow.
 import { adminDb } from '@/lib/supabase/admin';
 import { cronAuthorized } from '@/lib/cron';
-import { pollTake, retryWaitingTake, generationConfigured } from '@/lib/studio-gen';
+import { pollTake, drainVeoQueue, generationConfigured } from '@/lib/studio-gen';
 import { syncStudioIfChanged } from '@/lib/studio-sync';
 import season from '@/data/studio-season1.json';
 
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     const r = await pollTake(t.id);
     results[r.status] = (results[r.status] ?? 0) + 1;
   }
-  // One take waiting for Gemini quota gets another try each minute (with backoff), so a capped burst drains by itself.
-  const retried = await retryWaitingTake();
-  return Response.json({ sync, checked: running?.length ?? 0, results, retried });
+  // Start queued takes as the Veo rate limits allow (and quota backstop retries when due).
+  const queue = await drainVeoQueue();
+  return Response.json({ sync, checked: running?.length ?? 0, results, queue });
 }

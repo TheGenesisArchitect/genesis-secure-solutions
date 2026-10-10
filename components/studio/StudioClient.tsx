@@ -69,7 +69,7 @@ export function GenerateFirstTakes({ shots, centsEach }: { shots: { id: string; 
       }
     };
     await next();
-    const line = `Generating ${started}${waiting ? `; ${waiting} waiting for Gemini quota will start on their own` : ''}.`;
+    const line = `Generating ${started}${waiting ? `; ${waiting} scheduled within your Veo limits will start on their own` : ''}.`;
     if (stop) err(`${line} Stopped at ${stop}`); else ok(`${line} Takes land on their shots below.`);
     setDone(null);
     router.refresh();

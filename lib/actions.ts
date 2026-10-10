@@ -352,6 +352,21 @@ export async function studioSetCanonical(_: ActionResult, f: FormData) {
   return call('studio_set_canonical', { p_id: str(f, 'id', 64) }, 'This sheet is now the character’s reference for every shot.');
 }
 
+/** The Gemini account's Veo rate limits (from its AI Studio rate-limit page), so the Studio schedules inside them. Admins only. */
+export async function studioSetVeoLimits(_: ActionResult, f: FormData) {
+  const { requireStaff } = await import('./session');
+  const viewer = await requireStaff();
+  if (viewer.staff?.role !== 'admin') return fail('Only an admin can change the Veo limits.');
+  const n = (k: string) => Math.floor(Number(str(f, k, 6)));
+  const rpm = n('rpm'), rpd = n('rpd');
+  if (!(rpm >= 1 && rpm <= 100) || !(rpd >= 1 && rpd <= 10000)) return fail('Use whole numbers: per minute 1–100, per day 1–10,000.');
+  const { adminDb } = await import('./supabase/admin');
+  const at = new Date().toISOString();
+  const { error } = await adminDb().from('app_settings').upsert([{ key: 'studio_veo_rpm', value: String(rpm), updated_at: at }, { key: 'studio_veo_rpd', value: String(rpd), updated_at: at }]);
+  revalidatePath('/console/studio');
+  return error ? fail(error.message) : done(`Veo limits saved: ${rpm} a minute, ${rpd} a day. The Studio schedules inside them.`);
+}
+
 export async function studioSetBudget(_: ActionResult, f: FormData) {
   const dollars = (k: string) => Math.round(Number(str(f, k, 12).replace(/[$,\s]/g, '') || '0') * 100);
   return call('studio_set_budget', { p_cap_cents: dollars('cap'), p_approval_cents: dollars('approval') }, 'Studio budget updated.');

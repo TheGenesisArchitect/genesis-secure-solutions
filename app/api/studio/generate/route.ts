@@ -2,7 +2,7 @@
 // bible's production order for identity slots) with the caller's own session; then the provider is called
 // server-side. Reference images finish in this request; a video take starts here and finishes via polling.
 import { db } from '@/lib/supabase/server';
-import { generateRef, startTake, generateThumb, generationConfigured, shotAspect, IMAGE_MODEL, VIDEO_MODEL, IMAGE_CENTS, VIDEO_CENTS } from '@/lib/studio-gen';
+import { generateRef, scheduleTake, generateThumb, generationConfigured, shotAspect, IMAGE_MODEL, VIDEO_MODEL, IMAGE_CENTS, VIDEO_CENTS } from '@/lib/studio-gen';
 import { findSlot, ENSEMBLE } from '@/lib/studio-cast';
 
 export const dynamic = 'force-dynamic';
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     if (cast.missing?.length) return Response.json({ error: `Approve a front portrait (or seated image) for ${cast.missing.join(', ')} first, so their face is locked.` }, { status: 400 });
     const { data: id, error } = await supabase.rpc('studio_reserve', { p_kind: 'video', p_target: b.shot, p_character: null, p_prompt: cast.prompt, p_model: VIDEO_MODEL(), p_cents: VIDEO_CENTS, p_params: { aspectRatio: shotAspect(cast.prompt), resolution: '1080p' }, p_refs: cast.refs });
     if (error) return Response.json({ error: error.message }, { status: 400 });
-    const r = await startTake(id as string);
+    const r = await scheduleTake(id as string);
     return Response.json({ id, status: r.ok ? (r.waiting ? 'waiting' : 'running') : 'failed', error: r.error, refs: cast.refs.length }, { status: r.ok ? 200 : 502 });
   }
 

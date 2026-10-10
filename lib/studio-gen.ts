@@ -185,18 +185,19 @@ The shot: ${t.prompt}` }];
     }
     await db.from('studio_takes').update({
       status: 'running', operation: started.name, error: null, cost_cents: t.cost_cents + extraCents,
-      params: { ...(t.params ?? {}), method, cast: sheets.map((s) => s.character), tried: tried.length ? tried : undefined }, updated_at: now(),
+      params: { ...(t.params ?? {}), method, cast: sheets.map((s) => s.character), tried: tried.length ? tried : undefined, started_at: now() }, updated_at: now(),
     }).eq('id', id);
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 600) : 'failed';
     // Out of Gemini quota: the take keeps its reservation and waits; the Studio cron starts it again with backoff.
-    const p = (t.params ?? {}) as { waiting_since?: string; attempts?: number };
-    const since = p.waiting_since ?? now();
+    // (The scheduler keeps us inside the limits; this is the backstop if Google's real limits are lower than set.)
+    const p = (t.params ?? {}) as { waiting_since?: string; quota_since?: string; attempts?: number };
+    const since = p.quota_since ?? now();
     if (isQuota(msg) && Date.now() - new Date(since).getTime() < QUOTA_GIVE_UP_MS) {
       const attempts = (p.attempts ?? 0) + 1;
       const nextAt = new Date(Date.now() + Math.min(30, 2 ** (attempts - 1)) * 60_000).toISOString();
-      await db.from('studio_takes').update({ status: 'queued', error: 'Waiting for Gemini quota: starts on its own.', params: { ...p, tried, waiting_since: since, attempts, next_at: nextAt }, updated_at: now() }).eq('id', id);
+      await db.from('studio_takes').update({ status: 'queued', error: 'Waiting for Gemini quota: starts on its own.', params: { ...p, tried, waiting_since: p.waiting_since ?? now(), quota_since: since, attempts, next_at: nextAt }, updated_at: now() }).eq('id', id);
       return { ok: true, waiting: true };
     }
     await db.from('studio_takes').update({ status: 'failed', error: isQuota(msg) ? 'Gemini quota stayed exhausted for 36 hours. Check the plan’s limits, then generate again.' : msg, cost_cents: 0, params: { ...(t.params ?? {}), tried }, updated_at: now() }).eq('id', id);
@@ -208,14 +209,81 @@ The shot: ${t.prompt}` }];
 const isQuota = (msg: string) => /exceeded your current quota|resource[_ ]exhausted|rate limit|too many requests|\b429\b/i.test(msg);
 const QUOTA_GIVE_UP_MS = 36 * 3_600_000;
 
-/** Start the oldest take that is waiting for quota and due for a retry (the Studio cron calls this every minute). */
-export async function retryWaitingTake(): Promise<{ id: string; status: string } | null> {
+// ---------- Veo scheduling: build inside the Gemini rate limits ----------
+// Every Veo take is reserved against the Studio budget, then started only while the last minute and today
+// (Gemini's daily quota resets at midnight Pacific) are under the limits set in the Studio. Anything over waits in
+// the queue and the Studio cron starts it when there is room. The limits come from the account's AI Studio
+// rate-limit page (they depend on the billing tier) and default low until set.
+export type VeoLimits = { perMinute: number; perDay: number };
+export const VEO_LIMIT_DEFAULTS: VeoLimits = { perMinute: 2, perDay: 10 };
+
+export async function veoLimits(): Promise<VeoLimits> {
+  const { data } = await adminDb().from('app_settings').select('key, value').in('key', ['studio_veo_rpm', 'studio_veo_rpd']);
+  const get = (k: string, d: number) => { const v = Number(data?.find((r) => r.key === k)?.value); return Number.isFinite(v) && v > 0 ? Math.floor(v) : d; };
+  return { perMinute: get('studio_veo_rpm', VEO_LIMIT_DEFAULTS.perMinute), perDay: get('studio_veo_rpd', VEO_LIMIT_DEFAULTS.perDay) };
+}
+
+/** The start of today in Pacific time, when Gemini's daily quotas reset. */
+function pacificMidnight(): Date {
+  const n = new Date();
+  const pt = new Date(n.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const offset = n.getTime() - pt.getTime();
+  pt.setHours(0, 0, 0, 0);
+  return new Date(pt.getTime() + offset);
+}
+
+export type VeoRoom = { now: number; limits: VeoLimits; usedToday: number; usedMinute: number; waiting: number };
+
+/** How many Veo takes may start right now without crossing the per-minute or per-day limit. */
+export async function veoRoom(): Promise<VeoRoom> {
   const db = adminDb();
-  const { data } = await db.from('studio_takes').select('id, params').eq('status', 'queued').not('params->>waiting_since', 'is', null).order('created_at').limit(50);
-  const due = (data ?? []).find((t) => !(t.params as { next_at?: string })?.next_at || new Date((t.params as { next_at: string }).next_at).getTime() <= Date.now());
-  if (!due) return null;
-  const r = await startTake(due.id);
-  return { id: due.id, status: r.ok ? ('waiting' in r && r.waiting ? 'waiting' : 'running') : 'failed' };
+  const limits = await veoLimits();
+  const midnight = pacificMidnight().getTime();
+  const { data } = await db.from('studio_takes').select('status, created_at, params').eq('kind', 'video').gte('created_at', new Date(Date.now() - 72 * 3_600_000).toISOString()).limit(2000);
+  const rows = (data ?? []) as { status: string; created_at: string; params: { started_at?: string; waiting_since?: string } | null }[];
+  // A start is a request Google accepted: recorded as started_at (older takes: running or ready since they were made).
+  const starts = rows.map((r) => r.params?.started_at ?? (['running', 'ready'].includes(r.status) ? r.created_at : null)).filter((t): t is string => Boolean(t)).map((t) => new Date(t).getTime());
+  const usedToday = starts.filter((t) => t >= midnight).length;
+  const usedMinute = starts.filter((t) => t >= Date.now() - 60_000).length;
+  const waiting = rows.filter((r) => r.status === 'queued' && r.params?.waiting_since).length;
+  return { now: Math.max(0, Math.min(limits.perMinute - usedMinute, limits.perDay - usedToday)), limits, usedToday, usedMinute, waiting };
+}
+
+const waitNote = (r: VeoRoom) => r.usedToday >= r.limits.perDay
+  ? `Scheduled: today's Veo limit (${r.limits.perDay}/day) is used, so this starts after midnight Pacific.`
+  : `Scheduled within your Veo limit (${r.limits.perMinute}/min): starts in a minute or two.`;
+
+/** Start a reserved take now if the limits allow, otherwise queue it for the Studio cron. */
+export async function scheduleTake(id: string): Promise<{ ok: boolean; error?: string; waiting?: boolean }> {
+  const room = await veoRoom();
+  if (room.now > 0) return startTake(id);
+  const db = adminDb();
+  const { data: t } = await db.from('studio_takes').select('params').eq('id', id).single();
+  await db.from('studio_takes').update({ status: 'queued', error: waitNote(room), params: { ...((t?.params as object) ?? {}), waiting_since: now() }, updated_at: now() }).eq('id', id);
+  return { ok: true, waiting: true };
+}
+
+/** Every minute: start as many queued takes as the limits allow, oldest first (the Studio cron calls this). */
+export async function drainVeoQueue(): Promise<{ started: number; waiting: number; room: number }> {
+  const db = adminDb();
+  const { data } = await db.from('studio_takes').select('id, params').eq('status', 'queued').not('params->>waiting_since', 'is', null).order('created_at').limit(100);
+  const queued = (data ?? []) as { id: string; params: { next_at?: string } | null }[];
+  if (!queued.length) return { started: 0, waiting: 0, room: 0 };
+  let room = await veoRoom();
+  let started = 0;
+  for (const t of queued.filter((q) => !q.params?.next_at || new Date(q.params.next_at).getTime() <= Date.now())) {
+    if (room.now <= 0) break;
+    const r = await startTake(t.id);
+    if (r.waiting) break; // Google said quota: the backstop has it; stop for this minute.
+    if (r.ok) started++;
+    room = { ...room, now: room.now - 1 };
+  }
+  // Keep the scheduled takes' notes current (after midnight, "starts after midnight" becomes "in a minute or two").
+  if (queued.length > started) {
+    const fresh = await veoRoom();
+    await db.from('studio_takes').update({ error: waitNote(fresh) }).eq('status', 'queued').not('params->>waiting_since', 'is', null).is('params->>next_at', null);
+  }
+  return { started, waiting: queued.length - started, room: room.now };
 }
 
 type Operation = {

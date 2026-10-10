@@ -7,9 +7,9 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip, Tile, Empty, money } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { resetDemoFollowUps, studioSetBudget, studioSaveSource } from '@/lib/actions';
+import { resetDemoFollowUps, studioSetBudget, studioSetVeoLimits, studioSaveSource } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
-import { IMAGE_CENTS, generationConfigured } from '@/lib/studio-gen';
+import { IMAGE_CENTS, generationConfigured, veoRoom } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const metadata = { title: 'Studio' };
@@ -48,6 +48,7 @@ export default async function Studio() {
   const coverFor = new Map((covers ?? []).map((c) => [c.episode_id, c.id]));
   const { data: cast } = await supabase.from('studio_characters').select('id, code, name, archetype').eq('status', 'active').order('sort');
   const cap = budget?.monthly_cap_cents ?? 15000;
+  const veo = generationConfigured() ? await veoRoom() : null;
   const used = Number(spent ?? 0);
   const bible = (series?.bible ?? {}) as Bible;
   const epTitle = new Map((eps ?? []).map((e) => [e.id, e]));
@@ -147,6 +148,22 @@ export default async function Studio() {
                 <label className="field" style={{ width: 220 }}><span>Admin needed above (USD)</span><input className="input" name="approval" defaultValue={((budget?.approval_over_cents ?? 500) / 100).toFixed(2)} inputMode="decimal" /></label>
                 <button className="btn small" type="submit">Save budget</button>
               </ActionForm>
+            ) : null}
+            {veo ? (
+              <div className="grid" style={{ gap: 8 }}>
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                  <b>Veo rate limits:</b> {veo.usedToday} of {veo.limits.perDay} takes started today (resets at midnight Pacific) · up to {veo.limits.perMinute} a minute
+                  {veo.waiting ? <> · <b>{veo.waiting}</b> scheduled, starting as the limits allow</> : null}. Takes past the limit wait in line; none are refused.
+                </p>
+                {viewer.staff.role === 'admin' ? (
+                  <ActionForm action={studioSetVeoLimits} className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+                    <label className="field" style={{ width: 160 }}><span>Veo per minute</span><input className="input" name="rpm" defaultValue={veo.limits.perMinute} inputMode="numeric" /></label>
+                    <label className="field" style={{ width: 160 }}><span>Veo per day</span><input className="input" name="rpd" defaultValue={veo.limits.perDay} inputMode="numeric" /></label>
+                    <button className="btn small" type="submit">Save limits</button>
+                    <a className="btn small ghost" href="https://aistudio.google.com/rate-limit" target="_blank" rel="noreferrer">See your limits in AI Studio ↗</a>
+                  </ActionForm>
+                ) : null}
+              </div>
             ) : null}
           </Panel>
 
