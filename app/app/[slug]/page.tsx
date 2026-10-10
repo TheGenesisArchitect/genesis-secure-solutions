@@ -14,9 +14,10 @@ const STAGE_HELP: Record<Stage, string> = {
 };
 
 
-export default async function AgencyHome({ params }: { params: Promise<{ slug: string }> }) {
+export default async function AgencyHome({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ film?: string }> }) {
   const { slug } = await params;
   const ctx = await agencyContext(slug);
+  const film = (await searchParams).film === '1' && ctx.tenant.isSample;
   const tid = ctx.tenant.tenantId;
   const supabase = await db();
   const [{ data: t }, { data: approvals }, { data: care }, { data: content }, { data: kpis }, live] = await Promise.all([
@@ -41,7 +42,7 @@ export default async function AgencyHome({ params }: { params: Promise<{ slug: s
   const latest = kpis?.[0];
   const sample = ctx.tenant.isSample;
   return (
-    <AgencyShell ctx={ctx} title={`Welcome back`}>
+    <AgencyShell ctx={ctx} title={`Welcome back`} film={film}>
       <div className="grid g4">
         <Tile label="Where you are" value={STAGE_LABEL[t?.stage as Stage] ?? '—'} hint={t?.stage === 'care' ? 'Live, with monthly care' : 'Getting you live'} />
         <Tile label="Your plan" value={t?.plan ? PLAN_LABEL[t.plan] : '—'} hint={t?.care_plan ? `Care: ${t.care_plan}` : 'Care starts at launch'} />

@@ -1,0 +1,58 @@
+{
+  "episode": "intro-e001",
+  "title": "Genovus Knows",
+  "note": "The demo agency's state for filming Intro Series Ep. 1. Brooks Family Insurance is fictional; Maya, Trent and Bri work there (owner Avery Brooks, never on screen).",
+  "owner_email": "avery@brooks-family.example",
+  "follow_ups": [
+    {
+      "who": "The Garcias",
+      "reason": "Renewal in 14 days: they emailed Tuesday with questions",
+      "day": 1,
+      "at": "09:30",
+      "priority": true
+    },
+    {
+      "who": "Maria Delgado",
+      "reason": "New teen driver in the house",
+      "day": 1,
+      "at": "10:15"
+    },
+    {
+      "who": "Okafor Bakery",
+      "reason": "Asked about coverage for the new location",
+      "day": 1,
+      "at": "11:00"
+    },
+    {
+      "who": "Jim & Pat Larson",
+      "reason": "Renewal questions: call after lunch",
+      "day": 1,
+      "at": "13:30"
+    },
+    {
+      "who": "Grace Whitfield",
+      "reason": "Asked for a callback about bundling home and auto",
+      "day": -1,
+      "at": "15:00",
+      "priority": true
+    },
+    {
+      "who": "Coach Rivera",
+      "reason": "Youth league event: follow up on the sign-up sheet",
+      "day": 3,
+      "at": "10:00"
+    }
+  ],
+  "typed_live": {
+    "who": "The Thompsons",
+    "reason": "New baby: life coverage review with a licensed agent",
+    "day": 2,
+    "at": "10:00"
+  },
+  "approve_on_camera": "Instagram post: storm season reminder",
+  "typed_care": {
+    "kind": "content",
+    "title": "Post for the Riverside fall festival",
+    "detail": "Our booth is by the main stage on Saturday. Kids can spin the prize wheel."
+  }
+}

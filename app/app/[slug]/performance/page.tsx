@@ -6,9 +6,10 @@ import { db } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Performance' };
 
-export default async function Performance({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Performance({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ film?: string }> }) {
   const { slug } = await params;
   const ctx = await agencyContext(slug);
+  const film = (await searchParams).film === '1' && ctx.tenant.isSample;
   const supabase = await db();
   const { data } = await supabase.from('kpi_snapshots').select('period, metrics, is_sample').eq('tenant_id', ctx.tenant.tenantId).order('period');
   const rows = data ?? [];
@@ -17,7 +18,7 @@ export default async function Performance({ params }: { params: Promise<{ slug: 
   const series = (k: keyof Metrics) => rows.map((r) => ({ label: month(r.period), value: Number((r.metrics as Metrics)[k] ?? 0) }));
   const sample = rows.some((r) => r.is_sample);
   return (
-    <AgencyShell ctx={ctx} title="Performance">
+    <AgencyShell ctx={ctx} title="Performance" film={film}>
       {latest ? (
         <>
           <Panel title="This month, link by link" sub="Every number traces to a source: site analytics, Meta and Google insights, and the outcomes your office logs">

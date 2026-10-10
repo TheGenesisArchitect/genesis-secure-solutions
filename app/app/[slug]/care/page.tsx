@@ -9,10 +9,11 @@ export const metadata = { title: 'Monthly care' };
 
 const RESPONSE: Record<string, string> = { vip: '2 business days', launch: '2 business days', growth: '1 business day', premium: '4 business hours' };
 
-export default async function AgencyCare({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ ok?: string; err?: string }> }) {
+export default async function AgencyCare({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ ok?: string; err?: string; film?: string }> }) {
   const { slug } = await params;
   const sp = await searchParams;
   const ctx = await agencyContext(slug);
+  const film = sp.film === '1' && ctx.tenant.isSample;
   const tid = ctx.tenant.tenantId;
   const supabase = await db();
   const [{ data: t }, { data: reqs }, { data: content }] = await Promise.all([
@@ -22,7 +23,7 @@ export default async function AgencyCare({ params, searchParams }: { params: Pro
   ]);
   const here = `/app/${slug}/care`;
   return (
-    <AgencyShell ctx={ctx} title="Monthly care">
+    <AgencyShell ctx={ctx} title="Monthly care" film={film}>
       <Flash ok={sp.ok} err={sp.err} />
       <div className="grid g2">
         <Panel title="Ask for a change" sub={`We reply within ${RESPONSE[t?.plan ?? 'launch']}. Site down or a lead form not delivering: within 2 business hours on every plan.`}>

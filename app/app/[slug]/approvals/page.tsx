@@ -7,10 +7,11 @@ import { decideApproval } from '@/lib/actions';
 
 export const metadata = { title: 'Approvals' };
 
-export default async function AgencyApprovals({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ ok?: string; err?: string }> }) {
+export default async function AgencyApprovals({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ ok?: string; err?: string; film?: string }> }) {
   const { slug } = await params;
   const sp = await searchParams;
   const ctx = await agencyContext(slug);
+  const film = sp.film === '1' && ctx.tenant.isSample;
   const supabase = await db();
   const { data } = await supabase.from('approvals').select('*').eq('tenant_id', ctx.tenant.tenantId).eq('approver', 'client').order('requested_at', { ascending: false });
   const pending = (data ?? []).filter((a) => a.status === 'pending');
@@ -18,7 +19,7 @@ export default async function AgencyApprovals({ params, searchParams }: { params
   const canDecide = !ctx.asStaff && ctx.tenant.role === 'owner';
   const here = `/app/${slug}/approvals`;
   return (
-    <AgencyShell ctx={ctx} title="Approvals">
+    <AgencyShell ctx={ctx} title="Approvals" film={film}>
       <Flash ok={sp.ok} err={sp.err} />
       <p className="soft">Nothing is posted, published or charged in your name until you approve it here. Ask for changes and tell us what to fix; any edit comes back to you.</p>
       <Panel title="Waiting on you" sub={`${pending.length} item${pending.length === 1 ? '' : 's'}`}>
