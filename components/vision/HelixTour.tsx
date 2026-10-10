@@ -17,7 +17,8 @@ const KIND_LABEL: Record<string, string> = { idea: 'Idea', action_item: 'Action 
 const BARGE_IN = 0.08;
 const b64 = (buf: ArrayBuffer) => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 
-export function HelixTour() {
+/** `context`: the vision tour (default) or Ask Helix on the Character Bible. `floating`: show the launch pill (otherwise open it with the genovus:helix-open event). */
+export function HelixTour({ context = 'tour', floating = true }: { context?: 'tour' | 'bible'; floating?: boolean } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const pathRef = useRef(pathname);
@@ -138,7 +139,7 @@ export function HelixTour() {
     try { m = JSON.parse(raw); } catch { return; }
     if (m.setupComplete) {
       setPhase('live');
-      send({ realtimeInput: { text: `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
+      send({ realtimeInput: { text: context === 'bible' ? 'The Studio team just opened Ask Helix on the Character Bible. Greet them and ask what they want to work on.' : `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
       return;
     }
     const sc = m.serverContent;
@@ -193,7 +194,7 @@ export function HelixTour() {
         setMicOn(false); micOnRef.current = false;
         setErr('Microphone is off: type your questions below.');
       }
-      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined }) });
+      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined, context }) });
       const s = await r.json();
       if (!r.ok) throw new Error(s.error ?? 'Helix could not start.');
       session.current = { id: s.sessionId, started: Date.now(), max: s.maxSeconds };
@@ -285,6 +286,13 @@ export function HelixTour() {
   const live = phase === 'live' || phase === 'connecting';
   const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 
+  // Open from anywhere on the page (e.g. the Ask Helix egg on the Character Bible).
+  useEffect(() => {
+    const open = () => { if (!session.current && phase !== 'connecting') start(); else setOpen(true); };
+    window.addEventListener('genovus:helix-open', open);
+    return () => window.removeEventListener('genovus:helix-open', open);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
       {box ? (
@@ -292,7 +300,7 @@ export function HelixTour() {
           {spot?.caption ? <span className="hx-spot-cap">{spot.caption}</span> : null}
         </div>
       ) : null}
-      {!open ? (
+      {!open && !floating ? null : !open ? (
         <button className="hx-launch" onClick={start} data-tour-launch>
           <span className="hx-orb on" aria-hidden="true"><i /><i /><i /></span>
           <span><b>Take the tour with Helix</b><small>Talk to it, interrupt it, ask anything</small></span>

@@ -65,11 +65,16 @@ const TOOLS = [{
 
 /** The Live API setup (BidiGenerateContentSetup): locked into each token, and also sent by the browser. */
 export function liveSetup(voice?: string) {
+  return liveSetupWith(SYSTEM, TOOLS, voice);
+}
+
+/** A Live setup with any system instruction and tools (the vision tour, Ask Helix on the Character Bible…). */
+export function liveSetupWith(system: string, tools: unknown[], voice?: string) {
   return {
     model: `models/${LIVE_MODEL()}`,
     generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: pickVoice(voice) } } }, temperature: 0.7 },
-    systemInstruction: { parts: [{ text: SYSTEM }] },
-    tools: TOOLS,
+    systemInstruction: { parts: [{ text: system }] },
+    tools,
     realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH', endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH', prefixPaddingMs: 80, silenceDurationMs: 450 } },
     inputAudioTranscription: {},
     outputAudioTranscription: {},

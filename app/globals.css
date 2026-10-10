@@ -707,3 +707,16 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .casting-row .id-slot{flex:1 1 320px;max-width:560px}
 .casting-row .id-ver{width:230px}
 .casting-row .id-ver img{aspect-ratio:3/2;object-fit:contain;background:var(--sunk)}
+/* The Ask Helix egg */
+.ask-egg{display:grid;justify-items:center;gap:8px;background:none;border:0;color:var(--ink);cursor:pointer;padding:8px 12px;border-radius:20px;font-family:var(--body)}
+.ask-egg-shell{position:relative;display:grid;place-items:center;width:132px;height:160px}
+.ask-egg-shell img{width:104px;height:133px;transform:rotate(-8deg);filter:drop-shadow(0 18px 28px rgba(0,0,0,.55)) drop-shadow(0 0 36px rgba(244,90,27,.35));transition:transform .5s var(--ease),filter .5s var(--ease);animation:eggfloat 6s ease-in-out infinite}
+.ask-egg-ring{position:absolute;inset:auto 0 0 0;margin:auto;width:110px;height:18px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),transparent);bottom:2px}
+.ask-egg:hover .ask-egg-shell img,.ask-egg:focus-visible .ask-egg-shell img{transform:rotate(-14deg) scale(1.05);filter:drop-shadow(0 22px 32px rgba(0,0,0,.6)) drop-shadow(0 0 52px rgba(255,150,60,.6))}
+.ask-egg b{font:800 16px var(--display);letter-spacing:.04em}
+.ask-egg small{color:var(--muted);font-size:12px;max-width:200px;text-align:center}
+@keyframes eggfloat{0%,100%{translate:0 0}50%{translate:0 -6px}}
+@media (prefers-reduced-motion:reduce){.ask-egg-shell img{animation:none}}
+.bible-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center}
+.bible-hero h2{display:flex;align-items:center;gap:.35em;flex-wrap:wrap}
+@media (max-width:760px){.bible-hero{grid-template-columns:minmax(0,1fr)}.bible-hero .ask-egg{justify-self:start}}

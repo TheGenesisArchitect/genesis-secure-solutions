@@ -2,6 +2,7 @@ import { Toaster } from '@/components/ActionForm';
 import { RefCapture } from '@/components/RefCapture';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './helix.css';
 import { Ambient } from '@/components/Ambient';
 
 export const metadata: Metadata = {

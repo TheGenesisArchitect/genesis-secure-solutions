@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
+import { Wordmark } from '@/components/Wordmark';
+import { AskHelixEgg } from '@/components/studio/AskHelixEgg';
+import { HelixTour } from '@/components/vision/HelixTour';
 import { db } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Character Bible · Studio' };
@@ -36,11 +39,14 @@ export default async function BiblePage() {
   return (
     <ConsoleShell title="Character Bible" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: 'Character Bible' }]} actions={<Link className="btn small" href="/console/studio/cast">Cast &amp; identity packages</Link>}>
       <article className="bible">
-        <header className="studio-hero">
-          <span className="v-eyebrow">Version {b.version} · {when(b.date)} · {b.owner}</span>
-          <h2>{b.title}</h2>
-          <p style={{ margin: 0 }}><b>Premise.</b> {b.premise}</p>
-          <p className="soft" style={{ margin: 0 }}><b>The emotional promise.</b> {b.promise}</p>
+        <header className="studio-hero bible-hero">
+          <div className="grid" style={{ gap: 8 }}>
+            <span className="v-eyebrow">Version {b.version} · {when(b.date)} · {b.owner}</span>
+            <h2>{/^GENOVUS/.test(b.title) ? <><Wordmark size={30} /><span>{b.title.replace(/^GENOVUSs*/, '')}</span></> : b.title}</h2>
+            <p style={{ margin: 0 }}><b>Premise.</b> {b.premise}</p>
+            <p className="soft" style={{ margin: 0 }}><b>The emotional promise.</b> {b.promise}</p>
+          </div>
+          <span className="no-print"><AskHelixEgg hint="Helix knows the bible and the cast. Ask anything, out loud." /></span>
         </header>
 
         <Panel title="The world they share">
@@ -130,6 +136,7 @@ export default async function BiblePage() {
         </div>
         <Chip kind="info">All three are fictional adults with original faces and voices.</Chip>
       </article>
+      <HelixTour context="bible" floating={false} />
     </ConsoleShell>
   );
 }
