@@ -703,3 +703,7 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .qa-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
 .qa-row:first-child{border-top:0}
 .qa-row.pass b{color:var(--done)}.qa-row.fail b{color:var(--bad)}
+.casting-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.casting-row .id-slot{flex:1 1 320px;max-width:560px}
+.casting-row .id-ver{width:230px}
+.casting-row .id-ver img{aspect-ratio:3/2;object-fit:contain;background:var(--sunk)}

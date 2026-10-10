@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, type ActionResult } from '@/lib/actions';
+import { studioChooseTake, studioSetCanonical, studioRegisterUpload, studioChooseArt, studioRegisterLicense, studioApproveRef, studioLockVoice, studioRegisterCasting, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -351,5 +351,29 @@ export function LineVoice({ shotId, index, clips }: { shotId: string; index: num
       }}>{busy ? 'Voicing…' : latest ? 'Re-voice' : 'Voice it'}</button>
       {latest ? <a className="btn small ghost" href={`/api/studio/media/voice/${latest.id}?download=1`}>Download</a> : null}
     </span>
+  );
+}
+
+/** Upload a casting reference sheet for a character. */
+export function CastingUpload({ characterId }: { characterId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  const onFile = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const blob = await upload(`studio/casting/${characterId}/${f.name.replace(/[^A-Za-z0-9._-]+/g, '-')}`, f, { access: 'private', handleUploadUrl: '/api/studio/upload', contentType: f.type || 'image/png' });
+      toast(await studioRegisterCasting(characterId, blob.pathname));
+    } catch (e) { err(e instanceof Error ? e.message : 'Upload failed.'); }
+    setBusy(false);
+    if (file.current) file.current.value = '';
+    router.refresh();
+  };
+  return (
+    <>
+      <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+      <button className="btn small primary" type="button" disabled={busy} onClick={() => file.current?.click()}>{busy ? 'Uploading…' : 'Upload casting sheet'}</button>
+    </>
   );
 }

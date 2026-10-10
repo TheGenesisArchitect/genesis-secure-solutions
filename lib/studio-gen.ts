@@ -65,11 +65,19 @@ ${r.prompt}` });
           const code = (fr.studio_characters as unknown as { code: string }).code;
           if (img) parts.push({ text: `Reference portrait for ${fr.character} (${code.replace(/d+$/, '')}): this exact person.` }, { inlineData: img });
         }
-      } else if (r.slot !== 'FACE_FRONT' && r.character_id) {
-        const { data: front } = await db.from('studio_refs').select('blob_path').eq('character_id', r.character_id).eq('slot', 'FACE_FRONT').eq('approved', true).maybeSingle();
-        const img = front?.blob_path ? await blobBase64(front.blob_path) : null;
-        if (!img) throw new Error('The approved front portrait is missing.');
-        parts.push({ text: `Reference portrait of ${r.character}: this exact person.` }, { inlineData: img });
+      } else if (r.character_id) {
+        // The approved casting sheet (uploaded by the team) anchors the face, the build and the wardrobe.
+        const { data: casting } = await db.from('studio_refs').select('blob_path').eq('character_id', r.character_id).eq('slot', 'CASTING').eq('approved', true).maybeSingle();
+        const cast = casting?.blob_path ? await blobBase64(casting.blob_path) : null;
+        if (r.slot === 'FACE_FRONT') {
+          if (cast) parts.push({ text: `Casting reference sheet for ${r.character}: produce ONE clean single portrait of exactly this person (same face, skin tone, hair, build and jewelry). Ignore the caption text and the panel layout of the sheet.` }, { inlineData: cast });
+        } else {
+          const { data: front } = await db.from('studio_refs').select('blob_path').eq('character_id', r.character_id).eq('slot', 'FACE_FRONT').eq('approved', true).maybeSingle();
+          const img = front?.blob_path ? await blobBase64(front.blob_path) : null;
+          if (!img) throw new Error('The approved front portrait is missing.');
+          parts.push({ text: `Reference portrait of ${r.character}: this exact person.` }, { inlineData: img });
+          if (cast) parts.push({ text: `Casting reference sheet for ${r.character} (same person, for build and proportions; ignore its caption text).` }, { inlineData: cast });
+        }
       }
     }
     const out = await nanoImage(r.model, parts, aspect);

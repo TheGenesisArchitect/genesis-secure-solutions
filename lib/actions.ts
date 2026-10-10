@@ -438,3 +438,11 @@ export async function studioSaveMetrics(_: ActionResult, f: FormData) {
   const n = (k: string) => { const v = str(f, k, 12).replace(/[%,\s]/g, ''); return v === '' ? null : Number(v); };
   return call('studio_save_metrics', { p_post: str(f, 'id', 64), p_m: { retention_3s: n('retention_3s'), avg_watch: n('avg_watch'), completion: n('completion'), rewatches: n('rewatches'), shares: n('shares'), comments: n('comments'), profile_visits: n('profile_visits'), transition_note: str(f, 'transition_note', 500) } }, 'Metrics saved.');
 }
+
+/** Registers a casting reference sheet the browser uploaded straight to storage. */
+export async function studioRegisterCasting(characterId: string, pathname: string): Promise<ActionResult> {
+  const supabase = await db();
+  const { error } = await supabase.rpc('studio_add_casting', { p_character: characterId, p_blob: pathname });
+  revalidatePath('/', 'layout');
+  return error ? fail(error.message) : done('Casting sheet uploaded. Approve it to lock the face, then generate the front portrait from it.');
+}

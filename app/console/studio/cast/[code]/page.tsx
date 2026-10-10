@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { Panel, Chip } from '@/components/ui';
 import { CopyButton } from '@/components/CopyButton';
-import { IdentitySlot, VoiceAudition, type SlotRef, type VoiceClip } from '@/components/studio/StudioClient';
+import { IdentitySlot, VoiceAudition, CastingUpload, type SlotRef, type VoiceClip } from '@/components/studio/StudioClient';
 import { VOICES } from '@/lib/studio-voice';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
@@ -56,8 +56,12 @@ export default async function Character({ params }: { params: Promise<{ code: st
         <p style={{ margin: 0 }}>{profile.sentence}</p>
       </div>
 
-      <Panel title="Portrait set" sub="Neutral front first, from the bible’s identity prompt. Everything else is derived from the approved front so every angle is the same face. Left and right are from the character’s perspective.">
+      <Panel title="Portrait set" sub="Upload and approve the casting sheet, then generate the neutral front portrait from it and the bible’s identity prompt. Everything else is derived from the approved front so every angle is the same face. Left and right are from the character’s perspective.">
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}><CopyButton text={c.identity_prompt} label="Copy identity prompt" /><span className="muted" style={{ fontSize: 12 }}>Visual anchors: {c.visual_anchors}</span></div>
+        <div className="casting-row">
+          <IdentitySlot target={{ character: c.id }} label="Casting reference" slot="CASTING" refs={slotRefs('CASTING')} locked="Your chosen casting sheet. Once approved, the front portrait is generated from it." costLabel={cost} />
+          <CastingUpload characterId={c.id} />
+        </div>
         <div className="id-grid">
           {PORTRAIT.map((s) => <IdentitySlot key={s.slot} target={{ character: c.id }} label={s.label} slot={s.slot} refs={slotRefs(s.slot)} locked={s.slot === 'FACE_FRONT' ? undefined : lock} costLabel={cost} />)}
         </div>
