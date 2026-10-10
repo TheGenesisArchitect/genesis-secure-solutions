@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/court",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/autopilot",
+      "schedule": "* * * * *"
     }
   ]
 }

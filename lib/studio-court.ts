@@ -2,8 +2,9 @@
 // its own Shot Contract (the timed performance, states, composition, continuity and negatives), the cast's
 // reference sheets and the approved start frame, then scores it before any person reviews it.
 // Weights: performance 30, story 20, character 15, cinematography 15, continuity 10, sound 5, brand 5.
-// Verdicts: <75 reject · 75–84 director review · 85–91 production · 92+ hero candidate. Any hard fail rejects.
-// The Court ranks and explains; people still choose takes, and their overrides calibrate the Court.
+// The Court ranks; it does not block. Only a hard fail rejects a take. Verdicts come from bars calibrated on our
+// own scored takes (production = our median, hero = our 85th percentile, never above the targets 85 and 92), so
+// the bars rise as the work does. The best take without a hard fail is the Court's pick; overrides calibrate it.
 import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
 import { blobBase64, recordExpense } from '@/lib/studio-gen';
@@ -42,14 +43,27 @@ export type CourtRecord = {
   override?: { verdict: Verdict; reason: string; at: string };
 };
 
-/** The verdict from the total and hard fails; the tier's bar decides whether the take passes for its shot. */
-export function verdictFor(total: number, hardFails: string[]): Verdict {
-  if (hardFails.length || total < 75) return 'reject';
-  if (total < 85) return 'review';
-  if (total < 92) return 'production';
-  return 'hero';
+export type Bars = { production: number; hero: number; calibrated: boolean; sample: number };
+export const TARGET_BARS = { production: 85, hero: 92 };
+const CALIBRATE_AFTER = 30;
+
+/** Bars from our own scored takes once there are enough; until then the targets (shown, never blocking). */
+export async function courtBars(): Promise<Bars> {
+  const { data } = await adminDb().from('studio_takes').select('court_score').eq('court_status', 'scored').not('court_score', 'is', null).order('court_at', { ascending: false }).limit(300);
+  const s = (data ?? []).map((r) => r.court_score as number).sort((a, b) => a - b);
+  if (s.length < CALIBRATE_AFTER) return { ...TARGET_BARS, calibrated: false, sample: s.length };
+  const pct = (p: number) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+  return { production: Math.min(TARGET_BARS.production, pct(0.5)), hero: Math.min(TARGET_BARS.hero, pct(0.85)), calibrated: true, sample: s.length };
 }
-export const tierBar = (tier: string | null | undefined) => (tier === 'hero' ? 92 : 85);
+
+/** Only a hard fail rejects; otherwise the bars place the take. */
+export function verdictFor(total: number, hardFails: string[], bars: Pick<Bars, 'production' | 'hero'> = TARGET_BARS): Verdict {
+  if (hardFails.length) return 'reject';
+  if (total >= bars.hero) return 'hero';
+  if (total >= bars.production) return 'production';
+  return 'review';
+}
+export const tierBar = (tier: string | null | undefined, bars: Pick<Bars, 'production' | 'hero'> = TARGET_BARS) => (tier === 'hero' ? bars.hero : bars.production);
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -75,7 +89,7 @@ function brief(contract: ShotContract, tier: string): string {
     .map((c) => `${c.name.split(' ')[0]} (@${c.code}): ${c.performance_dna!.pace}; reacts: ${c.performance_dna!.reaction_order.join(' → ')}; never: ${c.performance_dna!.never.join(', ')}.`).join('\n');
   return [
     'You are the SWIS Creative Court for Genovus Studio: a strict film director, continuity supervisor and comedy editor. Judge this generated take against its Shot Contract. Be exact and unsentimental: score what is on screen, not what was intended. Watch it at full length with sound.',
-    `RENDER CLASS: ${tier} (the bar to pass: ${tierBar(tier)}).`,
+    `RENDER CLASS: ${tier}. Score honestly against the full scale; the Studio calibrates its bars from these scores.`,
     `SHOT FUNCTION: ${contract.function}`,
     `INTENDED CUT LENGTH: ${contract.duration_s}s inside the 8s take.`,
     `COMPOSITION: ${contract.composition}. CAMERA: ${contract.camera}`,
@@ -166,12 +180,13 @@ export async function scoreTake(id: string): Promise<{ ok: boolean; score?: numb
     const scores = Object.fromEntries((Object.keys(WEIGHTS) as Dimension[]).map((k) => [k, Math.max(0, Math.min(WEIGHTS[k], Math.round(Number(raw.scores?.[k]) || 0)))])) as Record<Dimension, number>;
     const total = Object.values(scores).reduce((a, b) => a + b, 0);
     const hard = (raw.hard_fails ?? []).filter((h) => (HARD_FAILS as readonly string[]).includes(h));
-    const verdict = verdictFor(total, hard);
+    const bars = await courtBars();
+    const verdict = verdictFor(total, hard, bars);
     const u = j.usageMetadata ?? {};
     const cents = Math.max(1, Math.ceil(((u.promptTokenCount ?? 0) * PRICE_IN + ((u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0)) * PRICE_OUT) / 10_000));
     const prior = (t.court ?? {}) as Partial<CourtRecord>;
     const record: CourtRecord = {
-      model: COURT_MODEL(), scores, notes: raw.notes ?? {}, total, verdict, passes_tier: verdict !== 'reject' && total >= tierBar(shot.tier), hard_fails: hard,
+      model: COURT_MODEL(), scores, notes: raw.notes ?? {}, total, verdict, passes_tier: verdict !== 'reject' && total >= tierBar(shot.tier, bars), hard_fails: hard,
       failures: (raw.failures ?? []).filter((f) => (FAILURES as readonly string[]).includes(f)), beats: (raw.beats ?? []).slice(0, 20),
       usable: Number.isFinite(raw.usable_in) && Number.isFinite(raw.usable_out) ? { in: Number(raw.usable_in), out: Number(raw.usable_out) } : null,
       best_moment: raw.best_moment ?? null, summary: String(raw.summary ?? '').slice(0, 800), retry_advice: String(raw.retry_advice ?? '').slice(0, 600),

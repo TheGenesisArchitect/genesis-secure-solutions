@@ -8,10 +8,12 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics, studioSetShotBudget } from '@/lib/actions';
+import { studioUpdateShot, studioSetEpisode, studioSavePost, studioApprovePost, studioMarkPosted, studioSetPostMethod, studioUpdateShotLog, studioSetFormat, studioSetQa, studioSaveMetrics, studioSetShotBudget, studioSetAutopilot } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { ShotTakes, GenerateFirstTakes, FrameForge, FinalUpload, Thumbnails, LineVoice, type Take, type Art, type Frame, type VoiceClip } from '@/components/studio/StudioClient';
 import type { ShotContract } from '@/lib/studio-direct';
+import { estimateEpisode, stageOf, STAGE_LABEL, type Stage } from '@/lib/studio-autopilot';
+import { adminDb } from '@/lib/supabase/admin';
 import { VIDEO_SECONDS, IMAGE_CENTS, generationConfigured, shotBudget, videoFor } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
 
@@ -59,6 +61,15 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   // Cast shots still waiting for their first take (a failed take doesn't count), for the one-tap first pass.
   // The shot budget (default 12, set per episode in the pitch) caps how many distinct shots it generates.
   const sb = await shotBudget(e.id);
+  // SWIS™ autopilot: estimate, what it has spent since it started, and each cast shot's stage.
+  const auto = (e.autopilot ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string; done_at?: string };
+  const estimate = await estimateEpisode(e.id);
+  const autoSpent = auto.at ? Number((await adminDb().rpc('studio_episode_auto_spent', { p_episode: e.id, p_since: auto.at })).data ?? 0) : 0;
+  const frameRows = (artRows ?? []).filter((a) => a.kind === 'frame') as unknown as { id: string; shot_id: string; role: string; status: string; chosen: boolean; cost_cents: number }[];
+  const castShots = (shots ?? []).filter((s) => s.tool === 'veo' && contractOf(s));
+  const stageFor = (s: (typeof castShots)[number]) => stageOf(s as never, frameRows, (takeRows ?? []) as never) as Stage;
+  const lookWaiting = castShots.filter((s) => stageFor(s) === 'your-look');
+  const suggested = Math.ceil((estimate.cents * 1.15) / 100);
   const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string, takes: s.tier === 'hero' ? (contractOf(s)?.takes ?? 3) : 1, cents: videoFor(s.tier).cents })).slice(0, Math.max(0, sb.budget - sb.used.length)) : [];
   const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
   const [{ data: lineClips }, { data: qaRows }] = await Promise.all([
@@ -148,6 +159,26 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
       </Panel>
 
+      {generationConfigured() ? (
+        <Panel title={`Autopilot · ${auto.on ? 'running' : auto.done_at ? 'done: ready for the cut' : auto.at ? 'paused' : 'off'}`} sub="SWIS™ runs the episode: paints frames, chooses production frames, renders takes inside your rate limits, and picks each shot's best take with the Creative Court. You decide the look of the hero shots.">
+          <div className="grid" style={{ gap: 10 }}>
+            <p style={{ margin: 0 }}>Estimated full run: <b>${(estimate.cents / 100).toFixed(2)}</b> for {estimate.shots} shots ({estimate.heroShots} hero), {estimate.takes} takes, frames and Court reviews.{auto.at ? <> Spent by the autopilot so far: <b>${(autoSpent / 100).toFixed(2)}</b>{auto.ceiling_cents ? <> of a ${(auto.ceiling_cents / 100).toFixed(2)} ceiling</> : null}.</> : null}</p>
+            {auto.paused_reason && !auto.on ? <p className="court-fail" style={{ margin: 0 }}>Paused: {auto.paused_reason}</p> : null}
+            {lookWaiting.length ? <p style={{ margin: 0 }}><b>Your look decision:</b> {lookWaiting.map((s, i) => <span key={s.id}>{i ? ', ' : ''}<a href={`#shot-${s.id}`}>{s.shot_code}</a></span>)}. Choose a first frame for each; the autopilot renders them next.</p> : null}
+            <ActionForm action={studioSetAutopilot} className="row" style={{ gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
+              <input type="hidden" name="episode" value={e.id} />
+              <input type="hidden" name="on" value={auto.on ? '0' : '1'} />
+              {!auto.on ? <label className="field" style={{ width: 200 }}><span>Spending ceiling (USD)</span><input className="input" name="ceiling" defaultValue={auto.ceiling_cents ? (auto.ceiling_cents / 100).toFixed(0) : suggested} inputMode="decimal" /></label> : null}
+              <button className={'btn small' + (auto.on ? '' : ' primary')} type="submit">{auto.on ? 'Pause autopilot' : auto.at ? 'Resume autopilot' : 'Start autopilot'}</button>
+              <span className="muted" style={{ fontSize: 12 }}>Spends only inside the ceiling and the monthly Studio cap; stops and says why if either is reached.</span>
+            </ActionForm>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {castShots.map((s) => { const st = stageFor(s); return <a key={s.id} href={`#shot-${s.id}`} className={'chip ' + (st === 'picked' ? 'live' : st === 'your-look' || st === 'needs-you' ? 'pending' : 'info')} title={STAGE_LABEL[st]}>{s.shot_code?.replace('IN001_', '')} · {STAGE_LABEL[st]}</a>; })}
+            </div>
+          </div>
+        </Panel>
+      ) : null}
+
       <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><Chip kind={sb.used.length >= sb.budget ? 'pending' : 'info'}>Shot budget {sb.used.length}/{sb.budget}</Chip><GenerateFirstTakes shots={firstPass} /></span>}>
         {viewer.staff.role === 'admin' ? (
           <ActionForm action={studioSetShotBudget} className="row" style={{ gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
@@ -159,7 +190,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         ) : null}
         <ol className="studio-shots">
           {(shots ?? []).map((s) => (
-            <li key={s.id} className="tile" style={{ gap: 8 }}>
+            <li key={s.id} id={`shot-${s.id}`} className="tile" style={{ gap: 8 }}>
               <div className="spread" style={{ flexWrap: 'wrap', gap: 6 }}>
                 <b>{s.shot_code ?? `Shot ${s.n}`} <span className="muted" style={{ fontWeight: 500 }}>{s.timing}</span></b>
                 <span className="row" style={{ gap: 6 }}>{s.beat ? <Chip kind="pending">Beat {s.beat}</Chip> : null}{s.shot_kind ? <Chip kind={s.shot_kind === 'source' ? 'pending' : 'info'}>{KIND_LABEL[s.shot_kind]}</Chip> : <Chip kind={s.tool === 'capture' ? 'done' : 'info'}>{TOOL[s.tool]}</Chip>}<Chip kind={s.status === 'approved' ? 'done' : s.status === 'todo' ? 'pending' : 'info'}>{s.status}</Chip></span>

@@ -397,6 +397,13 @@ export async function studioRegisterUpload(kind: 'take' | 'final', target: strin
   return error ? fail(error.message) : done(kind === 'take' ? 'Recording added as a take.' : 'Final cut uploaded. Review it, then approve.');
 }
 
+/** Start (with a spending ceiling) or pause the SWIS™ autopilot on an episode. */
+export async function studioSetAutopilot(_: ActionResult, f: FormData) {
+  const on = f.get('on') === '1';
+  const ceiling = Math.round(Number(str(f, 'ceiling', 12).replace(/[$,\s]/g, '') || '0') * 100);
+  return call('studio_set_autopilot', { p_episode: str(f, 'episode', 64), p_on: on, p_ceiling_cents: on ? ceiling : null }, on ? `Autopilot on, up to ${(ceiling / 100).toFixed(2)}. It advances every minute.` : 'Autopilot paused.');
+}
+
 /** A director's override of the Creative Court's verdict, with the reason that calibrates the Court. */
 export async function studioCourtOverride(_: ActionResult, f: FormData) {
   return call('studio_court_override', { p_take: str(f, 'id', 64), p_verdict: str(f, 'verdict', 20), p_reason: str(f, 'reason', 500) }, 'Override recorded: it calibrates the Court.');

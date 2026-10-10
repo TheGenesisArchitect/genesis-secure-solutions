@@ -166,9 +166,9 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
   const [edit, setEdit] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   usePolling(takes.filter((t) => t.status === 'running' || t.status === 'queued').map((t) => t.id));
-  // The Creative Court ranks takes: scored takes first, best score first; the top passing take is the Court's pick.
+  // The Creative Court ranks takes: scored first, best score first; the Court's pick is the best take without a hard fail.
   const ranked = [...takes].sort((a, b) => (b.court_score ?? -1) - (a.court_score ?? -1));
-  const bestId = ranked.find((t) => t.court?.passes_tier && t.court?.verdict !== 'reject')?.id;
+  const bestId = ranked.find((t) => t.court_status === 'scored' && !t.court?.hard_fails?.length)?.id;
 
   const generate = async () => {
     setBusy(true);
