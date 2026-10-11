@@ -14,7 +14,7 @@ import { calendarItems, dayOf, feedEnabled, feedToken } from '@/lib/agency-calen
 export const metadata = { title: 'Calendar' };
 export const dynamic = 'force-dynamic';
 
-const KIND: Record<string, [string, string]> = { 'follow-up': ['Follow-up', 'pending'], consult: ['Consult', 'done'], post: ['Post', 'info'] };
+const KIND: Record<string, [string, string]> = { 'follow-up': ['Follow-up', 'pending'], consult: ['Consult', 'done'], post: ['Post', 'info'], visit: ['Partner visit', 'done'] };
 const add = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 const mondayOf = (d: string) => { const x = new Date(`${d}T12:00:00Z`); return add(d, -((x.getUTCDay() + 6) % 7)); };
 const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });

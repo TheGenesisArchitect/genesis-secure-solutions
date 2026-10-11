@@ -19,7 +19,7 @@ type Sku = keyof typeof COST_CENTS;
 
 export class PlacesError extends Error {}
 
-export type FoundPlace = { id: string; name: string; types: string[] };
+export type FoundPlace = { id: string; name: string; types: string[]; lat?: number; lng?: number };
 
 async function meter(sku: Sku) {
   try { await adminDb().rpc('bump_places_usage', { p_sku: sku, p_calls: 1, p_cost_cents: COST_CENTS[sku] }); } catch {}
@@ -58,7 +58,9 @@ async function call<T>(sku: Sku, path: string, init: { method?: string; body?: u
 export type Rect = { south: number; west: number; north: number; east: number };
 
 /** One page of a text search inside a rectangle (20 results a page, 3 pages at most per query). */
-export async function textSearch(q: { query: string; rect: Rect; includedType?: string; pageToken?: string }) {
+/** `withLocation` adds the place's coordinates (same Text Search Pro tier), used only to compute a distance that is
+ * stored in place of them. */
+export async function textSearch(q: { query: string; rect: Rect; includedType?: string; pageToken?: string; withLocation?: boolean }) {
   const body = {
     textQuery: q.query,
     pageSize: 20,
@@ -66,9 +68,9 @@ export async function textSearch(q: { query: string; rect: Rect; includedType?: 
     ...(q.includedType ? { includedType: q.includedType, strictTypeFiltering: true } : {}),
     ...(q.pageToken ? { pageToken: q.pageToken } : {}),
   };
-  const r = await call<{ places?: { id: string; displayName?: { text?: string }; types?: string[] }[]; nextPageToken?: string }>(
-    'text_search', '/places:searchText', { method: 'POST', body, fields: 'places.id,places.displayName,places.types,nextPageToken' });
-  const places: FoundPlace[] = (r.places ?? []).filter((p) => p.id).map((p) => ({ id: p.id, name: p.displayName?.text ?? '', types: p.types ?? [] }));
+  const r = await call<{ places?: { id: string; displayName?: { text?: string }; types?: string[]; location?: { latitude: number; longitude: number } }[]; nextPageToken?: string }>(
+    'text_search', '/places:searchText', { method: 'POST', body, fields: `places.id,places.displayName,places.types,${q.withLocation ? 'places.location,' : ''}nextPageToken` });
+  const places: FoundPlace[] = (r.places ?? []).filter((p) => p.id).map((p) => ({ id: p.id, name: p.displayName?.text ?? '', types: p.types ?? [], lat: p.location?.latitude, lng: p.location?.longitude }));
   return { places, next: r.nextPageToken };
 }
 

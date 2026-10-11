@@ -7,6 +7,7 @@ import { businessToday } from '@/lib/billing';
 import { AgencyTabBar } from './AgencyTabBar';
 import { PROGRAM_NAME } from '@/lib/programs';
 import { accessFor } from '@/lib/access';
+import { HelixDrawer } from './HelixDrawer';
 
 export type AgencyCtx = { viewer: Viewer; tenant: Membership; asStaff: boolean; isOwner: boolean };
 
@@ -34,12 +35,14 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
     { href: base, label: 'Home', exact: true },
     { href: `${base}/leads`, label: 'Leads', icon: 'inbox', count: fresh ?? 0 },
     ...(has('pipeline') ? [{ href: `${base}/pipeline`, label: 'Pipeline', icon: 'pipeline' }] : []),
+    ...(has('partners') ? [{ href: `${base}/partners`, label: 'Partners', icon: 'team' }] : []),
     ...(has('calendar') ? [{ href: `${base}/calendar`, label: 'Calendar', icon: 'target' }] : []),
     { href: `${base}/today`, label: 'Today', icon: 'home' },
     { href: `${base}/follow-ups`, label: 'Follow-ups', count: due ?? 0 },
   ];
   const programItems = [
     ...(has('helix') ? [{ href: `${base}/helix`, label: 'Ask Helix', icon: 'helix' }] : []),
+    ...(has('market') ? [{ href: `${base}/market`, label: 'Market', icon: 'globe' }] : []),
     { href: `${base}/setup`, label: 'Setup' },
     { href: `${base}/approvals`, label: 'Approvals', count: pending ?? 0 },
     { href: `${base}/care`, label: has('content') ? 'Care & content' : 'Monthly care', count: open ?? 0 },
@@ -77,6 +80,7 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
       {/* Filming the demo agency: the per-item Sample chips go too; the film itself carries the fictional-agency caption. */}
       {film ? <style>{'.chip.sample{display:none}'}</style> : null}
       {children}
+      {has('helix') && !film ? <HelixDrawer slug={tenant.slug} tenantId={tenant.tenantId} /> : null}
       <AgencyTabBar base={base} film={film} />
     </Shell>
   );

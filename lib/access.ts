@@ -2,6 +2,7 @@
 // (indefinitely, or as a trial until a date). One shell, scaled by these switches. Read once per request.
 import 'server-only';
 import { cache } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { db } from '@/lib/supabase/server';
 import { MODULES, includes, programOf, type ProgramId, type ProgramModule } from '@/lib/programs';
 
@@ -16,9 +17,10 @@ export type Access = {
   trial: { until: string; days: number; keys: string[] } | null;
 };
 
-export const accessFor = cache(async (tenantId: string, plan: string | null): Promise<Access> => {
+/** `client`: pass the service client from crons (no signed-in user); pages use the viewer's session. */
+export const accessFor = cache(async (tenantId: string, plan: string | null, client?: SupabaseClient): Promise<Access> => {
   const program = programOf(plan);
-  const { data } = await (await db()).from('module_grants').select('module_key, until').eq('tenant_id', tenantId).is('revoked_at', null);
+  const { data } = await (client ?? (await db())).from('module_grants').select('module_key, until').eq('tenant_id', tenantId).is('revoked_at', null);
   const now = Date.now();
   const grants = new Map<string, string | null>();
   for (const g of data ?? []) if (!g.until || new Date(g.until).getTime() > now) grants.set(g.module_key, g.until);

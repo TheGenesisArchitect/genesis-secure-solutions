@@ -3,8 +3,13 @@
 import { adminDb } from '@/lib/supabase/admin';
 import { cronAuthorized } from '@/lib/cron';
 import { finance } from '@/lib/finance';
+import { accessFor } from '@/lib/access';
+import { makeMorningBrief } from '@/lib/helix-morning';
+import { deleteRecording } from '@/lib/twilio';
+import { PROGRAM_NAME } from '@/lib/programs';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return new Response('Unauthorized', { status: 401 });
@@ -52,7 +57,24 @@ export async function GET(req: Request) {
       );
     }
   }
-  return Response.json({ quiet, lines });
+  const growth = await growthEngineDaily(db);
+  return Response.json({ quiet, lines, growth });
+}
+
+/** The Agency Growth Engine's daily work: Helix's morning brief for each live agency with Ask Helix (8 a.m.
+ * Eastern), and call recordings deleted after 90 days (the call and its note stay). */
+async function growthEngineDaily(db: ReturnType<typeof adminDb>) {
+  const { data: agencies } = await db.from('tenants').select('id, name, plan').eq('kind', 'agency').eq('is_sample', false);
+  let briefs = 0;
+  for (const t of agencies ?? []) {
+    const access = await accessFor(t.id, t.plan, db);
+    if (!access.has('helix')) continue;
+    try { await makeMorningBrief(db, t.id, t.name, PROGRAM_NAME[access.program]); briefs++; } catch (e) { console.error(`[daily] brief ${t.name}: ${e instanceof Error ? e.message : e}`); }
+  }
+  const old = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const { data: recs } = await db.from('calls').select('id, recording_sid').not('recording_sid', 'is', null).lt('started_at', old).limit(200);
+  for (const r of recs ?? []) { await deleteRecording(r.recording_sid!); await db.from('calls').update({ recording_sid: null }).eq('id', r.id); }
+  return { briefs, recordingsDeleted: recs?.length ?? 0 };
 }
 
 async function snapshotHouseKpis(db: ReturnType<typeof adminDb>, period: string) {

@@ -12,6 +12,9 @@ import { issueWelcomeLink } from '@/lib/actions';
 import { BillingConsole } from '@/components/BillingConsole';
 import { StaffAccess } from '@/components/StaffAccess';
 import { ModuleGrants } from '@/components/ModuleGrants';
+import { AgencyProfilePanel, PhoneNumbersPanel, PartnerRadarPanel } from '@/components/GrowthEngineConsole';
+import { twilioConfigured } from '@/lib/twilio';
+import { placesConfigured } from '@/lib/places';
 import { programOf } from '@/lib/programs';
 import { findClientBySlug } from '@/lib/clients';
 
@@ -45,7 +48,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const { data: t } = await supabase.from('tenants').select('*').eq('slug', slug).maybeSingle();
   if (!t) notFound();
   const here = `/console/clients/${slug}${tab === 'overview' ? '' : `?tab=${tab}`}`;
-  const [records, gates, approvals, care, invoices, assets, audit, events, members, leadKeys, grants, live] = await Promise.all([
+  const [records, gates, approvals, care, invoices, assets, audit, events, members, leadKeys, grants, live, profile, numbers, scan, mapped] = await Promise.all([
     supabase.from('agent_records').select('version, data, is_current, note, created_at').eq('tenant_id', t.id).order('version', { ascending: false }).limit(10),
     supabase.from('gates').select('*').eq('tenant_id', t.id).order('kind'),
     supabase.from('approvals').select('*').eq('tenant_id', t.id).order('requested_at', { ascending: false }),
@@ -58,6 +61,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     supabase.from('lead_keys').select('id, label, created_at, last_used_at, revoked_at').eq('tenant_id', t.id).order('created_at', { ascending: false }),
     supabase.from('module_grants').select('module_key, until').eq('tenant_id', t.id).is('revoked_at', null),
     tab === 'overview' ? liveSetup(slug) : Promise.resolve(null),
+    supabase.from('agency_profiles').select('address, city, state, zip, lat, lines, service_radius_mi, licensed_states, carrier, main_phone_e164, website').eq('tenant_id', t.id).maybeSingle(),
+    supabase.from('tracking_numbers').select('id, e164, label, source, created_at').eq('tenant_id', t.id).is('released_at', null).order('created_at'),
+    supabase.from('partner_scans').select('status, found, cost_cents, cap_cents, started_at, requests').eq('tenant_id', t.id).order('started_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('partner_targets').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id),
   ]);
   const links = await supabase.from('client_links').select('created_at').eq('tenant_id', t.id).is('revoked_at', null).order('created_at', { ascending: false }).limit(1);
   const rec = records.data?.find((r) => r.is_current);
@@ -189,6 +196,19 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <Panel title="Modules and trials" sub="One dashboard, scaled by program. Turn on Growth or Premium modules for this agency, as a trial or for good.">
               <ModuleGrants tenantId={t.id} program={programOf(t.plan)} grants={(grants.data ?? []) as never} />
             </Panel>
+          ) : null}
+          {t.kind === 'agency' ? (
+            <>
+              <Panel title="Agency profile" sub="Office, lines of business and radius: the single source the partner radar, call tracking, Market and Helix read.">
+                <AgencyProfilePanel tenantId={t.id} profile={(profile.data ?? null) as never} />
+              </Panel>
+              <Panel title="Phone numbers" sub="Tracking numbers that forward to the office. Every call becomes a lead tagged with where the number was shown; a missed call becomes a callback in Today.">
+                <PhoneNumbersPanel tenantId={t.id} numbers={(numbers.data ?? []) as never} ready={twilioConfigured()} />
+              </Panel>
+              <Panel title="Partner radar" sub="Maps referral partners near the office: businesses whose customers buy this agency's lines.">
+                <PartnerRadarPanel tenantId={t.id} scan={(scan.data ?? null) as never} mapped={mapped.count ?? 0} ready={placesConfigured() && Boolean(profile.data?.lat)} />
+              </Panel>
+            </>
           ) : null}
           <Panel title="People" sub="Who can sign in to this agency’s dashboard">
             {members.data?.length ? (

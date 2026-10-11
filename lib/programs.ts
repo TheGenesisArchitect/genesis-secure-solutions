@@ -24,7 +24,7 @@ export const includes = (program: ProgramId, m: ProgramModule) => RANK[m.tier] <
 
 export const MODULES: ProgramModule[] = [
   // Launch: get found, answer every lead, keep every promise.
-  { key: 'leads', label: 'Leads', tier: 'launch', live: true, path: '/leads', blurb: 'Every callback from your website, tagged with where it came from: Facebook, Google, a post or direct.' },
+  { key: 'leads', label: 'Leads', tier: 'launch', live: true, path: '/leads', blurb: 'Every callback and phone call in one inbox, tagged with where it came from: your site, Google, Facebook, a partner.' },
   { key: 'today', label: 'Today', tier: 'launch', live: true, path: '/today', blurb: 'Your phone home: tomorrow’s calls, the notes behind them, priorities on top.' },
   { key: 'follow-ups', label: 'Follow-ups', tier: 'launch', live: true, path: '/follow-ups', blurb: 'Log a follow-up in seconds; it comes back the day it’s due.' },
   { key: 'setup', label: 'Setup', tier: 'launch', live: true, path: '/setup', blurb: 'Your welcome guide, Facebook, Instagram and Google profile set up together.' },
@@ -34,6 +34,8 @@ export const MODULES: ProgramModule[] = [
   { key: 'assets', label: 'Assets & documents', tier: 'launch', live: true, path: '/assets', blurb: 'Your site, welcome film, cover art and agreements in one place.' },
   // Growth: Helix, your first hire; a pipeline and calendar that run the week; content and reviews every month.
   { key: 'pipeline', label: 'Pipeline', tier: 'growth', live: true, path: '/pipeline', blurb: 'Every lead by stage, from first call to booked to won, with the next step on each.' },
+  { key: 'partners', label: 'Partners', tier: 'growth', live: true, path: '/partners', blurb: 'Local businesses whose customers buy what you sell, mapped near your office, with who to call first and a referral link for each.' },
+  { key: 'market', label: 'Market', tier: 'growth', live: true, path: '/market', blurb: 'What your market needs this season, who’s out there, and which sources bring leads for less than the $50 vendors charge.' },
   { key: 'calendar', label: 'Calendar', tier: 'growth', live: true, path: '/calendar', blurb: 'Your week in one place: follow-ups, booked consults and scheduled posts; subscribe from Google or Apple Calendar.' },
   { key: 'helix', label: 'Ask Helix', tier: 'growth', live: true, path: '/helix', blurb: 'Helix knows your business: who to call today, where leads come from, a follow-up drafted for one tap.' },
   { key: 'kpis', label: 'KPI scorecard', tier: 'growth', live: true, path: '/performance', blurb: 'Contact, booked and won rates, time to first call and posts published, every week.' },

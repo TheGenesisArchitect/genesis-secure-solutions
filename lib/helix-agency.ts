@@ -6,6 +6,8 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { businessToday } from '@/lib/billing';
 import { calendarItems } from '@/lib/agency-calendar';
+import { LINES, lineLabels, momentsNow, partnerCategories } from '@/lib/lines';
+import { prettyPhone } from '@/lib/twilio';
 
 export type HelixTurn = { role: 'user' | 'helix'; text: string };
 export type HelixReply = {
@@ -21,19 +23,39 @@ const add = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.
 export async function agencyBrief(db: SupabaseClient, tenantId: string, name: string, program: string): Promise<string> {
   const today = businessToday();
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const [leads, fu, appr, care, cal] = await Promise.all([
+  const [leads, fu, appr, care, cal, prof, calls, partners, costs] = await Promise.all([
     db.from('leads').select('name, phone, email, topic, source, campaign, status, note, booked_for, created_at, first_contact_at').eq('tenant_id', tenantId).gte('created_at', since).order('created_at', { ascending: false }).limit(60),
     db.from('follow_ups').select('who, reason, due_on, due_at').eq('tenant_id', tenantId).eq('status', 'open').lte('due_on', add(today, 14)).order('due_on').limit(80),
     db.from('approvals').select('title, requested_at').eq('tenant_id', tenantId).eq('status', 'pending').eq('approver', 'client').limit(20),
     db.from('care_requests').select('title, status').eq('tenant_id', tenantId).neq('status', 'done').limit(20),
     calendarItems(db, tenantId, today, add(today, 7)),
+    db.from('agency_profiles').select('city, state, lines, service_radius_mi, carrier, licensed_states').eq('tenant_id', tenantId).maybeSingle(),
+    db.from('calls').select('from_e164, started_at, duration_s, status, summary, number_id, tracking_numbers(label)').eq('tenant_id', tenantId).gte('started_at', since).order('started_at', { ascending: false }).limit(40),
+    db.from('partner_targets').select('category, line, distance_mi, fit, status, contact_name, next_action_at, ref_code').eq('tenant_id', tenantId).order('fit', { ascending: false }).limit(400),
+    db.from('source_costs').select('source, cents').eq('tenant_id', tenantId).eq('month', today.slice(0, 8) + '01'),
   ]);
   const L = leads.data ?? [];
   const by = (f: (l: (typeof L)[number]) => string) => Object.entries(L.reduce<Record<string, number>>((a, l) => ({ ...a, [f(l)]: (a[f(l)] ?? 0) + 1 }), {})).map(([k, v]) => `${k} ${v}`).join(', ');
   const replies = L.filter((l) => l.first_contact_at).map((l) => (new Date(l.first_contact_at!).getTime() - new Date(l.created_at).getTime()) / 60_000).sort((a, b) => a - b);
   const et = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+  const P = prof.data;
+  const lines = lineLabels(P?.lines);
+  const C = calls.data ?? [];
+  const T = partners.data ?? [];
+  const catLabel = (k: string) => partnerCategories(P?.lines).find((c) => c.key === k)?.label ?? k;
+  const moments = momentsNow(P?.lines);
+  const bySource = L.reduce<Record<string, { n: number; won: number }>>((a, l) => { const k = l.source; a[k] = a[k] ?? { n: 0, won: 0 }; a[k].n++; if (l.status === 'won') a[k].won++; return a; }, {});
+  const cost = Object.fromEntries((costs.data ?? []).map((c) => [c.source, c.cents]));
   return [
-    `AGENCY: ${name} · program ${program} · today ${today} (America/New_York)`,
+    `AGENCY: ${name} · program ${program} · today ${today} (America/New_York)${P ? ` · ${P.city ?? ''} ${P.state ?? ''} · carrier ${P.carrier ?? 'n/a'} · licensed ${(P.licensed_states ?? []).join(', ') || 'n/a'}` : ''}`,
+    `LINES THIS AGENCY SELLS: ${lines.join(', ') || 'not set (ask the Genovus team to set them)'}`,
+    `MARKET NOW: ${moments.map((m) => `${LINES[m.line].label}: ${m.label}${m.starting ? ' (starting next month)' : ''} (${m.why})`).join(' | ') || 'no seasonal moments for these lines this month'}`,
+    `SOURCES this 30 days (leads / won / cost this month): ${Object.entries(bySource).map(([k, v]) => `${k} ${v.n}/${v.won}${cost[k] != null ? ` $${(cost[k] / 100).toFixed(0)} = $${(cost[k] / 100 / Math.max(1, v.n)).toFixed(0)}/lead` : ''}`).join(', ') || 'none'} · benchmark: vendors charge about $50 per shared lead`,
+    `CALLS last 30 days (${C.length}; missed ${C.filter((c) => c.status === 'missed').length}):`,
+    ...C.slice(0, 25).map((c) => `- ${et(c.started_at)} | ${prettyPhone(c.from_e164)} | ${c.status}${c.duration_s ? ` ${Math.round(c.duration_s / 60)} min` : ''} | line: ${(c.tracking_numbers as unknown as { label?: string } | null)?.label ?? 'tracking'}${c.summary ? ` | note: ${c.summary}` : ''}`),
+    `PARTNERS (referral partners mapped near the office: ${T.length}; working: ${T.filter((t) => t.status !== 'new' && t.status !== 'opted_out' && t.status !== 'not_now').length}):`,
+    ...T.filter((t) => t.status !== 'new').slice(0, 25).map((t) => `- ${catLabel(t.category)} (${LINES[t.line as keyof typeof LINES]?.label ?? t.line}) ${t.distance_mi} mi | ${t.status}${t.contact_name ? ` | contact ${t.contact_name}` : ''}${t.next_action_at ? ` | next ${et(t.next_action_at)}` : ''}`),
+    `Best unworked partners by fit: ${T.filter((t) => t.status === 'new').slice(0, 8).map((t) => `${catLabel(t.category)} ${t.distance_mi} mi (fit ${t.fit})`).join('; ') || 'none mapped yet'}`,
     `LEADS, last 30 days (${L.length}; by status: ${by((l) => l.status) || 'none'}; by source: ${by((l) => l.source) || 'none'}; median time to first call: ${replies.length ? `${Math.round(replies[Math.floor(replies.length / 2)])} min` : 'n/a'}):`,
     ...L.map((l) => `- ${l.name} | ${l.status}${l.booked_for ? ` consult ${et(l.booked_for)}` : ''} | ${l.topic ?? 'no topic'} | from ${l.source}${l.campaign ? `/${l.campaign}` : ''} | ${l.phone ?? ''} ${l.email ?? ''} | arrived ${et(l.created_at)}${l.note ? ` | note: ${l.note}` : ''}`),
     `FOLLOW-UPS open through ${add(today, 14)} (${(fu.data ?? []).length}):`,
@@ -53,6 +75,8 @@ RULES (never break):
 - You never send anything. When asked to reach out, write a DRAFT the agent sends themselves.
 - Proposed follow-ups are suggestions the agent adds with one tap; only propose them when asked or clearly useful.
 - Keep the agency's customer data inside your answer; don't add anything about other agencies.
+- Only talk about the LINES THIS AGENCY SELLS. If asked about any other kind of insurance, say the agency doesn't offer it and don't draft anything for it.
+- Partner names are not in the BRIEF (only categories); refer to partners by category and distance.
 
 Reply with JSON only: {"answer": string (plain text, under 120 words), "followUps": [{"who": string, "reason": string, "due": "YYYY-MM-DD", "at": "HH:MM"}], "drafts": [{"to": string, "channel": "text"|"email", "body": string (under 400 characters, friendly, no prices or coverage claims, signed as the agency)}]}.
 
@@ -71,8 +95,11 @@ function parse(raw: string, model: string): HelixReply {
   };
 }
 
-export async function askHelix(brief: string, history: HelixTurn[], question: string): Promise<HelixReply> {
-  const turns = [...history.slice(-8), { role: 'user' as const, text: question.slice(0, 1000) }];
+/** `context`: what the agent is looking at (a page, a lead, a partner), so Helix answers about that first. */
+export async function askHelix(brief: string, history: HelixTurn[], question: string, context?: string): Promise<HelixReply> {
+  const q = context ? `[Looking at: ${context.slice(0, 600)}]
+${question}` : question;
+  const turns = [...history.slice(-8), { role: 'user' as const, text: q.slice(0, 1600) }];
   const anthropic = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (anthropic) {
     const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim();

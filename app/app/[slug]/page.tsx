@@ -5,11 +5,15 @@ import { MetricChain, type Metrics } from '@/components/MetricChain';
 import { db } from '@/lib/supabase/server';
 import { liveSetup } from '@/lib/live-setup';
 import { PROGRAM_NAME, programOf } from '@/lib/programs';
+import { accessFor } from '@/lib/access';
+import { businessToday } from '@/lib/billing';
+import { LINES, momentsNow } from '@/lib/lines';
+import { MorningBrief } from '@/components/MorningBrief';
 
 export const metadata = { title: 'Home' };
 export const dynamic = 'force-dynamic';
 
-const SOURCE: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', direct: 'Direct' };
+const SOURCE: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', direct: 'Direct', website: 'website', 'google-profile': 'Google profile', partner: 'partner' };
 
 const STAGE_HELP: Record<Stage, string> = {
   attract: 'You found us.', consult: 'A short call about your office and goals.', propose: 'Your plan and price, in writing.', deposit: '70% to start; your welcome package follows right away.',
@@ -32,7 +36,7 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
     supabase.from('content_items').select('id, status').eq('tenant_id', tid).gte('scheduled_for', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
     supabase.from('kpi_snapshots').select('period, metrics, is_sample').eq('tenant_id', tid).order('period', { ascending: false }).limit(2),
     liveSetup(slug),
-    supabase.from('leads').select('id, name, topic, source, created_at').eq('tenant_id', tid).eq('status', 'new').order('created_at', { ascending: false }).limit(5),
+    supabase.from('leads').select('id, name, topic, source, channel, created_at').eq('tenant_id', tid).eq('status', 'new').order('created_at', { ascending: false }).limit(5),
     supabase.from('leads').select('source, status, created_at, first_contact_at').eq('tenant_id', tid).gte('created_at', monthStart).limit(2000),
   ]);
   const program = programOf(t?.plan ?? ctx.tenant.plan);
@@ -45,7 +49,7 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   const base = `/app/${slug}`;
   const next: { label: string; href: string }[] = [];
   // New leads come first: a callback is worth most in its first hour.
-  for (const l of fresh ?? []) next.push({ label: `Call ${l.name}${l.topic ? ` about ${l.topic.toLowerCase()}` : ''} (${SOURCE[l.source] ?? l.source})`, href: `${base}/leads?status=new` });
+  for (const l of fresh ?? []) next.push({ label: l.channel === 'call' ? `Call back ${l.name.replace(/^Caller /, '')} (called your ${SOURCE[l.source] ?? l.source} line)` : `Call ${l.name}${l.topic ? ` about ${l.topic.toLowerCase()}` : ''} (${SOURCE[l.source] ?? l.source})`, href: `${base}/leads?status=new` });
   for (const a of approvals ?? []) next.push({ label: `Approve: ${a.title}`, href: `${base}/approvals` });
   // Once an agency is live, setup is finished: never ask a launched client for setup steps.
   const launched = t?.stage === 'care';
@@ -55,8 +59,17 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   }
   const latest = kpis?.[0];
   const sample = ctx.tenant.isSample;
+  // Growth: Helix's morning brief opens the day, with one line on the market (the season for the agency's lines).
+  const access = await accessFor(tid, ctx.tenant.plan);
+  const showBrief = access.has('helix') && !film && !sample;
+  const [{ data: brief }, { data: prof }] = showBrief
+    ? await Promise.all([supabase.from('helix_briefs').select('body').eq('tenant_id', tid).eq('day', businessToday()).maybeSingle(), supabase.from('agency_profiles').select('lines').eq('tenant_id', tid).maybeSingle()])
+    : [{ data: null }, { data: null }];
+  const moment = momentsNow(prof?.lines)[0];
+  const pulse = moment ? `Market: ${LINES[moment.line].label} ${moment.label.toLowerCase()} ${moment.starting ? 'starts next month' : 'is on now'}` : null;
   return (
     <AgencyShell ctx={ctx} title={`Welcome back`} film={film}>
+      {showBrief ? <MorningBrief slug={slug} tenantId={tid} initial={(brief?.body as never) ?? null} pulse={pulse} /> : null}
       <div className="grid g4">
         <Tile label="Where you are" value={STAGE_LABEL[t?.stage as Stage] ?? '—'} hint={t?.stage === 'care' ? 'Live, with monthly care' : 'Getting you live'} />
         <Tile label="Your program" value={t?.plan ? PROGRAM_NAME[program] : PLAN_LABEL[t?.plan ?? ''] ?? '—'} hint={<Link href={`${base}/program`}>{t?.care_plan ? `Care: ${t.care_plan} · see what’s included` : 'See what’s included'}</Link>} />

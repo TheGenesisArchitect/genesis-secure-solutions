@@ -809,3 +809,21 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .helix-turn.helix{background:var(--surface);border:1px solid var(--line)}
 .helix-card{display:grid;gap:6px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:var(--raise)}
 .helix-card:not(.draft){grid-template-columns:1fr auto;align-items:center}
+
+/* Agency Growth Engine: Helix everywhere, Partners, Market, calls in Leads */
+.helix-fab{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;align-items:center;gap:8px;padding:10px 16px 10px 12px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 50%,var(--line));background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--text);font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.35);cursor:pointer}
+.helix-fab img{width:22px;transform:rotate(-8deg)}
+.helix-fab:hover{background:color-mix(in srgb,var(--accent) 24%,var(--surface))}
+.helix-drawer{position:fixed;top:0;right:0;bottom:0;z-index:70;width:min(440px,100vw);display:grid;grid-template-rows:auto 1fr;gap:10px;padding:14px;background:var(--surface);border-left:1px solid var(--line);box-shadow:-20px 0 50px rgba(0,0,0,.4);overflow:auto}
+.helix-chat.compact{max-width:none;align-content:start}
+.helix-chat.compact .helix-turn{max-width:100%}
+.helix-ask{display:inline-flex;align-items:center;gap:6px}
+.helix-ask img{width:14px;transform:rotate(-8deg)}
+.morning{display:grid;gap:10px;padding:16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),var(--surface))}
+.morning header img{width:30px;transform:rotate(-8deg)}
+.partner-card{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--raise)}
+.moments{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.moment{display:grid;gap:6px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--raise)}
+.lead-call{display:grid;gap:6px;padding:8px 10px;border-left:3px solid color-mix(in srgb,var(--accent) 60%,var(--line));background:var(--raise);border-radius:8px}
+button.chip{cursor:pointer}
+@media (max-width:760px){.helix-fab{bottom:84px;right:14px;padding:10px}.helix-fab span{display:none}.helix-drawer{width:100vw}}

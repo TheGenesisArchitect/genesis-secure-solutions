@@ -1,0 +1,111 @@
+'use server';
+// The Agency Growth Engine's actions. Staff: save the agency profile (the office is placed with the free US Census
+// geocoder), buy or release a tracking number, start the partner radar. Agency members: work a partner, record
+// what a source cost this month. Every write goes through an audited database function.
+import { headers } from 'next/headers';
+import { revalidatePath } from 'next/cache';
+import { requireStaff, getViewer } from '@/lib/session';
+import { db } from '@/lib/supabase/server';
+import { adminDb } from '@/lib/supabase/admin';
+import { buyLocalNumber, releaseNumber, twilioConfigured } from '@/lib/twilio';
+import { startRadar, runRadarSlice } from '@/lib/radar';
+import { placesConfigured } from '@/lib/places';
+import { easternIso } from '@/lib/agency-calendar';
+
+type Out = { ok?: string; err?: string };
+const uuid = /^[0-9a-f-]{36}$/;
+const e164 = (s: string) => { const d = s.replace(/\D/g, ''); return d.length === 10 ? `+1${d}` : d.length === 11 && d[0] === '1' ? `+${d}` : null; };
+
+async function geocode(oneLine: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const r = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?benchmark=Public_AR_Current&format=json&address=${encodeURIComponent(oneLine)}`, { signal: AbortSignal.timeout(12_000), cache: 'no-store' });
+    const j = (await r.json()) as { result?: { addressMatches?: { coordinates: { x: number; y: number } }[] } };
+    const c = j.result?.addressMatches?.[0]?.coordinates;
+    return c ? { lat: c.y, lng: c.x } : null;
+  } catch { return null; }
+}
+
+export async function saveAgencyProfile(tenantId: string, p: { address: string; city: string; state: string; zip: string; lines: string[]; radius: number; licensed: string; carrier: string; phone: string; website: string }): Promise<Out> {
+  await requireStaff();
+  if (!uuid.test(tenantId)) return { err: 'Unknown agency.' };
+  const phone = p.phone ? e164(p.phone) : null;
+  const website = p.website.trim() ? (/^https?:\/\//.test(p.website.trim()) ? p.website.trim() : `https://${p.website.trim()}`).replace(/^http:/, 'https:') : null;
+  if (p.phone && !phone) return { err: 'Main phone: enter a 10-digit US number.' };
+  const where = p.address && p.city && p.state ? await geocode(`${p.address}, ${p.city}, ${p.state} ${p.zip}`) : null;
+  const { error } = await (await db()).rpc('save_agency_profile', {
+    p_tenant: tenantId,
+    p: { address: p.address, city: p.city, state: p.state, zip: p.zip, lat: where?.lat ?? null, lng: where?.lng ?? null, lines: p.lines, service_radius_mi: Math.max(3, Math.min(50, Math.round(p.radius || 15))), licensed_states: p.licensed.split(/[\s,]+/).filter(Boolean), carrier: p.carrier, main_phone_e164: phone, website },
+  });
+  if (error) return { err: error.message };
+  revalidatePath('/', 'layout');
+  return { ok: where ? 'Profile saved; the office is placed on the map.' : p.address ? 'Profile saved, but the address could not be placed. Check the street, city and ZIP.' : 'Profile saved.' };
+}
+
+export async function buyTrackingNumber(tenantId: string, label: string, source: string, areaCode: string): Promise<Out> {
+  await requireStaff();
+  if (!uuid.test(tenantId)) return { err: 'Unknown agency.' };
+  if (!twilioConfigured()) return { err: 'Twilio is not connected yet: add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Vercel.' };
+  if (!/^[a-z0-9-]{2,40}$/.test(source)) return { err: 'Choose where this number will be shown.' };
+  const admin = adminDb();
+  const { data: prof } = await admin.from('agency_profiles').select('main_phone_e164').eq('tenant_id', tenantId).maybeSingle();
+  if (!prof?.main_phone_e164) return { err: 'Set the office’s main phone in the agency profile first; calls forward there.' };
+  const { data: t } = await admin.from('tenants').select('name').eq('id', tenantId).single();
+  const h = await headers();
+  const origin = process.env.APP_ORIGIN || `https://${h.get('x-forwarded-host') ?? h.get('host')}`;
+  try {
+    const n = await buyLocalNumber(/^\d{3}$/.test(areaCode) ? areaCode : prof.main_phone_e164.slice(2, 5), origin, `${t?.name ?? 'Agency'} · ${label}`);
+    const { error } = await admin.rpc('add_tracking_number', { p_tenant: tenantId, p_e164: n.e164, p_sid: n.sid, p_label: label, p_source: source, p_forward: prof.main_phone_e164 });
+    if (error) { await releaseNumber(n.sid); return { err: error.message }; }
+    revalidatePath('/', 'layout');
+    return { ok: `Number ready: ${n.e164}. Calls forward to the office and land in Leads.` };
+  } catch (e) {
+    return { err: e instanceof Error ? e.message : 'Could not buy a number.' };
+  }
+}
+
+export async function releaseTrackingNumber(id: string): Promise<Out> {
+  await requireStaff();
+  const admin = adminDb();
+  const { data: n } = await admin.from('tracking_numbers').select('tenant_id, twilio_sid, e164, label').eq('id', id).maybeSingle();
+  if (!n) return { err: 'Unknown number.' };
+  try { if (n.twilio_sid) await releaseNumber(n.twilio_sid); } catch (e) { return { err: e instanceof Error ? e.message : 'Twilio did not release the number.' }; }
+  const { error } = await (await db()).rpc('release_tracking_number', { p_id: id });
+  if (error) return { err: error.message };
+  revalidatePath('/', 'layout');
+  return { ok: `${n.e164} released; it no longer rings the office.` };
+}
+
+export async function startPartnerRadar(tenantId: string, capDollars: number): Promise<Out> {
+  const viewer = await requireStaff();
+  if (!uuid.test(tenantId)) return { err: 'Unknown agency.' };
+  if (!placesConfigured()) return { err: 'Google Places is not connected (GOOGLE_PLACES_API_KEY).' };
+  const cap = Math.round(Math.max(1, Math.min(100, capDollars || 25)) * 100);
+  try {
+    const id = await startRadar(tenantId, cap, viewer.userId);
+    const r = await runRadarSlice(id, 45_000);
+    revalidatePath('/', 'layout');
+    return { ok: r.status === 'running' ? `Radar started: ${r.found} partners so far ($${(Number(r.costCents) / 100).toFixed(2)}). It keeps going every 10 minutes until done or the $${cap / 100} cap.` : `Radar ${r.status === 'budget' ? 'stopped at the cap' : 'finished'}: ${r.found} partners found for $${(Number(r.costCents) / 100).toFixed(2)}.` };
+  } catch (e) {
+    return { err: e instanceof Error ? e.message : 'The radar could not start.' };
+  }
+}
+
+/** A member works a partner: call or visit outcome, status, next step, a contact they confirmed. */
+export async function logPartner(f: { id: string; kind: string; status?: string; note?: string; next?: string; contact?: { name?: string; phone?: string; email?: string } }): Promise<Out> {
+  if (!(await getViewer().catch(() => null))) return { err: 'Sign in first.' };
+  const next = f.next && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(f.next) ? easternIso(f.next.slice(0, 10), f.next.slice(11)) : null;
+  const { error } = await (await db()).rpc('log_partner', { p_id: f.id, p_kind: f.kind, p_status: f.status ?? null, p_note: f.note ?? null, p_next: next, p_contact: f.contact ?? {} });
+  if (error) return { err: error.message === 'not allowed' ? 'That partner isn’t in your agency.' : error.message };
+  revalidatePath('/', 'layout');
+  return { ok: f.status === 'meeting' ? 'Visit booked: it’s on your calendar.' : f.status === 'partner' ? 'New partner! Send them their referral link.' : 'Logged.' };
+}
+
+/** What a source cost this month (ad spend, a mailer), so Market can show cost per lead against the $50 vendor price. */
+export async function setSourceCost(tenantId: string, source: string, dollars: number): Promise<Out> {
+  if (!(await getViewer().catch(() => null))) return { err: 'Sign in first.' };
+  const month = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).slice(0, 8) + '01';
+  const { error } = await (await db()).rpc('set_source_cost', { p_tenant: tenantId, p_month: month, p_source: source, p_cents: Math.round(Math.max(0, dollars) * 100), p_note: null });
+  if (error) return { err: error.message };
+  revalidatePath('/', 'layout');
+  return { ok: 'Cost saved: cost per lead is updated.' };
+}
