@@ -827,3 +827,9 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .lead-call{display:grid;gap:6px;padding:8px 10px;border-left:3px solid color-mix(in srgb,var(--accent) 60%,var(--line));background:var(--raise);border-radius:8px}
 button.chip{cursor:pointer}
 @media (max-width:760px){.helix-fab{bottom:84px;right:14px;padding:10px}.helix-fab span{display:none}.helix-drawer{width:100vw}}
+/* The Genovus line proof: each step of the call chain, checked when it has really happened. */
+.proof-steps{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
+.proof-steps li{display:flex;gap:10px;align-items:center;color:var(--muted)}
+.proof-steps li::before{content:'';width:16px;height:16px;flex:none;border-radius:50%;border:2px solid var(--line)}
+.proof-steps li.done{color:var(--ink)}
+.proof-steps li.done::before{border-color:var(--done,#3dd691);background:var(--done,#3dd691)}

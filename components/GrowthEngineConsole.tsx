@@ -1,10 +1,11 @@
 'use client';
 // Enterprise controls for an agency's Growth Engine: the agency profile (office, lines, radius: the single source
 // the radar, calls, Market and Helix read), its tracking numbers (bought from Twilio, about $1.15 a month each,
-// forwarding to the office), and the partner radar (capped per run, $25 by default).
+// forwarding to the office; offered to agencies as a Growth option once the Genovus line has proven the chain), and
+// the partner radar (capped per run, $25 by default). The Genovus line itself is set up on the Call list page.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { buyTrackingNumber, releaseTrackingNumber, saveAgencyProfile, startPartnerRadar } from '@/lib/growth-actions';
+import { buyTrackingNumber, releaseTrackingNumber, saveAgencyProfile, saveHouseForward, startPartnerRadar } from '@/lib/growth-actions';
 import { LINES, type LineId } from '@/lib/lines';
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
@@ -56,7 +57,8 @@ export function AgencyProfilePanel({ tenantId, profile }: { tenantId: string; pr
 
 const SOURCES = [['website', 'Website'], ['google-profile', 'Google profile'], ['facebook', 'Facebook'], ['partner', 'Partner referrals'], ['campaign', 'A campaign']] as const;
 
-export function PhoneNumbersPanel({ tenantId, numbers, ready }: { tenantId: string; numbers: Num[]; ready: boolean }) {
+/** `gate`: why a number can't be bought yet (Twilio not connected, the Genovus line not proven, the option off). */
+export function PhoneNumbersPanel({ tenantId, numbers, gate }: { tenantId: string; numbers: Num[]; gate: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<string>('website');
@@ -77,9 +79,53 @@ export function PhoneNumbersPanel({ tenantId, numbers, ready }: { tenantId: stri
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }}>
         <label className="field"><span>Shown on</span><select className="input" value={source} onChange={(e) => setSource(e.target.value)}>{SOURCES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
         <label className="field" style={{ width: 110 }}><span>Area code</span><input className="input" value={area} onChange={(e) => setArea(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Office’s" /></label>
-        <button className="btn small primary" type="button" disabled={busy || !ready} onClick={() => run(buyTrackingNumber(tenantId, SOURCES.find(([k]) => k === source)![1], source, area))}>Get a number (~$1.15/mo)</button>
-        {!ready ? <span className="muted" style={{ fontSize: 12 }}>Connect Twilio in Vercel first.</span> : null}
+        <button className="btn small primary" type="button" disabled={busy || Boolean(gate)} onClick={() => run(buyTrackingNumber(tenantId, SOURCES.find(([k]) => k === source)![1], source, area))}>Get a number (~$1.15/mo)</button>
+        {gate ? <span className="muted" style={{ fontSize: 12 }}>{gate}</span> : null}
       </div>
+    </div>
+  );
+}
+
+type Proof = { numbers: number; answered: boolean; recorded: boolean; noted: boolean; missed: boolean; proven: boolean };
+
+/** Enterprise: Genovus's own line, where the phone service is proven before any agency gets a number. */
+export function GenovusLinePanel({ houseId, numbers, forward, proof, ready }: { houseId: string; numbers: Num[]; forward: string | null; proof: Proof; ready: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [phone, setPhone] = useState(pretty(forward));
+  const [area, setArea] = useState('');
+  const run = async (p: Promise<{ ok?: string; err?: string }>) => { setBusy(true); toast(await p); setBusy(false); router.refresh(); };
+  const steps: [boolean, string][] = [
+    [proof.numbers > 0, 'A Genovus number is live'],
+    [proof.answered, 'Call it and answer: the call lands as a lead'],
+    [proof.recorded, 'The recording plays (notice heard first)'],
+    [proof.noted, 'Helix writes the note from the recording'],
+    [proof.missed, 'Call and let it ring out: a call-back follow-up appears'],
+  ];
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <ol className="proof-steps">{steps.map(([done, l]) => <li key={l} className={done ? 'done' : ''}>{l}</li>)}</ol>
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>{proof.proven ? 'Proven. Call tracking can now be switched on for agencies as a Growth option (Clients → agency → Modules → Call tracking).' : 'Agencies can’t get numbers until every step is checked.'}</p>
+      <form className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }} onSubmit={(e) => { e.preventDefault(); void run(saveHouseForward(phone)); }}>
+        <label className="field" style={{ width: 190 }}><span>Rings this phone</span><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 555-0100" inputMode="tel" required /></label>
+        <button className="btn small" type="submit" disabled={busy}>Save</button>
+      </form>
+      {numbers.length ? (
+        <ul className="list">
+          {numbers.map((n) => (
+            <li key={n.id} className="spread" style={{ gap: 8 }}>
+              <span><b>{pretty(n.e164)}</b> <span className="muted" style={{ fontSize: 12 }}>· {n.label}</span></span>
+              <button className="btn small ghost" type="button" disabled={busy} onClick={() => { if (confirm(`Release ${pretty(n.e164)}? It stops ringing and can't be recovered.`)) void run(releaseTrackingNumber(n.id)); }}>Release</button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }}>
+          <label className="field" style={{ width: 110 }}><span>Area code</span><input className="input" value={area} onChange={(e) => setArea(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Phone’s" /></label>
+          <button className="btn small primary" type="button" disabled={busy || !ready || !forward} onClick={() => run(buyTrackingNumber(houseId, 'Genovus line', 'genovus-line', area))}>Get the Genovus number (~$1.15/mo)</button>
+          {!ready ? <span className="muted" style={{ fontSize: 12 }}>Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Vercel first.</span> : !forward ? <span className="muted" style={{ fontSize: 12 }}>Save the phone it rings first.</span> : null}
+        </div>
+      )}
     </div>
   );
 }

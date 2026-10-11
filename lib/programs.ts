@@ -6,8 +6,10 @@ export type ProgramId = 'launch' | 'growth' | 'premium';
 export type ProgramModule = {
   key: string;
   label: string;
-  /** The lowest program that includes it. */
+  /** The lowest program that includes it (for an option: the program it can be added to). */
   tier: ProgramId;
+  /** A paid option: never included by a program, only switched on per agency. */
+  option?: boolean;
   /** Live in the dashboard now, or coming (shown honestly as coming). */
   live: boolean;
   /** Path under /app/<slug> ('' = home). */
@@ -20,7 +22,7 @@ export const RANK: Record<ProgramId, number> = { launch: 0, growth: 1, premium: 
 
 /** An agency's program: VIP and unknown plans read as Launch until a program is set. */
 export const programOf = (plan: string | null | undefined): ProgramId => (plan === 'growth' || plan === 'premium' ? plan : 'launch');
-export const includes = (program: ProgramId, m: ProgramModule) => RANK[m.tier] <= RANK[program];
+export const includes = (program: ProgramId, m: ProgramModule) => !m.option && RANK[m.tier] <= RANK[program];
 
 export const MODULES: ProgramModule[] = [
   // Launch: get found, answer every lead, keep every promise.
@@ -40,6 +42,7 @@ export const MODULES: ProgramModule[] = [
   { key: 'helix', label: 'Ask Helix', tier: 'growth', live: true, path: '/helix', blurb: 'Helix knows your business: who to call today, where leads come from, a follow-up drafted for one tap.' },
   { key: 'kpis', label: 'KPI scorecard', tier: 'growth', live: true, path: '/performance', blurb: 'Contact, booked and won rates, time to first call and posts published, every week.' },
   { key: 'content', label: 'Content calendar', tier: 'growth', live: true, path: '/care', blurb: 'Monthly posts drafted for your approval and scheduled for you.' },
+  { key: 'calls', label: 'Call tracking', tier: 'growth', option: true, live: true, path: '/leads', blurb: 'Local numbers for your site, Google profile or partners: every call rings your office, lands in Leads tagged with where it came from, and Helix writes the note. A Growth option.' },
   { key: 'reviews', label: 'Review requests', tier: 'growth', live: false, blurb: 'Mark a lead won and send a ready-made review request in one tap.' },
   { key: 'report', label: 'Monthly report', tier: 'growth', live: false, blurb: 'What worked this month, the numbers, and the one improvement we’ll make next.' },
   { key: 'booking', label: 'Online booking', tier: 'growth', live: false, blurb: 'Visitors request a consult time on your site; it lands on your calendar.' },

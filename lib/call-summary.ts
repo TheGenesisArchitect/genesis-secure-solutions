@@ -10,12 +10,19 @@ export async function summarizeCall(callSid: string, recordingSid: string, tenan
   const key = (process.env.GEMINI_API_KEY || '').trim();
   if (!key) return;
   const db = adminDb();
-  const { data: prof } = await db.from('agency_profiles').select('lines').eq('tenant_id', tenantId).maybeSingle();
+  const [{ data: prof }, { data: t }] = await Promise.all([
+    db.from('agency_profiles').select('lines').eq('tenant_id', tenantId).maybeSingle(),
+    db.from('tenants').select('slug').eq('id', tenantId).maybeSingle(),
+  ]);
   const audio = await recordingAudio(recordingSid);
   if (!audio.ok) return;
   const b64 = Buffer.from(await audio.arrayBuffer()).toString('base64');
   const lines = lineLabels(prof?.lines).join(', ') || 'personal insurance';
-  const prompt = `This is a recorded phone call to an insurance agency that sells ${lines}. Write a note for the agent in under 60 words: who called (first name if said), which line they asked about, what they want, and the next step with any time they mentioned. Never write card numbers, bank details, Social Security, driver license numbers or birth dates. If it is a voicemail, say so. If nothing useful was said, reply "No details captured." Plain text only.`;
+  // The Genovus line (where the phone service is proven first) takes calls from agents, not insurance shoppers.
+  const who = t?.slug === 'genovus'
+    ? 'This is a recorded phone call to Genovus, which builds websites, lead systems and the Helix assistant for insurance agencies. Write a note for the Genovus team in under 60 words: who called (name and agency if said), which carrier or agency type, what they want'
+    : `This is a recorded phone call to an insurance agency that sells ${lines}. Write a note for the agent in under 60 words: who called (first name if said), which line they asked about, what they want`;
+  const prompt = `${who}, and the next step with any time they mentioned. Never write card numbers, bank details, Social Security, driver license numbers or birth dates. If it is a voicemail, say so. If nothing useful was said, reply "No details captured." Plain text only.`;
   const model = (process.env.HELIX_AUDIO_MODEL || 'gemini-2.5-flash').trim();
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' }, signal: AbortSignal.timeout(50_000),

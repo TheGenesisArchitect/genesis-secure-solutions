@@ -47,7 +47,7 @@ export default async function Program({ params }: { params: Promise<{ slug: stri
         return (
           <Panel key={p} title={`What ${PROGRAM_NAME[p]} adds`} sub={`${offer.summary} ${money(offer.setupCents)} setup, then ${money(offer.careCents)} a month (${offer.careName}).`}>
             <ul className="prog-list">
-              {adds.map((m) => <li key={m.key}><div className="spread" style={{ gap: 8 }}><b>{m.label}</b>{m.live ? null : <Chip kind="pending">Coming</Chip>}</div><span className="muted" style={{ fontSize: 13 }}>{m.blurb}</span></li>)}
+              {adds.map((m) => <li key={m.key}><div className="spread" style={{ gap: 8 }}><b>{m.label}</b>{m.option ? <Chip kind="info">Option</Chip> : m.live ? null : <Chip kind="pending">Coming</Chip>}</div><span className="muted" style={{ fontSize: 13 }}>{m.blurb}</span></li>)}
             </ul>
             {ctx.isOwner ? (
               <ActionForm action={createCareRequest} className="row" style={{ gap: 8 }}>

@@ -11,6 +11,8 @@ import { buyLocalNumber, releaseNumber, twilioConfigured } from '@/lib/twilio';
 import { startRadar, runRadarSlice } from '@/lib/radar';
 import { placesConfigured } from '@/lib/places';
 import { easternIso } from '@/lib/agency-calendar';
+import { accessFor } from '@/lib/access';
+import { CALLS_OPTION, HOUSE_SLUG, phoneProof } from '@/lib/phone-line';
 
 type Out = { ok?: string; err?: string };
 const uuid = /^[0-9a-f-]{36}$/;
@@ -47,9 +49,15 @@ export async function buyTrackingNumber(tenantId: string, label: string, source:
   if (!twilioConfigured()) return { err: 'Twilio is not connected yet: add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Vercel.' };
   if (!/^[a-z0-9-]{2,40}$/.test(source)) return { err: 'Choose where this number will be shown.' };
   const admin = adminDb();
+  const { data: t } = await admin.from('tenants').select('name, slug, plan').eq('id', tenantId).single();
+  const house = t?.slug === HOUSE_SLUG;
+  // Agencies get numbers only after the Genovus line has proven the whole chain, and only with the Call tracking option on.
+  if (!house) {
+    if (!(await phoneProof(admin)).proven) return { err: 'Prove the phone service on the Genovus line first (Enterprise → Call list → Genovus line): an answered, recorded call with Helix’s note, and a missed call.' };
+    if (!(await accessFor(tenantId, t?.plan ?? null, admin)).has(CALLS_OPTION)) return { err: 'Turn on the Call tracking option for this agency first (Modules, above).' };
+  }
   const { data: prof } = await admin.from('agency_profiles').select('main_phone_e164').eq('tenant_id', tenantId).maybeSingle();
-  if (!prof?.main_phone_e164) return { err: 'Set the office’s main phone in the agency profile first; calls forward there.' };
-  const { data: t } = await admin.from('tenants').select('name').eq('id', tenantId).single();
+  if (!prof?.main_phone_e164) return { err: house ? 'Set the phone the Genovus line rings first.' : 'Set the office’s main phone in the agency profile first; calls forward there.' };
   const h = await headers();
   const origin = process.env.APP_ORIGIN || `https://${h.get('x-forwarded-host') ?? h.get('host')}`;
   try {
@@ -57,10 +65,29 @@ export async function buyTrackingNumber(tenantId: string, label: string, source:
     const { error } = await admin.rpc('add_tracking_number', { p_tenant: tenantId, p_e164: n.e164, p_sid: n.sid, p_label: label, p_source: source, p_forward: prof.main_phone_e164 });
     if (error) { await releaseNumber(n.sid); return { err: error.message }; }
     revalidatePath('/', 'layout');
-    return { ok: `Number ready: ${n.e164}. Calls forward to the office and land in Leads.` };
+    return { ok: house ? `Genovus line ready: ${n.e164}. Call it to start the proof.` : `Number ready: ${n.e164}. Calls forward to the office and land in Leads.` };
   } catch (e) {
     return { err: e instanceof Error ? e.message : 'Could not buy a number.' };
   }
+}
+
+/** The phone the Genovus line rings (the house account's main phone); live numbers follow it. */
+export async function saveHouseForward(phone: string): Promise<Out> {
+  await requireStaff();
+  const n = e164(phone);
+  if (!n) return { err: 'Enter a 10-digit US number.' };
+  const admin = adminDb();
+  const { data: house } = await admin.from('tenants').select('id').eq('slug', HOUSE_SLUG).single();
+  if (!house) return { err: 'The Genovus house account is missing.' };
+  const { data: prof } = await admin.from('agency_profiles').select('*').eq('tenant_id', house.id).maybeSingle();
+  const { error } = await (await db()).rpc('save_agency_profile', {
+    p_tenant: house.id,
+    p: { address: prof?.address ?? '', city: prof?.city ?? '', state: prof?.state ?? '', zip: prof?.zip ?? '', lat: prof?.lat ?? null, lng: prof?.lng ?? null, lines: prof?.lines ?? [], service_radius_mi: prof?.service_radius_mi ?? 15, licensed_states: prof?.licensed_states ?? [], carrier: prof?.carrier ?? '', main_phone_e164: n, website: prof?.website ?? 'https://genesis-secure-solutions.vercel.app' },
+  });
+  if (error) return { err: error.message };
+  await admin.from('tracking_numbers').update({ forward_to: n }).eq('tenant_id', house.id).is('released_at', null);
+  revalidatePath('/', 'layout');
+  return { ok: 'Saved: the Genovus line rings this phone.' };
 }
 
 export async function releaseTrackingNumber(id: string): Promise<Out> {

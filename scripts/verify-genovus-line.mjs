@@ -1,0 +1,127 @@
+// Verify the Genovus line on the PREVIEW database with a Twilio stand-in (no real numbers, no real calls): the phone
+// service is proven on Genovus's own line before any agency can get a number, and then only as a Growth option.
+//  1. before any calls: the Call list shows "Proving"; an agency's phone panel says it's offered after the proof
+//  2. signed Twilio webhooks to the Genovus number: one answered (recorded), one missed; Helix's note is written
+//  3. the Call list shows "Proven", the call with its note and a recording that plays
+//  4. the agency panel now asks for the Call tracking option; switched on, the button opens
+// Cleans up its own number, calls and grant at the end.
+//   node --env-file=.env.local scripts/verify-genovus-line.mjs [outDir]
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import http from 'node:http';
+import { createHmac } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { createClient } from '@supabase/supabase-js';
+
+const OUT = process.argv[2] || path.join(os.tmpdir(), 'genovus-verify');
+const PORT = 3911, ORIGIN = `http://localhost:${PORT}`, MOCK = 39556;
+const TW_TOKEN = 'test-twilio-token';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+fs.mkdirSync(OUT, { recursive: true });
+if (/prod/i.test(process.env.VERCEL_ENV ?? '')) throw new Error('refusing: production environment');
+const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const must = (r, w) => { if (r.error) throw new Error(`${w}: ${r.error.message}`); return r.data; };
+const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); if (!ok) process.exitCode = 1; };
+
+const up = async () => { try { return (await fetch(ORIGIN, { redirect: 'manual' })).status > 0; } catch { return false; } };
+if (await up()) throw new Error(`port ${PORT} is busy: stop the other dev server first`);
+const house = must(await db.from('tenants').select('id').eq('slug', 'genovus').single(), 'house account');
+const agency = must(await db.from('tenants').select('id').eq('slug', 'test-launch').single(), 'test agency (run verify-agency-dashboard.mjs first)');
+const staffRow = must(await db.from('staff').select('user_id').limit(1).single(), 'a staff user');
+const staffEmail = must(await db.auth.admin.getUserById(staffRow.user_id), 'staff email').user.email;
+const TN = '+17065550888', RINGS = '+17065550111';
+const clean = async () => {
+  must(await db.from('calls').delete().eq('tenant_id', house.id), 'clear house calls');
+  must(await db.from('tracking_numbers').delete().eq('tenant_id', house.id), 'clear house numbers');
+  must(await db.from('leads').delete().eq('tenant_id', house.id).eq('channel', 'call'), 'clear house call leads');
+  must(await db.from('follow_ups').delete().eq('tenant_id', house.id).ilike('reason', 'Missed call%'), 'clear house callbacks');
+  must(await db.from('module_grants').delete().eq('tenant_id', agency.id).eq('module_key', 'calls'), 'clear calls option');
+};
+await clean();
+const prior = (await db.from('agency_profiles').select('*').eq('tenant_id', house.id).maybeSingle()).data;
+const priorProfile = prior?.main_phone_e164 === '+17065550111' ? null : prior;
+must(await db.from('agency_profiles').upsert({ tenant_id: house.id, main_phone_e164: RINGS, lines: [], service_radius_mi: 15, licensed_states: [] }), 'house profile');
+must(await db.from('tracking_numbers').insert({ tenant_id: house.id, e164: TN, twilio_sid: 'PNhouse', label: 'Genovus line', source: 'genovus-line', forward_to: RINGS }), 'house number');
+
+const mock = http.createServer((req, res) => {
+  if (/Recordings\/.+\.mp3/.test(req.url)) { res.setHeader('content-type', 'audio/mpeg'); return res.end(Buffer.alloc(64)); }
+  res.statusCode = 404; res.end('{}');
+}).listen(MOCK);
+const env = { ...process.env, TWILIO_ACCOUNT_SID: 'ACtest', TWILIO_AUTH_TOKEN: TW_TOKEN, TWILIO_API_BASE: `http://localhost:${MOCK}`, GEMINI_API_KEY: '' };
+const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: 'ignore', shell: true, env });
+for (let i = 0; i < 150 && !(await up()); i++) await sleep(1000);
+
+// Headless Chrome, signed in as Genovus staff.
+const CH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const port = 9493, profile = fs.mkdtempSync(path.join(os.tmpdir(), 'genovus-verify-'));
+const chrome = spawn(CH, ['--headless=new', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+let list; for (let i = 0; i < 60; i++) { try { list = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if (list.find((x) => x.type === 'page')) break; } catch {} await sleep(250); }
+const ws = new WebSocket(list.find((x) => x.type === 'page').webSocketDebuggerUrl);
+let id = 0; const pend = new Map(); const on = new Map();
+ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } else if (m.method) on.get(m.method)?.(m.params); };
+await new Promise((r) => (ws.onopen = r));
+const cdp = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+const ev = async (x) => (await cdp('Runtime.evaluate', { expression: x, awaitPromise: true, returnByValue: true })).result?.result?.value;
+await cdp('Page.enable');
+const go = async (u) => { const l = new Promise((r) => on.set('Page.loadEventFired', r)); await cdp('Page.navigate', { url: ORIGIN + u }); await l; await sleep(1500); };
+const text = () => ev('document.body.innerText');
+const shot = async (name, w = 1440) => {
+  await cdp('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 600 }); await sleep(400);
+  const fh = await ev('Math.min(document.documentElement.scrollHeight, 4200)');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: w, height: fh, deviceScaleFactor: 1, mobile: w < 600 }); await sleep(300);
+  fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).result.data, 'base64'));
+};
+await cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+const link = must(await db.auth.admin.generateLink({ type: 'magiclink', email: staffEmail }), 'link');
+await go(`/auth/continue?t=${encodeURIComponent(link.properties.hashed_token)}&next=${encodeURIComponent('/console')}`);
+await ev(`(() => { const b = [...document.querySelectorAll('button')].find((x) => /Continue/.test(x.textContent)); b && b.click(); return !!b; })()`);
+for (let i = 0; i < 40 && !(await ev('location.pathname')).startsWith('/console'); i++) await sleep(250);
+
+// 1. Before the proof.
+await go('/console/prospects/calls');
+let t1 = await text();
+check(/Genovus line/.test(t1) && /Proving/i.test(t1) && /Agencies can’t get numbers/.test(t1), 'Call list: the Genovus line shows "Proving" before any calls');
+await go('/console/clients/test-launch');
+check(/Offered after the Genovus line is proven/.test(await text()), 'agency phone panel: offered only after the Genovus line is proven');
+check(/Call tracking/.test(await text()) && /Growth option/.test(await text()), 'Modules list shows Call tracking as a Growth option');
+
+// 2. Calls to the Genovus line, exactly as Twilio sends them.
+const sign = (url, p) => createHmac('sha1', TW_TOKEN).update(url + Object.keys(p).sort().map((k) => k + p[k]).join('')).digest('base64');
+const tw = async (route, p) => { const url = `${ORIGIN}${route}`; const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-twilio-signature': sign(url, p) }, body: new URLSearchParams(p) }); return [r.status, await r.text()]; };
+const [s0, x0] = await tw('/api/voice/incoming', { CallSid: 'CAhouse1', To: TN, From: '+14045550142' });
+check(s0 === 200 && x0.includes('may be recorded') && x0.includes(RINGS), 'a call to the Genovus number: recording notice, rings the Genovus phone');
+await tw('/api/voice/dialed', { CallSid: 'CAhouse1', To: TN, From: '+14045550142', DialCallStatus: 'completed', DialCallDuration: '140' });
+await tw('/api/voice/recording', { CallSid: 'CAhouse1', RecordingSid: 'REhouse1', RecordingDuration: '135', RecordingStatus: 'completed' });
+await tw('/api/voice/incoming', { CallSid: 'CAhouse2', To: TN, From: '+14045550177' });
+await tw('/api/voice/dialed', { CallSid: 'CAhouse2', To: TN, From: '+14045550177', DialCallStatus: 'no-answer', DialCallDuration: '0' });
+// No Gemini key locally: write Helix's note the way summarizeCall does.
+must(await db.rpc('set_call_summary', { p_call_sid: 'CAhouse1', p_summary: 'Dana, a State Farm agent in Atlanta, wants a site and lead tracking; asked for a demo Thursday at 2.' }), 'note');
+const fu = must(await db.from('follow_ups').select('id').eq('tenant_id', house.id).ilike('reason', 'Missed call%'), 'callback');
+check(fu.length === 1, 'the missed call became a call-back follow-up in the Genovus account');
+
+// 3. Proven.
+await go('/console/prospects/calls');
+t1 = await text();
+check(/Proven/i.test(t1) && /Helix: Dana, a State Farm agent/.test(t1) && /Answered/i.test(t1) && /Missed/i.test(t1), 'Call list: "Proven", both calls listed with Helix’s note');
+const audio = await ev(`fetch(document.querySelector('audio')?.src ?? '/none').then((r) => r.status + ' ' + r.headers.get('content-type'))`);
+check(/^200 audio\/mpeg/.test(audio ?? ''), `staff can play the Genovus line recording (${audio})`);
+await shot('genovus-line-proven');
+
+// 4. The agency now needs the option; switched on, the button opens.
+await go('/console/clients/test-launch');
+check(/Turn on the Call tracking option above first/.test(await text()), 'agency phone panel: proven, now asks for the Call tracking option');
+must(await db.from('module_grants').insert({ tenant_id: agency.id, module_key: 'calls', until: null, reason: 'Verify option' }), 'grant option');
+await go('/console/clients/test-launch');
+const open = await ev(`(() => { const b = [...document.querySelectorAll('button')].find((x) => /Get a number/.test(x.textContent)); return b ? !b.disabled : null; })()`);
+check(open === true && !/Turn on the Call tracking option/.test(await text()), 'with the option on, "Get a number" opens for the agency');
+await shot('genovus-line-agency-option');
+
+await clean();
+if (priorProfile) must(await db.from('agency_profiles').upsert(priorProfile), 'restore house profile');
+else must(await db.from('agency_profiles').delete().eq('tenant_id', house.id), 'remove house profile');
+console.log('screenshots in', OUT);
+try { await cdp('Browser.close'); } catch {}
+ws.close(); chrome.kill(); dev.kill(); mock.close();
+spawn('powershell', ['-NoProfile', '-Command', `Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`], { stdio: 'ignore' });
+setTimeout(() => process.exit(), 1500);

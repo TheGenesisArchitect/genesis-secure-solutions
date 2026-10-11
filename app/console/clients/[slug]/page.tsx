@@ -14,6 +14,7 @@ import { StaffAccess } from '@/components/StaffAccess';
 import { ModuleGrants } from '@/components/ModuleGrants';
 import { AgencyProfilePanel, PhoneNumbersPanel, PartnerRadarPanel } from '@/components/GrowthEngineConsole';
 import { twilioConfigured } from '@/lib/twilio';
+import { CALLS_OPTION, phoneProof } from '@/lib/phone-line';
 import { placesConfigured } from '@/lib/places';
 import { programOf } from '@/lib/programs';
 import { findClientBySlug } from '@/lib/clients';
@@ -66,6 +67,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     supabase.from('partner_scans').select('status, found, cost_cents, cap_cents, started_at, requests').eq('tenant_id', t.id).order('started_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('partner_targets').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id),
   ]);
+  const proof = await phoneProof(supabase);
   const links = await supabase.from('client_links').select('created_at').eq('tenant_id', t.id).is('revoked_at', null).order('created_at', { ascending: false }).limit(1);
   const rec = records.data?.find((r) => r.is_current);
   const data = (rec?.data ?? {}) as Record<string, unknown>;
@@ -202,8 +204,8 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               <Panel title="Agency profile" sub="Office, lines of business and radius: the single source the partner radar, call tracking, Market and Helix read.">
                 <AgencyProfilePanel tenantId={t.id} profile={(profile.data ?? null) as never} />
               </Panel>
-              <Panel title="Phone numbers" sub="Tracking numbers that forward to the office. Every call becomes a lead tagged with where the number was shown; a missed call becomes a callback in Today.">
-                <PhoneNumbersPanel tenantId={t.id} numbers={(numbers.data ?? []) as never} ready={twilioConfigured()} />
+              <Panel title="Phone numbers" sub="A Growth option. Tracking numbers forward to the office; every call becomes a lead tagged with where the number was shown, and a missed call becomes a callback in Today.">
+                <PhoneNumbersPanel tenantId={t.id} numbers={(numbers.data ?? []) as never} gate={!twilioConfigured() ? 'Connect Twilio in Vercel first.' : !proof.proven ? 'Offered after the Genovus line is proven (Call list → Genovus line).' : !(grants.data ?? []).some((g) => g.module_key === CALLS_OPTION && (!g.until || new Date(g.until).getTime() > Date.now())) ? 'Turn on the Call tracking option above first.' : null} />
               </Panel>
               <Panel title="Partner radar" sub="Maps referral partners near the office: businesses whose customers buy this agency's lines.">
                 <PartnerRadarPanel tenantId={t.id} scan={(scan.data ?? null) as never} mapped={mapped.count ?? 0} ready={placesConfigured() && Boolean(profile.data?.lat)} />

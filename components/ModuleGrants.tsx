@@ -15,7 +15,7 @@ export function ModuleGrants({ tenantId, program, grants }: { tenantId: string; 
   const [busy, setBusy] = useState(false);
   const active = new Map(grants.filter((g) => !g.until || new Date(g.until).getTime() > Date.now()).map((g) => [g.module_key, g.until]));
   const run = async (p: Promise<{ ok?: string; err?: string }>) => { setBusy(true); toast(await p); setBusy(false); router.refresh(); };
-  const growthLive = MODULES.filter((m) => m.tier === 'growth' && m.live).map((m) => m.key);
+  const growthLive = MODULES.filter((m) => m.tier === 'growth' && m.live && !m.option).map((m) => m.key);
   return (
     <div className="grid" style={{ gap: 10 }}>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -29,7 +29,7 @@ export function ModuleGrants({ tenantId, program, grants }: { tenantId: string; 
           const g = active.has(m.key);
           return (
             <li key={m.key} className="spread" style={{ gap: 8 }}>
-              <span><b>{m.label}</b> <span className="muted" style={{ fontSize: 12 }}>· {PROGRAM_NAME[m.tier]}{m.live ? '' : ' · not built yet'}</span></span>
+              <span><b>{m.label}</b> <span className="muted" style={{ fontSize: 12 }}>· {PROGRAM_NAME[m.tier]}{m.option ? ' option' : ''}{m.live ? '' : ' · not built yet'}</span></span>
               <span className="row" style={{ gap: 6 }}>
                 {inProgram ? <span className="chip done">In program</span> : g ? <span className="chip info">{active.get(m.key) ? `Trial to ${day(active.get(m.key)!)}` : 'On'}</span> : <span className="chip">Off</span>}
                 {!inProgram && m.live ? (g
