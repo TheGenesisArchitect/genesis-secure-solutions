@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addFollowUp } from '@/lib/actions';
 
-type Turn = { role: 'user' | 'helix'; text: string; followUps?: { who: string; reason: string; due: string; at: string }[]; drafts?: { to: string; channel: string; body: string }[] };
+type Turn = { role: 'user' | 'helix'; text: string; noted?: boolean; followUps?: { who: string; reason: string; due: string; at: string }[]; drafts?: { to: string; channel: string; body: string }[] };
 const SUGGEST = ['Who needs a call today?', 'Where did my leads come from this month?', 'Draft a text to my newest lead', 'What’s on my calendar this week?', 'Which leads are going cold?'];
 const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } })); };
 
@@ -25,7 +25,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     setQ(''); setBusy(true);
     const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, history, question: text, context }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
     setBusy(false);
-    setTurns((t) => [...t, r.okay ? { role: 'helix', text: r.j.answer, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
   const started = useRef(false);
@@ -48,6 +48,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
         {turns.map((t, i) => (
           <div key={i} className={`helix-turn ${t.role}`}>
             <p>{t.text}</p>
+            {t.noted ? <span className="chip info" style={{ justifySelf: 'start' }}>Sent to the Genovus team</span> : null}
             {t.followUps?.map((f, j) => (
               <div key={j} className="helix-card"><span><b>Follow-up:</b> {f.who} · {f.due} {f.at}{f.reason ? ` · ${f.reason}` : ''}</span><button className="btn small primary" type="button" onClick={() => addFu(f)}>Add</button></div>
             ))}

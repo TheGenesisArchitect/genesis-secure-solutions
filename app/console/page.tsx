@@ -9,7 +9,6 @@ import { businessToday } from '@/lib/billing';
 import { HOUSE_SLUG } from '@/lib/phone-line';
 
 export const metadata = { title: 'Enterprise' };
-const CARE_RATE: Record<string, number> = { vip: 249, launch: 249, growth: 399, premium: 799 };
 
 export default async function ConsoleHome({ searchParams }: { searchParams: Promise<{ samples?: string; ok?: string; err?: string }> }) {
   const sp = await searchParams;
@@ -22,7 +21,7 @@ export default async function ConsoleHome({ searchParams }: { searchParams: Prom
     house ? supabase.from('helix_briefs').select('body').eq('tenant_id', house.id).eq('day', businessToday()).maybeSingle() : Promise.resolve({ data: null }),
     canSeeMoney(v.staff.role) ? cfoLine(supabase).catch(() => null) : Promise.resolve(null),
   ]);
-  let tq = supabase.from('tenants').select('id, slug, name, stage, stage_since, plan, care_plan, is_sample').eq('kind', 'agency');
+  let tq = supabase.from('tenants').select('id, slug, name, stage, stage_since, plan, care_plan, is_sample, care_active, care_rate_cents').eq('kind', 'agency');
   if (!samples) tq = tq.eq('is_sample', false);
   const [tenants, inquiries, approvals, care, invoices, gates, audit] = await Promise.all([
     tq,
@@ -41,7 +40,9 @@ export default async function ConsoleHome({ searchParams }: { searchParams: Prom
   const careRows = scoped(care.data);
   const paid = scoped(invoices.data).filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount_cents, 0);
   const due = scoped(invoices.data).filter((i) => i.status === 'open').reduce((s, i) => s + i.amount_cents, 0);
-  const mrr = ts.filter((t) => t.stage === 'care' && t.care_plan).reduce((s, t) => s + (CARE_RATE[t.plan ?? 'launch'] ?? 0), 0);
+  // MRR has one source everywhere: billed care plans (started in Billing), the same as Growth & financials and Helix.
+  const billed = ts.filter((t) => t.care_active);
+  const mrr = billed.reduce((s, t) => s + (t.care_rate_cents ?? 0), 0);
   const g = scoped(gates.data);
   const gatesOpen = g.filter((x) => x.status === 'open' || x.status === 'blocked').length;
   const counts = Object.fromEntries(STAGES.map((s) => [s, ts.filter((t) => t.stage === s).length])) as Record<Stage, number>;
@@ -62,7 +63,7 @@ export default async function ConsoleHome({ searchParams }: { searchParams: Prom
         <Tile label="Clients" value={<span className="num">{ts.length}</span>} hint={`${counts.care} in care · ${ts.length - counts.care} in setup`} />
         <Tile label="New inquiries" value={<span className="num">{inquiries.data?.length ?? 0}</span>} hint="From the website" />
         <Tile label="Waiting on a person" value={<span className="num">{appr.length}</span>} hint={`${appr.filter((a) => a.approver === 'team').length} on the team · ${appr.filter((a) => a.approver === 'client').length} on clients`} />
-        <Tile label="Care MRR" value={<span className="num">{money(mrr * 100)}</span>} hint="Clients live on a care plan" sample={samples && mrr > 0} />
+        <Tile label="Care MRR" value={<span className="num">{money(mrr)}</span>} hint={billed.length ? `${billed.length} billed care plan${billed.length > 1 ? 's' : ''}` : 'No care plan started in Billing yet'} sample={samples && mrr > 0} />
         <Tile label="Setup collected" value={<span className="num">{money(paid)}</span>} hint={`${money(due)} open`} sample={samples} />
         <Tile label="Open gates" value={<span className="num">{gatesOpen}</span>} hint="Photo rights, carrier approval, access…" />
       </div>

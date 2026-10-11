@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase/server';
 import { accessFor } from '@/lib/access';
 import { agencyBrief, askHelix, type HelixTurn } from '@/lib/helix-agency';
 import { PROGRAM_NAME } from '@/lib/programs';
+import { fileGap } from '@/lib/helix-gaps';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -24,7 +25,9 @@ export async function POST(req: Request) {
   const history = (Array.isArray(b.history) ? b.history : []).filter((h) => h && (h.role === 'user' || h.role === 'helix') && typeof h.text === 'string').map((h) => ({ role: h.role, text: h.text.slice(0, 1500) }));
   try {
     const brief = await agencyBrief(supabase, t.id, t.name, PROGRAM_NAME[access.program]);
-    return Response.json(await askHelix(brief, history, question, typeof b.context === 'string' ? b.context : undefined));
+    const reply = await askHelix(brief, history, question, typeof b.context === 'string' ? b.context : undefined);
+    // Something Helix doesn't know yet becomes a Helix note for the Genovus team.
+    return Response.json(await fileGap(reply, { question, tenantId: t.id, where: t.name, askedBy: viewer.userId }));
   } catch (e) {
     console.error(`[helix-agency] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });

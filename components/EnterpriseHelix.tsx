@@ -10,7 +10,7 @@ import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
 
 type Ask = { question?: string; context?: string };
 type Memory = { department: string; kind: string; text: string };
-type Turn = { role: 'user' | 'helix'; text: string; drafts?: { to: string; channel: string; body: string }[]; remember?: Memory[] };
+type Turn = { role: 'user' | 'helix'; text: string; noted?: boolean; drafts?: { to: string; channel: string; body: string }[]; remember?: Memory[] };
 const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } })); };
 
 const PAGES: { match: RegExp; name: string; suggest: string[] }[] = [
@@ -45,7 +45,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, com
     const r = await fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ history, question: text, context }) })
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
-    setTurns((t) => [...t, r.okay ? { role: 'helix', text: r.j.answer, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
   const started = useRef(false);
@@ -63,13 +63,14 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, com
         {turns.map((t, i) => (
           <div key={i} className={`helix-turn ${t.role}`}>
             <p>{t.text}</p>
+            {t.noted ? <a className="chip info" href="/console/helix" style={{ justifySelf: 'start' }}>Added to Helix notes</a> : null}
             {t.drafts?.map((d, j) => (
               <div key={j} className="helix-card draft"><span className="muted" style={{ fontSize: 12 }}>Draft {d.channel}{d.to ? ` to ${d.to}` : ''} · you send it</span><p style={{ margin: 0 }}>{d.body}</p><button className="btn small" type="button" onClick={() => navigator.clipboard.writeText(d.body).then(() => toast({ ok: 'Draft copied.' }), () => toast({ err: 'Copy failed: select the text instead.' }))}>Copy</button></div>
             ))}
             {t.remember?.map((m, j) => (
               <div key={j} className="helix-card remember"><span><b>Remember this?</b> <span className="muted" style={{ fontSize: 12 }}>{DEPT[m.department] ?? 'General'}</span><br />{m.text}</span>{kept.has(m.text) ? <span className="chip done">Kept</span> : <button className="btn small primary" type="button" onClick={() => keep(m)}>Keep</button>}</div>
             ))}
-            {t.role === 'helix' && i === turns.length - 1 && !busy ? <button className="btn small ghost" type="button" style={{ justifySelf: 'start' }} onClick={async () => toast(await helixNote(t.text))}>Make it a note</button> : null}
+            {t.role === 'helix' && !t.noted && i === turns.length - 1 && !busy ? <button className="btn small ghost" type="button" style={{ justifySelf: 'start' }} onClick={async () => toast(await helixNote(t.text))}>Make it a note</button> : null}
           </div>
         ))}
         {busy ? <div className="helix-turn helix"><p className="muted">Helix is looking…</p></div> : null}

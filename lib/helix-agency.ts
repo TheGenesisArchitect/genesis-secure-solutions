@@ -17,6 +17,11 @@ export type HelixReply = {
   drafts: { to: string; channel: 'text' | 'email'; body: string }[];
   /** Durable business facts Helix suggests keeping ("Remember this?"); a person keeps them with one tap. */
   remember: { department: string; kind: string; text: string }[];
+  /** Helix doesn't know or isn't set up for this: it becomes a Helix note for the team (lib/helix-gaps.ts). */
+  unknown: boolean;
+  gap: string;
+  /** Set by the server once the gap is filed as a Helix note. */
+  noted?: boolean;
   model: string;
 };
 
@@ -73,7 +78,8 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
 export const SYSTEM = (brief: string) => `You are Helix, the assistant inside Genovus for one insurance agency. You know this agency's business only from the BRIEF below, which is live data. Speak like a sharp, warm office manager: short, specific, names and times.
 
 RULES (never break):
-- Answer only from the BRIEF. If something isn't there, say you don't have it and what would add it. Never invent leads, numbers, times or people.
+- Answer only from the BRIEF. Never invent leads, numbers, times or people.
+- If the BRIEF doesn't have what's needed to answer, or it's something you aren't set up to do, don't guess: set "unknown": true and "gap" to one short line naming what is missing (the team turns it into a Helix note and makes it work). This is not for the hard lines below: those you decline as usual, with "unknown": false.
 - Never quote prices, premiums or rates, never bind, underwrite or say whether something is covered, and never give coverage advice. For those, say a licensed agent at the agency should handle it.
 - You never send anything. When asked to reach out, write a DRAFT the agent sends themselves.
 - Proposed follow-ups are suggestions the agent adds with one tap; only propose them when asked or clearly useful.
@@ -81,7 +87,7 @@ RULES (never break):
 - Only talk about the LINES THIS AGENCY SELLS. If asked about any other kind of insurance, say the agency doesn't offer it and don't draft anything for it.
 - Partner names are not in the BRIEF (only categories); refer to partners by category and distance.
 
-Reply with JSON only: {"answer": string (plain text, under 120 words), "followUps": [{"who": string, "reason": string, "due": "YYYY-MM-DD", "at": "HH:MM"}], "drafts": [{"to": string, "channel": "text"|"email", "body": string (under 400 characters, friendly, no prices or coverage claims, signed as the agency)}]}.
+Reply with JSON only: {"answer": string (plain text, under 120 words), "unknown": boolean, "gap": string, "followUps": [{"who": string, "reason": string, "due": "YYYY-MM-DD", "at": "HH:MM"}], "drafts": [{"to": string, "channel": "text"|"email", "body": string (under 400 characters, friendly, no prices or coverage claims, signed as the agency)}]}.
 
 BRIEF
 ${brief}`;
@@ -96,6 +102,8 @@ function parse(raw: string, model: string): HelixReply {
     followUps: (Array.isArray(j.followUps) ? j.followUps : []).slice(0, 5).map((f) => ({ who: s(f.who, 120), reason: s(f.reason, 300), due: /^\d{4}-\d{2}-\d{2}$/.test(String(f.due)) ? String(f.due) : businessToday(), at: /^\d{2}:\d{2}$/.test(String(f.at)) ? String(f.at) : '09:30' })).filter((f) => f.who),
     drafts: (Array.isArray(j.drafts) ? j.drafts : []).slice(0, 3).map((d) => ({ to: s(d.to, 120), channel: d.channel === 'email' ? 'email' : 'text', body: s(d.body, 600) })).filter((d) => d.body) as HelixReply['drafts'],
     remember: (Array.isArray(j.remember) ? j.remember : []).slice(0, 3).map((r) => ({ department: s(r.department, 20), kind: s(r.kind, 20), text: s(r.text, 400) })).filter((r) => r.text.length >= 3),
+    unknown: j.unknown === true,
+    gap: s(j.gap, 200),
     model,
   };
 }

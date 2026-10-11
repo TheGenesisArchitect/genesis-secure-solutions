@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { askHelix, type HelixTurn } from '@/lib/helix-agency';
 import { ENTERPRISE_SYSTEM, canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
+import { fileGap } from '@/lib/helix-gaps';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,7 +21,8 @@ export async function POST(req: Request) {
     const brief = await enterpriseBrief(await db(), { money: canSeeMoney(viewer.staff.role) });
     const reply = await askHelix(brief.text, history, question, typeof b.context === 'string' ? b.context : undefined, ENTERPRISE_SYSTEM);
     if (brief.memoryIds.length) await adminDb().rpc('touch_memories', { p_ids: brief.memoryIds });
-    return Response.json(reply);
+    // Something Helix doesn't know yet becomes a Helix note for the team.
+    return Response.json(await fileGap(reply, { question, tenantId: brief.houseId, where: `${viewer.staff.name} (Enterprise)`, askedBy: viewer.userId }));
   } catch (e) {
     console.error(`[helix-enterprise] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });

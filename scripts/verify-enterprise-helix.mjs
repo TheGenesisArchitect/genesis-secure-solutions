@@ -5,6 +5,8 @@
 //  3. the drawer on every console page knows the page; an admin's brief carries Finance
 //  4. "Remember this?" → Keep stores a memory (audited), Helix reads it next time; retire removes it
 //  5. an operator's brief has no Finance; a signed-out request is refused
+//  6. a question Helix can't answer gets "Great question..." and becomes one Helix note (Enterprise and agency)
+//  7. Care MRR on the overview comes from billed care plans only
 // Cleans up its own expense, memories, brief and temporary operator at the end.
 //   node --env-file=.env.local scripts/verify-enterprise-helix.mjs [outDir]
 import fs from 'node:fs';
@@ -35,6 +37,7 @@ const clean = async () => {
   must(await db.from('expenses').delete().eq('vendor', 'Verify AI'), 'clear expense');
   must(await db.from('helix_memory').delete().eq('tenant_id', house.id).like('text', 'Verify:%'), 'clear memories');
   must(await db.from('helix_briefs').delete().eq('tenant_id', house.id).eq('day', today), 'clear brief');
+  must(await db.from('helix_notes').delete().eq('chapter', 'ask-helix').like('text', '%Verify NPS%'), 'clear gap notes');
   const list = (await db.auth.admin.listUsers({ perPage: 1000 })).data?.users ?? [];
   for (const x of list.filter((x) => x.email === OPS)) await db.auth.admin.deleteUser(x.id);
 };
@@ -49,7 +52,10 @@ const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (d) => (body += d)); req.on('end', () => {
     const j = JSON.parse(body || '{}');
     prompts.push(j.systemInstruction?.parts?.[0]?.text ?? '');
-    const reply = { answer: 'Verify answer: margin is healthy; call the two stuck clients first.', followUps: [], drafts: [], remember: [{ department: 'sales', kind: 'fact', text: MEMO }] };
+    const asked = JSON.stringify(j.contents?.at(-1) ?? '');
+    const reply = /Verify NPS/.test(asked)
+      ? { answer: 'I don’t track that.', unknown: true, gap: 'NPS / client satisfaction is not tracked', followUps: [], drafts: [], remember: [] }
+      : { answer: 'Verify answer: margin is healthy; call the two stuck clients first.', followUps: [], drafts: [], remember: [{ department: 'sales', kind: 'fact', text: MEMO }] };
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] }));
   });
@@ -127,6 +133,37 @@ check((await text()).includes(MEMO), '"What Helix knows" lists the memory');
 await shot('helix-knows');
 await ev(`[...document.querySelectorAll('.memory-list button')].find((b) => /Retire/.test(b.textContent))?.click()`); await sleep(2000);
 check((await db.from('helix_memory').select('status').eq('id', mem?.id).single()).data?.status === 'retired', 'retire takes it out of what Helix uses');
+// 6. A gap becomes a Helix note.
+const askApi = (route, body) => ev(`fetch('${route}', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(${JSON.stringify(body)}) }).then(async (x) => ({ s: x.status, j: await x.json() }))`);
+const g1 = await askApi('/api/helix/enterprise', { question: 'What is our Verify NPS this quarter?' });
+check(g1?.s === 200 && /^Great question\. I’ll make a note of that and send it to the team for review\.$/.test(g1.j.answer) && g1.j.noted === true, 'a question Helix can’t answer: "Great question. I’ll make a note of that and send it to the team for review."');
+await askApi('/api/helix/enterprise', { question: 'What is our Verify NPS this quarter?' });
+const gapNotes = must(await db.from('helix_notes').select('kind, status, tenant_id, asked_by, text').eq('chapter', 'ask-helix').like('text', '%Verify NPS%'), 'gap notes');
+check(gapNotes.length === 1 && gapNotes[0].kind === 'question' && gapNotes[0].tenant_id === house.id && gapNotes[0].asked_by === admin.user_id && /missing: NPS/.test(gapNotes[0].text), 'it becomes one Helix note (asked twice, filed once) with who asked and what is missing');
+const agencyT = must(await db.from('tenants').select('id').eq('slug', 'test-launch').single(), 'test agency');
+must(await db.from('module_grants').insert({ tenant_id: agencyT.id, module_key: 'helix', until: new Date(Date.now() + 86_400_000).toISOString(), reason: 'Verify gap' }), 'helix grant');
+const g2 = await askApi('/api/helix/agency', { slug: 'test-launch', question: 'Verify NPS for my office?' });
+const agencyNote = must(await db.from('helix_notes').select('tenant_id').eq('chapter', 'ask-helix').like('text', '%Verify NPS for my office%'), 'agency gap');
+check(g2?.s === 200 && g2.j.noted === true && agencyNote[0]?.tenant_id === agencyT.id, 'an agency’s unanswerable question becomes a Helix note tagged with that agency');
+must(await db.from('module_grants').delete().eq('tenant_id', agencyT.id).eq('reason', 'Verify gap'), 'clear helix grant');
+await go('/console/helix');
+const nt = await text();
+check(/Ask Helix · a question Helix couldn’t answer yet/.test(nt) && /Verify NPS this quarter/.test(nt), 'the Helix notes inbox shows it, ready to hand to the build agent');
+await shot('helix-gap-notes');
+await go('/console/growth');
+await ev(`document.querySelector('.helix-fab')?.click()`); await sleep(600);
+await ev(`(() => { const i = document.querySelector('.helix-drawer input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'What is our Verify NPS this quarter?'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); })()`);
+check(await waitFor(/Added to Helix notes/i), 'the drawer shows the answer went to Helix notes');
+await shot('helix-gap-drawer', 1440, false);
+
+// 7. One MRR: billed care plans.
+await go('/console');
+const tiles = await text();
+const billedCents = (must(await db.from('tenants').select('care_rate_cents').eq('kind', 'agency').eq('is_sample', false).eq('care_active', true), 'billed') ?? []).reduce((a, t) => a + (t.care_rate_cents ?? 0), 0);
+const shown = `$${Math.round(billedCents / 100).toLocaleString('en-US')}`;
+check(tiles.includes(`CARE MRR\n${shown}`) || tiles.includes(`Care MRR\n${shown}`) || new RegExp(`MRR[\\s\\S]{0,20}\\${shown.replace('$', '')}`).test(tiles), `Care MRR on the overview = billed care plans (${shown})`);
+check(tiles.includes(`MRR ${shown}`), 'the CFO line and the Care MRR tile agree');
+
 await go('/console/helix/ask');
 check(/Helix Knows/.test(await text()) && !(await ev(`!!document.querySelector('.helix-fab')`)), 'the full Ask view opens (no duplicate drawer button there)');
 await shot('helix-ask-phone', 430);

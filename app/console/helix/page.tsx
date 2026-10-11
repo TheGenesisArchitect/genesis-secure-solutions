@@ -13,7 +13,7 @@ export const metadata = { title: 'Helix notes' };
 export const dynamic = 'force-dynamic';
 
 type Work = { title?: string; summary?: string; area?: string; steps?: string[]; acceptance?: string[]; risks?: string[]; effort?: string; error?: string };
-type Note = { id: string; kind: string; text: string; chapter: string | null; status: string; work: Work | null; created_at: string; updated_at: string; source: string; helix_tour_sessions: { is_staff: boolean } | null };
+type Note = { id: string; kind: string; text: string; chapter: string | null; status: string; work: Work | null; created_at: string; updated_at: string; source: string; helix_tour_sessions: { is_staff: boolean } | null; tenants: { name: string; slug: string } | null };
 
 const KIND: Record<string, { label: string; chip: string }> = {
   idea: { label: 'Idea', chip: 'info' }, action_item: { label: 'Action item', chip: 'done' }, question: { label: 'Question', chip: 'pending' }, risk: { label: 'Risk', chip: 'bad' },
@@ -24,7 +24,7 @@ const GROUPS: { title: string; sub: string; statuses: string[] }[] = [
   { title: 'In progress', sub: 'Someone on the team is on it', statuses: ['in_progress', 'accepted'] },
   { title: 'Done', sub: 'Finished or dismissed', statuses: ['done', 'dismissed'] },
 ];
-const CHAPTER: Record<string, string> = { map: 'National map', market: 'Market brief', mission: 'Mission Control', content: 'Content Desk', studio: 'Studio', calendar: 'Calendar', calls: 'Call Desk', funnel: 'Funnel & BI', flywheel: 'Flywheel', helix: 'Helix Live' };
+const CHAPTER: Record<string, string> = { map: 'National map', market: 'Market brief', mission: 'Mission Control', content: 'Content Desk', studio: 'Studio', calendar: 'Calendar', calls: 'Call Desk', funnel: 'Funnel & BI', flywheel: 'Flywheel', helix: 'Helix Live', 'ask-helix': 'Ask Helix · a question Helix couldn’t answer yet' };
 const when = (s: string) => new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 
 function Status({ id, to, label, kind = 'ghost' }: { id: string; to: string; label: string; kind?: string }) {
@@ -42,7 +42,7 @@ function NoteCard({ n }: { n: Note }) {
   return (
     <article className="tile" style={{ gap: 10 }}>
       <div className="spread" style={{ gap: 8, flexWrap: 'wrap' }}>
-        <span className="row" style={{ gap: 6 }}><Chip kind={k.chip as 'info'}>{k.label}</Chip>{n.chapter ? <span className="muted" style={{ fontSize: 12 }}>{CHAPTER[n.chapter] ?? n.chapter}</span> : null}</span>
+        <span className="row" style={{ gap: 6 }}><Chip kind={k.chip as 'info'}>{k.label}</Chip>{n.chapter ? <span className="muted" style={{ fontSize: 12 }}>{CHAPTER[n.chapter] ?? n.chapter}{n.tenants && n.tenants.slug !== 'genovus' ? ` · ${n.tenants.name}` : ''}</span> : null}</span>
         <span className="muted" style={{ fontSize: 12 }}>{n.helix_tour_sessions?.is_staff ? 'Team tour' : 'Shared link'} · {when(n.created_at)}</span>
       </div>
       <p style={{ margin: 0, fontSize: 15, color: 'var(--ink)' }}>{n.text}</p>
@@ -72,13 +72,13 @@ function NoteCard({ n }: { n: Note }) {
 export default async function HelixNotes() {
   await requireStaff();
   const supabase = await db();
-  const { data } = await supabase.from('helix_notes').select('id, kind, text, chapter, status, work, created_at, updated_at, source, helix_tour_sessions(is_staff)').order('created_at', { ascending: false }).limit(300);
+  const { data } = await supabase.from('helix_notes').select('id, kind, text, chapter, status, work, created_at, updated_at, source, helix_tour_sessions(is_staff), tenants(name, slug)').order('created_at', { ascending: false }).limit(300);
   const notes = (data ?? []) as unknown as Note[];
   const count = (s: string[]) => notes.filter((n) => s.includes(n.status)).length;
   return (
     <ConsoleShell title="Helix notes" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Helix notes' }]}>
       <HelixTabs current="notes" />
-      <p className="soft">Ideas, action items, questions and risks Helix captured during tours of the vision. Notes from team tours go to the build agent automatically; it drafts a plan, and a person decides what happens next.</p>
+      <p className="soft">Ideas, action items, questions and risks Helix captured: from tours of the vision, and every question someone asked Ask Helix that it couldn’t answer yet. Hand a note to the build agent for a plan; a person decides what happens next.</p>
       <div className="grid g4">
         <Tile label="Ready to work" value={<span className="num">{count(GROUPS[0].statuses)}</span>} hint="Drafted or waiting" />
         <Tile label="With the agent" value={<span className="num">{count(GROUPS[1].statuses)}</span>} hint="Drafting now" />
