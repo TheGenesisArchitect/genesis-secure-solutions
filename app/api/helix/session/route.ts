@@ -1,4 +1,5 @@
-// Start a Helix Live tour: checks the per-visitor and daily limits, then mints a single-use, short-lived
+// Start a Helix Live voice session (the vision tour, the Studio, or voice Ask Helix on the Enterprise console and in
+// agency dashboards): checks access and the daily limit, then mints a single-use, short-lived
 // Gemini Live token with Helix's instructions and tools locked in. The Gemini key never reaches the browser.
 // PATCH ends a session (records its length).
 import { createHash } from 'node:crypto';
@@ -8,6 +9,12 @@ import { getViewer } from '@/lib/session';
 import { studioSystem, BIBLE_TOOLS, type StudioFocus } from '@/lib/helix-bible';
 import { worldStats, statsLine } from '@/lib/world-stats';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
+import { db as userDb } from '@/lib/supabase/server';
+import { accessFor } from '@/lib/access';
+import { agencyBrief } from '@/lib/helix-agency';
+import { canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
+import { VOICE_TOOLS, agencyVoice, enterpriseVoice } from '@/lib/helix-voice';
+import { PROGRAM_NAME } from '@/lib/programs';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +23,8 @@ const KEY = () => (process.env.GEMINI_API_KEY || '').trim();
 // With bidiGenerateContentSetup present (and no fieldMask), the token's setup replaces whatever the browser sends.
 async function mint(setup?: unknown) {
   const now = Date.now();
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+  // GEMINI_API_BASE: a local stand-in for tests (never set in production).
+  const res = await fetch(`${(process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com').trim()}/v1beta/auth_tokens`, {
     method: 'POST',
     headers: { 'x-goog-api-key': KEY(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -41,9 +49,9 @@ function campaignRef(raw?: string): { c: string | null; src: string | null } {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string; focus?: { kind?: string; code?: string } };
+  const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string; slug?: string; focus?: { kind?: string; code?: string } };
   const voice = pickVoice(body.voice);
-  const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : 'tour';
+  const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : body.context === 'enterprise' ? 'enterprise' : body.context === 'agency' ? 'agency' : 'tour';
   // What the person is looking at in the Studio (validated: a known kind and a simple code).
   const kinds = ['home', 'bible', 'cast', 'episode', 'character'];
   const focus: StudioFocus = { kind: (kinds.includes(String(body.focus?.kind)) ? body.focus!.kind : body.context === 'bible' ? 'bible' : 'home') as StudioFocus['kind'], code: /^[A-Za-z0-9-]{1,30}$/.test(String(body.focus?.code ?? '')) ? body.focus!.code : undefined };
@@ -66,7 +74,26 @@ export async function POST(req: Request) {
   const { count: today } = await db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('is_staff', false).gte('started_at', dayStart.toISOString());
   // Ask Helix in the Studio is for the Genovus team only.
   if (context === 'studio' && !staff) return Response.json({ error: 'Ask Helix in the Studio is for the Genovus team.' }, { status: 403 });
-  const setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
+  // Voice Ask Helix: the same brief and hard lines as typed Ask Helix, read with the viewer's own session.
+  let tenantId: string | null = null;
+  let setup: unknown;
+  if (context === 'enterprise') {
+    if (!viewer?.staff) return Response.json({ error: 'Enterprise Helix is for the Genovus team.' }, { status: 403 });
+    const brief = await enterpriseBrief(await userDb(), { money: canSeeMoney(viewer.staff.role) });
+    tenantId = brief.houseId;
+    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name), VOICE_TOOLS, voice);
+  } else if (context === 'agency') {
+    if (!viewer) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+    const m = viewer.memberships.find((x) => x.slug === body.slug);
+    const t = m ? { id: m.tenantId, name: m.name, plan: m.plan } : viewer.staff ? await (await userDb()).from('tenants').select('id, name, plan').eq('slug', String(body.slug ?? '')).maybeSingle().then((r) => r.data) : null;
+    if (!t) return Response.json({ error: 'Not your agency.' }, { status: 403 });
+    const access = await accessFor(t.id, t.plan);
+    if (!access.has('helix')) return Response.json({ error: 'Ask Helix is part of Growth.' }, { status: 403 });
+    tenantId = t.id;
+    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])), VOICE_TOOLS, voice);
+  } else {
+    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
+  }
   if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 
   // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an
@@ -84,7 +111,7 @@ export async function POST(req: Request) {
     console.error(`[helix] token refused: ${minted.error}`);
     return Response.json({ error: 'Helix couldn’t start a voice session right now.' }, { status: 502 });
   }
-  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}${context === 'studio' ? ` · studio:${focus.kind}${focus.code ? `:${focus.code}` : ''}` : ''}`, campaign: ref.c, src: ref.src }).select('id').single();
+  const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}${context === 'studio' ? ` · studio:${focus.kind}${focus.code ? `:${focus.code}` : ''}` : context !== 'tour' ? ` · ${context}` : ''}`, campaign: ref.c, src: ref.src, context, tenant_id: tenantId }).select('id').single();
   return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup, voice, context, locked, staff, maxSeconds: SESSION_SECONDS });
 }
 

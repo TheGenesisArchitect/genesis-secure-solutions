@@ -11,7 +11,7 @@ const CHAPTERS = ['world', 'map', 'market', 'mission', 'content', 'studio', 'cal
 const uuid = (s: unknown) => typeof s === 'string' && /^[0-9a-f-]{36}$/.test(s);
 
 async function liveSession(id: string) {
-  const { data } = await adminDb().from('helix_tour_sessions').select('id, started_at, ended_at, is_staff, viewer_id').eq('id', id).maybeSingle();
+  const { data } = await adminDb().from('helix_tour_sessions').select('id, started_at, ended_at, is_staff, viewer_id, context, tenant_id').eq('id', id).maybeSingle();
   if (!data) return null;
   const age = Date.now() - new Date(data.started_at).getTime();
   return age < 20 * 60_000 ? data : null; // notes accepted for a short while after a tour ends
@@ -26,12 +26,16 @@ export async function POST(req: Request) {
   const db = adminDb();
   const { count } = await db.from('helix_notes').select('id', { count: 'exact', head: true }).eq('session_id', b.sessionId!);
   if ((count ?? 0) >= 30) return Response.json({ error: 'This tour has reached its note limit.' }, { status: 429 });
+  // Voice Ask Helix notes (Enterprise or an agency) go to the Helix notes inbox tagged with the account, and wait for
+  // review; tour notes from the team go straight to the build agent as before.
+  const ask = session.context === 'enterprise' || session.context === 'agency';
   const { data, error } = await db.from('helix_notes').insert({
     session_id: b.sessionId, kind: KINDS.includes(String(b.kind)) ? b.kind : 'idea', text,
-    chapter: CHAPTERS.includes(String(b.chapter)) ? b.chapter : null, source: b.source === 'person' ? 'person' : 'helix',
+    chapter: ask ? 'ask-helix' : CHAPTERS.includes(String(b.chapter)) ? b.chapter : null, source: b.source === 'person' ? 'person' : 'helix',
+    ...(ask ? { tenant_id: session.tenant_id, asked_by: session.viewer_id } : {}),
   }).select('id, kind, text, chapter, status, created_at').single();
   if (error || !data) return Response.json({ error: 'The note could not be saved.' }, { status: 500 });
-  if (session.is_staff) {
+  if (session.is_staff && !ask) {
     const r = await handOffNote(data.id, { userId: session.viewer_id, name: 'Helix tour' });
     if (r.ok && r.status) data.status = r.status;
   }

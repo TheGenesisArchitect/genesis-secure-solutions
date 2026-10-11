@@ -5,7 +5,8 @@
 // which a person keeps with one tap (nothing is remembered silently). Shares the agency drawer's look.
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { HELIX_EVT, helixAsk } from './HelixDrawer';
+import { HELIX_EVT, HELIX_VOICE_EVT, HelixTalkButton, helixAsk } from './HelixDrawer';
+import { HelixTour } from './vision/HelixTour';
 import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
 
 type Ask = { question?: string; context?: string };
@@ -101,9 +102,12 @@ export function EnterpriseHelixDrawer() {
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); };
   }, []);
-  if (path === '/console/helix/ask') return null; // the full view is already open
+  const voice = <HelixTour context="enterprise" floating={false} openEvent={HELIX_VOICE_EVT} where={`the ${page.name} page`} />;
+  if (path === '/console/helix/ask') return <>{voice}<HelixTalkButton /></>; // the full view is already open
   return (
     <>
+      {voice}
+      <HelixTalkButton />
       <button className="helix-fab" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Ask Helix (Ctrl+J)" title="Ask Helix (Ctrl+J)">
         <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" /><span>Ask Helix</span>
       </button>
@@ -111,7 +115,7 @@ export function EnterpriseHelixDrawer() {
         <aside className="helix-drawer" aria-label="Ask Helix">
           <header className="row" style={{ justifyContent: 'space-between' }}>
             <span className="row" style={{ gap: 8 }}><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" style={{ width: 20 }} /><b>Helix</b><span className="muted" style={{ fontSize: 12 }}>on {page.name}</span></span>
-            <span className="row" style={{ gap: 6 }}><a className="btn small ghost" href="/console/helix/ask">Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
+            <span className="row" style={{ gap: 6 }}><HelixTalkButton inline /><a className="btn small ghost" href="/console/helix/ask">Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
           </header>
           <AskHelixEnterprise key={`${path}:${ask.n}`} compact context={ask.context ?? `the ${page.name} page (${path})`} suggest={page.suggest} start={ask.question} />
         </aside>

@@ -839,3 +839,11 @@ button.chip{cursor:pointer}
 .helix-tabs{display:flex;gap:6px;flex-wrap:wrap}
 .memory-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .memory-list li{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+/* Voice Ask Helix: the Talk button sits just above Ask Helix on every Enterprise and agency page. */
+.helix-talk{position:fixed;right:20px;bottom:78px;z-index:60;display:flex;align-items:center;gap:8px;height:46px;padding:0 13px;border-radius:999px;border:1px solid color-mix(in srgb,var(--ai,#a48bff) 55%,var(--line));background:color-mix(in srgb,var(--ai,#a48bff) 16%,var(--surface));color:var(--text);font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.35);cursor:pointer}
+.helix-talk:hover{background:color-mix(in srgb,var(--ai,#a48bff) 26%,var(--surface))}
+.helix-talk .helix-talk-label{display:none}
+.helix-talk:hover .helix-talk-label,.helix-talk:focus-visible .helix-talk-label{display:inline}
+.helix-talk-inline{display:inline-flex;align-items:center;gap:6px}
+.helix-talk-inline svg{width:16px;height:16px}
+@media (max-width:760px){.helix-talk{bottom:140px;right:14px;height:44px;padding:0 11px}}

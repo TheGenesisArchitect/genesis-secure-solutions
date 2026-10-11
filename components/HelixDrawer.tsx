@@ -5,11 +5,23 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AskHelixAgency } from './AskHelixAgency';
+import { HelixTour } from './vision/HelixTour';
 
 type Ask = { question?: string; context?: string };
 const EVT = 'genovus:helix';
 /** The event every Ask Helix button sends; the agency drawer and the Enterprise drawer both listen for it. */
 export const HELIX_EVT = EVT;
+
+/** Voice Ask Helix: the Talk button (and any button that calls helixTalk) starts a spoken conversation with Helix. */
+export const HELIX_VOICE_EVT = 'genovus:helix-voice';
+export const helixTalk = () => window.dispatchEvent(new Event(HELIX_VOICE_EVT));
+export function HelixTalkButton({ inline }: { inline?: boolean }) {
+  return (
+    <button className={inline ? 'btn small ghost helix-talk-inline' : 'helix-talk'} type="button" onClick={helixTalk} aria-label="Talk to Helix" title="Talk to Helix">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>{inline ? <span>Talk</span> : <span className="helix-talk-label">Talk to Helix</span>}
+    </button>
+  );
+}
 
 /** Open Helix with a question about a specific item. Use from any client component (or <HelixAskButton>). */
 export const helixAsk = (a: Ask) => window.dispatchEvent(new CustomEvent<Ask>(EVT, { detail: a }));
@@ -40,9 +52,12 @@ export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener(EVT, onAsk); window.removeEventListener('keydown', onKey); };
   }, []);
-  if (/\/helix$/.test(path)) return null; // the full Ask Helix page is already open
+  const voice = <HelixTour context="agency" slug={slug} floating={false} openEvent={HELIX_VOICE_EVT} where={`the ${page.name} page`} />;
+  if (/\/helix$/.test(path)) return <>{voice}<HelixTalkButton /></>; // the full Ask Helix page is already open
   return (
     <>
+      {voice}
+      <HelixTalkButton />
       <button className="helix-fab" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Ask Helix (Ctrl+J)" title="Ask Helix (Ctrl+J)">
         <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" /><span>Ask Helix</span>
       </button>
@@ -50,7 +65,7 @@ export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string
         <aside className="helix-drawer" aria-label="Ask Helix">
           <header className="row" style={{ justifyContent: 'space-between' }}>
             <span className="row" style={{ gap: 8 }}><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" style={{ width: 20 }} /><b>Helix</b><span className="muted" style={{ fontSize: 12 }}>on {page.name}</span></span>
-            <span className="row" style={{ gap: 6 }}><a className="btn small ghost" href={`/app/${slug}/helix`}>Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
+            <span className="row" style={{ gap: 6 }}><HelixTalkButton inline /><a className="btn small ghost" href={`/app/${slug}/helix`}>Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
           </header>
           <AskHelixAgency key={`${path}:${ask.n}`} slug={slug} tenantId={tenantId} compact context={ask.context ?? `the ${page.name} page`} suggest={page.suggest} start={ask.question} />
         </aside>

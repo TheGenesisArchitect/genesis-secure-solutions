@@ -17,8 +17,10 @@ const KIND_LABEL: Record<string, string> = { idea: 'Idea', action_item: 'Action 
 const BARGE_IN = 0.08;
 const b64 = (buf: ArrayBuffer) => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 
-/** `context`: the vision tour (default) or Ask Helix on the Character Bible. `floating`: show the launch pill (otherwise open it with the genovus:helix-open event). */
-export function HelixTour({ context = 'tour', floating = true, focus }: { context?: 'tour' | 'bible' | 'studio'; floating?: boolean; focus?: { kind: string; code?: string; label?: string } } = {}) {
+/** `context`: the vision tour (default), Ask Helix in the Studio, or voice Ask Helix on the Enterprise console or an
+ *  agency dashboard (`slug`). `floating`: show the launch pill (otherwise open it with `openEvent`). */
+export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string } = {}) {
+  const ask = context === 'enterprise' || context === 'agency';
   const router = useRouter();
   const pathname = usePathname();
   const pathRef = useRef(pathname);
@@ -139,7 +141,7 @@ export function HelixTour({ context = 'tour', floating = true, focus }: { contex
     try { m = JSON.parse(raw); } catch { return; }
     if (m.setupComplete) {
       setPhase('live');
-      send({ realtimeInput: { text: context !== 'tour' ? `The Studio team just opened Ask Helix${focus?.label ? ` on ${focus.label}` : ' on the Character Bible'}. Greet them in one sentence, mention what is on screen, and ask what they want to work on.` : `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
+      send({ realtimeInput: { text: ask ? `The person just opened voice Ask Helix${where ? ` on ${where}` : ''}. Greet them in one short sentence and ask what they need. Don't summarize the brief unless asked.` : context !== 'tour' ? `The Studio team just opened Ask Helix${focus?.label ? ` on ${focus.label}` : ' on the Character Bible'}. Greet them in one sentence, mention what is on screen, and ask what they want to work on.` : `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
       return;
     }
     const sc = m.serverContent;
@@ -194,7 +196,7 @@ export function HelixTour({ context = 'tour', floating = true, focus }: { contex
         setMicOn(false); micOnRef.current = false;
         setErr('Microphone is off: type your questions below.');
       }
-      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined, context, focus }) });
+      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined, context, focus, slug }) });
       const s = await r.json();
       if (!r.ok) throw new Error(s.error ?? 'Helix could not start.');
       session.current = { id: s.sessionId, started: Date.now(), max: s.maxSeconds };
@@ -238,7 +240,7 @@ export function HelixTour({ context = 'tour', floating = true, focus }: { contex
       const remaining = Math.max(0, s.max - Math.round((Date.now() - s.started) / 1000));
       setLeft(remaining);
       if (remaining <= 30 && !wrapSent.current) { wrapSent.current = true; send({ realtimeInput: { text: 'We have 30 seconds left in this session. Wrap up warmly in one or two sentences.' } }); }
-      if (remaining <= 0) end('Session time is up. Thanks for taking the tour.');
+      if (remaining <= 0) end(ask ? 'Session time is up. Tap Talk to start again.' : 'Session time is up. Thanks for taking the tour.');
     }, 1000);
     return () => clearInterval(t);
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -289,8 +291,8 @@ export function HelixTour({ context = 'tour', floating = true, focus }: { contex
   // Open from anywhere on the page (e.g. the Ask Helix egg on the Character Bible).
   useEffect(() => {
     const open = () => { if (!session.current && phase !== 'connecting') start(); else setOpen(true); };
-    window.addEventListener('genovus:helix-open', open);
-    return () => window.removeEventListener('genovus:helix-open', open);
+    window.addEventListener(openEvent, open);
+    return () => window.removeEventListener(openEvent, open);
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -306,19 +308,19 @@ export function HelixTour({ context = 'tour', floating = true, focus }: { contex
           <span><b>Take the tour with Helix</b><small>Talk to it, interrupt it, ask anything</small></span>
         </button>
       ) : (
-        <aside className={'hx-dock' + (mini ? ' mini' : box ? ' spotting' : '')} aria-label="Helix Live tour">
+        <aside className={'hx-dock' + (mini ? ' mini' : box ? ' spotting' : '')} aria-label={ask ? 'Talk to Helix' : 'Helix Live tour'}>
           <header className="hx-dock-head">
             <span className={'hx-orb' + (speaking ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
             <span style={{ minWidth: 0, flex: 1, cursor: mini ? 'pointer' : undefined }} onClick={mini ? () => setMiniPref(false) : undefined}>
               <b>Helix Live{voice ? <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}> · {voice}</span> : null}</b>
-              <small>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Speaking · interrupt any time' : micOn ? 'Listening' : 'Mic off · type below') : phase === 'ended' ? 'Tour ended' : 'Not connected'}</small>
+              <small>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Speaking · interrupt any time' : micOn ? 'Listening' : 'Mic off · type below') : phase === 'ended' ? (ask ? 'Conversation ended' : 'Tour ended') : 'Not connected'}</small>
             </span>
             {phase === 'live' ? <span className="hx-timer" title="Session time left">{mm}</span> : null}
             {phase === 'live' ? <button className={'hx-ic' + (micOn ? '' : ' off')} onClick={toggleMic} aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'} title={micOn ? 'Mute' : 'Unmute'}><span className="hx-level" style={{ transform: `scaleY(${micOn ? Math.min(1, 0.15 + level * 3) : 0.1})` }} />{micOn ? 'Mic' : 'Muted'}</button> : null}
-            {live ? <button className="hx-ic" onClick={() => end('Tour ended.')}>End</button> : <button className="hx-ic" onClick={() => { setOpen(false); setPhase('idle'); setErr(''); }}>Close</button>}
+            {live ? <button className="hx-ic" onClick={() => end(ask ? 'Conversation ended.' : 'Tour ended.')}>End</button> : <button className="hx-ic" onClick={() => { setOpen(false); setPhase('idle'); setErr(''); }}>Close</button>}
             <button className="hx-ic hx-min" onClick={() => setMiniPref(!mini)} aria-label={mini ? 'Expand Helix' : 'Minimize Helix'} title={mini ? 'Expand' : 'Minimize'} aria-expanded={!mini}>{mini ? '▴' : '▾'}</button>
           </header>
-          {cta || phase === 'ended' ? (
+          {!ask && (cta || phase === 'ended') ? (
             <a className="hx-cta" href="/for/captive-agents?from=helix#consult">
               <b>Talk to the team</b><span>Book a 15-minute consult →</span>
             </a>
@@ -353,13 +355,13 @@ export function HelixTour({ context = 'tour', floating = true, focus }: { contex
                   {n.status === 'failed' ? <span className="hx-agent bad">The agent couldn’t draft this one.</span> : null}
                   {staff && (n.status === 'new' || n.status === 'failed') ? <button className="btn small" onClick={() => handoff(n.id)}>{n.status === 'failed' ? 'Try the agent again' : 'Hand off to an agent'}</button> : null}
                 </div>
-              )) : <p className="muted" style={{ fontSize: 13 }}>Ideas, action items, questions and risks Helix notes during the tour land here{staff ? '. Hand any of them to an agent and it drafts a plan while you keep going.' : ' and go to the Genovus team.'}</p>}
+              )) : <p className="muted" style={{ fontSize: 13 }}>Ideas, action items, questions and risks Helix notes {ask ? 'in this conversation' : 'during the tour'} land here{staff ? '. Hand any of them to an agent and it drafts a plan while you keep going.' : ' and go to the Genovus team.'}</p>}
             </div>
           )}
           {err ? <p className="hx-err">{err}</p> : null}
           <form className="hx-input" onSubmit={sendTyped}>
             <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={phase === 'live' ? 'Type to Helix…' : 'Add a note…'} aria-label={phase === 'live' ? 'Message Helix' : 'Add a note'} maxLength={500} />
-            {phase === 'live' || phase === 'connecting' ? <button className="btn small primary" type="submit">Send</button> : <button className="btn small primary" type="button" onClick={start}>{phase === 'ended' ? 'Tour again' : 'Start'}</button>}
+            {phase === 'live' || phase === 'connecting' ? <button className="btn small primary" type="submit">Send</button> : <button className="btn small primary" type="button" onClick={start}>{phase === 'ended' ? (ask ? 'Talk again' : 'Tour again') : 'Start'}</button>}
           </form>
         </aside>
       )}
