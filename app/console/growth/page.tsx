@@ -7,14 +7,15 @@ import { RevenueChart } from '@/components/RevenueChart';
 import { Panel, Tile, Chip, Empty, money } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { finance, monthsBack, ACQUISITION } from '@/lib/finance';
+import { finance, monthsBack, receivables, runway, ACQUISITION } from '@/lib/finance';
+import { setCashOnHand } from '@/lib/helix-memory-actions';
 import { businessToday } from '@/lib/billing';
 import { addExpense, deleteExpense } from '@/lib/actions';
 
 export const metadata = { title: 'Growth & financials' };
 export const dynamic = 'force-dynamic';
 
-const CATS: [string, string][] = [['ads', 'Ads'], ['data', 'Data (e.g. Google Places)'], ['people', 'People (sales, contractors)'], ['infrastructure', 'Infrastructure (Vercel, Supabase…)'], ['tools', 'Tools & subscriptions'], ['other', 'Other']];
+const CATS: [string, string][] = [['ads', 'Ads'], ['data', 'Data (e.g. Google Places)'], ['people', 'People (sales, contractors)'], ['infrastructure', 'Infrastructure (Vercel, Supabase…)'], ['tools', 'Tools & subscriptions'], ['ai', 'AI & production (Studio, voices, Helix)'], ['other', 'Other']];
 
 export default async function Growth({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const v = await requireStaff();
@@ -24,19 +25,24 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
   const since = window[0] + '-01';
   const supabase = await db();
   const canMoney = v.staff.role === 'admin' || v.staff.role === 'account_lead';
-  const [{ data: invoices }, { data: tenants }, { data: expenses }, { data: scans }, { data: inquiries }, { data: campaigns }] = await Promise.all([
+  const [{ data: invoices }, { data: tenants }, { data: expenses }, { data: scans }, { data: inquiries }, { data: campaigns }, { data: openInv }, { data: cash }] = await Promise.all([
     supabase.from('invoices').select('tenant_id, kind, amount_cents, status, paid_at').eq('status', 'paid'),
     supabase.from('tenants').select('id, kind, is_sample, care_active, care_rate_cents'),
     supabase.from('expenses').select('id, spent_on, category, vendor, amount_cents, recurring, note, campaign_id').gte('spent_on', since).order('spent_on', { ascending: false }),
     supabase.from('places_usage').select('day, cost_cents').gte('day', since),
     supabase.from('inquiries').select('created_at, status, campaign_id').gte('created_at', since),
     supabase.from('campaigns').select('id, name').order('created_at', { ascending: false }),
+    supabase.from('invoices').select('tenant_id, amount_cents, created_at').eq('status', 'open'),
+    canMoney ? supabase.rpc('cash_on_hand') : Promise.resolve({ data: null }),
   ]);
   const google = (scans ?? []).map((u) => ({ started_at: u.day, est_cost_cents: Math.round(Number(u.cost_cents)) }));
   const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: google, inquiries: inquiries ?? [], window });
   const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
   const scanCost = google.reduce((a, s) => a + s.est_cost_cents, 0);
   const converted = (inquiries ?? []).filter((q) => q.status === 'converted').length;
+  const owed = receivables(openInv ?? [], tenants ?? []);
+  const cashRow = (cash as { cents: number; updated_at: string }[] | null)?.[0] ?? null;
+  const run = runway(cashRow ? Number(cashRow.cents) : null, f.series);
   return (
     <ConsoleShell title="Growth & financials" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Growth & financials' }]}
       actions={<div className="row">{[3, 6, 12].map((m) => <Link key={m} className={'btn small' + (m === n ? ' primary' : '')} href={`/console/growth?m=${m}`}>{m} months</Link>)}</div>}>
@@ -44,7 +50,7 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
       <div className="grid g4">
         <Tile label="Revenue" value={money(f.revenue)} hint={`${money(f.setup)} setup · ${money(f.care)} care`} />
         <Tile label="MRR" value={money(f.mrr)} hint={`${f.liveClients} on care · ARR ${money(f.arr)}`} />
-        <Tile label="Spend" value={money(f.acquisition + f.operating)} hint={`${money(f.acquisition)} acquisition · ${money(f.operating)} operating`} />
+        <Tile label="Spend" value={money(f.acquisition + f.operating)} hint={`${money(f.acquisition)} acquisition · ${money(f.operating)} operating${f.ai ? ` (AI ${money(f.ai)})` : ''}`} />
         <Tile label="Profit" value={money(f.profit)} hint={`Gross margin ${pct(f.grossMargin)}`} />
       </div>
       <div className="grid g4">
@@ -53,6 +59,14 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
         <Tile label="Payback" value={f.payback == null ? '—' : f.payback === 0 ? 'At setup' : `${f.payback.toFixed(1)} mo`} hint={f.avgSetup != null ? `Avg setup ${money(f.avgSetup)}; then care` : 'Months of care to repay CAC'} />
         <Tile label="Cost per inquiry" value={f.costPerInquiry == null ? '—' : money(f.costPerInquiry)} hint={`${f.inquiries} inquiries · ${converted} converted`} />
       </div>
+      {canMoney ? (
+        <div className="grid g4">
+          <Tile label="Owed to us" value={money(owed.cents)} hint={owed.count ? `${owed.count} open invoice${owed.count > 1 ? 's' : ''} · oldest ${owed.oldestDays} days` : 'Nothing outstanding'} />
+          <Tile label="Runway" value={!cashRow ? '—' : run.months == null ? 'Not burning' : `${run.months.toFixed(1)} mo`} hint={!cashRow ? 'Set cash on hand below' : `Cash ${money(Number(cashRow.cents))}${run.burn && run.burn > 0 ? ` · burn ${money(run.burn)}/mo` : ''}`} />
+          <Tile label="AI & production" value={money(f.ai)} hint="Studio, voices and Helix, counted in operating" />
+          <Tile label="Operating" value={money(f.operating)} hint="Infrastructure, tools, AI and other" />
+        </div>
+      ) : null}
       <Panel title="Revenue vs spend" sub="Each month: revenue on the left (setup, then care), spend on the right (acquisition, then operating)">
         <RevenueChart series={f.series} />
         <div className="row muted" style={{ fontSize: 12, gap: 16 }}>
@@ -96,10 +110,16 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
               <label className="field"><span>Note</span><input className="input" name="note" maxLength={300} /></label>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Record expense</button>
             </ActionForm>
+            {v.staff.role === 'admin' ? (
+              <ActionForm action={setCashOnHand} className="row" style={{ gap: 8, alignItems: 'end', marginTop: 16 }}>
+                <label className="field" style={{ flex: 1 }}><span>Cash on hand (USD), for runway</span><input className="input" name="cash" required inputMode="decimal" placeholder={cashRow ? (Number(cashRow.cents) / 100).toFixed(2) : '25000.00'} /></label>
+                <button className="btn small" type="submit">Save</button>
+              </ActionForm>
+            ) : null}
           </Panel>
         ) : null}
       </div>
-      <p className="muted" style={{ fontSize: 12 }}><Chip kind="info">Definitions</Chip> CAC uses acquisition spend only (ads, data, people). Payback is months of average care needed to cover CAC beyond what setup already paid. Margin subtracts operating costs (infrastructure, tools, other) from revenue.</p>
+      <p className="muted" style={{ fontSize: 12 }}><Chip kind="info">Definitions</Chip> CAC uses acquisition spend only (ads, data, people). Payback is months of average care needed to cover CAC beyond what setup already paid. Margin subtracts operating costs (infrastructure, tools, AI, other) from revenue. Runway is cash on hand divided by the average net burn of the last three full months.</p>
     </ConsoleShell>
   );
 }

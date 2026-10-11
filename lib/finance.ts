@@ -1,7 +1,8 @@
 // Genovus growth and financials, as pure functions over rows the page loads (so they are unit-tested).
 // Revenue = paid invoices of real agency clients (never sample or internal). MRR = live care plans.
 // Spend = recorded expenses + the scanner's estimated Google cost. Acquisition spend (for CAC) = ads, data
-// and people; infrastructure and tools are operating costs and count against margin instead.
+// and people; infrastructure, tools and AI (Studio generation, voices, Helix) are operating costs and count against
+// margin instead. AI is also shown on its own line, since it grows with production.
 
 export type InvoiceRow = { tenant_id: string; kind: string; amount_cents: number; status: string; paid_at: string | null };
 export type TenantRow = { id: string; kind: string; is_sample: boolean; care_active: boolean; care_rate_cents: number | null };
@@ -9,7 +10,7 @@ export type ExpenseRow = { spent_on: string; category: string; amount_cents: num
 export type ScanRow = { started_at: string; est_cost_cents: number };
 
 export const ACQUISITION = ['ads', 'data', 'people'];
-export const OPERATING = ['infrastructure', 'tools', 'other'];
+export const OPERATING = ['infrastructure', 'tools', 'ai', 'other'];
 
 const month = (iso: string) => iso.slice(0, 7);
 
@@ -38,9 +39,10 @@ export function finance(input: { invoices: InvoiceRow[]; tenants: TenantRow[]; e
       care: rev.filter((i) => i.kind === 'care').reduce((a, i) => a + i.amount_cents, 0),
       acquisition: exp.filter((e) => ACQUISITION.includes(e.category)).reduce((a, e) => a + e.amount_cents, 0) + scan,
       operating: exp.filter((e) => OPERATING.includes(e.category)).reduce((a, e) => a + e.amount_cents, 0),
+      ai: exp.filter((e) => e.category === 'ai').reduce((a, e) => a + e.amount_cents, 0),
     };
   });
-  const sum = (k: 'setup' | 'care' | 'acquisition' | 'operating') => series.reduce((a, s) => a + s[k], 0);
+  const sum = (k: 'setup' | 'care' | 'acquisition' | 'operating' | 'ai') => series.reduce((a, s) => a + s[k], 0);
   const revenue = sum('setup') + sum('care');
   const acquisition = sum('acquisition');
   const operating = sum('operating');
@@ -63,10 +65,26 @@ export function finance(input: { invoices: InvoiceRow[]; tenants: TenantRow[]; e
   const inquiries = input.inquiries.filter((q) => inWin(q.created_at)).length;
 
   return {
-    series, revenue, setup: sum('setup'), care: sum('care'), acquisition, operating,
+    series, revenue, setup: sum('setup'), care: sum('care'), acquisition, operating, ai: sum('ai'),
     profit: revenue - acquisition - operating,
     grossMargin: revenue ? (revenue - operating) / revenue : null,
     mrr, arr: mrr * 12, liveClients: live.length, newClients, cac, payback, avgSetup, avgCare,
     inquiries, costPerInquiry: inquiries ? acquisition / inquiries : null,
   };
+}
+
+/** Money owed to us: open invoices of real clients, with the oldest one's age in days. */
+export function receivables(open: { tenant_id: string; amount_cents: number; created_at: string }[], tenants: TenantRow[], now = new Date()) {
+  const real = new Set(tenants.filter((t) => t.kind === 'agency' && !t.is_sample).map((t) => t.id));
+  const rows = open.filter((i) => real.has(i.tenant_id));
+  const oldest = rows.reduce<string | null>((a, i) => (!a || i.created_at < a ? i.created_at : a), null);
+  return { cents: rows.reduce((a, i) => a + i.amount_cents, 0), count: rows.length, oldestDays: oldest ? Math.floor((now.getTime() - new Date(oldest).getTime()) / 86_400_000) : null };
+}
+
+/** Runway: cash on hand ÷ average monthly net burn over the last three full months of the series (null = not burning). */
+export function runway(cashCents: number | null, series: { setup: number; care: number; acquisition: number; operating: number }[]) {
+  if (cashCents == null) return { months: null, burn: null };
+  const recent = series.slice(-4, -1).length ? series.slice(-4, -1) : series.slice(-1);
+  const burn = recent.reduce((a, s) => a + (s.acquisition + s.operating - s.setup - s.care), 0) / Math.max(1, recent.length);
+  return { months: burn > 0 ? cashCents / burn : null, burn };
 }

@@ -8,6 +8,8 @@ import { AskHelixAgency } from './AskHelixAgency';
 
 type Ask = { question?: string; context?: string };
 const EVT = 'genovus:helix';
+/** The event every Ask Helix button sends; the agency drawer and the Enterprise drawer both listen for it. */
+export const HELIX_EVT = EVT;
 
 /** Open Helix with a question about a specific item. Use from any client component (or <HelixAskButton>). */
 export const helixAsk = (a: Ask) => window.dispatchEvent(new CustomEvent<Ask>(EVT, { detail: a }));

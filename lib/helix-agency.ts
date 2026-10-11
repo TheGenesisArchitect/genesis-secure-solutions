@@ -1,7 +1,8 @@
 // Ask Helix for an agency: answers from that agency's own live data (leads, pipeline, follow-ups, calendar,
 // approvals, care, KPIs), proposes follow-ups the agent adds with one tap, and drafts messages the agent sends
 // themselves. Helix never sends anything, never quotes, binds, underwrites or gives coverage advice, and only ever
-// sees one agency's data. Reasoning: Claude when configured, else Gemini.
+// sees one agency's data. Reasoning: Claude when configured, else Gemini (also when Claude fails or times out).
+// The same engine runs Enterprise Helix (lib/helix-enterprise.ts) with its own system prompt.
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { businessToday } from '@/lib/billing';
@@ -14,6 +15,8 @@ export type HelixReply = {
   answer: string;
   followUps: { who: string; reason: string; due: string; at: string }[];
   drafts: { to: string; channel: 'text' | 'email'; body: string }[];
+  /** Durable business facts Helix suggests keeping ("Remember this?"); a person keeps them with one tap. */
+  remember: { department: string; kind: string; text: string }[];
   model: string;
 };
 
@@ -67,7 +70,7 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
   ].join('\n');
 }
 
-const SYSTEM = (brief: string) => `You are Helix, the assistant inside Genovus for one insurance agency. You know this agency's business only from the BRIEF below, which is live data. Speak like a sharp, warm office manager: short, specific, names and times.
+export const SYSTEM = (brief: string) => `You are Helix, the assistant inside Genovus for one insurance agency. You know this agency's business only from the BRIEF below, which is live data. Speak like a sharp, warm office manager: short, specific, names and times.
 
 RULES (never break):
 - Answer only from the BRIEF. If something isn't there, say you don't have it and what would add it. Never invent leads, numbers, times or people.
@@ -85,38 +88,47 @@ ${brief}`;
 
 function parse(raw: string, model: string): HelixReply {
   const m = raw.match(/\{[\s\S]*\}/);
-  const j = (m ? JSON.parse(m[0]) : {}) as Partial<HelixReply>;
+  let j: Partial<HelixReply> = {};
+  try { j = (m ? JSON.parse(m[0]) : {}) as Partial<HelixReply>; } catch { j = { answer: raw.replace(/[{}"]/g, '').slice(0, 1200) }; }
   const s = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '');
   return {
     answer: s(j.answer, 1200) || 'I couldn’t put an answer together. Try asking another way.',
     followUps: (Array.isArray(j.followUps) ? j.followUps : []).slice(0, 5).map((f) => ({ who: s(f.who, 120), reason: s(f.reason, 300), due: /^\d{4}-\d{2}-\d{2}$/.test(String(f.due)) ? String(f.due) : businessToday(), at: /^\d{2}:\d{2}$/.test(String(f.at)) ? String(f.at) : '09:30' })).filter((f) => f.who),
     drafts: (Array.isArray(j.drafts) ? j.drafts : []).slice(0, 3).map((d) => ({ to: s(d.to, 120), channel: d.channel === 'email' ? 'email' : 'text', body: s(d.body, 600) })).filter((d) => d.body) as HelixReply['drafts'],
+    remember: (Array.isArray(j.remember) ? j.remember : []).slice(0, 3).map((r) => ({ department: s(r.department, 20), kind: s(r.kind, 20), text: s(r.text, 400) })).filter((r) => r.text.length >= 3),
     model,
   };
 }
 
-/** `context`: what the agent is looking at (a page, a lead, a partner), so Helix answers about that first. */
-export async function askHelix(brief: string, history: HelixTurn[], question: string, context?: string): Promise<HelixReply> {
+/** `context`: what the agent is looking at (a page, a lead, a partner), so Helix answers about that first.
+ *  `system`: the prompt builder (the agency one by default; Enterprise Helix passes its own). */
+export async function askHelix(brief: string, history: HelixTurn[], question: string, context?: string, system: (brief: string) => string = SYSTEM): Promise<HelixReply> {
   const q = context ? `[Looking at: ${context.slice(0, 600)}]
 ${question}` : question;
   const turns = [...history.slice(-8), { role: 'user' as const, text: q.slice(0, 1600) }];
   const anthropic = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (anthropic) {
     const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim();
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: { 'x-api-key': anthropic, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, signal: AbortSignal.timeout(40_000),
-      body: JSON.stringify({ model, max_tokens: 900, system: SYSTEM(brief), messages: turns.map((t) => ({ role: t.role === 'helix' ? 'assistant' : 'user', content: t.text })) }),
-    });
-    const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; error?: { message?: string } };
-    if (r.ok) return parse((j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join(''), model);
-    console.error(`[helix-agency] Claude failed: ${j.error?.message ?? r.status}`);
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: { 'x-api-key': anthropic, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, signal: AbortSignal.timeout(40_000),
+        body: JSON.stringify({ model, max_tokens: 1100, system: system(brief), messages: turns.map((t) => ({ role: t.role === 'helix' ? 'assistant' : 'user', content: t.text })) }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; error?: { message?: string } };
+      if (r.ok) return parse((j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join(''), model);
+      console.error(`[helix] Claude failed: ${j.error?.message ?? r.status}`);
+    } catch (e) {
+      console.error(`[helix] Claude unreachable: ${e instanceof Error ? e.message : e}`);
+    }
   }
   const gemini = (process.env.GEMINI_API_KEY || '').trim();
   if (!gemini) throw new Error('Helix isn’t connected here yet.');
   const model = (process.env.HELIX_AGENCY_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  // GEMINI_API_BASE: a local stand-in for tests (never set in production).
+  const base = (process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com').trim();
+  const r = await fetch(`${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST', headers: { 'x-goog-api-key': gemini, 'content-type': 'application/json' }, signal: AbortSignal.timeout(40_000),
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM(brief) }] }, contents: turns.map((t) => ({ role: t.role === 'helix' ? 'model' : 'user', parts: [{ text: t.text }] })), generationConfig: { responseMimeType: 'application/json', temperature: 0.3 } }),
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: system(brief) }] }, contents: turns.map((t) => ({ role: t.role === 'helix' ? 'model' : 'user', parts: [{ text: t.text }] })), generationConfig: { responseMimeType: 'application/json', temperature: 0.3 } }),
   });
   const j = (await r.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; error?: { message?: string } };
   if (!r.ok) throw new Error(j.error?.message || `Gemini HTTP ${r.status}`);

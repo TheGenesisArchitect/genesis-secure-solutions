@@ -833,3 +833,9 @@ button.chip{cursor:pointer}
 .proof-steps li::before{content:'';width:16px;height:16px;flex:none;border-radius:50%;border:2px solid var(--line)}
 .proof-steps li.done{color:var(--ink)}
 .proof-steps li.done::before{border-color:var(--done,#3dd691);background:var(--done,#3dd691)}
+/* Enterprise Helix: the CFO line on the morning brief, "Remember this?" cards, and the Helix tabs. */
+.cfo-line{margin:0;font:600 14px/1.4 var(--body);font-variant-numeric:tabular-nums;color:var(--ink);background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.helix-card.remember{border-color:color-mix(in srgb,var(--ai,#a48bff) 45%,transparent)}
+.helix-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.memory-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.memory-list li{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}

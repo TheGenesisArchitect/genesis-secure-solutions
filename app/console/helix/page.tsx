@@ -7,6 +7,7 @@ import { Panel, Chip, Empty, Tile } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { setHelixNote, handOffHelixNote } from '@/lib/actions';
+import { HelixTabs } from '@/components/HelixTabs';
 
 export const metadata = { title: 'Helix notes' };
 export const dynamic = 'force-dynamic';
@@ -76,6 +77,7 @@ export default async function HelixNotes() {
   const count = (s: string[]) => notes.filter((n) => s.includes(n.status)).length;
   return (
     <ConsoleShell title="Helix notes" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Helix notes' }]}>
+      <HelixTabs current="notes" />
       <p className="soft">Ideas, action items, questions and risks Helix captured during tours of the vision. Notes from team tours go to the build agent automatically; it drafts a plan, and a person decides what happens next.</p>
       <div className="grid g4">
         <Tile label="Ready to work" value={<span className="num">{count(GROUPS[0].statuses)}</span>} hint="Drafted or waiting" />

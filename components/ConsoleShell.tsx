@@ -1,8 +1,9 @@
-// The Enterprise Dashboard frame: staff only, with live counts on the rail.
+// The Enterprise Dashboard frame: staff only, with live counts on the rail, and Ask Helix on every page (Helix Knows).
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { Shell } from './Shell';
 import { EcosystemSwitcher } from './EcosystemSwitcher';
+import { EnterpriseHelixDrawer } from './EnterpriseHelix';
 
 const ROLE: Record<string, string> = { admin: 'Platform admin', account_lead: 'Account lead', operator: 'Content and ads operator', reviewer: 'Reviewer' };
 
@@ -26,7 +27,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
       who={{ name: v.staff.name, detail: ROLE[v.staff.role] ?? v.staff.role }}
       switcher={<EcosystemSwitcher current="enterprise" />}
       nav={[
-        { items: [{ href: '/console', label: 'Overview', exact: true }] },
+        { items: [{ href: '/console', label: 'Overview', exact: true }, { href: '/console/helix/ask', label: 'Ask Helix', icon: 'helix', exact: true }] },
         {
           title: 'Grow',
           items: [
@@ -60,6 +61,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
       ]}
     >
       {props.children}
+      <EnterpriseHelixDrawer />
     </Shell>
   );
 }
