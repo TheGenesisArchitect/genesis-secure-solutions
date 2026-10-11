@@ -98,7 +98,7 @@ export function GenovusLinePanel({ houseId, numbers, forward, proof, ready }: { 
   const steps: [boolean, string][] = [
     [proof.numbers > 0, 'A Genovus number is live'],
     [proof.answered, 'Call it and answer: the call lands as a lead'],
-    [proof.recorded, 'The recording plays (notice heard first)'],
+    [proof.recorded, 'The recording is saved (notice heard first)'],
     [proof.noted, 'Helix writes the note from the recording'],
     [proof.missed, 'Call and let it ring out: a call-back follow-up appears'],
   ];

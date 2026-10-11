@@ -31,6 +31,9 @@ const agency = must(await db.from('tenants').select('id').eq('slug', 'test-launc
 const staffRow = must(await db.from('staff').select('user_id').limit(1).single(), 'a staff user');
 const staffEmail = must(await db.auth.admin.getUserById(staffRow.user_id), 'staff email').user.email;
 const TN = '+17065550888', RINGS = '+17065550111';
+// Never touch a real Genovus line: only this script's stand-in number may exist on the house account.
+const real = must(await db.from('tracking_numbers').select('e164, twilio_sid').eq('tenant_id', house.id), 'house numbers').filter((n) => n.twilio_sid !== 'PNhouse');
+if (real.length) throw new Error(`refusing: the Genovus account has a real number (${real.map((n) => n.e164).join(', ')})`);
 const clean = async () => {
   must(await db.from('calls').delete().eq('tenant_id', house.id), 'clear house calls');
   must(await db.from('tracking_numbers').delete().eq('tenant_id', house.id), 'clear house numbers');
@@ -107,6 +110,13 @@ check(/Proven/i.test(t1) && /Helix: Dana, a State Farm agent/.test(t1) && /Answe
 const audio = await ev(`fetch(document.querySelector('audio')?.src ?? '/none').then((r) => r.status + ' ' + r.headers.get('content-type'))`);
 check(/^200 audio\/mpeg/.test(audio ?? ''), `staff can play the Genovus line recording (${audio})`);
 await shot('genovus-line-proven');
+// The call leads and the call-back live in the Genovus account's own dashboard ("Open leads").
+await go('/app/genovus/leads');
+const lt = await text();
+check(/\(404\) 555-0177/.test(lt) && /\(404\) 555-0142/.test(lt), 'Genovus leads: both callers are leads');
+await shot('genovus-line-leads');
+await go('/app/genovus/today');
+check(/Call back/i.test(await text()) && (await text()).includes('Caller (404) 555-0177'), 'Genovus Today: the missed call is a call-back in Priority');
 
 // 4. The agency now needs the option; switched on, the button opens.
 await go('/console/clients/test-launch');

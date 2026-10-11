@@ -37,7 +37,9 @@ export default async function Today({ params, searchParams }: { params: Promise<
   const open = (data ?? []) as F[];
   const calls = open.filter((f) => f.due_on === tomorrow);
   const notes = calls.filter((f) => f.reason);
-  const priority = open.filter((f) => f.due_on < today || f.priority);
+  // A missed call's call-back is due the same day, so it joins the priorities right away.
+  const callback = (f: F) => f.due_on <= today && /^Missed call/.test(f.reason ?? '');
+  const priority = open.filter((f) => f.due_on < today || f.priority || callback(f));
   const base = `/app/${slug}`;
   return (
     <AgencyShell ctx={ctx} title="Today" film={film}>
@@ -75,7 +77,7 @@ export default async function Today({ params, searchParams }: { params: Promise<
             <ul className="today-list">
               {priority.map((f) => (
                 <li key={f.id}>
-                  <span className="today-time">{f.due_on < today ? 'Overdue' : time(f.due_at)}</span>
+                  <span className="today-time">{callback(f) ? 'Call back' : f.due_on < today ? 'Overdue' : time(f.due_at)}</span>
                   <b>{f.who}</b>
                   <ActionForm action={updateFollowUp}><input type="hidden" name="id" value={f.id} /><input type="hidden" name="status" value="done" /><button className="btn small ghost" type="submit" aria-label={`Done: ${f.who}`}>Done</button></ActionForm>
                 </li>
