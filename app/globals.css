@@ -1033,3 +1033,20 @@ button.chip{cursor:pointer}
 .sp-box video{width:100%;max-height:78vh;aspect-ratio:16/9;background:#000;border-radius:14px}
 .sp-bar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;color:#fff}.sp-bar small{color:#b9bcc6}
 .pc-blocked{grid-column:1 / -1;margin:0;font-size:12.5px;color:#ffb020}
+/* Production Monitor: live step timeline per shot, stuck and failure messages, Retry / Stop. */
+.pm{display:grid;gap:6px;padding:8px 10px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.pm.stuck{border-color:rgba(255,176,32,.6);background:rgba(255,176,32,.06)}.pm.blocked{border-color:rgba(255,77,77,.55);background:rgba(255,77,77,.06)}
+.pm-steps{display:flex;gap:6px;flex-wrap:wrap}
+.pm-step{position:relative;display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:999px;font:600 11px var(--mono);background:var(--surface);border:1px solid var(--line);color:var(--soft);overflow:hidden}
+.pm-step b{font-weight:700;color:var(--ink)}.pm-step em{font-style:normal;color:#b39bff}
+.pm-step i{font-style:normal;width:12px;text-align:center}
+.pm-step.done{border-color:rgba(63,214,154,.5)}.pm-step.done i{color:var(--done)}
+.pm-step.failed{border-color:rgba(255,77,77,.6)}.pm-step.failed i{color:#ff6b6b}
+.pm-step.running i::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;border:2px solid #b39bff;border-top-color:transparent;animation:spin .9s linear infinite}
+.pm-step.stuck{border-color:rgba(255,176,32,.8)}
+.pm-bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.06)}.pm-bar span{display:block;height:100%;background:#b39bff}
+.pm-model{font-size:11px;color:var(--muted)}
+.pm-msg{margin:0;font-size:12px;line-height:1.4}.pm-msg.warn{color:#ffb020}.pm-msg.err{color:#ff8a8a}
+.pm-actions{display:flex;gap:6px;flex-wrap:wrap}
+.pm-health{display:flex;gap:12px;flex-wrap:wrap;font:600 11.5px var(--mono);color:var(--muted)}
+@keyframes spin{to{transform:rotate(360deg)}}

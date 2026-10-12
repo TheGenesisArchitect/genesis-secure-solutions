@@ -9,6 +9,7 @@ import { adminDb } from '@/lib/supabase/admin';
 import { parseRead } from '@/lib/studio-read';
 import { billedSeconds, defaultDirection, engineFor, PRICE } from '@/lib/studio-board';
 import { identityLocked, pollRunwayJobs, startKeyframes, startLines, startRunwayTake } from '@/lib/studio-runway';
+import { cancelRunwayTask } from '@/lib/runway';
 
 type Db = ReturnType<typeof adminDb>;
 export type ProdShot = { id: string; n: number; tool: string; tier: string | null; timing: string | null; description: string; log: Record<string, string> | null; cast_codes: string[] | null; produce: Record<string, string | number | null> | null; status: string };
@@ -72,8 +73,10 @@ const release = (db: Db, shot: string, step: string) => db.rpc('studio_release_s
  * that checked the shot a moment earlier can't win the claim and start the same step twice. By the time it
  * expires, the started job is visible to every check. A failed start releases the claim so it can be retried.
  */
-async function once(db: Db, shot: string, step: string, run: () => Promise<{ ok: boolean; error?: string }>) {
+async function once(db: Db, shot: string, step: string, run: () => Promise<{ ok: boolean; error?: string }>, stillNeeded?: () => Promise<boolean>) {
   if (!(await claim(db, shot, step))) return false;
+  // Check again now that the claim is ours: another advancer may have started this step a moment ago.
+  if (stillNeeded && !(await stillNeeded())) return false;
   try { const r = await run(); if (!r.ok) throw new Error(r.error); } catch (e) { await release(db, shot, step); throw e; }
   return true;
 }
@@ -108,7 +111,7 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
       linesReady = false;
       if (clips.some((c) => busy(c.status))) return;
       if (clips.filter((c) => c.status === 'failed' && new Date(c.created_at) >= new Date(runStart)).length >= 2 * lines.length) throw new Error('BLOCK:Line reads keep failing.');
-      await once(db, s.id, 'lines', () => startLines(reserve, s.id));
+      await once(db, s.id, 'lines', () => startLines(reserve, s.id), async () => !((await db.from('studio_voice_clips').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'line').in('status', ['queued', 'running'])).count ?? 0));
       return;
     }
     for (const l of lines) {
@@ -130,7 +133,7 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
     if (ready) { await db.rpc('studio_auto_choose_frame', { p_id: ready.id }); frameReady = true; return; }
     if (frames.some((f) => busy(f.status))) return;
     if (frames.filter((f) => f.status === 'failed').length >= 2) throw new Error('BLOCK:The keyframe keeps failing.');
-    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1));
+    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1), async () => !((await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   };
   try { await Promise.all([lineStep(), frameStep()]); } catch (e) {
     const msg = e instanceof Error ? e.message : '';
@@ -145,15 +148,33 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
   if (!linesReady || !frameReady) { const st = !frameReady ? 'drawing' : 'reading'; if (stage !== st) await setProduce(db, s, { stage: st }); return st; }
 
   // The take: from the picked keyframe, performing to the picked reads; then the shot waits for review.
-  const { data: takeRows } = await db.from('studio_takes').select('id, status, chosen').eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).order('created_at', { ascending: false });
-  const takes = (takeRows ?? []) as { id: string; status: string; chosen: boolean }[];
+  const { data: takeRows } = await db.from('studio_takes').select('id, status, chosen, error').eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).order('created_at', { ascending: false });
+  const takes = (takeRows ?? []) as { id: string; status: string; chosen: boolean; error: string | null }[];
+  // The team stopped this shot: respect it (Retry starts it again).
+  if (takes[0]?.status === 'failed' && /^Cancelled by the team/.test(takes[0].error ?? '')) return 'blocked';
   const done = takes.find((t) => t.status === 'ready');
   if (done) { await db.rpc('studio_auto_choose_take', { p_id: done.id }); await setProduce(db, s, { stage: 'review' }); return 'review'; }
   if (takes.some((t) => busy(t.status))) { if (stage !== 'rendering') await setProduce(db, s, { stage: 'rendering' }); return 'rendering'; }
-  if (takes.filter((t) => t.status === 'failed').length >= 2) { await setProduce(db, s, { stage: 'blocked', note: 'The take keeps failing.' }); return 'blocked'; }
-  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id));
+  if (takes.filter((t) => t.status === 'failed' && !/^Cancelled/.test(t.error ?? '')).length >= 2) { await setProduce(db, s, { stage: 'blocked', note: 'The take keeps failing.' }); return 'blocked'; }
+  const attempt = takes.filter((t) => t.status === 'failed' && !/^Cancelled/.test(t.error ?? '')).length + 1;
+  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   await setProduce(db, s, { stage: 'rendering' });
   return 'rendering';
+}
+
+/** Cancel a shot's running Runway jobs (Runway returns unused credits) and mark them cancelled. */
+export async function cancelShotJobs(shotId: string, why = 'Cancelled by the team'): Promise<number> {
+  const db = adminDb();
+  let n = 0;
+  for (const [table, col] of [['studio_voice_clips', 'task_id'], ['studio_art', 'task_id'], ['studio_takes', 'operation']] as const) {
+    const { data } = await db.from(table).select(`id, ${col}`).eq('shot_id', shotId).in('status', ['queued', 'running']);
+    for (const r of (data ?? []) as unknown as Record<string, string | null>[]) {
+      if (r[col]) await cancelRunwayTask(String(r[col])).catch(() => null);
+      await db.from(table).update({ status: 'failed', error: why, cost_cents: 0, runway_status: 'CANCELLED', done_at: new Date().toISOString() }).eq('id', r.id);
+      n++;
+    }
+  }
+  return n;
 }
 
 /** Advance one episode's run: finish Runway jobs, then step every approved shot. A spend refusal pauses the run. */

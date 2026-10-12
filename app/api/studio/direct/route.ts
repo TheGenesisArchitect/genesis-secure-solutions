@@ -6,7 +6,7 @@
 import { put } from '@vercel/blob';
 import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
-import { advanceProduction, episodeShots, quote, type ProdShot } from '@/lib/studio-production';
+import { advanceProduction, cancelShotJobs, episodeShots, quote, type ProdShot } from '@/lib/studio-production';
 import { castSheetBytes, identityLocked } from '@/lib/studio-runway';
 
 export const dynamic = 'force-dynamic';
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       locked.push(c.name);
     }
     const fresh = await episodeShots(admin, e.id);
-    for (const s of fresh.filter((x) => x.produce?.stage === 'blocked' && /identity/i.test(String(x.produce?.note ?? '')))) await admin.rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since: new Date().toISOString(), note: null, leases: {} } });
+    for (const s of fresh.filter((x) => x.produce?.stage === 'blocked' && /identity/i.test(String(x.produce?.note ?? '')))) await admin.rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since_now: true, force: true, note: null, leases: {} } });
     return { locked };
   };
   try {
@@ -116,9 +116,39 @@ export async function POST(req: Request) {
       case 'retry': {
         // Blocked shots in the run start over (fresh failure counts); the run resumes if it was paused for no spend reason.
         const blocked = shots.filter((x) => x.produce?.stage === 'blocked');
-        for (const s of blocked) await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since: new Date().toISOString(), note: null, last_error: null, leases: {} } });
+        for (const s of blocked) await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since_now: true, force: true, note: null, last_error: null, leases: {} } });
         const progress = await advanceProduction(e.id).catch(() => ({}));
         return Response.json({ ok: true, retried: blocked.length, progress, say: blocked.length ? `Retrying ${blocked.length} shot${blocked.length === 1 ? '' : 's'}.` : 'Nothing is blocked.' });
+      }
+      case 'raise_ceiling': {
+        // Price what the run still needs (the shots not yet in review), so the person approves an exact amount.
+        const run = (e.production ?? {}) as { shots?: string[] };
+        const admin = adminDb();
+        const pending = shots.filter((x) => (run.shots ?? []).includes(x.id) && !['review', 'approved', 'capture'].includes(String(x.produce?.stage ?? '')));
+        const q = await quote(admin, e, pending.map((x) => shots.indexOf(x) + 1).join(',') || 'none');
+        const cents = Math.max(100, q.cents);
+        const ids = pending.length ? pending.map((x) => x.id) : (run.shots ?? []).slice(0, 1);
+        if (!ids.length) return fail('There’s no run to extend.');
+        const { data: id, error } = await supabase.rpc('studio_quote_production', { p_episode: e.id, p_shots: ids, p_cents: cents, p_detail: { raise: true } });
+        if (error) return fail(error.message);
+        return Response.json({ ok: true, quote_id: id, total: money(cents), ceiling: money(Math.ceil(cents * 1.25)), shots: pending.map((x) => shots.indexOf(x) + 1), say: `Finishing the run needs about ${money(cents)} more. Shall I approve it?` });
+      }
+      case 'retry_shot':
+      case 'cancel_shot': {
+        const s = boardShot(shots, a.shot);
+        if (!s) return fail(`There’s no shot ${a.shot}.`);
+        const cancelled = await cancelShotJobs(s.id, b.tool === 'retry_shot' ? 'Cancelled for a retry' : 'Cancelled by the team');
+        if (b.tool === 'cancel_shot') {
+          await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'blocked', note: 'Cancelled by the team. Tap Retry to start it again.', leases: {}, force: true } });
+          return Response.json({ ok: true, shot: a.shot, cancelled, say: `Stopped shot ${a.shot}.` });
+        }
+        // A retry starts the shot over inside the run (fresh failure counts); the run resumes if it was paused.
+        const run = (e.production ?? {}) as { on?: boolean; shots?: string[] };
+        if (!(run.shots ?? []).includes(s.id)) return fail(`Shot ${a.shot} isn’t in the approved run. Ask Helix to produce it first.`);
+        await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since_now: true, force: true, note: null, last_error: null, leases: {} } });
+        if (!run.on) await adminDb().rpc('studio_production_patch', { p_episode: e.id, p_patch: { on: true }, p_remove: ['paused_at', 'paused_reason', 'idle_at'] });
+        const progress = await advanceProduction(e.id).catch(() => ({}));
+        return Response.json({ ok: true, shot: a.shot, cancelled, progress, say: `Retrying shot ${a.shot}.` });
       }
       case 'pause': {
         const { error } = await supabase.rpc('studio_pause_production', { p_episode: e.id });

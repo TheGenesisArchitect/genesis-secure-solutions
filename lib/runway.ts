@@ -80,3 +80,14 @@ export function runwaySeedance(p: { images: Img[]; prompt: string; ratio: string
 }
 
 export type RunwayDoneTask = RunwayTask & { cost?: { credits: number } };
+
+/** The Studio's Runway Model Router (a saved config in Runway's dev portal): Runway picks the best eligible model
+ *  for each take, skipping models at capacity, and reports which model it chose and why. */
+export const VIDEO_ROUTER = () => (process.env.STUDIO_VIDEO_ROUTER ?? 'genovus-video-router').trim();
+export type Routing = { configId: string; model: string; provider: string; estimatedCost?: { credits: number }; capacityFallback?: unknown };
+export function runwayRoutedVideo(p: { router: string; prompt: string; images: { uri: string; role: 'first' | 'last' | 'reference' }[]; audioRefs?: string[]; duration: number; audio?: boolean; seed?: number }) {
+  return call<{ id: string; routing: Routing }>('/generate/video', { body: { configId: p.router, input: {
+    promptText: p.prompt, referenceImages: p.images, ...(p.audioRefs?.length ? { referenceAudio: p.audioRefs.map((uri) => ({ uri })) } : {}),
+    duration: p.duration, aspectRatio: '16:9', resolution: '1080p', ...(p.audio != null ? { audio: p.audio } : {}), ...(p.seed != null ? { seed: p.seed } : {}),
+  } } });
+}

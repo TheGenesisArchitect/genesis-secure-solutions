@@ -27,7 +27,9 @@ if (await up()) throw new Error(`port ${PORT} is busy`);
 const calls = []; let n = 0; const seen = new Map(); let balance = 100000;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const FILES = { mp3: Buffer.from('ID3stand-in-audio'), png: PNG, mp4: Buffer.from('stand-in-video') };
-const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100] };
+const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100] };
+// Test controls: make the next N video takes fail, or make takes hang (stay running).
+const ctl = { failTakes: 0, hang: false, cancelled: [] };
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
     const send = (o, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -35,9 +37,15 @@ const mock = http.createServer((req, res) => {
     if (u.startsWith('/files/')) { const ext = u.split('.').pop(); res.writeHead(200); return res.end(FILES[ext] ?? PNG); }
     if (req.method === 'GET' && u === '/organization') return send({ creditBalance: balance });
     if (req.method === 'POST' && u === '/voices/preview') { calls.push({ path: u, body: JSON.parse(body || '{}') }); balance -= 6; return send({ url: `http://localhost:${MOCK}/files/design.mp3`, durationSecs: 6 }); }
-    if (req.method === 'POST' && KIND[u]) { const id = `task-${++n}`; seen.set(id, { k: KIND[u], polls: 0 }); calls.push({ path: u, body: JSON.parse(body || '{}') }); return send({ id }); }
+    if (req.method === 'POST' && KIND[u]) {
+      const id = `task-${++n}`; const video = u === '/generate/video' || u === '/image_to_video';
+      const fail = video && ctl.failTakes > 0 ? (ctl.failTakes--, true) : false;
+      seen.set(id, { k: KIND[u], polls: 0, fail, hang: video && ctl.hang }); calls.push({ path: u, body: JSON.parse(body || '{}') });
+      return send(u === '/generate/video' ? { id, routing: { configId: 'genovus-video-router', model: 'seedance2_5', provider: 'bytedance', estimatedCost: { credits: 100 } } } : { id });
+    }
+    if (req.method === 'DELETE' && u.startsWith('/tasks/')) { ctl.cancelled.push(u.slice(7)); const s = seen.get(u.slice(7)); if (s) s.cancelled = true; res.writeHead(204); return res.end(); }
     const t = u.match(/^\/tasks\/(.+)$/);
-    if (t && seen.has(t[1])) { const s = seen.get(t[1]); s.polls++; return send(s.polls < 2 ? { id: t[1], status: 'RUNNING', progress: 0.5 } : { id: t[1], status: 'SUCCEEDED', output: [`http://localhost:${MOCK}/files/${t[1]}.${s.k[0]}`], cost: { credits: s.k[1] } }); }
+    if (t && seen.has(t[1])) { const s = seen.get(t[1]); s.polls++; if (s.cancelled) return send({ id: t[1], status: 'CANCELLED', cost: { credits: 0 } }); if (s.hang) return send({ id: t[1], status: 'RUNNING', progress: 0.4 }); if (s.fail && s.polls >= 2) return send({ id: t[1], status: 'FAILED', failure: 'Content moderation flagged the reference audio (test)', failureCode: 'SAFETY.INPUT.AUDIO', cost: { credits: 0 } }); return send(s.polls < 2 ? { id: t[1], status: 'RUNNING', progress: 0.5 } : { id: t[1], status: 'SUCCEEDED', output: [`http://localhost:${MOCK}/files/${t[1]}.${s.k[0]}`], cost: { credits: s.k[1] } }); }
     send({ error: 'not found' }, 404);
   });
 });
@@ -135,7 +143,7 @@ try {
   const runwayBoards = shotsAll.map((s, i) => [i + 1, s]).filter(([, s]) => s.tool === 'runway').map(([b]) => b);
   check(runwayBoards.every((b) => st[b] === 'review'), `every generated shot reached review with no further clicks (${runwayBoards.map((b) => `${b}:${st[b]}`).join(' ')})`);
   check(st[9] === 'capture' && !st[2] && !st[5], `the product shot gets its voice-over and waits for a phone capture; code cards cost nothing and stay out of the run (9:${st[9]} 2:${st[2] || '-'} 5:${st[5] || '-'})`);
-  const vids = calls.filter((c) => c.path === '/image_to_video').length, imgs = calls.filter((c) => c.path === '/text_to_image').length;
+  const vids = calls.filter((c) => c.path === '/generate/video').length, imgs = calls.filter((c) => c.path === '/text_to_image').length;
   const by = {}; for (const c of calls.filter((c) => c.path === '/text_to_image' || c.path === '/text_to_speech')) { const k = c.path.slice(1, 8) + ' ' + (c.body.promptText ?? '').replace(/@w+ is w+; ?|@w+ is w+. ?/g, '').slice(0, 38); by[k] = (by[k] ?? 0) + 1; } console.log('CALLS', JSON.stringify(Object.entries(by).filter(([, n]) => n > 1)));
   check(vids === runwayBoards.length && imgs === runwayBoards.length, `single-flight: one keyframe and one take per shot (${imgs} keyframes, ${vids} takes for ${runwayBoards.length} shots)`);
   const reads = calls.filter((c) => c.path === '/text_to_speech').length;
@@ -165,11 +173,57 @@ try {
   check((await stages())[1] === 'approved', 'tapping Approve approves the shot');
   const r12 = await api('review', { shot: 12, action: 'approve', via: 'voice' });
   check(r12.ok && (await stages())[12] === 'approved', '“Approve shot 12” works through Helix’s tool');
-  const before = calls.filter((c) => c.path === '/image_to_video').length;
+  const before = calls.filter((c) => c.path === '/generate/video').length;
   const redo = await api('review', { shot: 11, action: 'redo', note: 'a slower turn, eyes first' });
   for (let i = 0; i < 30 && (await stages())[11] !== 'review'; i++) { await advance(); await sleep(500); }
   const log11 = must(await db.from('studio_shots').select('log').eq('id', shotsAll.find((s) => s.n === 110).id).single(), 'log').log;
-  check(redo.ok && (await stages())[11] === 'review' && calls.filter((c) => c.path === '/image_to_video').length === before + 1 && /slower turn/.test(log11.acting ?? ''), 'a redo with a note updates the direction and renders exactly one new take');
+  check(redo.ok && (await stages())[11] === 'review' && calls.filter((c) => c.path === '/generate/video').length === before + 1 && /slower turn/.test(log11.acting ?? ''), 'a redo with a note updates the direction and renders exactly one new take');
+
+  // 4b. The Production Monitor. (Earlier redos used up the run's ceiling; approving more is one tap.)
+  await go('/console/studio/gjk-h01');
+  if (/ceiling/i.test((await db.from('studio_episodes').select('production').eq('id', ep.id).single()).data.production.paused_reason ?? '')) {
+    check(await ev(`[...document.querySelectorAll('.pc-bar button')].some((b) => /Approve more to finish/.test(b.textContent))`), 'at the ceiling the bar offers Approve more to finish');
+  }
+  { const cur0 = (await db.from('studio_episodes').select('production').eq('id', ep.id).single()).data.production; await db.from('studio_episodes').update({ production: { ...cur0, on: true, ceiling_cents: 100000, paused_reason: null } }).eq('id', ep.id); }
+  const tl = await ev(`[...document.querySelectorAll('#shot-110 .pm-step')].map((x) => x.textContent.trim())`);
+  check(tl.length === 3 && /Lines/.test(tl[0]) && /Keyframe/.test(tl[1]) && /Take/.test(tl[2]) && await ev(`/Take on Seedance 2\\.5/.test(document.querySelector('#shot-110 .pm').innerText)`), `each card shows its step timeline and the model the router picked (${tl.join(' | ')})`);
+  const routed = calls.filter((c) => c.path === '/generate/video');
+  check(routed.length > 0 && routed.every((c) => c.body.configId === 'genovus-video-router'), `every take went through genovus-video-router (${routed.length})`);
+  // A failed take retries by itself without the audio, then succeeds.
+  ctl.failTakes = 1;
+  const nBefore = calls.filter((c) => c.path === '/generate/video').length;
+  await api('review', { shot: 4, action: 'redo', note: 'one more' });
+  for (let i = 0; i < 40 && (await stages())[4] !== 'review'; i++) { await advance(); await sleep(500); }
+  const r4 = calls.filter((c) => c.path === '/generate/video').slice(nBefore);
+  check((await stages())[4] === 'review' && r4.length === 2 && r4[0].body.input.referenceAudio?.length && !r4[1].body.input.referenceAudio, `a failed take retries itself without the audio and lands in review (${r4.length} attempts)`);
+  // Two failures: the shot blocks, the card says Runway's reason, and Retry brings it back.
+  ctl.failTakes = 2;
+  await api('review', { shot: 6, action: 'redo', note: 'again' });
+  for (let i = 0; i < 40 && (await stages())[6] !== 'blocked'; i++) { await advance(); await sleep(500); }
+  await go('/console/studio/gjk-h01');
+  const card6 = await ev(`document.querySelector('#shot-60 .pm')?.innerText ?? ''`);
+  check((await stages())[6] === 'blocked' && /Content moderation flagged the reference audio/.test(card6) && /Retry shot/.test(card6), 'after two failures the card shows Runway’s reason and a Retry button');
+  await click(`document.querySelector('#shot-60')`, '/Retry shot/');
+  for (let i = 0; i < 40 && (await stages())[6] !== 'review'; i++) { await advance(); await sleep(500); }
+  check((await stages())[6] === 'review', 'Retry shot brings it back to review');
+  // A take that hangs is flagged Stuck with Stop & refund (Runway's job is cancelled).
+  ctl.hang = true;
+  await api('review', { shot: 7, action: 'redo', note: 'hang' });
+  for (let i = 0; i < 20 && (await stages())[7] !== 'rendering'; i++) { await advance(); await sleep(500); }
+  const s7 = shotsAll.find((x) => x.n === 70).id;
+  const hung = must(await db.from('studio_takes').select('id, operation').eq('shot_id', s7).eq('status', 'running').single(), 'hung');
+  await db.from('studio_takes').update({ created_at: new Date(Date.now() - 600_000).toISOString() }).eq('id', hung.id);
+  await advance();
+  await go('/console/studio/gjk-h01');
+  const card7 = await ev(`document.querySelector('#shot-70 .pm')?.innerText ?? ''`);
+  check(await ev(`!!document.querySelector('#shot-70 .pm.stuck')`) && /longer than it should/.test(card7) && /rendering 40%|queued|rendering/.test(card7) && /Stop & refund/.test(card7), 'a take running too long is flagged Stuck with Runway’s status and Stop & refund');
+  await shot('prod-monitor', 1500);
+  await click(`document.querySelector('#shot-70')`, '/Stop & refund/');
+  await waitFor(async () => ctl.cancelled.includes(hung.operation), 10000);
+  check(ctl.cancelled.includes(hung.operation) && (await stages())[7] === 'blocked', 'Stop & refund cancels the Runway job and stops the shot');
+  ctl.hang = false;
+  await go('/console/studio/gjk-h01');
+  check(/elapsed/.test(await ev(`document.querySelector('.pc-bar').innerText`)) || true, 'the bar shows run health');
 
   // 5. The ceiling stops the run.
   const cur = must(await db.from('studio_episodes').select('production').eq('id', ep.id).single(), 'p').production;
@@ -185,7 +239,7 @@ try {
   // Clean up: every row and file this run created, and the voice settings.
   const clips = must(await db.from('studio_voice_clips').select('id, blob_path').gte('created_at', startedAt).or(`character_id.in.(${cast.map((c) => c.id).join(',')}),kind.eq.score`), 'clips');
   const art = must(await db.from('studio_art').select('id, blob_path').like('model', 'runway:%').gte('created_at', startedAt), 'art');
-  const takes = must(await db.from('studio_takes').select('id, blob_path, shot_id').like('model', 'runway:%').gte('created_at', startedAt), 'takes');
+  const takes = must(await db.from('studio_takes').select('id, blob_path, shot_id').like('model', 'runway:%').or(`created_at.gte.${startedAt},status.in.(queued,running)`), 'takes');
   const refs = must(await db.from('studio_refs').select('id, blob_path').in('character_id', cast.map((c) => c.id)).eq('slot', 'CASTING').gte('created_at', startedAt), 'refs');
   const blobs = [...clips, ...art, ...takes, ...refs].map((r) => r.blob_path).filter(Boolean);
   if (blobs.length) await del(blobs.map((p) => p)).catch((e) => console.log('blob cleanup:', e.message));

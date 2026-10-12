@@ -14,7 +14,7 @@ import path from 'node:path';
 import { get, put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
-import { CREDIT_CENTS, runwayConfigured, runwayCustomSpeech, runwayImage, runwaySeedance, runwaySound, runwaySpeech, runwayTask, runwayVideo, runwayVoicePreview, runwayOrganization, type RunwayDoneTask } from '@/lib/runway';
+import { CREDIT_CENTS, VIDEO_ROUTER, runwayRoutedVideo, runwayConfigured, runwayCustomSpeech, runwayImage, runwaySeedance, runwaySound, runwaySpeech, runwayTask, runwayVideo, runwayVoicePreview, runwayOrganization, type RunwayDoneTask } from '@/lib/runway';
 import { billedSeconds, defaultDirection, engineFor, PRICE } from '@/lib/studio-board';
 
 type Db = ReturnType<typeof adminDb>;
@@ -165,8 +165,14 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
   return { ok: true, ids, note: `Drawing ${count} keyframes… about 20–40 seconds.` };
 }
 
-/** One take: the chosen keyframe (or the identity references) animated, guided by the chosen line reads. */
-export async function startRunwayTake(reserve: Reserve, shotId: string): Promise<Started> {
+/**
+ * One take: the chosen keyframe (or the identity references) animated, guided by the chosen line reads. It goes
+ * through the Studio's Runway Model Router, which picks the best eligible model (and skips one at capacity); if
+ * routing itself is refused, the shot's own engine is called directly. A retry (attempt 2) leaves the audio out,
+ * since an audio reference is the input models most often refuse.
+ */
+export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number } = {}): Promise<Started> {
+  const attempt = opts.attempt ?? 1;
   const db = adminDb();
   const s = await loadShot(db, shotId);
   const eng = engineFor(s.tool, s.tier);
@@ -189,16 +195,31 @@ export async function startRunwayTake(reserve: Reserve, shotId: string): Promise
   const bySlot = new Map<string, { id: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }>();
   for (const c of (clips ?? []) as { id: string; slot: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }[]) { const cur = bySlot.get(c.slot); if (!cur || (c.approved && !cur.approved)) bySlot.set(c.slot, c); }
   const audio: string[] = [];
-  if (eng.model === 'seedance2_5') for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
+  if (eng.model === 'seedance2_5' && attempt < 2) for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
   const seconds = takeSeconds(s.tool, s.tier, s.timing);
   const prompt = `${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''}${audio.length ? ` The characters speak the attached dialogue on camera with natural, accurate lip movement and the delivery of the read.` : ''} ${LOOK} Keep every person exactly as in the references.`;
-  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: eng.model, cents: seconds * eng.perSec, params: { method: frameUri ? 'keyframe' : 'references', seconds, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
+  const router = VIDEO_ROUTER();
+  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: router ? 'router' : eng.model, cents: seconds * eng.perSec, params: { method: frameUri ? 'keyframe' : 'references', seconds, attempt, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
+  const seed = Math.floor(Math.random() * 4_000_000_000);
+  let routeError: string | null = null;
+  if (router) {
+    try {
+      const r = await runwayRoutedVideo({ router, prompt, images: frameUri ? [{ uri: frameUri, role: 'first' }] : refs.map((x) => ({ uri: x.uri, role: 'reference' as const })), audioRefs: audio, duration: seconds, audio: audio.length > 0, seed });
+      const { data: cur } = await db.from('studio_takes').select('params').eq('id', id).single();
+      await db.from('studio_takes').update({ status: 'running', operation: r.id, model: `runway:${r.routing?.model ?? 'router'}`, runway_status: 'PENDING',
+        ...(r.routing?.estimatedCost?.credits != null ? { cost_cents: Math.round(r.routing.estimatedCost.credits * CREDIT_CENTS) } : {}),
+        params: { ...((cur?.params as object) ?? {}), routing: { router, model: r.routing?.model ?? null, provider: r.routing?.provider ?? null, credits: r.routing?.estimatedCost?.credits ?? null, capacity_fallback: Boolean(r.routing?.capacityFallback) } }, updated_at: now() }).eq('id', id);
+      return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${r.routing?.model ?? 'the routed model'}… usually 1–4 minutes.` };
+    } catch (e) {
+      routeError = e instanceof Error ? e.message : String(e);
+      console.warn(`[studio-runway] router ${router} refused shot ${s.n}: ${routeError}; calling ${eng.model} directly`);
+    }
+  }
   try {
-    const seed = Math.floor(Math.random() * 4_000_000_000);
     const task = eng.model === 'seedance2_5'
       ? await runwaySeedance({ images: frameUri ? [{ uri: frameUri, position: 'first' }] : refs.map((r) => ({ uri: r.uri })), prompt, ratio: '1920:1080', duration: seconds, audio: audio.length > 0, audioRefs: audio, seed })
       : await runwayVideo({ model: 'gen4.5', images: [{ uri: frameUri!, position: 'first' }], prompt, ratio: '1280:720', duration: seconds, seed });
-    await db.from('studio_takes').update({ status: 'running', operation: task.id, updated_at: now() }).eq('id', id);
+    await db.from('studio_takes').update({ status: 'running', operation: task.id, model: `runway:${eng.model}`, runway_status: 'PENDING', ...(routeError ? { error: `Router: ${routeError.slice(0, 200)} · used ${eng.label}` } : {}), updated_at: now() }).eq('id', id);
     return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${eng.label}… usually 1–4 minutes.` };
   } catch (e) { console.warn(`[studio-runway] take start refused for shot ${s.n}: ${e instanceof Error ? e.message : e}`); await markFailed(db, 'studio_takes', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
 }
@@ -274,17 +295,20 @@ export async function pollRunwayJobs(shotId?: string): Promise<Record<string, nu
           const p = `studio/${T.dir}/${id}.${ext}`;
           await put(p, Buffer.from(await file.arrayBuffer()), { access: 'private', contentType: TYPE[ext], addRandomSuffix: false, allowOverwrite: true });
           const cents = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : Number(row.cost_cents ?? 0);
-          await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, ...(T.table === 'studio_takes' ? { updated_at: now() } : { source_url: t.output[0], source_at: now(), ...(T.table === 'studio_art' ? { updated_at: now() } : {}) }) }).eq('id', id);
+          await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, runway_status: 'SUCCEEDED', runway_progress: 1, done_at: now(), ...(T.table === 'studio_takes' ? { updated_at: now() } : { source_url: t.output[0], source_at: now(), ...(T.table === 'studio_art' ? { updated_at: now() } : {}) }) }).eq('id', id);
           await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null);
           out.ready = (out.ready ?? 0) + 1;
         } else if (t.status === 'FAILED' || t.status === 'CANCELLED') {
           console.warn(`[studio-runway] ${T.label} ${id.slice(0, 8)} ${t.status}: ${t.failure ?? ''} ${t.failureCode ?? ''}`);
-          await db.from(T.table).update({ status: 'failed', error: (t.failure ?? t.status).slice(0, 300), cost_cents: t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : 0, ...(T.table === 'studio_voice_clips' ? {} : { updated_at: now() }) }).eq('id', id);
+          await db.from(T.table).update({ status: 'failed', runway_status: t.status, done_at: now(), error: `${t.failure ?? t.status}${t.failureCode ? ` (${t.failureCode})` : ''}`.slice(0, 300), cost_cents: t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : 0, ...(T.table === 'studio_voice_clips' ? {} : { updated_at: now() }) }).eq('id', id);
           out.failed = (out.failed ?? 0) + 1;
         } else if (Date.now() - new Date(String(row.created_at)).getTime() > 45 * 60_000) {
           await markFailed(db, T.table, id, 'Timed out after 45 minutes.');
           out.failed = (out.failed ?? 0) + 1;
-        } else out.running = (out.running ?? 0) + 1;
+        } else {
+          await db.from(T.table).update({ runway_status: t.status, runway_progress: typeof t.progress === 'number' ? t.progress : null }).eq('id', id);
+          out.running = (out.running ?? 0) + 1;
+        }
       } catch (e) {
         out.errors = (out.errors ?? 0) + 1;
         console.error(`[studio-runway] poll ${T.table}/${id}: ${e instanceof Error ? e.message : e}`);

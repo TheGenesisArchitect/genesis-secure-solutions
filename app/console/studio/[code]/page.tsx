@@ -20,6 +20,8 @@ import { parseRead } from '@/lib/studio-read';
 import { runwayConfigured } from '@/lib/runway';
 import { defaultDirection } from '@/lib/studio-board';
 import { shotQuote, type ProdShot } from '@/lib/studio-production';
+import { shotSteps, statusText, STUCK_AFTER, type Job } from '@/lib/studio-monitor';
+import { runwayOrganization } from '@/lib/runway';
 import { V2_EPISODES } from '@/lib/studio-board';
 
 export const dynamic = 'force-dynamic';
@@ -99,9 +101,9 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     const shotIds = (shots ?? []).map((s) => s.id as string);
     const castIds = (boardCast ?? []).map((c) => c.id as string);
     const [{ data: clipRows }, { data: refRows }, { data: boardTakes }] = await Promise.all([
-      supabase.from('studio_voice_clips').select('id, shot_id, character_id, kind, slot, status, approved, error, created_at').in('kind', ['line', 'design', 'score']).or(`shot_id.in.(${shotIds.join(',') || '00000000-0000-0000-0000-000000000000'}),character_id.in.(${castIds.join(',') || '00000000-0000-0000-0000-000000000000'})`).order('created_at', { ascending: false }),
+      supabase.from('studio_voice_clips').select('id, shot_id, character_id, kind, slot, status, approved, error, created_at, done_at, runway_status, runway_progress, engine').in('kind', ['line', 'design', 'score']).or(`shot_id.in.(${shotIds.join(',') || '00000000-0000-0000-0000-000000000000'}),character_id.in.(${castIds.join(',') || '00000000-0000-0000-0000-000000000000'})`).order('created_at', { ascending: false }),
       supabase.from('studio_refs').select('id, character_id, slot, status, approved, created_at').in('character_id', castIds.length ? castIds : ['00000000-0000-0000-0000-000000000000']).in('slot', ['CASTING', 'FACE_FRONT']).order('created_at', { ascending: false }),
-      supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, blob_path, created_at').in('shot_id', shotIds.length ? shotIds : ['00000000-0000-0000-0000-000000000000']).order('created_at', { ascending: false }),
+      supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, blob_path, created_at, done_at, runway_status, runway_progress, model, params').in('shot_id', shotIds.length ? shotIds : ['00000000-0000-0000-0000-000000000000']).order('created_at', { ascending: false }),
     ]);
     type Clip = { id: string; shot_id: string | null; character_id: string | null; kind: string; slot: string; status: string; approved: boolean; error: string | null };
     const clips = (clipRows ?? []) as Clip[];
@@ -132,10 +134,33 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       designs: new Map(castList.map((c) => [c.id, clips.filter((x) => x.kind === 'design' && x.character_id === c.id).map((x) => ({ id: x.id, status: x.status, approved: x.approved, error: x.error }))])),
       score: clips.filter((x) => x.kind === 'score').map((x) => ({ id: x.id, status: x.status, error: x.error })),
       run: { on: false, spent: '$0.00', ceiling: '$0.00', paused_reason: null },
+      monitor: new Map(),
+      health: { elapsed: 0, left: null, credits: null, active: 0 },
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
     const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
     const spentCents = run.at ? Number((await adminDb().rpc('studio_production_spent', { p_episode: e.id, p_since: run.at })).data ?? 0) : 0;
+    // The Production Monitor: each shot's steps since its current pass started.
+    const { data: frameJobs } = await supabase.from('studio_art').select('id, shot_id, status, error, created_at, done_at, runway_status, runway_progress, model').eq('episode_id', e.id).eq('kind', 'frame').like('model', 'runway:%');
+    const now = Date.now();
+    let active = 0, left = 0;
+    for (const s of shots ?? []) {
+      const since = ((s.produce as { since?: string } | null)?.since) ?? null;
+      const steps = shotSteps({ since, clips: ((clipRows ?? []) as unknown as Job[]).filter((c) => c.shot_id === s.id && c.kind === 'line' && String((c as unknown as { engine?: string }).engine ?? '').startsWith('runway:')), frames: ((frameJobs ?? []) as unknown as Job[]).filter((f) => f.shot_id === s.id), takes: ((boardTakes ?? []) as unknown as Job[]).filter((t) => t.shot_id === s.id && String(t.model ?? '').startsWith('runway:')) }, now);
+      studio.monitor.set(s.id as string, steps.map((x) => ({ ...x, text: statusText(x) })));
+      const st = (s.produce as { stage?: string } | null)?.stage ?? '';
+      if (['queued', 'reading', 'drawing', 'rendering'].includes(st)) {
+        active++;
+        // Time left for this shot: what remains of each step at its usual length.
+        const done = (k: string) => steps.some((x) => x.key === k && x.state === 'done');
+        const runningSecs = (k: string) => steps.find((x) => x.key === k && x.state === 'running')?.secs ?? 0;
+        const usual = { lines: 30, keyframe: 45, take: 210 } as const;
+        const rest = (s.tool === 'runway' ? (done('keyframe') ? 0 : Math.max(10, usual.keyframe - runningSecs('keyframe'))) : 0) + (s.tool === 'runway' ? (done('take') ? 0 : Math.max(20, usual.take - runningSecs('take'))) : 0) + (done('lines') ? 0 : Math.max(5, usual.lines - runningSecs('lines')) * (s.tool === 'runway' ? 0 : 1));
+        left = Math.max(left, rest);
+      }
+    }
+    void STUCK_AFTER;
+    studio.health = { elapsed: run.at && run.on ? Math.round((now - new Date(run.at).getTime()) / 1000) : 0, left: active ? Math.round(left * Math.ceil(active / 4)) : null, credits: studio.ready ? await runwayOrganization().then((o) => o.creditBalance).catch(() => null) : null, active };
     studio.run = { on: Boolean(run.on), spent: `$${(spentCents / 100).toFixed(2)}`, ceiling: `$${((run.ceiling_cents ?? 0) / 100).toFixed(2)}`, paused_reason: run.paused_reason ?? null };
   }
   return (

@@ -9,7 +9,7 @@ import { Chip } from '@/components/ui';
 import { studioSetShotDirection } from '@/lib/actions';
 import { billedSeconds, defaultDirection, engineFor, PRICE, shotCast, shotCost, shotSeconds } from '@/lib/studio-board';
 import { CastStudio, ScoreStudio, ShotStudio, type BoardLine, type CaptureRecipe, type CastIdentity, type CastVoice } from '@/components/studio/BoardStudio';
-import { ProductionBar, ShotReview, type RunState } from '@/components/studio/ProductionControls';
+import { ProductionBar, ShotMonitor, ShotReview, type MonitorStep, type RunHealth, type RunState } from '@/components/studio/ProductionControls';
 import { PlayButton, ScenePlayer, type Clip } from '@/components/studio/ScenePlayer';
 
 type Shot = { capture?: CaptureRecipe | null; produce?: Record<string, string | number | null> | null; id: string; n: number; shot_code: string | null; timing: string | null; description: string; dialogue: string | null; tool: string; tier: string | null; status: string; beat: number | null; shot_kind: string | null; log: Record<string, string> | null };
@@ -24,6 +24,8 @@ export type BoardStudioData = {
   score: { id: string; status: string; error: string | null }[];
   run: RunState;
   runCents: number;
+  monitor: Map<string, MonitorStep[]>;
+  health: RunHealth;
 };
 type Take = { id: string; shot_id: string; status: string; chosen: boolean | null };
 type Props = {
@@ -87,7 +89,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
           </span>
         </div>
       </section>
-      <ProductionBar episode={episode.code} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} blocked={shots.map((s, i) => ({ board: i + 1, s })).filter((x) => stageOf(x.s) === 'blocked').map((x) => ({ board: x.board, note: String(x.s.produce?.note ?? x.s.produce?.last_error ?? 'Blocked') }))} />
+      <ProductionBar episode={episode.code} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} health={studio.health} blocked={shots.map((s, i) => ({ board: i + 1, s })).filter((x) => stageOf(x.s) === 'blocked').map((x) => ({ board: x.board, note: String(x.s.produce?.note ?? x.s.produce?.last_error ?? 'Blocked') }))} />
 
       <div className="pb-layout">
         <aside className="pb-col">
@@ -160,7 +162,8 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     <div className="pb-hd"><b>{s.description}</b><span>{shotSeconds(s.timing)} s</span></div>
                     {d.read ? <p className="pb-read"><Read text={d.read} /></p> : null}
                     {d.acting ? <p className="pb-act"><b>Acting</b> {d.acting}{s.log?.camera ? <> · <b>Camera</b> {s.log.camera}</> : null}</p> : null}
-                    {note && (stage === 'blocked' || stage === 'capture' || s.produce?.last_error) ? <p className="pb-flag">{note}</p> : null}
+                    {note && stage === 'capture' ? <p className="pb-flag">{note}</p> : null}
+                    <ShotMonitor episode={episode.code} board={i + 1} steps={studio.monitor.get(s.id) ?? []} stage={stage} note={note} />
                     <div className="pb-foot">
                       <span className="pb-eng2">{eng?.label ?? (s.tool === 'capture' ? 'Phone capture' : s.tool === 'edit' ? 'Code card' : s.tool)} · {money(costs[i].total)}</span>
                       <ShotReview episode={episode.code} board={i + 1} stage={stage} />
