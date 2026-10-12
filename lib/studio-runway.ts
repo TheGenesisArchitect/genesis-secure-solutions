@@ -200,7 +200,7 @@ export async function startRunwayTake(reserve: Reserve, shotId: string): Promise
       : await runwayVideo({ model: 'gen4.5', images: [{ uri: frameUri!, position: 'first' }], prompt, ratio: '1280:720', duration: seconds, seed });
     await db.from('studio_takes').update({ status: 'running', operation: task.id, updated_at: now() }).eq('id', id);
     return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${eng.label}… usually 1–4 minutes.` };
-  } catch (e) { await markFailed(db, 'studio_takes', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
+  } catch (e) { console.warn(`[studio-runway] take start refused for shot ${s.n}: ${e instanceof Error ? e.message : e}`); await markFailed(db, 'studio_takes', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
 }
 
 /** A designed voice for a character, from the bible's voice description. Runway returns the sample immediately. */
@@ -278,6 +278,7 @@ export async function pollRunwayJobs(shotId?: string): Promise<Record<string, nu
           await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null);
           out.ready = (out.ready ?? 0) + 1;
         } else if (t.status === 'FAILED' || t.status === 'CANCELLED') {
+          console.warn(`[studio-runway] ${T.label} ${id.slice(0, 8)} ${t.status}: ${t.failure ?? ''} ${t.failureCode ?? ''}`);
           await db.from(T.table).update({ status: 'failed', error: (t.failure ?? t.status).slice(0, 300), cost_cents: t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : 0, ...(T.table === 'studio_voice_clips' ? {} : { updated_at: now() }) }).eq('id', id);
           out.failed = (out.failed ?? 0) + 1;
         } else if (Date.now() - new Date(String(row.created_at)).getTime() > 45 * 60_000) {
