@@ -37,6 +37,19 @@ export async function buyLocalNumber(areaCode: string, origin: string, friendlyN
   return { sid: n.sid, e164: n.phone_number };
 }
 
+/** Connect a number already in the Twilio account (bought in the Twilio console): point its calls at Genovus and turn
+ *  off any demo text auto-reply (texting stays off until A2P registration is approved). */
+export async function connectExistingNumber(e164: string, origin: string, friendlyName: string) {
+  const found = await api<{ incoming_phone_numbers?: { sid: string; phone_number: string }[] }>(`/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(e164)}`);
+  const n = found.incoming_phone_numbers?.find((x) => x.phone_number === e164);
+  if (!n) throw new Error(`${e164} isn't in this Twilio account. Check the number, or that it's in the account whose keys are in Vercel.`);
+  await api(`/IncomingPhoneNumbers/${encodeURIComponent(n.sid)}.json`, {
+    method: 'POST',
+    form: { FriendlyName: friendlyName.slice(0, 60), VoiceUrl: `${origin}/api/voice/incoming`, VoiceMethod: 'POST', VoiceFallbackUrl: '', StatusCallback: '', SmsUrl: '', SmsFallbackUrl: '' },
+  });
+  return { sid: n.sid, e164: n.phone_number };
+}
+
 export async function releaseNumber(sid: string) {
   await api(`/IncomingPhoneNumbers/${encodeURIComponent(sid)}.json`, { method: 'DELETE' }).catch((e) => { if (!/HTTP 204|not found/i.test(String(e))) throw e; });
 }

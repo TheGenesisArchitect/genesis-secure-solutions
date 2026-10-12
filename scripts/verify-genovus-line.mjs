@@ -45,11 +45,18 @@ await clean();
 const prior = (await db.from('agency_profiles').select('*').eq('tenant_id', house.id).maybeSingle()).data;
 const priorProfile = prior?.main_phone_e164 === '+17065550111' ? null : prior;
 must(await db.from('agency_profiles').upsert({ tenant_id: house.id, main_phone_e164: RINGS, lines: [], service_radius_mi: 15, licensed_states: [] }), 'house profile');
-must(await db.from('tracking_numbers').insert({ tenant_id: house.id, e164: TN, twilio_sid: 'PNhouse', label: 'Genovus line', source: 'genovus-line', forward_to: RINGS }), 'house number');
+// The number is connected through the console ("connect a number you bought in Twilio"), against the stand-in.
+let configured = null;
 
 const mock = http.createServer((req, res) => {
-  if (/Recordings\/.+\.mp3/.test(req.url)) { res.setHeader('content-type', 'audio/mpeg'); return res.end(Buffer.alloc(64)); }
-  res.statusCode = 404; res.end('{}');
+  let body = ''; req.on('data', (d) => (body += d)); req.on('end', () => {
+    if (/Recordings\/.+\.mp3/.test(req.url)) { res.setHeader('content-type', 'audio/mpeg'); return res.end(Buffer.alloc(64)); }
+    res.setHeader('content-type', 'application/json');
+    // The number as bought in the Twilio console (still on the demo webhooks), then Genovus re-pointing it.
+    if (req.method === 'GET' && req.url.includes('/IncomingPhoneNumbers.json')) return res.end(JSON.stringify({ incoming_phone_numbers: decodeURIComponent(req.url).includes(TN) ? [{ sid: 'PNhouse', phone_number: TN }] : [] }));
+    if (req.method === 'POST' && req.url.includes('/IncomingPhoneNumbers/PNhouse.json')) { configured = Object.fromEntries(new URLSearchParams(body)); return res.end(JSON.stringify({ sid: 'PNhouse', phone_number: TN })); }
+    res.statusCode = 404; res.end('{}');
+  });
 }).listen(MOCK);
 const env = { ...process.env, TWILIO_ACCOUNT_SID: 'ACtest', TWILIO_AUTH_TOKEN: TW_TOKEN, TWILIO_API_BASE: `http://localhost:${MOCK}`, GEMINI_API_KEY: '' };
 const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: 'ignore', shell: true, env });
@@ -88,6 +95,15 @@ check(/Genovus line/.test(t1) && /Proving/i.test(t1) && /Agencies can’t get nu
 await go('/console/clients/test-launch');
 check(/Offered after the Genovus line is proven/.test(await text()), 'agency phone panel: offered only after the Genovus line is proven');
 check(/Call tracking/.test(await text()) && /Growth option/.test(await text()), 'Modules list shows Call tracking as a Growth option');
+
+// Connect the number bought in Twilio (no copying URLs).
+await go('/console/prospects/calls');
+await ev(`(() => { const f = [...document.querySelectorAll('form')].find((x) => /connect a number you bought in Twilio/i.test(x.innerText)); const i = f.querySelector('input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, '(706) 555-0888'); i.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(() => f.requestSubmit(), 100); return true; })()`);
+for (let i = 0; i < 40 && !configured; i++) await sleep(250);
+await sleep(1500);
+const conn = must(await db.from('tracking_numbers').select('e164, twilio_sid, forward_to, label').eq('tenant_id', house.id).is('released_at', null), 'connected');
+check(configured && /\/api\/voice\/incoming$/.test(configured.VoiceUrl) && configured.VoiceMethod === 'POST' && configured.SmsUrl === '', `connecting re-points the number's calls to Genovus and turns off the demo text reply (${configured?.VoiceUrl})`);
+check(conn.length === 1 && conn[0].e164 === TN && conn[0].twilio_sid === 'PNhouse' && conn[0].forward_to === RINGS, 'the connected number is the Genovus line, ringing the saved phone');
 
 // 2. Calls to the Genovus line, exactly as Twilio sends them.
 const sign = (url, p) => createHmac('sha1', TW_TOKEN).update(url + Object.keys(p).sort().map((k) => k + p[k]).join('')).digest('base64');

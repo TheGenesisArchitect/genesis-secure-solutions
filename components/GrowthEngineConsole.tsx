@@ -94,6 +94,7 @@ export function GenovusLinePanel({ houseId, numbers, forward, proof, ready }: { 
   const [busy, setBusy] = useState(false);
   const [phone, setPhone] = useState(pretty(forward));
   const [area, setArea] = useState('');
+  const [mine, setMine] = useState('');
   const run = async (p: Promise<{ ok?: string; err?: string }>) => { setBusy(true); toast(await p); setBusy(false); router.refresh(); };
   const steps: [boolean, string][] = [
     [proof.numbers > 0, 'A Genovus number is live'],
@@ -126,6 +127,13 @@ export function GenovusLinePanel({ houseId, numbers, forward, proof, ready }: { 
           {!ready ? <span className="muted" style={{ fontSize: 12 }}>Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Vercel first.</span> : !forward ? <span className="muted" style={{ fontSize: 12 }}>Save the phone it rings first.</span> : null}
         </div>
       )}
+      {!numbers.length ? (
+        <form className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }} onSubmit={(e) => { e.preventDefault(); void run(buyTrackingNumber(houseId, 'Genovus line', 'genovus-line', '', mine)); }}>
+          <label className="field" style={{ width: 190 }}><span>Or connect a number you bought in Twilio</span><input className="input" value={mine} onChange={(e) => setMine(e.target.value)} placeholder="(555) 555-0100" inputMode="tel" /></label>
+          <button className="btn small" type="submit" disabled={busy || !ready || !forward || mine.replace(/\D/g, '').length < 10}>Connect it</button>
+          <span className="muted" style={{ fontSize: 12 }}>Genovus points its calls here and turns off Twilio’s demo replies; no copying URLs.</span>
+        </form>
+      ) : null}
     </div>
   );
 }

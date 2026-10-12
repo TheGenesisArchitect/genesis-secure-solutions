@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { requireStaff, getViewer } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
-import { buyLocalNumber, releaseNumber, twilioConfigured } from '@/lib/twilio';
+import { buyLocalNumber, connectExistingNumber, releaseNumber, twilioConfigured } from '@/lib/twilio';
 import { startRadar, runRadarSlice } from '@/lib/radar';
 import { placesConfigured } from '@/lib/places';
 import { easternIso } from '@/lib/agency-calendar';
@@ -43,7 +43,8 @@ export async function saveAgencyProfile(tenantId: string, p: { address: string; 
   return { ok: where ? 'Profile saved; the office is placed on the map.' : p.address ? 'Profile saved, but the address could not be placed. Check the street, city and ZIP.' : 'Profile saved.' };
 }
 
-export async function buyTrackingNumber(tenantId: string, label: string, source: string, areaCode: string): Promise<Out> {
+/** Buy a number (or, with `existingE164`, connect one already in the Twilio account) for this account. */
+export async function buyTrackingNumber(tenantId: string, label: string, source: string, areaCode: string, existingE164?: string): Promise<Out> {
   await requireStaff();
   if (!uuid.test(tenantId)) return { err: 'Unknown agency.' };
   if (!twilioConfigured()) return { err: 'Twilio is not connected yet: add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Vercel.' };
@@ -51,6 +52,8 @@ export async function buyTrackingNumber(tenantId: string, label: string, source:
   const admin = adminDb();
   const { data: t } = await admin.from('tenants').select('name, slug, plan').eq('id', tenantId).single();
   const house = t?.slug === HOUSE_SLUG;
+  const existing = existingE164 ? e164(existingE164) : null;
+  if (existingE164 && !existing) return { err: 'Enter the Twilio number as 10 digits.' };
   // Agencies get numbers only after the Genovus line has proven the whole chain, and only with the Call tracking option on.
   if (!house) {
     if (!(await phoneProof(admin)).proven) return { err: 'Prove the phone service on the Genovus line first (Enterprise → Call list → Genovus line): an answered, recorded call with Helix’s note, and a missed call.' };
@@ -61,11 +64,14 @@ export async function buyTrackingNumber(tenantId: string, label: string, source:
   const h = await headers();
   const origin = process.env.APP_ORIGIN || `https://${h.get('x-forwarded-host') ?? h.get('host')}`;
   try {
-    const n = await buyLocalNumber(/^\d{3}$/.test(areaCode) ? areaCode : prof.main_phone_e164.slice(2, 5), origin, `${t?.name ?? 'Agency'} · ${label}`);
+    const n = existing
+      ? await connectExistingNumber(existing, origin, `${t?.name ?? 'Agency'} · ${label}`)
+      : await buyLocalNumber(/^\d{3}$/.test(areaCode) ? areaCode : prof.main_phone_e164.slice(2, 5), origin, `${t?.name ?? 'Agency'} · ${label}`);
     const { error } = await admin.rpc('add_tracking_number', { p_tenant: tenantId, p_e164: n.e164, p_sid: n.sid, p_label: label, p_source: source, p_forward: prof.main_phone_e164 });
-    if (error) { await releaseNumber(n.sid); return { err: error.message }; }
+    // A number we bought is released if it can't be saved; a connected one stays in the account.
+    if (error) { if (!existing) await releaseNumber(n.sid); return { err: error.message.includes('duplicate') ? 'That number is already connected.' : error.message }; }
     revalidatePath('/', 'layout');
-    return { ok: house ? `Genovus line ready: ${n.e164}. Call it to start the proof.` : `Number ready: ${n.e164}. Calls forward to the office and land in Leads.` };
+    return { ok: house ? `Genovus line ${existing ? 'connected' : 'ready'}: ${n.e164}. Call it to start the proof.` : existing ? `Connected ${n.e164}: calls forward to the office and land in Leads.` : `Number ready: ${n.e164}. Calls forward to the office and land in Leads.` };
   } catch (e) {
     return { err: e instanceof Error ? e.message : 'Could not buy a number.' };
   }
