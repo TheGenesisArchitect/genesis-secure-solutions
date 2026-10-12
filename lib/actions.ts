@@ -477,6 +477,17 @@ export async function studioUpdateShotLog(_: ActionResult, f: FormData) {
   return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Shot log saved.');
 }
 
+/** StudioNext: the line read that goes into the edit and guides the take. */
+export async function studioChooseClip(_: ActionResult, f: FormData) {
+  return call('studio_choose_clip', { p_id: str(f, 'id', 64) }, 'Read picked: the next take performs to it.');
+}
+
+/** StudioNext: the voice a character speaks with on Runway (a preset with direction tags, or a designed voice). */
+export async function studioSetRunwayVoice(_: ActionResult, f: FormData) {
+  const engine = str(f, 'engine', 10);
+  return call('studio_set_runway_voice', { p_character: str(f, 'character', 64), p_engine: engine, p_voice: str(f, 'voice', 64), p_reason: str(f, 'reason', 300) }, engine === 'custom' ? 'Designed voice set: new line reads use it.' : 'Preset voice set: line reads follow the direction tags.');
+}
+
 /** StudioNext: a shot's performance direction (acting note, line read with [tags], camera), saved on the shot's log. */
 export async function studioSetShotDirection(_: ActionResult, f: FormData) {
   const log: Record<string, string> = {};

@@ -15,8 +15,10 @@ import type { ShotContract } from '@/lib/studio-direct';
 import { estimateEpisode, stageOf, STAGE_LABEL, type Stage } from '@/lib/studio-autopilot';
 import { adminDb } from '@/lib/supabase/admin';
 import { VIDEO_SECONDS, IMAGE_CENTS, generationConfigured, shotBudget, videoFor } from '@/lib/studio-gen';
-import { StudioHelix } from '@/components/studio/StudioHelix';
-import { ProductionBoard } from '@/components/studio/ProductionBoard';
+import { ProductionBoard, type BoardStudioData } from '@/components/studio/ProductionBoard';
+import { parseRead } from '@/lib/studio-read';
+import { runwayConfigured } from '@/lib/runway';
+import { defaultDirection } from '@/lib/studio-board';
 import { V2_EPISODES } from '@/lib/studio-board';
 
 export const dynamic = 'force-dynamic';
@@ -90,11 +92,51 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const isV2 = V2_EPISODES.has(e.code);
   const { data: boardCast } = isV2 ? await supabase.from('studio_characters').select('id, code, name, archetype, wardrobe, voice, profile').eq('status', 'active').order('sort') : { data: [] };
   const { data: lockRows } = isV2 ? await supabase.from('studio_refs').select('id, character_id').eq('approved', true).eq('slot', 'FACE_FRONT') : { data: [] };
+  // StudioNext generation state for the board: line reads, keyframes, takes, identity references, designed voices, score.
+  let studio: BoardStudioData | null = null;
+  if (isV2) {
+    const shotIds = (shots ?? []).map((s) => s.id as string);
+    const castIds = (boardCast ?? []).map((c) => c.id as string);
+    const [{ data: clipRows }, { data: refRows }, { data: boardTakes }] = await Promise.all([
+      supabase.from('studio_voice_clips').select('id, shot_id, character_id, kind, slot, status, approved, error, created_at').in('kind', ['line', 'design', 'score']).or(`shot_id.in.(${shotIds.join(',') || '00000000-0000-0000-0000-000000000000'}),character_id.in.(${castIds.join(',') || '00000000-0000-0000-0000-000000000000'})`).order('created_at', { ascending: false }),
+      supabase.from('studio_refs').select('id, character_id, slot, status, approved, created_at').in('character_id', castIds.length ? castIds : ['00000000-0000-0000-0000-000000000000']).in('slot', ['CASTING', 'FACE_FRONT']).order('created_at', { ascending: false }),
+      supabase.from('studio_takes').select('id, shot_id, kind, status, chosen, error, cost_cents, blob_path, created_at').in('shot_id', shotIds.length ? shotIds : ['00000000-0000-0000-0000-000000000000']).order('created_at', { ascending: false }),
+    ]);
+    type Clip = { id: string; shot_id: string | null; character_id: string | null; kind: string; slot: string; status: string; approved: boolean; error: string | null };
+    const clips = (clipRows ?? []) as Clip[];
+    const castList = (boardCast ?? []) as { id: string; code: string; name: string }[];
+    const lines = new Map<string, NonNullable<BoardStudioData['lines'] extends Map<string, infer V> ? V : never>>();
+    for (const s of shots ?? []) {
+      const read = (s.log as Record<string, string> | null)?.read ?? defaultDirection(e.code, s.n as number)?.read ?? '';
+      lines.set(s.id as string, parseRead(read, castList).map((l) => ({ slot: l.slot, speaker: l.speaker, text: l.text, reads: clips.filter((c) => c.kind === 'line' && c.shot_id === s.id && c.slot === l.slot).map((c) => ({ id: c.id, status: c.status, approved: c.approved, error: c.error })) })));
+    }
+    const identity = new Map<string, { state: 'locked' | 'casting' | 'pending' | 'none'; label: string; pendingRef?: string; img?: string }>();
+    for (const c of castList) {
+      const mine = (refRows ?? []).filter((r) => r.character_id === c.id);
+      const front = mine.find((r) => r.slot === 'FACE_FRONT' && r.approved);
+      const cast = mine.find((r) => r.slot === 'CASTING' && r.approved);
+      const pending = mine.find((r) => r.slot === 'CASTING' && !r.approved && r.status === 'ready');
+      identity.set(c.id, front ? { state: 'locked', label: 'Locked · approved front portrait', img: `/api/studio/media/ref/${front.id}` }
+        : cast ? { state: 'casting', label: 'Locked · official cast sheet', img: `/api/studio/media/ref/${cast.id}` }
+        : pending ? { state: 'pending', label: 'Cast sheet on file · approve to lock', pendingRef: pending.id as string }
+        : { state: 'none', label: 'No identity reference yet' });
+    }
+    const groupBy = <T extends { shot_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.shot_id) m.set(r.shot_id, [...(m.get(r.shot_id) ?? []), r]); return m; };
+    studio = {
+      ready: runwayConfigured(),
+      lines,
+      frames: groupBy((artRows ?? []).filter((a) => a.kind === 'frame' && a.role === 'start').map((a) => ({ id: a.id as string, shot_id: a.shot_id as string | null, status: a.status as string, chosen: a.chosen as boolean, error: a.error as string | null }))),
+      takes: groupBy((boardTakes ?? []).map((t) => ({ id: t.id as string, shot_id: t.shot_id as string, status: t.status as string, chosen: t.chosen as boolean, kind: t.kind as string, error: t.error as string | null, cost_cents: t.cost_cents as number, still: /\.(png|jpe?g)$/i.test(String(t.blob_path ?? '')) }))),
+      identity,
+      designs: new Map(castList.map((c) => [c.id, clips.filter((x) => x.kind === 'design' && x.character_id === c.id).map((x) => ({ id: x.id, status: x.status, approved: x.approved, error: x.error }))])),
+      score: clips.filter((x) => x.kind === 'score').map((x) => ({ id: x.id, status: x.status, error: x.error })),
+    };
+  }
   return (
-    <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]} actions={<StudioHelix focus={{ kind: 'episode', code: e.code, label: `the episode “${e.title}”` }} />}>
+    <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]}>
       <p className="soft">{e.logline}</p>
       {!V2_EPISODES.has(e.code) ? <div className="notice">Archived · made with the retired development cast (Maya, Trent and Bri). Kept for the record; the V2 cast is Marcus, Tasha and Julian.</div> : null}
-      {isV2 ? <ProductionBoard episode={{ id: e.id, code: e.code, title: e.title, kind: e.kind, runtime_s: e.runtime_s, status: e.status, final_blob: e.final_blob ?? null }} shots={(shots ?? []) as never} cast={(boardCast ?? []) as never} takes={((takeRows ?? []) as unknown as { id: string; shot_id: string; status: string; chosen: boolean | null }[])} lockedRefs={new Map((lockRows ?? []).map((r) => [r.character_id as string, r.id as string]))} /> : null}
+      {isV2 ? <ProductionBoard episode={{ id: e.id, code: e.code, title: e.title, kind: e.kind, runtime_s: e.runtime_s, status: e.status, final_blob: e.final_blob ?? null }} shots={(shots ?? []) as never} cast={(boardCast ?? []) as never} takes={((takeRows ?? []) as unknown as { id: string; shot_id: string; status: string; chosen: boolean | null }[])} lockedRefs={new Map((lockRows ?? []).map((r) => [r.character_id as string, r.id as string]))} studio={studio!} /> : null}
       <details className="engine-room" open={!isV2}><summary>{isV2 ? 'Engine room · script, format, shots, takes, final cut and posting' : 'Episode workspace'}</summary>
       {e.format === 'viral_fork' && e.fork_mode ? (
         <div className="fork-banner">

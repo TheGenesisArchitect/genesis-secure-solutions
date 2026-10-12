@@ -13,7 +13,7 @@ type Season = any;
 
 const KEY = 'studio_sync_hash';
 /** Bump when the sync logic itself changes, so production re-syncs even if the data file didn't. */
-const SYNC_VERSION = 4;
+const SYNC_VERSION = 5;
 
 export const seasonHash = (season: Season, cast: CastMember[] = [], castBible: unknown = null) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast)}:${JSON.stringify(castBible)}`).digest('hex').slice(0, 16);
 
@@ -43,11 +43,15 @@ export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember
 
   // The cast (data/studio-cast.json) syncs too, so a new canon reaches production with the release: the V2 cast
   // (Marcus, Tasha, Julian) active, earlier development characters kept as retired records.
+  // Voice decisions made in the Studio (locks, the Runway voice) live on the character and survive a sync.
+  const { data: castRows } = await db.from('studio_characters').select('code, voice');
+  const DECIDED = ['tts_voice', 'locked', 'method', 'locked_at', 'runway_engine', 'runway_design', 'runway_preset', 'runway_set_at'];
+  const decided = new Map((castRows ?? []).map((r) => [r.code as string, Object.fromEntries(Object.entries((r.voice ?? {}) as Record<string, unknown>).filter(([k]) => DECIDED.includes(k)))]));
   for (const m of cast as any[]) {
     must(await db.from('studio_characters').upsert({
       series_id: series.id, code: m.code, name: m.name, archetype: m.archetype, age: m.age, role: m.role, sort: m.sort,
       profile: { ...m.profile, signature_slot: m.signature_slot }, identity_prompt: m.identity_prompt, visual_anchors: m.visual_anchors,
-      wardrobe: m.wardrobe, voice: m.voice, status: m.status === 'retired' ? 'retired' : 'active',
+      wardrobe: m.wardrobe, voice: { ...m.voice, ...(decided.get(m.code) ?? {}) }, status: m.status === 'retired' ? 'retired' : 'active',
     }, { onConflict: 'code' }), `character ${m.code}`);
   }
 
@@ -60,7 +64,7 @@ export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember
       const prompt = sh.contract && S.series.genome ? compileVideo(sh.contract, S.series.genome, cast, aspect) : sh.prompt ?? null;
       const dialogue = sh.dialogue ?? (sh.lines?.length ? sh.lines.map((l: { who: string; text: string }) => `${l.who.replace(/\d+$/, '')}: ${l.text}`).join(' / ') : null);
       const saved = must(await db.from('studio_shots').upsert({ episode_id: ep.id, n: sh.n, timing: sh.timing ?? null, description: sh.description, camera: sh.camera ?? sh.log?.camera ?? null, dialogue, prompt, tool: sh.tool, contract: sh.contract ?? {}, tier: sh.tier ?? 'production',
-        shot_code: sh.shot_code ?? null, beat: sh.beat ?? null, shot_kind: sh.shot_kind ?? null, cast_codes: sh.cast_codes ?? [], lines: sh.lines ?? [] }, { onConflict: 'episode_id,n' }).select('id').single(), `shot ${e.code}/${sh.n}`) as { id: string };
+        shot_code: sh.shot_code ?? null, beat: sh.beat ?? null, shot_kind: sh.shot_kind ?? null, cast_codes: sh.cast_codes ?? [], lines: sh.lines ?? [], capture: sh.capture ?? null }, { onConflict: 'episode_id,n' }).select('id').single(), `shot ${e.code}/${sh.n}`) as { id: string };
       // The shot log is a working record: only filled when still empty, so edits made in the Studio survive a reload.
       if (sh.log) await db.from('studio_shots').update({ log: sh.log }).eq('id', saved.id).eq('log', '{}');
       shots++;

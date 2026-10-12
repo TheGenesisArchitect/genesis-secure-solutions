@@ -57,3 +57,26 @@ export function runwayPerformance(p: { character: { type: 'image' | 'video'; uri
 export function runwaySpeech(p: { text: string; voice: { type: 'runway-preset'; presetId: string } | { type: string; id: string }; previousText?: string; nextText?: string; seed?: number }) {
   return call<{ id: string }>('/text_to_speech', { body: { model: 'eleven_v4', promptText: p.text, voice: p.voice, ...(p.previousText ? { previousText: p.previousText } : {}), ...(p.nextText ? { nextText: p.nextText } : {}), ...(p.seed != null ? { seed: p.seed } : {}) } });
 }
+
+/** A line read in a designed (custom) voice: Seed Audio speaking in the voice of a reference clip. It takes plain
+ *  text (no audio tags) plus speed and pitch, so direction tags are stripped before the call. */
+export function runwayCustomSpeech(p: { text: string; voiceClip: string; speechRate?: number }) {
+  return call<{ id: string }>('/text_to_speech', { body: { model: 'seed_audio', promptText: p.text, voice: { type: 'reference-audio', audioUri: p.voiceClip }, outputFormat: 'mp3', ...(p.speechRate != null ? { speechRate: p.speechRate } : {}) } });
+}
+
+/** Voice design: a sample of a new voice from a description (at least 20 characters). Synchronous; the URL lasts 24 h. */
+export function runwayVoicePreview(prompt: string) {
+  return call<{ url: string; durationSecs: number }>('/voices/preview', { body: { model: 'eleven_ttv_v3', prompt } });
+}
+
+/** Text to audio (Seed Audio): a scene description with music, effects or voice. Used for the original score. */
+export function runwaySound(p: { prompt: string; references?: string[] }) {
+  return call<{ id: string }>('/sound_effect', { body: { model: 'seed_audio', promptText: p.prompt, outputFormat: 'mp3', ...(p.references?.length ? { referenceAudios: p.references } : {}) } });
+}
+
+/** Seedance 2.5 with audio references (the shot's line reads) so performance and lip movement follow the read. */
+export function runwaySeedance(p: { images: Img[]; prompt: string; ratio: string; duration: number; audio?: boolean; audioRefs?: string[]; seed?: number }) {
+  return call<{ id: string }>('/image_to_video', { body: { model: 'seedance2_5', promptImage: p.images, promptText: p.prompt, ratio: p.ratio, duration: p.duration, audio: p.audio ?? false, ...(p.audioRefs?.length ? { referenceAudio: p.audioRefs.map((uri) => ({ type: 'audio', uri })) } : {}), ...(p.seed != null ? { seed: p.seed } : {}) } });
+}
+
+export type RunwayDoneTask = RunwayTask & { cost?: { credits: number } };

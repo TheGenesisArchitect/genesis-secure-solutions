@@ -2789,6 +2789,22 @@
           "direction": {
             "acting": "Julian dry; Tasha plain and certain",
             "read": "JULIAN: [dry] Nobody missed them. · TASHA: [plain] She doesn’t need more leads. [quiet] She needs someone answering at seven p.m."
+          },
+          "capture": {
+            "device": "phone",
+            "note": "Record on a phone in portrait with screen recording on, or take screenshots. Use test calls and test notes only: never show a real caller’s name or number on camera.",
+            "steps": [
+              {
+                "label": "The Genovus line: calls with Helix’s notes",
+                "route": "/console/prospects/calls",
+                "action": "Scroll slowly from the newest call to its Helix note."
+              },
+              {
+                "label": "Ask Helix answers",
+                "route": "/console",
+                "action": "Tap Ask Helix and ask: “Who should I call first?” Hold on the answer for three seconds."
+              }
+            ]
           }
         },
         {

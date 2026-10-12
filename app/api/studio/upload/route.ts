@@ -19,9 +19,11 @@ export async function POST(req: Request) {
         // Creators' written permissions (Trend Remix licenses) are documents; everything else is video.
         const rights = /^studio\/rights\/[A-Za-z0-9._/-]+\.(pdf|png|jpe?g)$/i.test(pathname);
         const casting = /^studio\/casting\/[A-Za-z0-9._/-]+\.(png|jpe?g|webp)$/i.test(pathname);
-        if (!rights && !casting && !/^studio\/(uploads|finals)\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/.test(pathname)) throw new Error('Upload an .mp4, .mov or .webm video.');
+        // Capture shots also take phone screenshots (StudioNext): a still of the real screen is a valid capture.
+        const still = /^studio\/uploads\/[A-Za-z0-9._/-]+\.(png|jpe?g)$/i.test(pathname);
+        if (!rights && !casting && !still && !/^studio\/(uploads|finals)\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/.test(pathname)) throw new Error('Upload an .mp4, .mov or .webm video, or a screenshot.');
         return {
-          allowedContentTypes: rights ? ['application/pdf', 'image/png', 'image/jpeg'] : casting ? ['image/png', 'image/jpeg', 'image/webp'] : ['video/mp4', 'video/quicktime', 'video/webm'],
+          allowedContentTypes: rights ? ['application/pdf', 'image/png', 'image/jpeg'] : still ? ['image/png', 'image/jpeg'] : casting ? ['image/png', 'image/jpeg', 'image/webp'] : ['video/mp4', 'video/quicktime', 'video/webm'],
           maximumSizeInBytes: 300 * 1024 * 1024,
           addRandomSuffix: true,
         };

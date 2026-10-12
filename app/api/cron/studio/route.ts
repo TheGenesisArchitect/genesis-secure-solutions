@@ -5,6 +5,7 @@ import { adminDb } from '@/lib/supabase/admin';
 import { cronAuthorized } from '@/lib/cron';
 import { pollTake, drainVeoQueue, generationConfigured } from '@/lib/studio-gen';
 import { syncStudioIfChanged } from '@/lib/studio-sync';
+import { pollRunwayJobs } from '@/lib/studio-runway';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
 
@@ -16,9 +17,12 @@ export async function GET(req: Request) {
   const db = adminDb();
   let sync: Awaited<ReturnType<typeof syncStudioIfChanged>> | { error: string };
   try { sync = await syncStudioIfChanged(db, season, castData.characters as never, castData.bible); if (sync.synced) console.log(`[studio-sync] ${sync.hash}: ${sync.summary}`); } catch (e) { sync = { error: e instanceof Error ? e.message : 'sync failed' }; console.error(`[studio-sync] ${'error' in sync ? sync.error : ''}`); }
-  if (!generationConfigured()) return Response.json({ sync, skipped: 'no Gemini key' });
+  // Runway jobs (StudioNext line reads, keyframes, takes, score) finish here even when the board is closed.
+  let runway: Record<string, number> | { error: string } = {};
+  try { runway = await pollRunwayJobs(); } catch (e) { runway = { error: e instanceof Error ? e.message : 'runway poll failed' }; }
+  if (!generationConfigured()) return Response.json({ sync, runway, skipped: 'no Gemini key' });
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.
-  const { data: running } = await db.from('studio_takes').select('id').or('status.eq.running,and(status.eq.queued,params->>waiting_since.is.null)').order('created_at').limit(10);
+  const { data: running } = await db.from('studio_takes').select('id').not('model', 'like', 'runway:%').or('status.eq.running,and(status.eq.queued,params->>waiting_since.is.null)').order('created_at').limit(10);
   const results: Record<string, number> = {};
   for (const t of running ?? []) {
     const r = await pollTake(t.id);
@@ -26,5 +30,5 @@ export async function GET(req: Request) {
   }
   // Start queued takes as the Veo rate limits allow (and quota backstop retries when due).
   const queue = await drainVeoQueue();
-  return Response.json({ sync, checked: running?.length ?? 0, results, queue });
+  return Response.json({ sync, runway, checked: running?.length ?? 0, results, queue });
 }

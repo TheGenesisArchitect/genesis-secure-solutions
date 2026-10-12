@@ -10,7 +10,6 @@ import { db } from '@/lib/supabase/server';
 import { resetDemoFollowUps, studioSetBudget, studioSetVeoLimits, studioSaveSource } from '@/lib/actions';
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { IMAGE_CENTS, generationConfigured, veoRoom, HERO_VIDEO_MODEL } from '@/lib/studio-gen';
-import { StudioHelix } from '@/components/studio/StudioHelix';
 import { StudioHome, type HomeEpisode } from '@/components/studio/StudioHome';
 import { V2_EPISODES } from '@/lib/studio-board';
 import { runwayConfigured, runwayOrganization, CREDIT_CENTS } from '@/lib/runway';
@@ -62,7 +61,7 @@ export default async function Studio() {
   const tourBy = (s: string) => (tours ?? []).filter((t) => t.src === s).length;
   const inqBy = (s: string) => (inq ?? []).filter((i) => i.source === s).length;
   return (
-    <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]} actions={<StudioHelix focus={{ kind: 'home', label: 'the Studio' }} />}>
+    <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]}>
       {series ? (
         <>
           <StudioHome episodes={(eps ?? []) as HomeEpisode[]} covers={coverFor} featured="gjk-h01" current={V2_EPISODES} progress={new Map((eps ?? []).map((e) => { const s = (shots ?? []).filter((x) => x.episode_id === e.id); return [e.id, { done: s.filter((x) => x.status === 'approved' || x.status === 'take_ok').length, total: s.length }]; }))} />

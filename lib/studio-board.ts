@@ -34,8 +34,15 @@ export function shotSeconds(timing: string | null | undefined): number {
   return Math.max(0, (Number(m[3]) * 60 + Number(m[4])) - (Number(m[1]) * 60 + Number(m[2])));
 }
 
+/** Seconds a take is generated (and billed) for: the shot inside each engine's range (Seedance 4–15 s, Gen-4.5 2–10 s). */
+export function billedSeconds(tier: string | null | undefined, timing: string | null | undefined) {
+  const s = Math.max(1, Math.ceil(shotSeconds(timing)));
+  return tier === 'hero' ? Math.min(15, Math.max(4, s)) : Math.min(10, Math.max(2, s));
+}
+
 // Runway's published "from" prices (docs.dev.runwayml.com/guides/models, Oct 2026), in cents.
-export const PRICE = { seedancePerSec: 20, gen45PerSec: 12, actTwoPerSec: 5, keyframe: 5, lineRead: 3, soundEffect: 5 };
+// Gen-4 Image at 1080p is 8 credits; line reads are estimated at 3 credits and replaced by Runway's final cost.
+export const PRICE = { seedancePerSec: 20, gen45PerSec: 12, actTwoPerSec: 5, keyframe: 8, lineRead: 3, soundEffect: 5 };
 export type Engine = { model: string; label: string; perSec: number; takes: number };
 /** Which engine a shot uses: hero shots on Seedance 2.5 (2 takes), production shots on Gen-4.5 (2 takes). */
 export function engineFor(tool: string, tier: string | null | undefined): Engine | null {
@@ -45,9 +52,8 @@ export function engineFor(tool: string, tier: string | null | undefined): Engine
 export type ShotCost = { video: number; keyframes: number; voice: number; total: number };
 export function shotCost(s: { tool: string; tier?: string | null; timing?: string | null; dialogue?: string | null }, lines: number): ShotCost {
   const eng = engineFor(s.tool, s.tier);
-  const secs = shotSeconds(s.timing);
-  const video = eng ? Math.round(secs * eng.perSec * eng.takes) : 0;
-  const keyframes = eng ? 4 * PRICE.keyframe : 0;
-  const voice = lines * 3 * PRICE.lineRead;
+  const video = eng ? Math.round(billedSeconds(s.tier, s.timing) * eng.perSec * eng.takes) : 0;
+  const keyframes = eng ? 2 * PRICE.keyframe : 0;
+  const voice = eng ? lines * 2 * PRICE.lineRead : 0;
   return { video, keyframes, voice, total: video + keyframes + voice };
 }

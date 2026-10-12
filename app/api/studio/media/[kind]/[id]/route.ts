@@ -6,7 +6,7 @@ import { db } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 const NO = (status: number) => new Response(status === 404 ? 'Not found' : 'Sign in required', { status, headers: { 'Cache-Control': 'no-store' } });
-const TYPE: Record<string, string> = { wav: 'audio/wav', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+const TYPE: Record<string, string> = { wav: 'audio/wav', mp3: 'audio/mpeg', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
 
 export async function GET(req: Request, ctx: { params: Promise<{ kind: string; id: string }> }) {
   const { kind, id } = await ctx.params;

@@ -136,12 +136,13 @@ check(setups.length === b0 && /Voice is off/.test(await ev(`document.querySelect
 await ev(`[...document.querySelectorAll('.hx-bar button')].find((b) => b.textContent.trim() === 'Talk')?.click()`);
 check((await minted(b0)) === 1 && await ev(`localStorage.getItem('helix-voice') === 'on'`), 'Talk starts voice again and turns it back on');
 await ev(`document.querySelector('.helix-drawer button[aria-label="Close Helix"]').click()`); await sleep(300);
-// Studio: the header Ask Helix is the same panel; its voice is the Studio voice.
+// Studio: the one Ask Helix (the same button as every page) uses the Studio voice there.
 await go('/console/studio');
 b0 = setups.length;
-await ev(`document.querySelector('.ask-egg-pill')?.click()`);
+check(!(await ev(`!!document.querySelector('.topbar .ask-egg-pill')`)), 'the Studio has one Ask Helix (no second header button)');
+await ev(`document.querySelector('.helix-fab')?.click()`);
 const n1 = await minted(b0);
-check(n1 === 1 && await ev(`!!document.querySelector('.helix-drawer .hx-bar')`) && !/SPEND METERS/.test(sys(setups.at(-1))), 'Studio: the header Ask Helix opens the same panel, listening with the Studio voice (one session)');
+check(n1 === 1 && await ev(`!!document.querySelector('.helix-drawer .hx-bar')`) && !/SPEND METERS/.test(sys(setups.at(-1))), 'Studio: Ask Helix opens the same panel, listening with the Studio voice (one session)');
 check(await ev(`!document.querySelector('.helix-drawer')?.closest('.topbar')`), 'the panel overlays the page (not inside the header)');
 await shot('voice-studio');
 // Full Ask Helix page: the same voice bar, Talk to start.

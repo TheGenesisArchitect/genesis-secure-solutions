@@ -7,6 +7,7 @@ import { get, put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
 import season from '@/data/studio-season1.json';
+import { pollRunwayJobs } from '@/lib/studio-runway';
 
 const BASE = () => (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
 const KEY = () => (process.env.GEMINI_API_KEY || '').trim();
@@ -351,6 +352,12 @@ export async function pollTake(id: string): Promise<{ status: string; error?: st
   const db = adminDb();
   const { data: t } = await db.from('studio_takes').select('*').eq('id', id).single();
   if (!t) return { status: 'missing' };
+  // Runway takes (StudioNext) finish through the Runway poller.
+  if (String(t.model ?? '').startsWith('runway:')) {
+    if (t.status === 'running') await pollRunwayJobs(t.shot_id);
+    const { data: fresh } = await db.from('studio_takes').select('status, error').eq('id', id).single();
+    return { status: fresh?.status ?? t.status, error: fresh?.error ?? undefined };
+  }
   if (t.status !== 'running' || !t.operation) {
     if (t.status === 'queued' && !(t.params as { waiting_since?: string } | null)?.waiting_since && Date.now() - new Date(t.created_at).getTime() > 10 * 60_000) {
       await db.from('studio_takes').update({ status: 'failed', error: 'Never started.', cost_cents: 0, updated_at: now() }).eq('id', id);
