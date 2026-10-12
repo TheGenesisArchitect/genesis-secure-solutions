@@ -62,6 +62,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
 
   const ws = useRef<WebSocket | null>(null);
   const session = useRef<{ id: string; started: number; max: number } | null>(null);
+  const diag = useRef({ msgs: 0, audio: 0, live: false, code: 0, reason: '', error: '', mic: false });
   const micCtx = useRef<AudioContext | null>(null);
   const micStream = useRef<MediaStream | null>(null);
   const outCtx = useRef<AudioContext | null>(null);
@@ -152,8 +153,14 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     const raw = typeof ev.data === 'string' ? ev.data : await (ev.data as Blob).text();
     let m: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     try { m = JSON.parse(raw); } catch { return; }
+    diag.current.msgs++;
+    if (m.serverContent?.modelTurn?.parts?.some((p: { inlineData?: unknown }) => p.inlineData)) diag.current.audio++;
+    if (m.error) { diag.current.error = String(m.error.message ?? JSON.stringify(m.error)).slice(0, 300); setErr(`Helix had a problem: ${diag.current.error}`); }
     if (m.setupComplete) {
       setPhase('live');
+      diag.current.live = true;
+      // If Helix says nothing within 12 seconds, say so instead of sitting silently.
+      setTimeout(() => { if (session.current && diag.current.audio === 0) setErr('Helix hasn’t answered yet. Say hello, or tap Voice off and Talk to reconnect.'); }, 12000);
       send({ realtimeInput: { text: ask ? `The person just opened voice Ask Helix${where ? ` on ${where}` : ''}. Greet them in one short sentence and ask what they need. Don't summarize the brief unless asked.` : context !== 'tour' ? `The Studio team just opened Ask Helix${focus?.label ? ` on ${focus.label}` : ' on the Character Bible'}. Greet them in one sentence, mention what is on screen, and ask what they want to work on.` : `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
       return;
     }
@@ -213,6 +220,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const s = await r.json();
       if (!r.ok) throw new Error(s.error ?? 'Helix could not start.');
       session.current = { id: s.sessionId, started: Date.now(), max: s.maxSeconds };
+      diag.current = { msgs: 0, audio: 0, live: false, code: 0, reason: '', error: '', mic: micOnRef.current };
       tokens.current = 0;
       setStaff(Boolean(s.staff));
       setVoice(s.voice ?? '');
@@ -221,7 +229,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       sock.onopen = () => send({ setup: s.setup });
       sock.onmessage = onMessage;
       sock.onerror = () => setErr('The voice connection had a problem.');
-      sock.onclose = (e) => { if (session.current) end(e.code === 1000 ? (convo ? 'Conversation ended.' : 'Tour ended.') : `Voice connection closed${e.reason ? `: ${e.reason}` : ''}.`); };
+      sock.onclose = (e) => { diag.current.code = e.code; diag.current.reason = e.reason; if (session.current) end(e.code === 1000 && diag.current.audio ? (convo ? 'Conversation ended.' : 'Tour ended.') : `Voice connection closed (${e.code}${e.reason ? `: ${e.reason}` : ''}). Tap Talk to try again.`); };
     } catch (e) {
       setPhase('error'); setErr(e instanceof Error ? e.message : 'Helix could not start.');
       cleanup();
@@ -240,7 +248,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     session.current = null;
     cleanup(); setSpot(null);
     setPhase('ended'); if (why) setErr(why);
-    if (s) fetch('/api/helix/session', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: s.id, seconds: (Date.now() - s.started) / 1000, tokens: tokens.current }) }).catch(() => {});
+    if (s) fetch('/api/helix/session', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: s.id, seconds: (Date.now() - s.started) / 1000, tokens: tokens.current, diag: { ...diag.current, why: why ?? '' } }) }).catch(() => {});
     if (s) setTimeout(() => refreshNotes(s.id), 500);
   };
   useEffect(() => () => { if (session.current) end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -337,7 +345,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
           </div>
         ) : null}
         {notes.length ? <p className="hx-bar-note">{notes.length === 1 ? 'Sent 1 note' : `Sent ${notes.length} notes`} to the team (Helix notes).</p> : null}
-        {err && phase !== 'ended' ? <p className="hx-err">{err}</p> : null}
+        {err && (phase !== 'ended' || !/^(Conversation|Tour) ended\.$/.test(err)) ? <p className="hx-err">{err}</p> : null}
       </div>
     );
   }

@@ -116,8 +116,10 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const { sessionId, seconds, tokens } = (await req.json().catch(() => ({}))) as { sessionId?: string; seconds?: number; tokens?: number };
+  const { sessionId, seconds, tokens, diag } = (await req.json().catch(() => ({}))) as { sessionId?: string; seconds?: number; tokens?: number; diag?: Record<string, unknown> };
   if (!sessionId || !/^[0-9a-f-]{36}$/.test(sessionId)) return Response.json({ ok: false }, { status: 400 });
+  // How the voice session ended (close code, Gemini's reason, whether audio ever came back), for diagnosis in the logs.
+  if (diag) console.info(`[helix] session ${sessionId.slice(0, 8)} ended after ${Math.round(Number(seconds) || 0)}s: ${JSON.stringify(diag).slice(0, 600)}`);
   await adminDb().from('helix_tour_sessions').update({ ended_at: new Date().toISOString(), seconds: Math.max(0, Math.min(SESSION_SECONDS + 120, Math.round(Number(seconds) || 0))), tokens: Math.max(0, Math.round(Number(tokens) || 0)) || null }).eq('id', sessionId).is('ended_at', null);
   return Response.json({ ok: true });
 }
