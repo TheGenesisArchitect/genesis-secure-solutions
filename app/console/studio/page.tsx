@@ -76,7 +76,7 @@ export default async function Studio() {
             <Tile label="Helix tours from the campaign" value={<span className="num">{tours?.length ?? 0}</span>} hint={`${inq?.length ?? 0} inquiries credited`} />
           </div>
           <div className="grid g4">
-            <Tile label="Runway engine" value={!runway ? 'Not connected' : runway.ok ? <span className="num">{runway.credits.toLocaleString('en-US')}</span> : 'Key refused'} hint={!runway ? 'Add the Runway key in Vercel' : runway.ok ? `credits left · about ${money(runway.credits * CREDIT_CENTS)} · Seedance 2.5, Gen-4.5, Act-Two, ElevenLabs v4` : runway.error} />
+            <Tile label="Runway engine" value={!runway ? 'Not connected' : runway.ok ? <span className="num">{runway.credits.toLocaleString('en-US')}</span> : 'Key refused'} hint={!runway ? 'Add Genovus_Runway_API_Key in Vercel' : runway.ok ? `credits left · about ${money(runway.credits * CREDIT_CENTS)} · Seedance 2.5, Gen-4.5, Act-Two, ElevenLabs v4` : runway.error} />
           </div>
 
           <section className="gallery" aria-label="Season 1 gallery">

@@ -5,15 +5,15 @@
 // Every generation goes through the Studio budget before it is started (lib/studio-engines, next step).
 import 'server-only';
 
-// The operator saved the key as Genovus_Runway_API_Key; RUNWAYML_API_SECRET (Runway's own name) also works.
-const KEY = () => (process.env.RUNWAYML_API_SECRET || process.env.Genovus_Runway_API_Key || '').trim();
+// The key lives in Vercel as Genovus_Runway_API_Key (RUNWAYML_API_SECRET, Runway's own name, is a fallback).
+const KEY = () => (process.env.Genovus_Runway_API_Key || process.env.RUNWAYML_API_SECRET || '').trim();
 const BASE = () => (process.env.RUNWAY_API_BASE || 'https://api.dev.runwayml.com/v1').replace(/\/$/, '');
 export const runwayConfigured = () => Boolean(KEY());
 /** Runway sells API credits at one cent each. */
 export const CREDIT_CENTS = 1;
 
 async function call<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  if (!runwayConfigured()) throw new Error('Runway is not connected (RUNWAYML_API_SECRET).');
+  if (!runwayConfigured()) throw new Error('Runway is not connected (Genovus_Runway_API_Key in Vercel).');
   const res = await fetch(`${BASE()}${path}`, {
     method: init.method ?? (init.body ? 'POST' : 'GET'),
     headers: { authorization: `Bearer ${KEY()}`, 'x-runway-version': '2024-11-06', ...(init.body ? { 'content-type': 'application/json' } : {}) },
