@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { Panel } from '@/components/ui';
 import { HelixTabs } from '@/components/HelixTabs';
-import { AskHelixEnterprise } from '@/components/EnterpriseHelix';
+import { AskHelixEnterprise, EnterpriseVoice } from '@/components/EnterpriseHelix';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { canSeeMoney } from '@/lib/helix-enterprise';
@@ -24,6 +24,7 @@ export default async function AskHelixPage() {
       <HelixTabs current="ask" />
       <div className="grid g2" style={{ alignItems: 'start', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)' }}>
         <Panel title="Helix Knows" sub="The copilot that knows Genovus better over time">
+          <EnterpriseVoice path="/console/helix/ask" where="the full Ask Helix page" />
           <AskHelixEnterprise suggest={money
             ? ['How is the business doing this month?', 'Where is margin leaking, and what fixes it?', 'Which department needs attention this week?', 'What would grow MRR fastest?']
             : ['What should the team do first today?', 'Which department needs attention this week?', 'Who called the Genovus line and what did they want?', 'Which client needs us most?']} />

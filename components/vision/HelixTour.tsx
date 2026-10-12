@@ -18,9 +18,11 @@ const KIND_LABEL: Record<string, string> = { idea: 'Idea', action_item: 'Action 
 const BARGE_IN = 0.08;
 const b64 = (buf: ArrayBuffer) => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 
-/** `context`: the vision tour (default), Ask Helix in the Studio, or voice Ask Helix on the Enterprise console or an
- *  agency dashboard (`slug`). `floating`: show the launch pill (otherwise open it with `openEvent`). */
-export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string } = {}) {
+/** `context`: the vision tour (default), the Studio, or Ask Helix on the Enterprise console or an agency dashboard
+ *  (`slug`). `floating`: show the tour's launch pill (otherwise open it with `openEvent`). `embedded`: the voice bar
+ *  inside Ask Helix (one Ask Helix: voice and typing in the same panel); `autoStart` begins listening when it opens
+ *  unless the person turned voice off on this device. */
+export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where, embedded, autoStart }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string; embedded?: boolean; autoStart?: boolean } = {}) {
   const ask = context === 'enterprise' || context === 'agency';
   const convo = context !== 'tour'; // Studio and Ask Helix: a conversation, not the guided tour
   const [mounted, setMounted] = useState(false);
@@ -299,6 +301,39 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     return () => window.removeEventListener(openEvent, open);
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Embedded in Ask Helix: start listening when Ask Helix opens (unless voice was turned off on this device).
+  const voicePref = (v?: 'on' | 'off') => { try { if (v) localStorage.setItem('helix-voice', v); return localStorage.getItem('helix-voice') ?? 'on'; } catch { return 'on'; } };
+  // Once per opening (a ref, so React's development double-mount can't start two sessions).
+  const autoStarted = useRef(false);
+  useEffect(() => { if (embedded && autoStart && !autoStarted.current && voicePref() !== 'off') { autoStarted.current = true; void start(); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (embedded) {
+    const heardLine = heard || [...lines].reverse().find((l) => l.who === 'you')?.text || '';
+    const saidLine = caption || [...lines].reverse().find((l) => l.who === 'helix')?.text || '';
+    return (
+      <div className={'hx-bar' + (live ? ' live' : '') + (speaking ? ' speaking' : '')} aria-live="polite">
+        <div className="hx-bar-row">
+          <span className={'hx-orb' + (speaking || phase === 'connecting' ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
+          <span className="hx-bar-status">
+            <b>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Helix is speaking' : micOn ? 'Listening' : 'Muted') : 'Voice is off'}</b>
+            <small>{phase === 'live' ? (speaking ? 'Interrupt any time, or type below' : micOn ? 'Speak, or type below' : 'Type below, or unmute') : phase === 'connecting' ? 'Allow the microphone if your browser asks' : 'Type below, or tap Talk'}</small>
+          </span>
+          {phase === 'live' ? <span className="hx-timer" title="Session time left">{mm}</span> : null}
+          {phase === 'live' ? <button type="button" className={'hx-ic' + (micOn ? '' : ' off')} onClick={toggleMic} aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}><span className="hx-level" style={{ transform: `scaleY(${micOn ? Math.min(1, 0.15 + level * 3) : 0.1})` }} />{micOn ? 'Mute' : 'Unmute'}</button> : null}
+          {live
+            ? <button type="button" className="hx-ic" onClick={() => { voicePref('off'); end(); }}>Voice off</button>
+            : <button type="button" className="btn small primary" onClick={() => { voicePref('on'); void start(); }}>Talk</button>}
+        </div>
+        {live && (heardLine || saidLine) ? (
+          <div className="hx-bar-lines">
+            {heardLine ? <p className="hx-line you"><span>You</span>{heardLine}</p> : null}
+            {saidLine ? <p className="hx-line helix"><span>Helix</span>{saidLine}</p> : null}
+          </div>
+        ) : null}
+        {notes.length ? <p className="hx-bar-note">{notes.length === 1 ? 'Sent 1 note' : `Sent ${notes.length} notes`} to the team (Helix notes).</p> : null}
+        {err && phase !== 'ended' ? <p className="hx-err">{err}</p> : null}
+      </div>
+    );
+  }
   // Rendered on <body>, above everything: a header or panel with a blur or transform would otherwise trap the
   // fixed-position dock inside itself.
   if (!mounted) return null;

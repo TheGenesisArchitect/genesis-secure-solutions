@@ -3,7 +3,7 @@
 //  2. Enterprise voice gets the same brief and hard lines as typed Ask Helix (Finance only for money roles)
 //  3. agency voice gets that agency's brief only
 //  4. a note Helix takes by voice lands in Helix notes as Ask Helix, tagged with the account, waiting for review
-//  5. the Talk button is on every Enterprise page (Prospects included) and in agency dashboards, and opens voice
+//  5. one Ask Helix button everywhere: opening it starts listening, in the same panel as typing (Studio: Studio voice)
 // Cleans up its own sessions, notes, grant and temporary operator at the end.
 //   node --env-file=.env.local scripts/verify-helix-voice.mjs [outDir]
 import fs from 'node:fs';
@@ -45,9 +45,11 @@ must(await db.from('staff').insert({ user_id: ops.id, role: 'operator', display_
 const setups = [];
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (d) => (body += d)); req.on('end', () => {
+    res.setHeader('content-type', 'application/json');
+    // Typed Ask Helix answers come here too (same stand-in base): answer them, but only count voice token requests.
+    if (!req.url.includes('auth_tokens')) return res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ answer: 'Verify typed answer.', followUps: [], drafts: [], remember: [] }) }] } }] }));
     const j = JSON.parse(body || '{}');
     setups.push(j.bidiGenerateContentSetup ?? null);
-    res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ name: 'auth_tokens/verify' }));
   });
 }).listen(MOCK);
@@ -105,38 +107,51 @@ const as = setups.at(-1);
 const arow = must(await db.from('helix_tour_sessions').select('context, tenant_id').eq('id', a1.j.sessionId).single(), 'agency session');
 check(a1?.s === 200 && /LINES THIS AGENCY SELLS/.test(sys(as)) && !/FINANCE \(last 6 months/.test(sys(as)) && arow.tenant_id === agency.id, 'agency voice reads only that agency’s brief');
 
-// The Talk button everywhere, and it opens voice.
-for (const p of ['/console', '/console/prospects', '/console/prospects/calls', '/console/growth', '/console/clients/test-launch', '/console/helix/ask']) {
+// One Ask Helix: the same egg button everywhere; opening it starts listening (voice and typing in one panel).
+const minted = async (before) => { for (let i = 0; i < 40 && setups.length === before; i++) await sleep(250); await sleep(600); return setups.length - before; };
+for (const p of ['/console', '/console/prospects', '/console/prospects/calls', '/console/growth', '/console/clients/test-launch']) {
   await go(p);
-  check(await ev(`!!document.querySelector('.helix-talk')`), `Talk button on ${p}`);
+  check(await ev(`!!document.querySelector('.helix-fab') && !document.querySelector('.helix-talk')`), `one Ask Helix button on ${p} (no separate Talk button)`);
 }
+await ev(`localStorage.removeItem('helix-voice')`);
 await go('/console/prospects');
-const before = setups.length;
-await ev(`document.querySelector('.helix-talk').click()`);
-for (let i = 0; i < 40 && setups.length === before; i++) await sleep(250);
-await sleep(800);
-check(setups.length > before && await ev(`!!document.querySelector('.hx-dock')`), 'on Prospects, Talk starts a voice session and opens the voice dock');
+let b0 = setups.length;
+await ev(`document.querySelector('.helix-fab').click()`);
+check((await minted(b0)) === 1 && await ev(`!!document.querySelector('.helix-drawer .hx-bar')`) && !(await ev(`!!document.querySelector('.hx-dock')`)), 'Prospects: Ask Helix opens one panel and starts listening (voice bar inside it, no separate dock)');
+check(!/SPEND METERS/.test('') && /SALES/.test(sys(setups.at(-1))), 'the voice is Enterprise Helix');
 await shot('voice-prospects');
-check(await ev(`!document.querySelector('.hx-dock')?.closest('.topbar, main')`), 'the voice dock sits above the page (not trapped in the header or page frame)');
-// Studio: the header Ask Helix opens the same drawer; Talk starts the Studio voice; the dock overlays the page.
+// Asking about an item answers in text; it doesn't start voice on top.
+await ev(`document.querySelector('.helix-drawer button[aria-label="Close Helix"]').click()`); await sleep(400);
+b0 = setups.length;
+await ev(`window.dispatchEvent(new CustomEvent('genovus:helix', { detail: { question: 'Who should we call first?', context: 'a prospect' } }))`);
+await sleep(2500);
+check(setups.length === b0 && await ev(`!!document.querySelector('.helix-drawer')`) && /Verify typed answer/.test(await ev(`document.querySelector('.helix-drawer').innerText`)), 'an "Ask Helix about this" button opens the panel with a typed answer (voice stays off until Talk)');
+// Voice off is remembered; Talk turns it back on.
+await ev(`document.querySelector('.helix-drawer button[aria-label="Close Helix"]').click()`); await sleep(300);
+// (The stand-in token ends a voice session at once, so Voice off is set the way its button sets it.)
+await ev(`localStorage.setItem('helix-voice', 'off')`);
+b0 = setups.length;
+await ev(`document.querySelector('.helix-fab').click()`); await sleep(2500);
+check(setups.length === b0 && /Voice is off/.test(await ev(`document.querySelector('.hx-bar')?.innerText ?? ''`)), 'with voice off, Ask Helix opens for typing and shows Talk');
+await ev(`[...document.querySelectorAll('.hx-bar button')].find((b) => b.textContent.trim() === 'Talk')?.click()`);
+check((await minted(b0)) === 1 && await ev(`localStorage.getItem('helix-voice') === 'on'`), 'Talk starts voice again and turns it back on');
+await ev(`document.querySelector('.helix-drawer button[aria-label="Close Helix"]').click()`); await sleep(300);
+// Studio: the header Ask Helix is the same panel; its voice is the Studio voice.
 await go('/console/studio');
-await ev(`document.querySelector('.ask-egg-pill')?.click()`); await sleep(600);
-check(await ev(`!!document.querySelector('.helix-drawer')`) && !(await ev(`!!document.querySelector('.hx-dock')`)), 'Studio: the header Ask Helix opens the same drawer as the bottom-right button');
-const b2 = setups.length;
-await ev(`document.querySelector('.helix-drawer .helix-talk-inline')?.click()`);
-for (let i = 0; i < 40 && setups.length === b2; i++) await sleep(250);
-await sleep(800);
-const st = setups.at(-1);
-check(setups.length === b2 + 1 && !/SPEND METERS/.test(sys(st)), 'Studio: Talk starts one voice session, the Studio voice (not a second Enterprise one)');
-const dockBox = await ev(`(() => { const d = document.querySelector('.hx-dock'); if (!d) return null; const r = d.getBoundingClientRect(); return { inHeader: !!d.closest('.topbar'), parentIsBody: d.parentElement === document.body, bottom: Math.round(innerHeight - r.bottom), h: Math.round(r.height) }; })()`);
-check(dockBox && !dockBox.inHeader && dockBox.parentIsBody && dockBox.h > 100 && dockBox.bottom < 60, `Studio: the voice dock overlays the page from the bottom right (${JSON.stringify(dockBox)})`);
-check(!(await ev(`!!document.querySelector('.helix-drawer')`)), 'Talk closes the drawer so the voice dock is in view');
-check(await ev(`!/Book a 15-minute consult|Tour again|Tour ended/.test(document.querySelector('.hx-dock')?.innerText ?? '')`), 'the Studio voice dock speaks as a conversation, not the vision tour');
+b0 = setups.length;
+await ev(`document.querySelector('.ask-egg-pill')?.click()`);
+const n1 = await minted(b0);
+check(n1 === 1 && await ev(`!!document.querySelector('.helix-drawer .hx-bar')`) && !/SPEND METERS/.test(sys(setups.at(-1))), 'Studio: the header Ask Helix opens the same panel, listening with the Studio voice (one session)');
+check(await ev(`!document.querySelector('.helix-drawer')?.closest('.topbar')`), 'the panel overlays the page (not inside the header)');
 await shot('voice-studio');
+// Full Ask Helix page: the same voice bar, Talk to start.
+await go('/console/helix/ask');
+check(await ev(`!!document.querySelector('.hx-bar') && !document.querySelector('.helix-fab')`), 'the full Ask Helix page has the same voice bar');
+// Agency dashboard.
 await go('/app/test-launch');
-check(await ev(`!!document.querySelector('.helix-talk')`), 'Talk button in the agency dashboard');
-await ev(`document.querySelector('.helix-fab')?.click()`); await sleep(500);
-check(await ev(`!!document.querySelector('.helix-drawer .helix-talk-inline')`), 'Talk is also inside the Ask Helix drawer');
+b0 = setups.length;
+await ev(`document.querySelector('.helix-fab')?.click()`);
+check((await minted(b0)) === 1 && /LINES THIS AGENCY SELLS/.test(sys(setups.at(-1))) && !(await ev(`!!document.querySelector('.helix-talk')`)), 'agency dashboard: the same Ask Helix button, listening with that agency’s Helix');
 await shot('voice-agency-drawer');
 
 // Operator: no money in voice either.

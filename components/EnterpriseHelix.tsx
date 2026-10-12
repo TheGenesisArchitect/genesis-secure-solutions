@@ -5,7 +5,7 @@
 // which a person keeps with one tap (nothing is remembered silently). Shares the agency drawer's look.
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { HELIX_EVT, HELIX_VOICE_EVT, HelixTalkButton, helixAsk } from './HelixDrawer';
+import { HELIX_EVT, helixAsk } from './HelixDrawer';
 import { HelixTour } from './vision/HelixTour';
 import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
 
@@ -86,6 +86,28 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, com
   );
 }
 
+/** Where the Studio is on screen, from the page address: Studio voice knows the bible and this page's focus. */
+function studioFocus(path: string): { kind: 'home' | 'bible' | 'cast' | 'episode' | 'character'; code?: string; label: string } | null {
+  const m = path.match(/^\/console\/studio(?:\/(.*))?$/);
+  if (!m) return null;
+  const rest = m[1] ?? '';
+  if (!rest) return { kind: 'home', label: 'the Studio' };
+  if (rest === 'bible') return { kind: 'bible', label: 'the Character Bible' };
+  if (rest === 'cast') return { kind: 'cast', label: 'the cast' };
+  const c = rest.match(/^cast\/([A-Za-z0-9-]{1,30})$/);
+  if (c) return { kind: 'character', code: c[1], label: c[1] };
+  const e = rest.match(/^([A-Za-z0-9-]{1,30})$/);
+  return e ? { kind: 'episode', code: e[1], label: `episode ${e[1]}` } : { kind: 'home', label: 'the Studio' };
+}
+
+/** The voice bar in Ask Helix: Studio voice on Studio pages, Enterprise voice everywhere else. */
+export function EnterpriseVoice({ path, autoStart, where }: { path: string; autoStart?: boolean; where?: string }) {
+  const sf = studioFocus(path);
+  return sf
+    ? <HelixTour embedded autoStart={autoStart} context={sf.kind === 'bible' ? 'bible' : 'studio'} focus={sf} key={path} />
+    : <HelixTour embedded autoStart={autoStart} context="enterprise" where={where} key="enterprise" />;
+}
+
 /** The drawer on every console page. */
 export function EnterpriseHelixDrawer() {
   const path = usePathname();
@@ -100,17 +122,11 @@ export function EnterpriseHelixDrawer() {
     };
     window.addEventListener(HELIX_EVT, onAsk);
     window.addEventListener('keydown', onKey);
-    const onTalk = () => setOpen(false); // voice takes over: the dock is in view
-    window.addEventListener(HELIX_VOICE_EVT, onTalk);
-    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); window.removeEventListener(HELIX_VOICE_EVT, onTalk); };
+    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); };
   }, []);
-  // Studio pages bring their own voice (Helix Live with the bible and what's on screen); everywhere else, Enterprise voice.
-  const voice = path.startsWith('/console/studio') ? null : <HelixTour context="enterprise" floating={false} openEvent={HELIX_VOICE_EVT} where={`the ${page.name} page`} />;
-  if (path === '/console/helix/ask') return <>{voice}<HelixTalkButton /></>; // the full view is already open
+  if (path === '/console/helix/ask') return null; // the full view is already open
   return (
     <>
-      {voice}
-      <HelixTalkButton />
       <button className="helix-fab" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Ask Helix (Ctrl+J)" title="Ask Helix (Ctrl+J)">
         <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" /><span>Ask Helix</span>
       </button>
@@ -118,8 +134,9 @@ export function EnterpriseHelixDrawer() {
         <aside className="helix-drawer" aria-label="Ask Helix">
           <header className="row" style={{ justifyContent: 'space-between' }}>
             <span className="row" style={{ gap: 8 }}><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" style={{ width: 20 }} /><b>Helix</b><span className="muted" style={{ fontSize: 12 }}>on {page.name}</span></span>
-            <span className="row" style={{ gap: 6 }}><HelixTalkButton inline /><a className="btn small ghost" href="/console/helix/ask">Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
+            <span className="row" style={{ gap: 6 }}><a className="btn small ghost" href="/console/helix/ask">Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
           </header>
+          <EnterpriseVoice path={path} autoStart={!ask.question} where={`the ${page.name} page`} />
           <AskHelixEnterprise key={`${path}:${ask.n}`} compact context={ask.context ?? `the ${page.name} page (${path})`} suggest={page.suggest} start={ask.question} />
         </aside>
       ) : null}
