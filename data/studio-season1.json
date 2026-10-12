@@ -10,41 +10,42 @@
     "slug": "genovus-just-knows",
     "name": "Genovus Just Knows",
     "division": "Genovus Originals",
-    "logline": "Agency life is loud. The agent with Genovus stays calm, because tomorrow is already handled. Every episode ends the same way: “Genovus just knows.”",
+    "logline": "Marcus, Tasha and Julian run GENOVUS. Every episode brings a new agency, one real problem, and a person whose life is bigger than the office. Genovus Just Knows.",
     "bible": {
-      "premise": "Each episode drops our agents into something absurd and loud: a show, a strange appointment, a late-night meeting. Two of them realize they forgot something that matters. The third checks Genovus, and it's already handled. She breaks the fourth wall: “Genovus just knows.”",
-      "tone": "Comedy first, warm, a little absurd, never mean. Under 60 seconds. Hook in the first 1.5 seconds. Music-driven, captions always on.",
+      "premise": "Marcus, Tasha and Julian run GENOVUS. Every workday brings a new insurance agency lead, a specific business problem, and a person whose life is bigger than the office. The team uses GENOVUS to understand the opportunity, organize the next move, and help the agency make progress. The prospect’s hobby opens the door to the viral moment and the comedy.",
+      "tone": "An agency-fixer workplace dramedy: pace, confidence and close teamwork, with original comedy and real insurance-industry specificity.",
       "characters": [
         {
-          "name": "Maya Bennett",
-          "role": "The Unbothered Agent",
-          "look": "Center parted bob; small gold hoop earrings; slim gold watch on the left wrist; restrained gestures. About 5′7″, medium build, grounded stance; turns her eyes toward a disturbance before her whole body.",
-          "sheet": "Original fictional adult Black woman, apparent age 34, deep brown skin, oval face with softly defined cheekbones, almond shaped dark brown eyes, straight full eyebrows, black center parted smooth collarbone length bob, medium build, small gold hoop earrings, slim gold watch on left wrist. Relaxed shoulders, composed and approachable expression, subtle asymmetrical beginning of a smile. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain black top. No text, logos, phone, or props. Establish an original face, not a celebrity likeness."
+          "name": "Marcus",
+          "role": "The Connector",
+          "look": "Cropped textured hair; short neat beard; expressive brows; solid build; forward engagement, active brows, then a visible release of tension.",
+          "sheet": "Marcus from the supplied reference: adult Black man, warm medium-dark brown complexion, cropped textured dark hair, short neat beard, expressive brows, solid build, apparent age late 30s. Navy overshirt over a cream crew-neck, charcoal trousers. Warmly persuasive, attentive, capable, slightly too eager. Natural skin texture, realistic anatomy. Keep his face recognizable at rest.",
+          "portrait": "/studio/cast/marcus.jpg"
         },
         {
-          "name": "Trent Walker",
-          "role": "The Walking Emergency",
-          "look": "Short crop and boxed beard; silver watch on left wrist; active brows; forward lean under pressure. About 5′11″, lean to average build. Must be recognizable when completely relaxed.",
-          "sheet": "Original fictional adult Black man, apparent age 32, medium brown skin, gently rectangular face, expressive dark brown eyes and brows, short textured black crop with low taper, neatly trimmed short boxed beard, lean to average build. Warm and attentive neutral expression, relaxed jaw, shoulders settled. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain navy top. No text, logos, or props. Do not make worry his permanent facial expression. Establish an original face, not a celebrity likeness."
+          "name": "Tasha",
+          "role": "The People Reader",
+          "look": "Shoulder-length natural curls; gold hoops; eyes register the implication before a deliberate turn.",
+          "sheet": "Tasha from the supplied reference: adult Black woman, warm brown complexion, shoulder-length natural curls, gold hoop earrings, apparent age mid 30s. Burgundy blazer over a black top, black trousers. Poised, perceptive, warm, quietly competitive. Natural skin texture, realistic anatomy. Avoid exaggerated expressions.",
+          "portrait": "/studio/cast/tasha.jpg"
         },
         {
-          "name": "Bri Ellis",
-          "role": "The Human Reaction Camera",
-          "look": "Side-parted shoulder-length curls; medium gold hoops; wine and copper accents; exceptionally readable listening. About 5′5″, full medium build, expressive shoulders and hands. Distinct from Maya even in low light.",
-          "sheet": "Original fictional adult Black woman, apparent age 31, warm medium deep brown skin, softly heart shaped face, dark brown eyes, arched brows, full cheeks, defined shoulder length dark brown natural curls with a side part, full medium build, medium gold hoop earrings. Curious, warmly amused neutral expression with closed relaxed mouth. Neutral front portrait, even soft light, plain gray background, natural skin texture, realistic proportions. Plain wine colored top. No text, logos, or props. Establish an original face, not a celebrity likeness."
+          "name": "Julian",
+          "role": "The Operator",
+          "look": "Salt-and-pepper curls and beard; black rectangular glasses; comfortable stillness, small precise gestures.",
+          "sheet": "Julian from the supplied reference: adult Black man, medium brown complexion, salt-and-pepper curls and beard, black rectangular glasses, apparent age late 40s. Olive blazer over a black shirt, dark trousers. Calm, approachable, dryly funny, capable of being caught off guard. Natural skin texture, realistic anatomy.",
+          "portrait": "/studio/cast/julian.jpg"
         }
       ],
       "rules": [
-        "Trend Remix: build on viral moments only through the platform’s own Stitch/Remix (their first seconds, credited and linked, in-app, when the creator allows remixing), a written license from the creator, or an original made in the same energy. Never download, re-upload or imitate a specific person, character or video.",
-        "Original characters only. The reference reels set the energy; their footage, music, performers and look are never used.",
-        "The phone shows the real Genovus app, filmed from a demo agency (fictional data), never real customers.",
-        "The claim is narrow and true: follow-ups you log are lined up by day, so tomorrow's list is ready the night before.",
-        "No carrier names or logos, no quotes, no coverage claims, no promises of results.",
-        "AI-generated footage is labeled on every platform. Music is original or licensed for commercial use.",
-        "Every post is approved in the Studio desk before it goes out, and the live link is recorded after."
+        "One problem, one visible workflow, one observable result.",
+        "Only captured product screens with exact labels; never generated interface.",
+        "Never a lookalike of a real viral person without the creator’s written license.",
+        "Julian closes to the lens: \"Genovus Just Knows.\"",
+        "People approve every post before it goes out."
       ],
-      "tagline": "Genovus just knows.",
-      "look": "Vertical 9:16, 35mm film look, warm practical light, shallow depth of field, natural skin texture, handheld energy in the crowd and locked-off calm on Maya.",
+      "tagline": "Genovus Just Knows",
+      "look": "Charcoal office surfaces, restrained orange and amber brand accents, soft natural light, believable working materials. Official egg and wordmark only.",
       "platform_notes": {
         "facebook": "Link works in the caption. Turn on the AI info label when uploading.",
         "instagram": "Links aren't clickable in captions: put the tracked link in bio (or a link sticker in Stories). Turn on the AI info label.",
@@ -2574,7 +2575,11 @@
           "log": {
             "camera": "Slow push-in from black, practical light only"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 asleep with his head on folded arms at the strategy table beside a smoker thermometer, office dark at night; his phone lights his face as it buzzes; one eye opens."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 asleep with his head on folded arms at the strategy table beside a smoker thermometer, office dark at night; his phone lights his face as it buzzes; one eye opens.",
+          "direction": {
+            "acting": "Asleep, then one eye opens",
+            "read": "[sound design] buzz · buzz · drone"
+          }
         },
         {
           "n": 20,
@@ -2590,7 +2595,11 @@
           "log": {
             "camera": "Code card, hard cut"
           },
-          "prompt": "Code-made title card, white on black, drum hit. Never generated."
+          "prompt": "Code-made title card, white on black, drum hit. Never generated.",
+          "direction": {
+            "acting": "—",
+            "read": "[impact] drum hit"
+          }
         },
         {
           "n": 30,
@@ -2614,7 +2623,11 @@
           "log": {
             "camera": "Handheld, whip pans between cuts"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. Fast cinematic cuts: a desk phone ringing with no one to answer; @TASHA01 striding quickly down a hallway holding a coffee with a dance bag on her shoulder; @JULIAN01 staring at a whiteboard of arrows."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. Fast cinematic cuts: a desk phone ringing with no one to answer; @TASHA01 striding quickly down a hallway holding a coffee with a dance bag on her shoulder; @JULIAN01 staring at a whiteboard of arrows.",
+          "direction": {
+            "acting": "Urgent, stretched thin",
+            "read": "MARCUS (V.O.): [tense, low] Three agencies called last night."
+          }
         },
         {
           "n": 40,
@@ -2642,7 +2655,11 @@
           "log": {
             "camera": "Two-shot, static, comedic hold"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 in the doorway holding a foil-wrapped brisket, proud then sheepish; @TASHA01 stares at him, unimpressed."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 in the doorway holding a foil-wrapped brisket, proud then sheepish; @TASHA01 stares at him, unimpressed.",
+          "direction": {
+            "acting": "Tasha flat; Marcus proud, then sheepish",
+            "read": "TASHA: [flat] And? · MARCUS: [proud, then sheepish] I was smoking a brisket."
+          }
         },
         {
           "n": 50,
@@ -2658,7 +2675,11 @@
           "log": {
             "camera": "Code card, hard cut"
           },
-          "prompt": "Code-made title card, white on black, drum hit, score enters. Never generated."
+          "prompt": "Code-made title card, white on black, drum hit, score enters. Never generated.",
+          "direction": {
+            "acting": "—",
+            "read": "[impact] drum hit · score enters"
+          }
         },
         {
           "n": 60,
@@ -2681,7 +2702,11 @@
           "log": {
             "camera": "Low angle, slow motion, dolly back"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 walks through glass office doors in slow motion, jacket over his shoulder, easy confident smile."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 walks through glass office doors in slow motion, jacket over his shoulder, easy confident smile.",
+          "direction": {
+            "acting": "Easy confidence, a friend’s smile",
+            "read": "MARCUS: [warm, inviting] Before we pitch anything, [beat] what’s eating up your day?"
+          }
         },
         {
           "n": 70,
@@ -2704,7 +2729,11 @@
           "log": {
             "camera": "Reflection to real, rack focus, slow arc"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @TASHA01 reflected in a glass wall mid dance count, she stops, her eyes register something, then a deliberate slow turn toward camera."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @TASHA01 reflected in a glass wall mid dance count, she stops, her eyes register something, then a deliberate slow turn toward camera.",
+          "direction": {
+            "acting": "Eyes register first, then the deliberate turn",
+            "read": "TASHA: [warm] You’ve got leads. [pointed, quieter] Who knows what happens after they come in?"
+          }
         },
         {
           "n": 80,
@@ -2727,7 +2756,11 @@
           "log": {
             "camera": "Silhouette to key light, slow push"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @JULIAN01 at a window at dusk, city lights behind him, comfortable stillness, he pushes his glasses up with one precise gesture."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @JULIAN01 at a window at dusk, city lights behind him, comfortable stillness, he pushes his glasses up with one precise gesture.",
+          "direction": {
+            "acting": "Comfortable stillness, one precise gesture",
+            "read": "JULIAN: [measured] Open the follow-up. [beat] Check the time. [beat] Then finish the task."
+          }
         },
         {
           "n": 90,
@@ -2752,7 +2785,11 @@
           "log": {
             "camera": "Real screen capture, never generated"
           },
-          "prompt": "Real capture only: the Call list Genovus line panel with calls and Helix notes, then Ask Helix answering \"Who should I call first?\". Never generated."
+          "prompt": "Real capture only: the Call list Genovus line panel with calls and Helix notes, then Ask Helix answering \"Who should I call first?\". Never generated.",
+          "direction": {
+            "acting": "Julian dry; Tasha plain and certain",
+            "read": "JULIAN: [dry] Nobody missed them. · TASHA: [plain] She doesn’t need more leads. [quiet] She needs someone answering at seven p.m."
+          }
         },
         {
           "n": 100,
@@ -2776,7 +2813,11 @@
           "log": {
             "camera": "Slow-motion door burst, then a deadpan cut"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 bursts through a door in slow motion holding a brisket high like a trophy, smoke rolling behind him; @JULIAN01 watches, completely still."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 bursts through a door in slow motion holding a brisket high like a trophy, smoke rolling behind him; @JULIAN01 watches, completely still.",
+          "direction": {
+            "acting": "Marcus triumphant; Julian completely still",
+            "read": "JULIAN: [deadpan] We have a plan. [beat] Marcus has equipment."
+          }
         },
         {
           "n": 110,
@@ -2799,7 +2840,11 @@
           "log": {
             "camera": "Slow push to the lens on her turn"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. The room keeps moving behind her; @TASHA01 turns slowly and looks straight into the lens, warm and conspiratorial, a small smile."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. The room keeps moving behind her; @TASHA01 turns slowly and looks straight into the lens, warm and conspiratorial, a small smile.",
+          "direction": {
+            "acting": "Warm, conspiratorial; the punchline lands on the quietest word",
+            "read": "TASHA: [warm, conspiratorial] Got questions? [half-beat pause] [quiet] Ask Helix."
+          }
         },
         {
           "n": 120,
@@ -2822,7 +2867,11 @@
           "log": {
             "camera": "To the lens, hold, then the First Light title (code)"
           },
-          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. After a genuine laugh, @JULIAN01 finds the lens with a small knowing smile, a knowing friend rather than an announcer."
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. After a genuine laugh, @JULIAN01 finds the lens with a small knowing smile, a knowing friend rather than an announcer.",
+          "direction": {
+            "acting": "A knowing friend, not an announcer",
+            "read": "JULIAN: [warm, knowing] Genovus Just Knows."
+          }
         }
       ]
     }

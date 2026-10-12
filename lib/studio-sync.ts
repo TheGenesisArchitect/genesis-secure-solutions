@@ -13,22 +13,23 @@ type Season = any;
 
 const KEY = 'studio_sync_hash';
 /** Bump when the sync logic itself changes, so production re-syncs even if the data file didn't. */
-const SYNC_VERSION = 3;
+const SYNC_VERSION = 4;
 
-export const seasonHash = (season: Season, cast: CastMember[] = []) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast)}`).digest('hex').slice(0, 16);
+export const seasonHash = (season: Season, cast: CastMember[] = [], castBible: unknown = null) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast)}:${JSON.stringify(castBible)}`).digest('hex').slice(0, 16);
 
 /** Sync only when the data (or the sync logic) changed since the last run. Cheap when nothing did: one row read. */
-export async function syncStudioIfChanged(db: SupabaseClient, season: Season, cast: CastMember[] = []): Promise<{ synced: boolean; hash: string; summary?: string }> {
-  const hash = seasonHash(season, cast);
+export async function syncStudioIfChanged(db: SupabaseClient, season: Season, cast: CastMember[] = [], castBible: unknown = null): Promise<{ synced: boolean; hash: string; summary?: string }> {
+  const hash = seasonHash(season, cast, castBible);
   const { data } = await db.from('app_settings').select('value').eq('key', KEY).maybeSingle();
   if (data?.value === hash) return { synced: false, hash };
-  const summary = await syncStudio(db, season, cast);
+  const summary = await syncStudio(db, season, cast, castBible);
   await db.from('app_settings').upsert({ key: KEY, value: hash, updated_at: new Date().toISOString() });
   return { synced: true, hash, summary };
 }
 
-/** `cast`: the characters with their Performance DNA (data/studio-cast.json), for compiling Shot Contracts. */
-export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember[] = []): Promise<string> {
+/** `cast`: the characters with their Performance DNA (data/studio-cast.json), for compiling Shot Contracts.
+ *  `castBible`: the Cast Character Bible (same file); when given it becomes the series' cast bible. */
+export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember[] = [], castBible: unknown = null): Promise<string> {
   const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what}: ${r.error.message}`); return r.data; };
 
   const c = S.campaign;
@@ -37,8 +38,8 @@ export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember
   const s = S.series;
   // Keep the Cast Character Bible (loaded by seed-cast.mjs) when refreshing the series bible.
   const { data: existing } = await db.from('studio_series').select('bible').eq('slug', s.slug).maybeSingle();
-  const castBible = (existing?.bible as { cast_bible?: unknown } | null)?.cast_bible;
-  const series = must(await db.from('studio_series').upsert({ slug: s.slug, name: s.name, division: s.division, logline: s.logline, bible: { ...s.bible, ...(castBible ? { cast_bible: castBible } : {}) } }, { onConflict: 'slug' }).select('id').single(), 'series') as { id: string };
+  const keptBible = castBible ?? (existing?.bible as { cast_bible?: unknown } | null)?.cast_bible;
+  const series = must(await db.from('studio_series').upsert({ slug: s.slug, name: s.name, division: s.division, logline: s.logline, bible: { ...s.bible, ...(keptBible ? { cast_bible: keptBible } : {}) } }, { onConflict: 'slug' }).select('id').single(), 'series') as { id: string };
 
   // The cast (data/studio-cast.json) syncs too, so a new canon reaches production with the release: the V2 cast
   // (Marcus, Tasha, Julian) active, earlier development characters kept as retired records.

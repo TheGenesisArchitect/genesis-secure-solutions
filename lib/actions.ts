@@ -477,6 +477,13 @@ export async function studioUpdateShotLog(_: ActionResult, f: FormData) {
   return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Shot log saved.');
 }
 
+/** StudioNext: a shot's performance direction (acting note, line read with [tags], camera), saved on the shot's log. */
+export async function studioSetShotDirection(_: ActionResult, f: FormData) {
+  const log: Record<string, string> = {};
+  for (const k of ['acting', 'read', 'camera']) if (f.has(k)) log[k] = str(f, k, k === 'read' ? 600 : 300);
+  return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Direction saved.');
+}
+
 export async function studioSetFormat(_: ActionResult, f: FormData) {
   const format = str(f, 'format', 20) || 'original';
   return call('studio_set_format', {

@@ -66,7 +66,7 @@ export default async function BiblePage() {
             return (
               <Panel key={c.id} title={`${c.name} · ${c.archetype}`} sub={`${c.code} · age ${c.age} · ${c.role}`}>
                 <div className="bible-char">
-                  {f ? <img src={`/api/studio/media/ref/${f.id}`} alt={`${c.name}, approved portrait ${f.asset_code}`} /> : <span className="cast-blank">{c.name[0]}</span>}
+                  {f ? <img src={`/api/studio/media/ref/${f.id}`} alt={`${c.name}, approved portrait ${f.asset_code}`} /> : ({ MARCUS01: 'marcus', TASHA01: 'tasha', JULIAN01: 'julian' } as Record<string, string>)[c.code] ? <img src={`/studio/cast/${({ MARCUS01: 'marcus', TASHA01: 'tasha', JULIAN01: 'julian' } as Record<string, string>)[c.code]}.jpg`} alt={`${c.name}, V2 reference sheet`} /> : <span className="cast-blank">{c.name[0]}</span>}
                   <dl className="bible-sec">
                     <dt>Character sentence</dt><dd>{p.sentence}</dd>
                     <dt>What makes them funny</dt><dd>{p.funny}</dd>
@@ -102,8 +102,8 @@ export default async function BiblePage() {
             <dt>Product dialogue</dt><dd>{b.product_dialogue}</dd>
             <dt>Pronunciation</dt><dd>{b.pronunciation}</dd>
             <dt>Sound</dt><dd>{b.sound}</dd>
-            <dt>Maya addresses the audience</dt><dd>{b.camera_break}</dd>
-            <dt>Seat and gaze map (Episode 001)</dt><dd>Left to right: {b.seat_map.order.map(nameOf).join(', ')}. Performer {b.seat_map.performer}. {b.seat_map.note}</dd>
+            <dt>The camera break</dt><dd>{b.camera_break}</dd>
+            <dt>Seat and gaze map (pilot audience camera)</dt><dd>Left to right: {b.seat_map.order.map(nameOf).join(', ')}. Performer {b.seat_map.performer}. {b.seat_map.note}</dd>
             <dt>Shared continuity instruction</dt><dd>{b.continuity_instruction}</dd>
           </dl>
         </Panel>

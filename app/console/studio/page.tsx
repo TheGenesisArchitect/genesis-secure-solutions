@@ -12,6 +12,7 @@ import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { IMAGE_CENTS, generationConfigured, veoRoom, HERO_VIDEO_MODEL } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
 import { StudioHome, type HomeEpisode } from '@/components/studio/StudioHome';
+import { V2_EPISODES } from '@/lib/studio-board';
 import { runwayConfigured, runwayOrganization, CREDIT_CENTS } from '@/lib/runway';
 
 export const metadata = { title: 'Studio' };
@@ -64,7 +65,7 @@ export default async function Studio() {
     <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]} actions={<StudioHelix focus={{ kind: 'home', label: 'the Studio' }} />}>
       {series ? (
         <>
-          <StudioHome episodes={(eps ?? []) as HomeEpisode[]} covers={coverFor} featured="gjk-h01" progress={new Map((eps ?? []).map((e) => { const s = (shots ?? []).filter((x) => x.episode_id === e.id); return [e.id, { done: s.filter((x) => x.status === 'approved' || x.status === 'take_ok').length, total: s.length }]; }))} />
+          <StudioHome episodes={(eps ?? []) as HomeEpisode[]} covers={coverFor} featured="gjk-h01" current={V2_EPISODES} progress={new Map((eps ?? []).map((e) => { const s = (shots ?? []).filter((x) => x.episode_id === e.id); return [e.id, { done: s.filter((x) => x.status === 'approved' || x.status === 'take_ok').length, total: s.length }]; }))} />
           <div className="grid g4">
             <Tile label="Episodes" value={<span className="num">{eps?.length ?? 0}</span>} hint={`${(eps ?? []).filter((e) => e.status === 'approved' || e.status === 'live').length} approved`} />
             <Tile label="Studio budget" value={<span className="num">{money(used)}</span>} hint={`of ${money(cap)} this month · ${Math.max(0, Math.round(100 - (100 * used) / Math.max(1, cap)))}% left`} />
@@ -119,10 +120,10 @@ export default async function Studio() {
             </details>
           </Panel>
 
-          {(takes ?? []).length ? (
-            <Panel title="Fresh takes" sub="The latest shots out of the Studio">
-              <div className="take-strip">
-                {(takes ?? []).map((tk) => {
+          {(() => { const fresh = (takes ?? []).filter((tk) => V2_EPISODES.has((tk.studio_shots as unknown as { studio_episodes: { code: string } }).studio_episodes.code)); return (
+            <Panel title="Fresh takes" sub="The latest shots from the current cast">
+              {fresh.length ? <div className="take-strip">
+                {fresh.map((tk) => {
                   const sh = tk.studio_shots as unknown as { n: number; studio_episodes: { code: string; title: string } };
                   return (
                     <Link key={tk.id} href={`/console/studio/${sh.studio_episodes.code}`} className="take gv-take">
@@ -131,9 +132,9 @@ export default async function Studio() {
                     </Link>
                   );
                 })}
-              </div>
+              </div> : <p className="muted" style={{ margin: 0 }}>No takes yet from Marcus, Tasha and Julian. The trailer’s takes land here as Runway delivers them; earlier takes with the retired cast stay in the archive.</p>}
             </Panel>
-          ) : null}
+          ); })()}
 
           <Panel title="Cast · Marcus, Tasha and Julian" sub="The GENOVUS team from the Cast Character Bible V2 (Oct 12, 2026). Each face is locked to the V2 reference sheet before it goes into a shot." actions={<span className="row" style={{ gap: 6 }}><Link className="btn small" href="/console/studio/cast">Cast &amp; identity</Link><Link className="btn small ghost" href="/console/studio/bible">Character Bible</Link></span>}>
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,300px),1fr))', alignItems: 'start' }}>
@@ -215,9 +216,10 @@ export default async function Studio() {
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,280px),1fr))' }}>
               {(bible.characters ?? []).map((ch) => (
                 <div key={ch.name} className="tile" style={{ gap: 8 }}>
+                  {(ch as Character & { portrait?: string }).portrait ? <img src={(ch as Character & { portrait?: string }).portrait} alt={ch.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 12 }} /> : null}
                   <span className="spread"><b style={{ font: '800 16px var(--display)' }}>{ch.name}</b><span className="muted" style={{ fontSize: 12 }}>{ch.role}</span></span>
                   <span className="soft" style={{ fontSize: 13 }}>{ch.look}</span>
-                  <span className="row" style={{ gap: 6 }}><CopyButton text={ch.sheet} label="Copy character-sheet prompt" /><span className="muted" style={{ fontSize: 11 }}>Nano Banana Pro</span></span>
+                  <span className="row" style={{ gap: 6 }}><CopyButton text={ch.sheet} label="Copy identity brief" /><span className="muted" style={{ fontSize: 11 }}>Attach the V2 reference sheet</span></span>
                 </div>
               ))}
             </div>

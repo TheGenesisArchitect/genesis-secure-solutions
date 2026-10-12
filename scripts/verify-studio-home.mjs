@@ -51,10 +51,32 @@ check(/Cast · Marcus, Tasha and Julian/.test(t) && await ev(`[...document.query
 check(/Runway engine/i.test(t), 'the Runway engine tile is on the Studio');
 await shot('studio-home');
 await shot('studio-home-full', 2000);
+// The old cast is retired everywhere on the front page.
+const rows = await ev(`[...document.querySelectorAll('.sx-row')].map((r) => ({ h: r.querySelector('h3').textContent, cards: [...r.querySelectorAll('.sx-info b')].map((b) => b.textContent) }))`);
+const soonRow = rows.find((r) => /Coming soon/.test(r.h)), vault = rows.find((r) => /Archive/.test(r.h));
+check(soonRow && soonRow.cards.length === 1 && /Just Ask Helix/.test(soonRow.cards[0]) && vault && vault.cards.length >= 4, `Coming soon holds only the V2 trailer; the old episodes sit in the archive (${vault?.cards.length ?? 0})`);
+const below = await ev(`(() => { const s = [...document.querySelectorAll('.panel')].filter((p) => /Series bible|Fresh takes/.test(p.innerText)); return s.map((p) => p.innerText).join(' '); })()`);
+check(!/Maya|Trent|\bBri\b/.test(below) && /Marcus/.test(below) && /No takes yet from Marcus, Tasha and Julian/.test(below), 'Series bible and Fresh takes show only the V2 cast');
+
 await go('/console/studio/gjk-h01');
 const t2 = await ev('document.body.innerText');
-check(/Runway/i.test(t2) && /Real app capture|Product · real capture/i.test(t2), 'the trailer board lists Runway and real-capture shots');
+check(await ev(`!!document.querySelector('.pb')`) && await ev(`document.querySelectorAll('.pb-frame').length`) === 12, 'the trailer opens on the production board with 12 shots');
+check(/Seedance 2\.5 · hero/i.test(t2) && /Captured screen/i.test(t2) && /Estimate \$/i.test(t2) && await ev(`document.querySelectorAll('.pb-member').length`) === 3, 'board shows engines, the capture, the estimate and the 3 cast members');
+check(await ev(`!!document.querySelector('.pb-read i')`), 'line reads show their direction tags');
 await shot('studio-trailer-board', 1400);
+// Direct a shot: the change saves to the shot's log.
+const shotRow = must(await db.from('studio_shots').select('id, log, studio_episodes!inner(code)').eq('studio_episodes.code', 'gjk-h01').eq('n', 110).single(), 'shot 110');
+const prior = shotRow.log;
+await ev(`(() => { const a = document.querySelector('#shot-110 details'); a.open = true; const f = a.querySelector('form'); const i = f.querySelector('input[name=acting]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Verify: a slower turn, eyes first'); i.dispatchEvent(new Event('input', { bubbles: true })); f.requestSubmit(); return true; })()`);
+let saved = null; for (let i = 0; i < 40; i++) { saved = (await db.from('studio_shots').select('log').eq('id', shotRow.id).single()).data?.log; if (saved?.acting === 'Verify: a slower turn, eyes first') break; await sleep(250); }
+check(saved?.acting === 'Verify: a slower turn, eyes first', 'directing a shot saves the acting note on the shot');
+must(await db.from('studio_shots').update({ log: prior }).eq('id', shotRow.id), 'restore shot log');
+await go('/console/studio/gjk-t1');
+check(/Archived · made with the retired development cast/i.test(await ev('document.body.innerText')), 'an old episode is marked archived');
+await go('/console/studio/bible');
+const tb = await ev('document.body.innerText');
+check(/Version 2/.test(tb) && /Marcus/.test(tb) && /The camera break/i.test(tb) && !/Maya addresses/.test(tb), 'the Character Bible page is V2');
+if (!/Version 2/.test(tb)) console.log('BIBLE TEXT:', tb.slice(0, 400));
 
 console.log('screenshots in', OUT);
 try { await cdp('Browser.close'); } catch {}

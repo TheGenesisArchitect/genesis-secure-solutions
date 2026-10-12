@@ -1,125 +1,122 @@
 {
   "bible": {
     "title": "GENOVUS Cast Character Bible",
-    "version": "1.0",
-    "date": "2026-10-09",
-    "owner": "Anthony Maurice Beedles and GENOVUS Studio",
-    "premise": "Three insurance coworkers keep finding themselves just outside the frame of extraordinary viral moments. Their everyday office problems collide with the spectacle. GENOVUS helps them get organized enough to enjoy being there.",
-    "promise": "These people care about doing good work, and they deserve a life after work. Their friendship makes us stay; their reactions make us laugh; a useful product moment earns the brand its place.",
-    "world": "A small, independent insurance agency in metro Atlanta. They are peers with different specialties; Maya is not automatically the owner or everyone’s supervisor. The workplace is fictional and unnamed until a story needs a name. GENOVUS is their office software, not the name of their agency. They have worked together for three years.",
-    "contract": "Anyone can call a work emergency. The other two can challenge whether it is actually an emergency. Nobody abandons a teammate with a real problem, and nobody makes a client the target of the joke.",
+    "version": "2",
+    "date": "2026-10-12",
+    "owner": "Anthony Maurice Beedles / GENOVUS Studio",
+    "premise": "Marcus, Tasha and Julian run GENOVUS. Every workday brings a new insurance agency lead, a specific business problem, and a person whose life is bigger than the office. The team uses GENOVUS to understand the opportunity, organize the next move, and help the agency make progress. The prospect’s hobby opens the door to the viral moment and the comedy.",
+    "promise": "The audience recognizes both the work problem and the human behavior. The team is persuasive because we see them think, listen, make choices and recover from small mistakes. A lead becoming a customer is earned across time, never guaranteed by a single tap.",
+    "world": "GENOVUS is the team’s business and home base: a working studio office with a shared strategy table, individual workstations and a small space for product walkthroughs. It feels occupied, with coffee, notes and the occasional hobby item. Charcoal, orange and amber appear without turning every frame into an ad. The trio also works in the field, meeting prospects where a conversation belongs.",
+    "contract": "They share credit, correct mistakes without public humiliation, and disagree without threatening the relationship. They never conceal a product limitation from a prospect. Their rule: do the useful thing, tell the truth about what happened, and let each other enjoy the moment afterward.",
     "intelligences": [
-      "Maya sees the sequence: what depends on what, the useful next step. Failure mode: deciding other people do not need the explanation.",
-      "Trent sees the exposure: a discrepancy, a promise, what could go wrong. Failure mode: treating every possibility as if it is already happening.",
-      "Bri sees the person: discomfort, the room, getting people talking. Failure mode: promising something before checking her own capacity."
+      "Marcus brings a lead and a reason to care.",
+      "Tasha tests the assumed problem with a human question.",
+      "Julian identifies the smallest useful action the current product can support.",
+      "They agree on an owner, a next step and a time."
     ],
     "comedy_rules": [
-      "The friendship comes first. Keep affection visible; avoid two foolish coworkers corrected by a superior one.",
-      "Rotate who causes the trouble and who solves it. GENOVUS can support any of them. Maya owns the closing signature, not all competence.",
-      "The viral event happens independently of them. They occupy plausible audience seats; they never impersonate real participants or invent a relationship with the performer.",
-      "Each episode needs one work concern, one useful product action, and one emotional change."
+      "The joke targets overconfidence, awkward timing, mismatched expectations and the gap between professional composure and hobby intensity.",
+      "It never targets someone for needing help.",
+      "In every three-episode block, each character initiates an opportunity, shows professional competence, and is the source of a comic mistake.",
+      "No permanent genius and no permanent fool."
     ],
-    "continuity": "Stable: identities, job strengths, relationships, voices, habits, remembered events. Flexible: venue, clothing, who initiates the conflict, the source of the embarrassment. Growing: trust, boundaries, and awareness of Maya’s camera habit.",
+    "continuity": "Specialties, not exclusive permissions: Tasha can find the best lead, Marcus can deliver the cleanest walkthrough, Julian can make the warmest connection.",
     "relationships": [
       {
-        "pair": "Maya & Trent",
-        "pattern": "Trent offers three hypothetical disasters; Maya asks one factual question.",
-        "growth": "Maya gives him context; Trent brings her a checked fact rather than a forecast.",
-        "bond": "They once stayed late to reconstruct a messy handoff. Neither mentions the other’s mistake in public."
+        "pair": "Marcus & Tasha",
+        "pattern": "Marcus turns a prospect’s passing interest into a team outing; Tasha arrives to prevent a disaster and becomes the most invested participant.",
+        "growth": "He hears her read before promising; she hears the whole idea before correcting it.",
+        "bond": "She once helped him repair a missed handoff without making him look careless; he protects her when she needs time."
       },
       {
-        "pair": "Maya & Bri",
-        "pattern": "Maya tries to stay composed; Bri knows the exact detail that will make her laugh. Bri occasionally gets the final word.",
-        "growth": "Maya listens without solving; Bri states a boundary without disguising it as a joke.",
-        "bond": "Bri persuaded Maya to join her first team night out. Maya still saves the ticket confirmation."
+        "pair": "Tasha & Julian",
+        "pattern": "A small argument about a product explanation becomes a much less reasonable argument about a trivia rule or a dance count.",
+        "growth": "She adapts quickly; he confirms dependencies. Their professional compromise is usually sound.",
+        "bond": "They recognize each other’s overload without an announcement. \"I’ve got this one\" carries more weight than a speech."
       },
       {
-        "pair": "Trent & Bri",
-        "pattern": "They briefly agree on a bad assumption and reinforce each other until reality arrives. Rotate the initiator.",
-        "growth": "One gently protects the other from embarrassment.",
-        "bond": "An ongoing dispute about who recommended a restaurant that turned out badly."
+        "pair": "Julian & Marcus",
+        "pattern": "Julian offers three careful steps; Marcus has already acquired shoes, a paddle or a matching team shirt.",
+        "growth": "Sometimes the preparation is exactly what they need, and Julian has to admit it.",
+        "bond": "Julian makes room for Marcus’s judgment in serious strategy; Marcus brings Julian into social moments without making his reserve the joke."
       }
     ],
-    "boundaries": "A platonic chosen family. No romantic triangle. Disagreement does not reset their friendship. No character permanently becomes the group’s parent, child, or fool.",
-    "voice_test": "Maya reduces the problem to the relevant fact. Trent describes the feared consequence. Bri names what the situation feels like. Remove the labels: the wording should still suggest who is speaking.",
-    "product_dialogue": "Name the useful thing the character can see (“Your call list is here”). Never marketing copy. A list being ready does not mean tomorrow’s calls have already happened.",
-    "pronunciation": "GENOVUS: “juh NOH vus” (proposed; confirm and keep one approved audio example).",
-    "sound": "Maintain room ambience through the fork; dialogue above a reduced music bed while crowd texture continues. At the return to the source, restore the event’s energy. Use the source’s own sound perspective, never an unrelated nightclub soundtrack.",
-    "camera_break": "Maya reacts sincerely; another character gives her a reason to answer; she says the tagline to the group, then turns to the lens and repeats “Genovus just knows” with quiet certainty. Finish the shared reaction, settle the eyes, turn the head, find the lens, hold, speak, small smile (about 3–4 s). A short music dip clears space; never mute the room abruptly, no trailer voice, glitch or long logo sting. The others stay inside the scene.",
-    "continuity_instruction": "Preserve the referenced person’s face structure, apparent age, skin tone, hairline, hairstyle, body proportions, and identifying jewelry. Change only the requested pose, expression, wardrobe, or environment. Maintain realistic anatomy and distinguish each ensemble member. Do not beautify into a different face or transfer features between people.",
+    "boundaries": "The initial ensemble is platonic. Family and romantic details enter canon only when a story develops them intentionally.",
+    "voice_test": "Marcus speaks to the relationship, Tasha to the person, Julian to the process. Remove the labels and the wording should still suggest who is speaking.",
+    "product_dialogue": "One problem, one visible workflow, one observable result. A saved note is a saved note; a scheduled follow-up is not a completed call. Use exact captured labels, never generated interface text.",
+    "pronunciation": "GENOVUS: “juh NOH vus.” Keep one approved audio example.",
+    "sound": "Let the joke breathe and keep the product lesson readable. Never speed up dialogue to force a duration.",
+    "camera_break": "Julian retains the direct-to-camera close: \"Genovus Just Knows.\" It follows a visible, grounded result and a genuine reaction to the payoff. In the series trailer, Tasha also turns to the lens: \"Got questions? Ask Helix.\"",
+    "continuity_instruction": "Attach the current cast reference images. Preserve each person’s identity, face structure, apparent age, skin tone, hair texture, body proportions and identifying accessories. Change only the requested pose, expression, wardrobe or location. Keep each cast member distinct; never transfer features between characters.",
     "seat_map": {
       "order": [
-        "TRENT01",
-        "BRI01",
-        "MAYA01"
+        "MARCUS01",
+        "TASHA01",
+        "JULIAN01"
       ],
-      "performer": "off camera beyond the audience camera’s left side; gaze sits just left of the lens",
-      "note": "Applies to the initial audience camera; reverse angles need a recorded seat map."
+      "performer": "the audience camera",
+      "note": "Pilot audience camera: Marcus left, Tasha middle, Julian right. A different scene documents its blocking before generation."
     },
-    "ep001_scene": "Three referenced coworkers seated close together beside a live runway style performance, warm amber stage spill on their faces, darker surrounding audience, believable crowd density. Trent at camera left, Bri center, Maya right. Their gaze is slightly camera left toward the unseen performer. Contemporary evening clothes as specified in EP001 looks. Seated eye level medium framing, restrained handheld texture matched to the event reference. No neon nightclub, corporate office, generated interface text, or performer duplication.",
     "arc": [
       {
-        "ep": "001",
-        "title": "The Night Out",
-        "premise": "Trent starts the worry, Maya checks the preparation, Bri gets the evening moving again. Establish affection and the lens address.",
-        "gain": "The others know Maya can show the shared call list on her phone."
+        "ep": "1",
+        "title": "The Follow Up Can Dance",
+        "premise": "A dance-loving agency owner loses momentum after networking. Tasha finds the handoff gap; Julian shows the confirmed follow-up sequence.",
+        "gain": "The new premise, with the pilot likenesses."
       },
       {
-        "ep": "002",
-        "title": "The Plus Ones",
-        "premise": "Bri invited more people than she intended; Trent handles the awkward conversation gracefully.",
-        "gain": "Bri learns honesty can be funnier and kinder than covering."
+        "ep": "2",
+        "title": "The Perfect Swing",
+        "premise": "A golf enthusiast wants a bigger pipeline but can’t describe the ideal agency opportunity. Marcus leads a focused Prospects demo.",
+        "gain": "A relevant shortlist, not a guaranteed sale."
       },
       {
-        "ep": "003",
-        "title": "Trivia Night",
-        "premise": "Maya is obsessively certain about a wrong answer; Bri lets her lose with dignity; Trent checks the facts.",
-        "gain": "Maya can be wrong and still belong."
+        "ep": "3",
+        "title": "Low and Slow",
+        "premise": "A barbecue competitor’s team waits for the owner to make every move. Marcus recognizes himself; Tasha proposes a clear handoff.",
+        "gain": "An agreed owner for the next step."
       },
       {
-        "ep": "004",
-        "title": "The Actual Problem",
-        "premise": "Trent spots a genuine discrepancy in a client note; Maya gives him the floor.",
-        "gain": "He resolves it with evidence and earns a sincere thank you."
+        "ep": "4",
+        "title": "The Scoreboard",
+        "premise": "A fantasy-sports devotee knows every statistic but not which conversations matter today. Tasha asks what a good next step looks like.",
+        "gain": "Notes and status used for today’s priorities."
       },
       {
-        "ep": "005",
-        "title": "Off Duty",
-        "premise": "Bri needs one evening without being the team’s emotional host; the others respect it.",
-        "gain": "A boundary can strengthen the friendship."
+        "ep": "5",
+        "title": "One More Question",
+        "premise": "A trivia-loving owner finds every tool interesting and never settles on a first workflow. Julian runs a deliberately short walkthrough.",
+        "gain": "A usable starting routine."
       },
       {
-        "ep": "006",
-        "title": "Who Are You Talking To",
-        "premise": "Trent finally follows Maya’s closing eyeline and asks the question after a beat.",
-        "gain": "Awareness of the camera becomes shared lore."
+        "ep": "6",
+        "title": "The Return Visit",
+        "premise": "A pickleball enthusiast returns after trying the team’s advice, with a modest real outcome and a new problem.",
+        "gain": "A recurring guest and earned trust."
       }
     ],
     "running_gags": [
-      "Trent’s “quick question” starts ominously, then eventually introduces genuinely good news.",
-      "Maya’s saved confirmations become funny when she keeps one for sentimental reasons.",
-      "Bri’s “tomorrow has office hours” eventually becomes a boundary the team honors."
+      "Marcus owns more thermometers than necessary.",
+      "Tasha rehearses a two-minute dance like it has a judging panel.",
+      "Julian is calm about deadlines and unreasonable about disputed trivia.",
+      "The team fails to leave on time because someone made the evening competitive."
     ],
     "acceptance": {
       "script": [
-        "Each character has a specific desire in the scene",
-        "The problem is understandable in one exchange",
-        "Reactions belong to the character, not filler",
-        "The product statement matches what appears on screen",
-        "The original source still delivers its entertainment",
-        "The lens close feels motivated by the scene",
-        "At least one gesture or line shows care; Bri contributes judgment; Maya has a human response beyond composure; no client is ridiculed"
+        "The agency need is understandable",
+        "The hobby connection is motivated",
+        "Each character behaves like a capable colleague",
+        "The closing line lands after the human moment"
       ],
       "visual": [
-        "Identity: faces, skin tone, age, hair and body scale match the approved references",
-        "Continuity: seat order, eyelines, hands, jewelry, phone case, bag, screen, clothing and emotional state between shots",
-        "Performance: mouths match the speaker, listeners do not mouth lines, laughter varied, every big reaction settles",
-        "Edit: watched silent, audio-only, at normal speed through transitions, and on a phone-sized preview"
+        "Faces and voices match their references",
+        "The product action matches the captured interface",
+        "The source payoff stays readable"
       ],
       "brand": [
-        "Phone screens are real GENOVUS captures with fictional demo data",
-        "Nothing implies completed work that was only prepared",
-        "Source material and synthetic additions are recorded for publication"
+        "The result does not overclaim",
+        "Official egg and wordmark assets are used",
+        "No other company’s logos or sounds"
       ]
     }
   },
@@ -367,7 +364,8 @@
         "ladder": "Leans forward, talks faster, offers one extra solution, then finally admits what he needs. A brief peak, then a grounded choice.",
         "funny": "Commits to the experience before checking how difficult it is; recovers with adaptability, never humiliation.",
         "never": "A fool, a salesman cliché, or humiliated.",
-        "season": "Learns to measure the quality of his commitments. Payoff: a prospect returns because Marcus did exactly what he said he would do."
+        "season": "Learns to measure the quality of his commitments. Payoff: a prospect returns because Marcus did exactly what he said he would do.",
+        "signature": "Leans forward with active brows, offers one idea too many, then exhales and grounds it."
       },
       "identity_prompt": "Marcus from the supplied reference: adult Black man, warm medium-dark brown complexion, cropped textured dark hair, short neat beard, expressive brows, solid build, apparent age late 30s. Navy overshirt over a cream crew-neck, charcoal trousers. Warmly persuasive, attentive, capable, slightly too eager. Natural skin texture, realistic anatomy. Keep his face recognizable at rest.",
       "visual_anchors": "Cropped textured hair; short neat beard; expressive brows; solid build; forward engagement, active brows, then a visible release of tension.",
@@ -432,7 +430,8 @@
         "ladder": "Her smile pauses, she asks a pointed question, then speaks very plainly. Her strongest reaction may be a slow turn.",
         "funny": "Reads two people perfectly, misreads the third, owns the correction. The punchline often arrives on the quietest word.",
         "never": "Constantly loud, smug, or everyone's safety net.",
-        "season": "Learns to build confidence in other people. Payoff: an agency owner explains the workflow correctly without her prompting."
+        "season": "Learns to build confidence in other people. Payoff: an agency owner explains the workflow correctly without her prompting.",
+        "signature": "Eyes register first, a held beat, then a deliberate slow turn; for the fourth wall she turns to the lens, warm and conspiratorial."
       },
       "identity_prompt": "Tasha from the supplied reference: adult Black woman, warm brown complexion, shoulder-length natural curls, gold hoop earrings, apparent age mid 30s. Burgundy blazer over a black top, black trousers. Poised, perceptive, warm, quietly competitive. Natural skin texture, realistic anatomy. Avoid exaggerated expressions.",
       "visual_anchors": "Shoulder-length natural curls; gold hoops; eyes register the implication before a deliberate turn.",
@@ -498,7 +497,8 @@
         "ladder": "Becomes still, asks one factual question, shortens his sentences.",
         "funny": "Restrained confidence punctured by a small personal obsession; the dry line follows a beat of silence.",
         "never": "Flat, an announcer, or a permanent genius.",
-        "season": "From checking everything himself to shared judgment. Keeps the direct-to-camera close: \"Genovus Just Knows.\""
+        "season": "From checking everything himself to shared judgment. Keeps the direct-to-camera close: \"Genovus Just Knows.\"",
+        "signature": "After a real laugh, he finds the lens: \"Genovus Just Knows.\" A knowing friend, not an announcer."
       },
       "identity_prompt": "Julian from the supplied reference: adult Black man, medium brown complexion, salt-and-pepper curls and beard, black rectangular glasses, apparent age late 40s. Olive blazer over a black shirt, dark trousers. Calm, approachable, dryly funny, capable of being caught off guard. Natural skin texture, realistic anatomy.",
       "visual_anchors": "Salt-and-pepper curls and beard; black rectangular glasses; comfortable stillness, small precise gestures.",
@@ -579,29 +579,128 @@
     "Tasha Reyes",
     "Velvet"
   ],
-  "bible_v2": {
+  "bible_v1": {
     "title": "GENOVUS Cast Character Bible",
-    "version": "2",
-    "date": "2026-10-12",
-    "owner": "Anthony Maurice Beedles / GENOVUS Studio",
-    "premise": "Marcus, Tasha and Julian run GENOVUS. Every workday brings a new insurance agency lead, a specific business problem, and a person whose life is bigger than the office.",
-    "engine": [
-      "The hook",
-      "The lead",
-      "The diagnosis",
-      "The plan",
-      "The proof",
-      "The payoff",
-      "The close"
+    "version": "1.0",
+    "date": "2026-10-09",
+    "owner": "Anthony Maurice Beedles and GENOVUS Studio",
+    "premise": "Three insurance coworkers keep finding themselves just outside the frame of extraordinary viral moments. Their everyday office problems collide with the spectacle. GENOVUS helps them get organized enough to enjoy being there.",
+    "promise": "These people care about doing good work, and they deserve a life after work. Their friendship makes us stay; their reactions make us laugh; a useful product moment earns the brand its place.",
+    "world": "A small, independent insurance agency in metro Atlanta. They are peers with different specialties; Maya is not automatically the owner or everyone’s supervisor. The workplace is fictional and unnamed until a story needs a name. GENOVUS is their office software, not the name of their agency. They have worked together for three years.",
+    "contract": "Anyone can call a work emergency. The other two can challenge whether it is actually an emergency. Nobody abandons a teammate with a real problem, and nobody makes a client the target of the joke.",
+    "intelligences": [
+      "Maya sees the sequence: what depends on what, the useful next step. Failure mode: deciding other people do not need the explanation.",
+      "Trent sees the exposure: a discrepancy, a promise, what could go wrong. Failure mode: treating every possibility as if it is already happening.",
+      "Bri sees the person: discomfort, the room, getting people talking. Failure mode: promising something before checking her own capacity."
     ],
-    "close": "Julian to the lens: \"Genovus Just Knows.\"",
-    "product_truth": "One problem, one visible workflow, one observable result. Only captured screens with exact labels. Prospects pulls independent and captive agent data.",
-    "palette": [
-      "#0B0C10",
-      "#121419",
-      "#FF6A2B",
-      "#FFA31A",
-      "#F4F5F7"
-    ]
+    "comedy_rules": [
+      "The friendship comes first. Keep affection visible; avoid two foolish coworkers corrected by a superior one.",
+      "Rotate who causes the trouble and who solves it. GENOVUS can support any of them. Maya owns the closing signature, not all competence.",
+      "The viral event happens independently of them. They occupy plausible audience seats; they never impersonate real participants or invent a relationship with the performer.",
+      "Each episode needs one work concern, one useful product action, and one emotional change."
+    ],
+    "continuity": "Stable: identities, job strengths, relationships, voices, habits, remembered events. Flexible: venue, clothing, who initiates the conflict, the source of the embarrassment. Growing: trust, boundaries, and awareness of Maya’s camera habit.",
+    "relationships": [
+      {
+        "pair": "Maya & Trent",
+        "pattern": "Trent offers three hypothetical disasters; Maya asks one factual question.",
+        "growth": "Maya gives him context; Trent brings her a checked fact rather than a forecast.",
+        "bond": "They once stayed late to reconstruct a messy handoff. Neither mentions the other’s mistake in public."
+      },
+      {
+        "pair": "Maya & Bri",
+        "pattern": "Maya tries to stay composed; Bri knows the exact detail that will make her laugh. Bri occasionally gets the final word.",
+        "growth": "Maya listens without solving; Bri states a boundary without disguising it as a joke.",
+        "bond": "Bri persuaded Maya to join her first team night out. Maya still saves the ticket confirmation."
+      },
+      {
+        "pair": "Trent & Bri",
+        "pattern": "They briefly agree on a bad assumption and reinforce each other until reality arrives. Rotate the initiator.",
+        "growth": "One gently protects the other from embarrassment.",
+        "bond": "An ongoing dispute about who recommended a restaurant that turned out badly."
+      }
+    ],
+    "boundaries": "A platonic chosen family. No romantic triangle. Disagreement does not reset their friendship. No character permanently becomes the group’s parent, child, or fool.",
+    "voice_test": "Maya reduces the problem to the relevant fact. Trent describes the feared consequence. Bri names what the situation feels like. Remove the labels: the wording should still suggest who is speaking.",
+    "product_dialogue": "Name the useful thing the character can see (“Your call list is here”). Never marketing copy. A list being ready does not mean tomorrow’s calls have already happened.",
+    "pronunciation": "GENOVUS: “juh NOH vus” (proposed; confirm and keep one approved audio example).",
+    "sound": "Maintain room ambience through the fork; dialogue above a reduced music bed while crowd texture continues. At the return to the source, restore the event’s energy. Use the source’s own sound perspective, never an unrelated nightclub soundtrack.",
+    "camera_break": "Maya reacts sincerely; another character gives her a reason to answer; she says the tagline to the group, then turns to the lens and repeats “Genovus just knows” with quiet certainty. Finish the shared reaction, settle the eyes, turn the head, find the lens, hold, speak, small smile (about 3–4 s). A short music dip clears space; never mute the room abruptly, no trailer voice, glitch or long logo sting. The others stay inside the scene.",
+    "continuity_instruction": "Preserve the referenced person’s face structure, apparent age, skin tone, hairline, hairstyle, body proportions, and identifying jewelry. Change only the requested pose, expression, wardrobe, or environment. Maintain realistic anatomy and distinguish each ensemble member. Do not beautify into a different face or transfer features between people.",
+    "seat_map": {
+      "order": [
+        "TRENT01",
+        "BRI01",
+        "MAYA01"
+      ],
+      "performer": "off camera beyond the audience camera’s left side; gaze sits just left of the lens",
+      "note": "Applies to the initial audience camera; reverse angles need a recorded seat map."
+    },
+    "ep001_scene": "Three referenced coworkers seated close together beside a live runway style performance, warm amber stage spill on their faces, darker surrounding audience, believable crowd density. Trent at camera left, Bri center, Maya right. Their gaze is slightly camera left toward the unseen performer. Contemporary evening clothes as specified in EP001 looks. Seated eye level medium framing, restrained handheld texture matched to the event reference. No neon nightclub, corporate office, generated interface text, or performer duplication.",
+    "arc": [
+      {
+        "ep": "001",
+        "title": "The Night Out",
+        "premise": "Trent starts the worry, Maya checks the preparation, Bri gets the evening moving again. Establish affection and the lens address.",
+        "gain": "The others know Maya can show the shared call list on her phone."
+      },
+      {
+        "ep": "002",
+        "title": "The Plus Ones",
+        "premise": "Bri invited more people than she intended; Trent handles the awkward conversation gracefully.",
+        "gain": "Bri learns honesty can be funnier and kinder than covering."
+      },
+      {
+        "ep": "003",
+        "title": "Trivia Night",
+        "premise": "Maya is obsessively certain about a wrong answer; Bri lets her lose with dignity; Trent checks the facts.",
+        "gain": "Maya can be wrong and still belong."
+      },
+      {
+        "ep": "004",
+        "title": "The Actual Problem",
+        "premise": "Trent spots a genuine discrepancy in a client note; Maya gives him the floor.",
+        "gain": "He resolves it with evidence and earns a sincere thank you."
+      },
+      {
+        "ep": "005",
+        "title": "Off Duty",
+        "premise": "Bri needs one evening without being the team’s emotional host; the others respect it.",
+        "gain": "A boundary can strengthen the friendship."
+      },
+      {
+        "ep": "006",
+        "title": "Who Are You Talking To",
+        "premise": "Trent finally follows Maya’s closing eyeline and asks the question after a beat.",
+        "gain": "Awareness of the camera becomes shared lore."
+      }
+    ],
+    "running_gags": [
+      "Trent’s “quick question” starts ominously, then eventually introduces genuinely good news.",
+      "Maya’s saved confirmations become funny when she keeps one for sentimental reasons.",
+      "Bri’s “tomorrow has office hours” eventually becomes a boundary the team honors."
+    ],
+    "acceptance": {
+      "script": [
+        "Each character has a specific desire in the scene",
+        "The problem is understandable in one exchange",
+        "Reactions belong to the character, not filler",
+        "The product statement matches what appears on screen",
+        "The original source still delivers its entertainment",
+        "The lens close feels motivated by the scene",
+        "At least one gesture or line shows care; Bri contributes judgment; Maya has a human response beyond composure; no client is ridiculed"
+      ],
+      "visual": [
+        "Identity: faces, skin tone, age, hair and body scale match the approved references",
+        "Continuity: seat order, eyelines, hands, jewelry, phone case, bag, screen, clothing and emotional state between shots",
+        "Performance: mouths match the speaker, listeners do not mouth lines, laughter varied, every big reaction settles",
+        "Edit: watched silent, audio-only, at normal speed through transitions, and on a phone-sized preview"
+      ],
+      "brand": [
+        "Phone screens are real GENOVUS captures with fictional demo data",
+        "Nothing implies completed work that was only prepared",
+        "Source material and synthetic additions are recorded for publication"
+      ]
+    }
   }
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 
 export type HomeEpisode = { id: string; code: string; kind: string; title: string; runtime_s: number | null; logline: string | null; status: string; final_blob?: string | null };
-type Props = { episodes: HomeEpisode[]; covers: Map<string, string>; progress: Map<string, { done: number; total: number }>; featured?: string };
+type Props = { episodes: HomeEpisode[]; covers: Map<string, string>; progress: Map<string, { done: number; total: number }>; featured?: string; current?: Set<string> };
 
 const finished = (e: HomeEpisode) => e.status === 'approved' || e.status === 'live';
 const KIND: Record<string, string> = { teaser: 'Trailer', episode: 'Episode', proof: 'Proof' };
@@ -41,7 +41,10 @@ function Row({ title, sub, items, covers, progress }: { title: string; sub: stri
   );
 }
 
-export function StudioHome({ episodes, covers, progress, featured }: Props) {
+export function StudioHome({ episodes: all, covers, progress, featured, current }: Props) {
+  // Episodes not made with the current cast (the development era, including retired codes) go to the archive.
+  const episodes = current ? all.filter((e) => current.has(e.code)) : all;
+  const vault = current ? all.filter((e) => !current.has(e.code)) : [];
   const hero = episodes.find((e) => e.code === featured) ?? episodes.find((e) => !finished(e)) ?? episodes[0];
   const cover = hero ? covers.get(hero.id) : undefined;
   const p = hero ? progress.get(hero.id) : undefined;
@@ -70,6 +73,7 @@ export function StudioHome({ episodes, covers, progress, featured }: Props) {
       <Row title="Coming soon" sub="In production now" items={soon} covers={covers} progress={progress} />
       <Row title="Finished" sub="Approved and ready to post" items={done} covers={covers} progress={progress} />
       <Row title="Proofs & pilots" sub="Tests that shape the series" items={proofs} covers={covers} progress={progress} />
+      <Row title="Archive · development cast" sub="Made with Maya, Trent and Bri, now retired. Kept for the record." items={vault} covers={covers} progress={progress} />
     </div>
   );
 }

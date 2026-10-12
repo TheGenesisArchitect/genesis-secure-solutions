@@ -16,6 +16,8 @@ import { estimateEpisode, stageOf, STAGE_LABEL, type Stage } from '@/lib/studio-
 import { adminDb } from '@/lib/supabase/admin';
 import { VIDEO_SECONDS, IMAGE_CENTS, generationConfigured, shotBudget, videoFor } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
+import { ProductionBoard } from '@/components/studio/ProductionBoard';
+import { V2_EPISODES } from '@/lib/studio-board';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,9 +87,15 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const series = e.studio_series as { name: string; bible: { platform_notes?: Record<string, string> } } | null;
   const notes = series?.bible?.platform_notes ?? {};
   const approved = e.status === 'approved' || e.status === 'live';
+  const isV2 = V2_EPISODES.has(e.code);
+  const { data: boardCast } = isV2 ? await supabase.from('studio_characters').select('id, code, name, archetype, wardrobe, voice, profile').eq('status', 'active').order('sort') : { data: [] };
+  const { data: lockRows } = isV2 ? await supabase.from('studio_refs').select('id, character_id').eq('approved', true).eq('slot', 'FACE_FRONT') : { data: [] };
   return (
     <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]} actions={<StudioHelix focus={{ kind: 'episode', code: e.code, label: `the episode “${e.title}”` }} />}>
       <p className="soft">{e.logline}</p>
+      {!V2_EPISODES.has(e.code) ? <div className="notice">Archived · made with the retired development cast (Maya, Trent and Bri). Kept for the record; the V2 cast is Marcus, Tasha and Julian.</div> : null}
+      {isV2 ? <ProductionBoard episode={{ id: e.id, code: e.code, title: e.title, kind: e.kind, runtime_s: e.runtime_s, status: e.status, final_blob: e.final_blob ?? null }} shots={(shots ?? []) as never} cast={(boardCast ?? []) as never} takes={((takeRows ?? []) as unknown as { id: string; shot_id: string; status: string; chosen: boolean | null }[])} lockedRefs={new Map((lockRows ?? []).map((r) => [r.character_id as string, r.id as string]))} /> : null}
+      <details className="engine-room" open={!isV2}><summary>{isV2 ? 'Engine room · script, format, shots, takes, final cut and posting' : 'Episode workspace'}</summary>
       {e.format === 'viral_fork' && e.fork_mode ? (
         <div className="fork-banner">
           <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}><Chip kind="info">{MODE[e.fork_mode].label}</Chip>{e.target_s ? <Chip kind="pending">{e.target_s}s target</Chip> : null}{e.cut_family ? <Chip kind="pending">{e.cut_family} cut</Chip> : null}</span>
@@ -363,6 +371,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         </div>
       </Panel>
       <Link className="btn ghost small" href="/console/studio" style={{ justifySelf: 'start' }}>← Back to the Studio</Link>
+      </details>
     </ConsoleShell>
   );
 }
