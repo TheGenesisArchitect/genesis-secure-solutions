@@ -35,6 +35,7 @@ export const BOARD_TOOLS = [{
     { name: 'review_shot', description: 'Approve a finished shot, or send it back with a note (redo makes a new keyframe and take inside the approved budget). shot is the board number.',
       parameters: { type: 'OBJECT', properties: { shot: { type: 'NUMBER' }, action: { type: 'STRING', enum: ['approve', 'redo'] }, note: { type: 'STRING' } }, required: ['shot', 'action'] } },
     { name: 'lock_cast', description: 'Lock every cast member\'s identity to the official V2 cast sheet (free). Do this when the person approves the cast sheets or when shots are blocked waiting on a lock.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'retry_blocked', description: 'Retry every blocked shot in the production run (after fixing what blocked it).', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'pause_production', description: 'Pause the production run: work already started finishes, nothing new starts.', parameters: { type: 'OBJECT', properties: {} } },
   ],
 }];

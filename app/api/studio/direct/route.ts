@@ -43,6 +43,30 @@ export async function POST(req: Request) {
   const a = b.args ?? {};
   const shots = await episodeShots(adminDb(), e.id);
   const fail = (error: string) => Response.json({ ok: false, error });
+  /** Lock every active character not yet locked to the official V2 cast sheet; shots waiting on a lock resume. */
+  const lockCast = async (): Promise<{ locked: string[] } | { error: string }> => {
+    const admin = adminDb();
+    const { data: cast } = await supabase.from('studio_characters').select('id, code, name').eq('status', 'active').order('sort');
+    const locked: string[] = [];
+    for (const c of (cast ?? []) as { id: string; code: string; name: string }[]) {
+      if (await identityLocked(admin, c.id)) continue;
+      let { data: ref } = await admin.from('studio_refs').select('id').eq('character_id', c.id).eq('slot', 'CASTING').eq('status', 'ready').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!ref) {
+        const bytes = await castSheetBytes(c.code, new URL(req.url).origin);
+        if (!bytes) continue;
+        const file = await put(`studio/casting/${c.id}/official-v2.jpg`, bytes, { access: 'private', contentType: 'image/jpeg', addRandomSuffix: true });
+        const added = await supabase.rpc('studio_add_casting', { p_character: c.id, p_blob: file.pathname });
+        if (added.error) return { error: added.error.message };
+        ref = { id: added.data as string };
+      }
+      const { error } = await supabase.rpc('studio_approve_ref', { p_id: ref.id, p_reason: `${c.name}: official V2 cast sheet, locked for production` });
+      if (error) return { error: error.message };
+      locked.push(c.name);
+    }
+    const fresh = await episodeShots(admin, e.id);
+    for (const s of fresh.filter((x) => x.produce?.stage === 'blocked' && /identity/i.test(String(x.produce?.note ?? '')))) await admin.rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since: new Date().toISOString(), note: null, leases: {} } });
+    return { locked };
+  };
   try {
     switch (b.tool) {
       case 'status': return Response.json({ ok: true, ...(await status(e)) });
@@ -67,6 +91,10 @@ export async function POST(req: Request) {
         if (typeof a.quote_id !== 'string') return fail('Get a quote first, read it back, and approve that quote.');
         const { error } = await supabase.rpc('studio_approve_production', { p_quote: a.quote_id, p_via: a.via === 'voice' ? 'voice' : 'tap' });
         if (error) return fail(error.message);
+        // Producing means producing with the official cast: any character not yet locked is locked to the official V2
+        // sheet now (recorded as this person's decision), so no shot stalls waiting on a lock.
+        const locked = await lockCast();
+        if ('error' in locked) return fail(locked.error);
         const progress = await advanceProduction(e.id).catch(() => ({}));
         return Response.json({ ok: true, started: true, progress, say: 'Approved. Lines, keyframes and takes are underway; each shot lands in review as it finishes.' });
       }
@@ -81,27 +109,16 @@ export async function POST(req: Request) {
         return Response.json({ ok: true, shot: a.shot, action });
       }
       case 'lock_cast': {
-        const admin = adminDb();
-        const { data: cast } = await supabase.from('studio_characters').select('id, code, name').eq('status', 'active').order('sort');
-        const locked: string[] = [];
-        for (const c of (cast ?? []) as { id: string; code: string; name: string }[]) {
-          if (await identityLocked(admin, c.id)) continue;
-          let { data: ref } = await admin.from('studio_refs').select('id').eq('character_id', c.id).eq('slot', 'CASTING').eq('status', 'ready').order('created_at', { ascending: false }).limit(1).maybeSingle();
-          if (!ref) {
-            const bytes = await castSheetBytes(c.code, new URL(req.url).origin);
-            if (!bytes) continue;
-            const file = await put(`studio/casting/${c.id}/official-v2.jpg`, bytes, { access: 'private', contentType: 'image/jpeg', addRandomSuffix: true });
-            const added = await supabase.rpc('studio_add_casting', { p_character: c.id, p_blob: file.pathname });
-            if (added.error) return fail(added.error.message);
-            ref = { id: added.data as string };
-          }
-          const { error } = await supabase.rpc('studio_approve_ref', { p_id: ref.id, p_reason: `${c.name}: official V2 cast sheet, locked from the production board` });
-          if (error) return fail(error.message);
-          locked.push(c.name);
-        }
-        // Shots that were waiting on the lock pick up again.
-        for (const s of shots.filter((x) => x.produce?.stage === 'blocked' && /identity/i.test(String(x.produce?.note ?? '')))) await admin.from('studio_shots').update({ produce: { ...(s.produce ?? {}), stage: 'queued', note: null } }).eq('id', s.id);
-        return Response.json({ ok: true, locked, say: locked.length ? `Locked ${locked.join(', ')} to the official cast sheet.` : 'The whole cast is already locked.' });
+        const r = await lockCast();
+        if ('error' in r) return fail(r.error);
+        return Response.json({ ok: true, locked: r.locked, say: r.locked.length ? `Locked ${r.locked.join(', ')} to the official cast sheet.` : 'The whole cast is already locked.' });
+      }
+      case 'retry': {
+        // Blocked shots in the run start over (fresh failure counts); the run resumes if it was paused for no spend reason.
+        const blocked = shots.filter((x) => x.produce?.stage === 'blocked');
+        for (const s of blocked) await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since: new Date().toISOString(), note: null, last_error: null, leases: {} } });
+        const progress = await advanceProduction(e.id).catch(() => ({}));
+        return Response.json({ ok: true, retried: blocked.length, progress, say: blocked.length ? `Retrying ${blocked.length} shot${blocked.length === 1 ? '' : 's'}.` : 'Nothing is blocked.' });
       }
       case 'pause': {
         const { error } = await supabase.rpc('studio_pause_production', { p_episode: e.id });

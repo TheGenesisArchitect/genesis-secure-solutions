@@ -67,10 +67,14 @@ async function claim(db: Db, shot: string, step: string) {
   return data === true;
 }
 const release = (db: Db, shot: string, step: string) => db.rpc('studio_release_step', { p_shot: shot, p_step: step });
-/** Claim a step, run it, release it. Returns false if another advancer holds the step. */
+/**
+ * Claim a step and run it. The claim is kept after a successful start (it expires on its own): another advancer
+ * that checked the shot a moment earlier can't win the claim and start the same step twice. By the time it
+ * expires, the started job is visible to every check. A failed start releases the claim so it can be retried.
+ */
 async function once(db: Db, shot: string, step: string, run: () => Promise<{ ok: boolean; error?: string }>) {
   if (!(await claim(db, shot, step))) return false;
-  try { const r = await run(); if (!r.ok) throw new Error(r.error); } finally { await release(db, shot, step); }
+  try { const r = await run(); if (!r.ok) throw new Error(r.error); } catch (e) { await release(db, shot, step); throw e; }
   return true;
 }
 const busy = (st: string) => st === 'running' || st === 'queued';
@@ -170,7 +174,7 @@ export async function advanceProduction(episodeId: string): Promise<Record<strin
       out[st] = (out[st] ?? 0) + 1;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'step failed';
-      if (/ceiling|budget|paused|isn.t in the approved run/i.test(msg)) { pauseMsg = msg; return; }
+      if (/ceiling|budget/i.test(msg)) { pauseMsg = msg; return; }
       console.warn(`[production] ${e.code} shot ${s.n}: ${msg}`);
       await setProduce(db, s, { last_error: msg.slice(0, 300) });
       out.errors = (out.errors ?? 0) + 1;

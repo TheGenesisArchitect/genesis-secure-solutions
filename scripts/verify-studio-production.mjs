@@ -105,15 +105,24 @@ try {
   check(a11.ok, 'approving the read-back quote starts the run');
   const again = await api('approve', { quote_id: p11.quote_id });
   check(!again.ok && /already approved/i.test(again.error ?? ''), 'a quote can be approved only once');
-  await advance();
-  check((await stages())[11] === 'blocked' && calls.length === 0, 'with the cast not locked, the shot is blocked and nothing is spent');
-
-  // 2. Lock the cast once; the blocked shot picks up.
+  // Approving locks any unlocked cast to the official sheet, so the shot starts at once (no stall on a lock).
+  const lockedNow = (await db.from('studio_refs').select('id').in('character_id', cast.map((c) => c.id)).eq('slot', 'CASTING').eq('approved', true).gte('created_at', startedAt)).data?.length;
+  check(lockedNow === 3 && (await stages())[11] !== 'blocked' && calls.some((c) => c.path === '/text_to_image') && calls.some((c) => c.path === '/text_to_speech'), `approving locks the cast and starts shot 11's keyframe and line read together (${lockedNow} locked)`);
   const lock = await api('lock_cast');
-  check(lock.ok && lock.locked.length === 3, `one action locks the whole cast (${(lock.locked ?? []).join(', ')})`);
+  check(lock.ok && lock.locked.length === 0, 'the cast stays locked (lock_cast has nothing left to do)');
+  // A blocked shot says why on the bar and comes back with one tap.
+  const s3 = shotsAll.find((x) => x.n === 30);
+  await db.rpc('studio_shot_produce_patch', { p_shot: s3.id, p_patch: { stage: 'blocked', note: 'The keyframe keeps failing.' } });
+  const pre = await db.from('studio_episodes').select('production').eq('id', ep.id).single();
+  await db.from('studio_episodes').update({ production: { ...pre.data.production, shots: [...new Set([...(pre.data.production.shots ?? []), s3.id])] } }).eq('id', ep.id);
+  await go('/console/studio/gjk-h01');
+  check(/Shot 3: The keyframe keeps failing/.test(await ev(`document.querySelector('.pc-bar').innerText`)) && await ev(`[...document.querySelectorAll('.pc-bar button')].some((b) => /Fix & retry shot 3/.test(b.textContent))`), 'the bar names the blocked shot and why, with Fix & retry');
+  await click(`document.querySelector('.pc-bar')`, '/Fix & retry/');
+  await waitFor(async () => (await stages())[3] !== 'blocked', 15000);
+  check((await stages())[3] !== 'blocked', `Fix & retry restarts the shot (${(await stages())[3]})`);
   // 3. Produce everything else with one approval, then nobody touches anything.
   const pAll = await api('plan', { shots: 'all' });
-  check(pAll.ok && !pAll.shots.includes(11) && pAll.shots.includes(1), `"all" prices what isn't made yet (${pAll.shots?.length} shots, ${pAll.total})`);
+  check(pAll.ok && !pAll.shots.includes(11) && !pAll.shots.includes(3) && pAll.shots.includes(1), `"all" prices what isn't made yet (${pAll.shots?.length} shots, ${pAll.total})`);
   check((await api('approve', { quote_id: pAll.quote_id })).ok, 'one approval for the whole episode');
   // The cron, the board and a kick all advancing at once must not double-start anything.
   for (let i = 0; i < 60; i++) {
@@ -127,6 +136,7 @@ try {
   check(runwayBoards.every((b) => st[b] === 'review'), `every generated shot reached review with no further clicks (${runwayBoards.map((b) => `${b}:${st[b]}`).join(' ')})`);
   check(st[9] === 'capture' && !st[2] && !st[5], `the product shot gets its voice-over and waits for a phone capture; code cards cost nothing and stay out of the run (9:${st[9]} 2:${st[2] || '-'} 5:${st[5] || '-'})`);
   const vids = calls.filter((c) => c.path === '/image_to_video').length, imgs = calls.filter((c) => c.path === '/text_to_image').length;
+  const by = {}; for (const c of calls.filter((c) => c.path === '/text_to_image' || c.path === '/text_to_speech')) { const k = c.path.slice(1, 8) + ' ' + (c.body.promptText ?? '').replace(/@w+ is w+; ?|@w+ is w+. ?/g, '').slice(0, 38); by[k] = (by[k] ?? 0) + 1; } console.log('CALLS', JSON.stringify(Object.entries(by).filter(([, n]) => n > 1)));
   check(vids === runwayBoards.length && imgs === runwayBoards.length, `single-flight: one keyframe and one take per shot (${imgs} keyframes, ${vids} takes for ${runwayBoards.length} shots)`);
   const reads = calls.filter((c) => c.path === '/text_to_speech').length;
   check(reads === 11, `each spoken line read exactly once (${reads} of 11)`);

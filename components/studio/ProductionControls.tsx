@@ -13,7 +13,7 @@ const direct = async (episode: string, tool: string, args: Record<string, unknow
 export type RunState = { on: boolean; spent: string; ceiling: string; paused_reason: string | null };
 export type Counts = { review: number; approved: number; active: number; capture: number; blocked: number; total: number };
 
-export function ProductionBar({ episode, run, counts, estimate, needsLock, ready }: { episode: string; run: RunState; counts: Counts; estimate: string; needsLock: boolean; ready: boolean }) {
+export function ProductionBar({ episode, run, counts, estimate, needsLock, ready, blocked = [] }: { episode: string; run: RunState; counts: Counts; estimate: string; needsLock: boolean; ready: boolean; blocked?: { board: number; note: string }[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState<{ quote_id: string; total: string; ceiling: string; shots: number[] } | null>(null);
@@ -35,6 +35,7 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
   };
   const plan = async () => { const r = await go('plan', { shots: 'all' }); if (r.ok) setQ(r); };
   const approve = async () => { if (!q) return; const r = await go('approve', { quote_id: q.quote_id }); if (r.ok) { setQ(null); toast({ ok: r.say, at: Date.now() }); } };
+  const fixRetry = async () => { if (needsLock) await go('lock_cast'); const r = await go('retry'); if (r.ok) toast({ ok: r.say ?? 'Retrying.', at: Date.now() }); };
   const pct = counts.total ? Math.round(((counts.review + counts.approved) / counts.total) * 100) : 0;
   return (
     <div className="pc-bar">
@@ -48,7 +49,8 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
         <span className="pc-progress" aria-hidden="true"><i style={{ width: `${pct}%` }} /></span>
       </div>
       <div className="pc-actions">
-        {needsLock ? <button className="btn small" type="button" disabled={busy} onClick={() => go('lock_cast').then((r) => r.ok && toast({ ok: r.say, at: Date.now() }))}>Lock the cast</button> : null}
+        {blocked.length ? <button className="btn small primary" type="button" disabled={busy} onClick={fixRetry}>Fix &amp; retry {blocked.length === 1 ? `shot ${blocked[0].board}` : `${blocked.length} shots`}</button> : null}
+        {needsLock && !blocked.length ? <button className="btn small" type="button" disabled={busy} onClick={() => go('lock_cast').then((r) => r.ok && toast({ ok: r.say, at: Date.now() }))}>Lock the cast</button> : null}
         {q ? (
           <span className="pc-confirm">
             <span>Shots {q.shots.join(', ')} · <b>{q.total}</b> <small>(ceiling {q.ceiling})</small></span>
@@ -58,6 +60,7 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
         ) : run.on ? <button className="btn small ghost" type="button" disabled={busy} onClick={() => go('pause')}>Pause</button>
           : <button className="btn small primary" type="button" disabled={busy || !ready} onClick={plan}>Produce the episode · ~{estimate}</button>}
       </div>
+      {blocked.length ? <p className="pc-blocked">⚠ {blocked.map((b) => `Shot ${b.board}: ${b.note}`).join(' · ')}</p> : null}
       <p className="pc-voice">🎙 Hands-free: open <b>Ask Helix</b> and say <i>“Produce the trailer”</i>, <i>“Approve shot 4”</i> or <i>“Redo shot 11, slower turn”</i>. Helix prices it, asks once, and does the rest.</p>
     </div>
   );
