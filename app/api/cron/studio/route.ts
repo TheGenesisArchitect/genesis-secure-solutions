@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   try { runway = await pollRunwayJobs(); } catch (e) { runway = { error: e instanceof Error ? e.message : 'runway poll failed' }; }
   // Production runs (approved by a person) take their next steps.
   let production: unknown = {};
-  try { production = await advanceAllProductions(); } catch (e) { production = { error: e instanceof Error ? e.message : 'production failed' }; }
+  try { production = await advanceAllProductions(); for (const [code, o] of Object.entries(production as Record<string, Record<string, number>>)) if (Object.keys(o).length) console.info(`[production] ${code}: ${JSON.stringify(o)}`); } catch (e) { production = { error: e instanceof Error ? e.message : 'production failed' }; }
   if (!generationConfigured()) return Response.json({ sync, runway, production, skipped: 'no Gemini key' });
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.
   const { data: running } = await db.from('studio_takes').select('id').not('model', 'like', 'runway:%').or('status.eq.running,and(status.eq.queued,params->>waiting_since.is.null)').order('created_at').limit(10);

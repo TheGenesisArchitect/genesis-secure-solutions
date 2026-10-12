@@ -8,7 +8,7 @@ import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
 import { parseRead } from '@/lib/studio-read';
 import { billedSeconds, defaultDirection, engineFor, PRICE } from '@/lib/studio-board';
-import { identityRef, pollRunwayJobs, startKeyframes, startLines, startRunwayTake } from '@/lib/studio-runway';
+import { identityLocked, pollRunwayJobs, startKeyframes, startLines, startRunwayTake } from '@/lib/studio-runway';
 
 type Db = ReturnType<typeof adminDb>;
 export type ProdShot = { id: string; n: number; tool: string; tier: string | null; timing: string | null; description: string; log: Record<string, string> | null; cast_codes: string[] | null; produce: Record<string, string | number | null> | null; status: string };
@@ -61,42 +61,51 @@ const autoReserve = (db: Db) => async (p: { kind: string; shot: string | null; c
   if (error) throw new Error(error.message);
   return data as string;
 };
-const setProduce = (db: Db, s: ProdShot, patch: Record<string, unknown>) => db.from('studio_shots').update({ produce: { ...(s.produce ?? {}), ...patch } }).eq('id', s.id);
+const setProduce = (db: Db, s: ProdShot, patch: Record<string, unknown>) => db.rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: patch });
 async function claim(db: Db, shot: string, step: string) {
-  const { data } = await db.rpc('studio_claim_step', { p_shot: shot, p_step: step, p_seconds: 120 });
+  const { data } = await db.rpc('studio_claim_step', { p_shot: shot, p_step: step, p_seconds: 90 });
   return data === true;
 }
-const release = async (db: Db, shot: string) => {
-  const { data } = await db.from('studio_shots').select('produce').eq('id', shot).single();
-  const p = { ...((data?.produce as Record<string, unknown>) ?? {}) }; delete p.lease_until; delete p.lease_step;
-  await db.from('studio_shots').update({ produce: p }).eq('id', shot);
-};
+const release = (db: Db, shot: string, step: string) => db.rpc('studio_release_step', { p_shot: shot, p_step: step });
+/** Claim a step, run it, release it. Returns false if another advancer holds the step. */
+async function once(db: Db, shot: string, step: string, run: () => Promise<{ ok: boolean; error?: string }>) {
+  if (!(await claim(db, shot, step))) return false;
+  try { const r = await run(); if (!r.ok) throw new Error(r.error); } finally { await release(db, shot, step); }
+  return true;
+}
+const busy = (st: string) => st === 'running' || st === 'queued';
 
-/** Move one shot one step forward. Returns its stage. */
+/**
+ * Move one shot forward. The line reads and the keyframe don't depend on each other, so both start at once; the
+ * take starts the moment both are ready. Returns the shot's stage.
+ */
 async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string; code: string; name: string }[], since: string): Promise<string> {
   const stage = String(s.produce?.stage ?? '');
   if (!stage || ['review', 'approved', 'capture', 'blocked'].includes(stage)) return stage || 'idle';
   if (s.tool === 'edit') { await setProduce(db, s, { stage: 'review', note: 'Code card: made in the render.' }); return 'review'; }
   const runStart = String(s.produce?.since ?? since);
   const reserve = autoReserve(db);
+  const eng = engineFor(s.tool, s.tier);
 
-  // Identity first: every cast member in a generated shot must be locked before anything is spent on it.
-  if (engineFor(s.tool, s.tier)) for (const c of cast.filter((x) => (s.cast_codes ?? []).includes(x.code))) {
-    if (!(await identityRef(db, c.id))) { await setProduce(db, s, { stage: 'blocked', note: `Lock ${c.name}’s identity first.` }); return 'blocked'; }
+  // Identity first (a quick check): nothing is spent on a generated shot until its cast is locked.
+  if (eng) for (const c of cast.filter((x) => (s.cast_codes ?? []).includes(x.code))) {
+    if (!(await identityLocked(db, c.id))) { await setProduce(db, s, { stage: 'blocked', note: `Lock ${c.name}’s identity first.` }); return 'blocked'; }
   }
 
-  // 1. Line reads: every line read once in its current wording, the newest read of each picked.
+  // Line reads (every line in its current wording; the newest read of each picked) …
   const lines = parseRead(readOf(code, s), cast);
-  if (lines.length) {
+  let linesReady = true;
+  const lineStep = async () => {
+    if (!lines.length) return;
     const { data: clipRows } = await db.from('studio_voice_clips').select('id, slot, text, status, approved, created_at').eq('shot_id', s.id).eq('kind', 'line').order('created_at', { ascending: false });
-    const clips = (clipRows ?? []) as { id: string; slot: string; text: string; status: string; approved: boolean }[];
-    if (clips.some((c) => c.status === 'running' || c.status === 'queued')) return 'reading';
+    const clips = (clipRows ?? []) as { id: string; slot: string; text: string; status: string; approved: boolean; created_at: string }[];
     const missing = lines.filter((l) => !clips.some((c) => c.slot === l.slot && c.text === l.text && c.status === 'ready'));
     if (missing.length) {
-      if (clips.filter((c) => c.status === 'failed' && new Date((c as unknown as { created_at: string }).created_at) >= new Date(runStart)).length >= 2 * lines.length) { await setProduce(db, s, { stage: 'blocked', note: 'Line reads keep failing.' }); return 'blocked'; }
-      if (!(await claim(db, s.id, 'lines'))) return 'reading';
-      try { const r = await startLines(reserve, s.id); if (!r.ok) throw new Error(r.error); } finally { await release(db, s.id); }
-      return 'reading';
+      linesReady = false;
+      if (clips.some((c) => busy(c.status))) return;
+      if (clips.filter((c) => c.status === 'failed' && new Date(c.created_at) >= new Date(runStart)).length >= 2 * lines.length) throw new Error('BLOCK:Line reads keep failing.');
+      await once(db, s.id, 'lines', () => startLines(reserve, s.id));
+      return;
     }
     for (const l of lines) {
       const mine = clips.filter((c) => c.slot === l.slot && c.text === l.text && c.status === 'ready');
@@ -105,36 +114,41 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
         await db.from('studio_voice_clips').update({ approved: true }).eq('id', mine[0].id);
       }
     }
-  }
-  if (s.tool === 'capture') { await setProduce(db, s, { stage: 'capture', note: 'Voice-over ready. Capture the screens on a phone.' }); return 'capture'; }
-  const eng = engineFor(s.tool, s.tier);
-  if (!eng) { await setProduce(db, s, { stage: 'review' }); return 'review'; }
-
-
-  // 3. Keyframe: one, picked provisionally (a redo draws a fresh one).
-  const { data: frameRows } = await db.from('studio_art').select('id, status, chosen, created_at').eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).order('created_at', { ascending: false });
-  const frames = (frameRows ?? []) as { id: string; status: string; chosen: boolean }[];
-  if (!frames.some((f) => f.chosen && f.status === 'ready')) {
+  };
+  // … and the keyframe (one, picked provisionally; a redo draws a fresh one), at the same time.
+  let frameReady = !eng;
+  const frameStep = async () => {
+    if (!eng) return;
+    const { data: frameRows } = await db.from('studio_art').select('id, status, chosen').eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).order('created_at', { ascending: false });
+    const frames = (frameRows ?? []) as { id: string; status: string; chosen: boolean }[];
+    if (frames.some((f) => f.chosen && f.status === 'ready')) { frameReady = true; return; }
     const ready = frames.find((f) => f.status === 'ready');
-    if (ready) await db.rpc('studio_auto_choose_frame', { p_id: ready.id });
-    else if (frames.some((f) => f.status === 'running' || f.status === 'queued')) return 'drawing';
-    else if (frames.filter((f) => f.status === 'failed').length >= 2) { await setProduce(db, s, { stage: 'blocked', note: 'The keyframe keeps failing.' }); return 'blocked'; }
-    else {
-      if (!(await claim(db, s.id, 'keyframe'))) return 'drawing';
-      try { const r = await startKeyframes(reserve, s.id, 1); if (!r.ok) throw new Error(r.error); } finally { await release(db, s.id); }
-      return 'drawing';
-    }
+    if (ready) { await db.rpc('studio_auto_choose_frame', { p_id: ready.id }); frameReady = true; return; }
+    if (frames.some((f) => busy(f.status))) return;
+    if (frames.filter((f) => f.status === 'failed').length >= 2) throw new Error('BLOCK:The keyframe keeps failing.');
+    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1));
+  };
+  try { await Promise.all([lineStep(), frameStep()]); } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    if (msg.startsWith('BLOCK:')) { await setProduce(db, s, { stage: 'blocked', note: msg.slice(6) }); return 'blocked'; }
+    throw e;
   }
+  if (s.tool === 'capture') {
+    if (!linesReady) { await setProduce(db, s, { stage: 'reading' }); return 'reading'; }
+    await setProduce(db, s, { stage: 'capture', note: 'Voice-over ready. Capture the screens on a phone.' }); return 'capture';
+  }
+  if (!eng) { await setProduce(db, s, { stage: 'review' }); return 'review'; }
+  if (!linesReady || !frameReady) { const st = !frameReady ? 'drawing' : 'reading'; if (stage !== st) await setProduce(db, s, { stage: st }); return st; }
 
-  // 4. Take: one, from the picked keyframe, performing to the picked reads; then the shot waits for review.
+  // The take: from the picked keyframe, performing to the picked reads; then the shot waits for review.
   const { data: takeRows } = await db.from('studio_takes').select('id, status, chosen').eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).order('created_at', { ascending: false });
   const takes = (takeRows ?? []) as { id: string; status: string; chosen: boolean }[];
   const done = takes.find((t) => t.status === 'ready');
   if (done) { await db.rpc('studio_auto_choose_take', { p_id: done.id }); await setProduce(db, s, { stage: 'review' }); return 'review'; }
-  if (takes.some((t) => t.status === 'running' || t.status === 'queued')) return 'rendering';
+  if (takes.some((t) => busy(t.status))) { if (stage !== 'rendering') await setProduce(db, s, { stage: 'rendering' }); return 'rendering'; }
   if (takes.filter((t) => t.status === 'failed').length >= 2) { await setProduce(db, s, { stage: 'blocked', note: 'The take keeps failing.' }); return 'blocked'; }
-  if (!(await claim(db, s.id, 'take'))) return 'rendering';
-  try { const r = await startRunwayTake(reserve, s.id); if (!r.ok) throw new Error(r.error); } finally { await release(db, s.id); }
+  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id));
+  await setProduce(db, s, { stage: 'rendering' });
   return 'rendering';
 }
 
@@ -148,20 +162,25 @@ export async function advanceProduction(episodeId: string): Promise<Record<strin
   const cast = await activeCast(db);
   const shots = (await episodeShots(db, e.id)).filter((s) => (run.shots ?? []).includes(s.id));
   const out: Record<string, number> = {};
-  for (const s of shots) {
+  let pauseMsg: string | null = null;
+  const step = async (s: ProdShot) => {
+    if (pauseMsg) return;
     try {
       const st = await advanceShot(db, e.code, s, cast, run.at ?? new Date().toISOString());
       out[st] = (out[st] ?? 0) + 1;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'step failed';
-      if (/ceiling|budget|paused|isn.t in the approved run/i.test(msg)) {
-        await db.rpc('studio_production_patch', { p_episode: e.id, p_patch: { on: false, paused_at: new Date().toISOString(), paused_reason: msg.slice(0, 300) }, p_remove: [] });
-        out.paused = 1;
-        break;
-      }
+      if (/ceiling|budget|paused|isn.t in the approved run/i.test(msg)) { pauseMsg = msg; return; }
+      console.warn(`[production] ${e.code} shot ${s.n}: ${msg}`);
       await setProduce(db, s, { last_error: msg.slice(0, 300) });
       out.errors = (out.errors ?? 0) + 1;
     }
+  };
+  for (let i = 0; i < shots.length; i += 4) await Promise.all(shots.slice(i, i + 4).map(step));
+  // A spend refusal (the ceiling, the monthly cap) pauses the run with the reason.
+  if (pauseMsg) {
+    await db.rpc('studio_production_patch', { p_episode: e.id, p_patch: { on: false, paused_at: new Date().toISOString(), paused_reason: (pauseMsg as string).slice(0, 300) }, p_remove: [] });
+    out.paused = 1;
   }
   // Everything waits on people (review, capture, a lock): the run stays open for redos inside its ceiling.
   if (!['queued', 'reading', 'drawing', 'rendering'].some((k) => out[k]) && !out.paused && !out.errors) {

@@ -25,7 +25,16 @@ const LOOK = 'Photoreal cinematic still from a premium workplace dramedy series,
 
 // ---------- Inputs (Runway can't reach private storage or localhost, so inputs go as data URIs, up to 5 MB) ----------
 const MIME: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', wav: 'audio/wav', mp3: 'audio/mpeg', mp4: 'video/mp4' };
+// Identity images are read for every keyframe; keep them in memory for a few minutes instead of re-downloading.
+const uriCache = new Map<string, { at: number; uri: string }>();
 export async function blobDataUri(p: string): Promise<string | null> {
+  const hit = uriCache.get(p);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.uri;
+  const uri = await readDataUri(p);
+  if (uri && /^studio\/(casting|refs)\//.test(p)) uriCache.set(p, { at: Date.now(), uri });
+  return uri;
+}
+async function readDataUri(p: string): Promise<string | null> {
   const res = await get(p, { access: 'private', useCache: false });
   if (!res || res.statusCode !== 200 || !res.stream) return null;
   const buf = Buffer.from(await new Response(res.stream).arrayBuffer());
@@ -41,6 +50,14 @@ export async function castSheetBytes(code: string, origin?: string): Promise<Buf
   const r = await fetch(`${origin}/studio/cast/${file}.jpg`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
   return r?.ok ? Buffer.from(await r.arrayBuffer()) : null;
 }
+
+/** Is a character's identity locked (an approved front portrait or casting sheet)? A quick check, no download. */
+export async function identityLocked(db: Db, characterId: string): Promise<boolean> {
+  const { count } = await db.from('studio_refs').select('id', { count: 'exact', head: true }).eq('character_id', characterId).in('slot', ['FACE_FRONT', 'CASTING']).eq('approved', true).not('blob_path', 'is', null);
+  return (count ?? 0) > 0;
+}
+// Runway's result links stay valid for a while; within that window the next step gets the link, not a re-upload.
+const fresh = (at: string | null | undefined) => Boolean(at && Date.now() - new Date(at).getTime() < 12 * 3600_000);
 
 /** A character's identity reference for the engines: the approved front portrait, else the approved casting sheet. */
 export async function identityRef(db: Db, characterId: string): Promise<{ id: string; slot: string; uri: string } | null> {
@@ -155,8 +172,8 @@ export async function startRunwayTake(reserve: Reserve, shotId: string): Promise
   const eng = engineFor(s.tool, s.tier);
   if (!eng) return { ok: false, error: 'This shot isn’t made on Runway.' };
   const d = directionOf(s);
-  const { data: frame } = await db.from('studio_art').select('id, blob_path').eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').eq('chosen', true).eq('status', 'ready').maybeSingle();
-  const frameUri = frame?.blob_path ? await blobDataUri(frame.blob_path) : null;
+  const { data: frame } = await db.from('studio_art').select('id, blob_path, source_url, source_at').eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').eq('chosen', true).eq('status', 'ready').maybeSingle();
+  const frameUri = frame ? (fresh(frame.source_at) && frame.source_url ? frame.source_url : frame.blob_path ? await blobDataUri(frame.blob_path) : null) : null;
   const cast = await activeCast(db);
   const refs: { id: string; uri: string }[] = [];
   if (!frameUri) {
@@ -168,11 +185,11 @@ export async function startRunwayTake(reserve: Reserve, shotId: string): Promise
     }
   }
   // The chosen read for each line (or the newest ready one), in line order.
-  const { data: clips } = await db.from('studio_voice_clips').select('id, slot, blob_path, approved, created_at').eq('shot_id', s.id).eq('kind', 'line').eq('status', 'ready').order('created_at', { ascending: false });
-  const bySlot = new Map<string, { id: string; blob_path: string; approved: boolean }>();
-  for (const c of (clips ?? []) as { id: string; slot: string; blob_path: string; approved: boolean }[]) { const cur = bySlot.get(c.slot); if (!cur || (c.approved && !cur.approved)) bySlot.set(c.slot, c); }
+  const { data: clips } = await db.from('studio_voice_clips').select('id, slot, blob_path, approved, created_at, source_url, source_at').eq('shot_id', s.id).eq('kind', 'line').eq('status', 'ready').order('created_at', { ascending: false });
+  const bySlot = new Map<string, { id: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }>();
+  for (const c of (clips ?? []) as { id: string; slot: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }[]) { const cur = bySlot.get(c.slot); if (!cur || (c.approved && !cur.approved)) bySlot.set(c.slot, c); }
   const audio: string[] = [];
-  if (eng.model === 'seedance2_5') for (const slot of [...bySlot.keys()].sort()) { const u = await blobDataUri(bySlot.get(slot)!.blob_path); if (u) audio.push(u); }
+  if (eng.model === 'seedance2_5') for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
   const seconds = takeSeconds(s.tool, s.tier, s.timing);
   const prompt = `${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''}${audio.length ? ` The characters speak the attached dialogue on camera with natural, accurate lip movement and the delivery of the read.` : ''} ${LOOK} Keep every person exactly as in the references.`;
   const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: eng.model, cents: seconds * eng.perSec, params: { method: frameUri ? 'keyframe' : 'references', seconds, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
@@ -257,7 +274,7 @@ export async function pollRunwayJobs(shotId?: string): Promise<Record<string, nu
           const p = `studio/${T.dir}/${id}.${ext}`;
           await put(p, Buffer.from(await file.arrayBuffer()), { access: 'private', contentType: TYPE[ext], addRandomSuffix: false, allowOverwrite: true });
           const cents = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : Number(row.cost_cents ?? 0);
-          await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, ...(T.table === 'studio_voice_clips' ? {} : { updated_at: now() }) }).eq('id', id);
+          await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, ...(T.table === 'studio_takes' ? { updated_at: now() } : { source_url: t.output[0], source_at: now(), ...(T.table === 'studio_art' ? { updated_at: now() } : {}) }) }).eq('id', id);
           await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null);
           out.ready = (out.ready ?? 0) + 1;
         } else if (t.status === 'FAILED' || t.status === 'CANCELLED') {

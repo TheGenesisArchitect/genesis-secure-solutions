@@ -7,7 +7,7 @@ import { put } from '@vercel/blob';
 import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { advanceProduction, episodeShots, quote, type ProdShot } from '@/lib/studio-production';
-import { castSheetBytes, identityRef } from '@/lib/studio-runway';
+import { castSheetBytes, identityLocked } from '@/lib/studio-runway';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
         const { data: cast } = await supabase.from('studio_characters').select('id, code, name').eq('status', 'active').order('sort');
         const locked: string[] = [];
         for (const c of (cast ?? []) as { id: string; code: string; name: string }[]) {
-          if (await identityRef(admin, c.id)) continue;
+          if (await identityLocked(admin, c.id)) continue;
           let { data: ref } = await admin.from('studio_refs').select('id').eq('character_id', c.id).eq('slot', 'CASTING').eq('status', 'ready').order('created_at', { ascending: false }).limit(1).maybeSingle();
           if (!ref) {
             const bytes = await castSheetBytes(c.code, new URL(req.url).origin);
