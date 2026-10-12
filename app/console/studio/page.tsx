@@ -11,6 +11,7 @@ import { resetDemoFollowUps, studioSetBudget, studioSetVeoLimits, studioSaveSour
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { IMAGE_CENTS, generationConfigured, veoRoom, HERO_VIDEO_MODEL } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
+import { runwayConfigured, runwayOrganization, CREDIT_CENTS } from '@/lib/runway';
 
 export const metadata = { title: 'Studio' };
 export const dynamic = 'force-dynamic';
@@ -51,6 +52,8 @@ export default async function Studio() {
   const veo = generationConfigured() ? await veoRoom() : null;
   const veoStd = generationConfigured() ? await veoRoom(HERO_VIDEO_MODEL()) : null;
   const used = Number(spent ?? 0);
+  // Runway, the StudioNext engine hub: connected, and how many credits are left (a free call).
+  const runway = runwayConfigured() ? await runwayOrganization().then((o) => ({ ok: true as const, credits: o.creditBalance }), (e: Error) => ({ ok: false as const, error: e.message })) : null;
   const bible = (series?.bible ?? {}) as Bible;
   const epTitle = new Map((eps ?? []).map((e) => [e.id, e]));
   const posted = (posts ?? []).filter((p) => p.status === 'posted').length;
@@ -71,6 +74,9 @@ export default async function Studio() {
             <Tile label="Studio budget" value={<span className="num">{money(used)}</span>} hint={`of ${money(cap)} this month · ${Math.max(0, Math.round(100 - (100 * used) / Math.max(1, cap)))}% left`} />
             <Tile label="Posts live" value={<span className="num">{posted}/{posts?.length ?? 0}</span>} hint="Facebook, Instagram, TikTok, YouTube" />
             <Tile label="Helix tours from the campaign" value={<span className="num">{tours?.length ?? 0}</span>} hint={`${inq?.length ?? 0} inquiries credited`} />
+          </div>
+          <div className="grid g4">
+            <Tile label="Runway engine" value={!runway ? 'Not connected' : runway.ok ? <span className="num">{runway.credits.toLocaleString('en-US')}</span> : 'Key refused'} hint={!runway ? 'Add the Runway key in Vercel' : runway.ok ? `credits left · about ${money(runway.credits * CREDIT_CENTS)} · Seedance 2.5, Gen-4.5, Act-Two, ElevenLabs v4` : runway.error} />
           </div>
 
           <section className="gallery" aria-label="Season 1 gallery">
