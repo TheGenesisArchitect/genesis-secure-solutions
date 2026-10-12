@@ -132,6 +132,13 @@ try {
   check(reads === 11, `each spoken line read exactly once (${reads} of 11)`);
   await go('/console/studio/gjk-h01');
   check(await ev(`document.querySelectorAll('.pb-card2.is-review').length`) >= 9 && /to review/.test(await ev(`document.querySelector('.pc-bar').innerText`)), 'the board highlights the shots waiting for review');
+  check(await ev(`!!document.querySelector('.pb-hero')`) && /Play the cut so far · 9 scenes/i.test(await ev(`document.querySelector('.pb-hero').innerText`)), 'the board opens on a streaming-style hero with Play the cut so far');
+  check(await ev(`document.querySelectorAll('.pb-card2 .sp-play').length`) === 9, 'every finished scene has a play button on its card');
+  await ev(`document.querySelector('#shot-110 .sp-play').click()`); await sleep(800);
+  check(await ev(`!!document.querySelector('.sp-back video') && /11 ·/.test(document.querySelector('.sp-bar').innerText)`), 'pressing play on a card opens the full-screen player on that scene');
+  await shot('prod-board-player', 1000);
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`); await sleep(400);
+  check(await ev(`!document.querySelector('.sp-back')`), 'Esc closes the player');
   await shot('prod-board-review', 1500);
   await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }); await sleep(800);
   check(await ev(`document.documentElement.scrollWidth <= 392`), `on a phone the board fits the screen (${await ev('document.documentElement.scrollWidth')}px)`);

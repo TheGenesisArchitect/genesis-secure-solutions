@@ -10,6 +10,7 @@ import { studioSetShotDirection } from '@/lib/actions';
 import { billedSeconds, defaultDirection, engineFor, PRICE, shotCast, shotCost, shotSeconds } from '@/lib/studio-board';
 import { CastStudio, ScoreStudio, ShotStudio, type BoardLine, type CaptureRecipe, type CastIdentity, type CastVoice } from '@/components/studio/BoardStudio';
 import { ProductionBar, ShotReview, type RunState } from '@/components/studio/ProductionControls';
+import { PlayButton, ScenePlayer, type Clip } from '@/components/studio/ScenePlayer';
 
 type Shot = { capture?: CaptureRecipe | null; produce?: Record<string, string | number | null> | null; id: string; n: number; shot_code: string | null; timing: string | null; description: string; dialogue: string | null; tool: string; tier: string | null; status: string; beat: number | null; shot_kind: string | null; log: Record<string, string> | null };
 type Character = { id: string; code: string; name: string; archetype: string; wardrobe: string | null; voice: { direction?: string; timing?: string; runway_voice?: string; runway_preset?: string; runway_engine?: string } | null; profile: Record<string, string> | null };
@@ -26,7 +27,7 @@ export type BoardStudioData = {
 };
 type Take = { id: string; shot_id: string; status: string; chosen: boolean | null };
 type Props = {
-  episode: { id: string; code: string; title: string; kind: string; runtime_s: number | null; status: string; final_blob: string | null };
+  episode: { id: string; code: string; title: string; kind: string; runtime_s: number | null; status: string; final_blob: string | null; logline?: string | null };
   shots: Shot[]; cast: Character[]; takes: Take[]; lockedRefs: Map<string, string>; studio: BoardStudioData;
 };
 
@@ -57,13 +58,35 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
   const count = (...k: string[]) => shots.filter((s) => k.includes(stageOf(s))).length;
   const counts = { review: count('review'), approved: count('approved'), active: count('queued', 'reading', 'drawing', 'rendering'), capture: count('capture'), blocked: count('blocked'), total: shots.length };
   const locked = (c: Character) => ['locked', 'casting'].includes(studio.identity.get(c.id)?.state ?? '');
+  const frameOf = (s: Shot) => (studio.frames.get(s.id) ?? []).find((f) => f.chosen && f.status === 'ready');
+  const sceneOf = (s: Shot): Clip | null => {
+    const t = chosen(s.id);
+    if (!t || !['review', 'approved'].includes(stageOf(s)) || (studio.takes.get(s.id) ?? []).find((x) => x.id === t.id)?.still) return null;
+    const f = frameOf(s);
+    return { src: `/api/studio/media/take/${t.id}`, title: `${shots.indexOf(s) + 1} · ${s.description.split(':')[0]}`, poster: f ? `/api/studio/media/frame/${f.id}` : undefined };
+  };
+  const scenes = shots.map(sceneOf).filter((c): c is Clip => Boolean(c));
+  const heroArt = (() => { const f = shots.map(frameOf).find(Boolean); return f ? `/api/studio/media/frame/${f.id}` : '/studio/cast/ensemble.jpg'; })();
 
   return (
     <section className="pb" aria-label="Production board">
-      <div className="pb-title">
-        <span className="pb-eyebrow"><img src="/brand/genovus/genovus-egg.svg" alt="" />StudioNext · Production board</span>
-        <span className="pb-chips"><Chip kind="info">{KIND[episode.kind] ?? episode.kind}</Chip><Chip kind="pending">{runtime}s</Chip><Chip kind="pending">{shots.length} shots</Chip><Chip kind={episode.final_blob ? 'done' : 'pending'}>{episode.final_blob ? 'Rendered' : episode.status}</Chip></span>
-      </div>
+      <ScenePlayer />
+      <section className="sx-bill pb-hero" aria-label={`${episode.title}, production board`}>
+        <img className="sx-bill-art" src={heroArt} alt="" />
+        <div className="sx-bill-shade" aria-hidden="true" />
+        <div className="sx-bill-copy">
+          <span className="sx-eyebrow"><img src="/brand/genovus/genovus-egg.svg" alt="" />Genovus Originals · {KIND[episode.kind] ?? 'Episode'} · Production board</span>
+          <h2>{episode.title}</h2>
+          <span className="sx-meta"><b className={episode.final_blob ? 'ok' : 'soon'}>{episode.final_blob ? 'Final cut ready' : scenes.length ? `${scenes.length} of ${shots.length} scenes ready` : 'In production'}</b><span>{runtime}s</span><span>Marcus · Tasha · Julian</span><span>{counts.approved}/{shots.length} approved</span></span>
+          {episode.logline ? <p>{episode.logline}</p> : null}
+          <span className="sx-actions">
+            {episode.final_blob ? <PlayButton label="Play the final cut" clips={[{ src: `/api/studio/media/final/${episode.id}`, title: episode.title }]} />
+              : scenes.length ? <PlayButton label={scenes.length === 1 ? 'Play the first scene' : `Play the cut so far · ${scenes.length} scenes`} clips={scenes} />
+              : <span className="sx-btn ghost-dim">▶ Scenes play here as they finish</span>}
+            <Link className="sx-btn" href="/console/studio/cast">The cast</Link>
+          </span>
+        </div>
+      </section>
       <ProductionBar episode={episode.code} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} />
 
       <div className="pb-layout">
@@ -123,11 +146,12 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
               return (
                 <article key={s.id} className={'pb-card2' + (stage === 'review' ? ' is-review' : '')} id={`shot-${s.n}`}>
                   <figure className="pb-frame2">
-                    {take ? (still ? <img src={`/api/studio/media/take/${take.id}`} alt="" /> : <video src={`/api/studio/media/take/${take.id}#t=0.5`} poster={keyframe ? `/api/studio/media/frame/${keyframe.id}` : undefined} muted playsInline preload="metadata" controls={stage === 'review' || stage === 'approved'} />)
+                    {take ? (still ? <img src={`/api/studio/media/take/${take.id}`} alt="" /> : keyframe ? <img src={`/api/studio/media/frame/${keyframe.id}`} alt="" /> : <video src={`/api/studio/media/take/${take.id}#t=0.5`} muted playsInline preload="metadata" />)
                       : keyframe ? <img src={`/api/studio/media/frame/${keyframe.id}`} alt="" />
                       : s.tool === 'edit' ? <span className="pb-titlecard">{s.description.replace(/^Title card:\s*/i, '')}</span>
                       : s.tool === 'capture' ? <span className="pb-phone"><i /><i /><i /><i /><i /></span>
                       : who && SHEET[who] ? <img className="ref" src={`/studio/cast/${SHEET[who]}.jpg`} alt="" /> : <span className="pb-titlecard">Frame</span>}
+                    {sceneOf(s) ? <PlayButton big clips={scenes} start={scenes.findIndex((c) => c.src === sceneOf(s)!.src)} /> : null}
                     <span className="pb-n2">{i + 1}</span>
                     <span className="pb-tc">{s.timing}</span>
                     {stageLabel ? <span className={'pb-stage ' + stageKind}>{stageLabel}</span> : <span className="pb-stage dim">{take ? 'Take' : keyframe ? 'Keyframe' : s.tool === 'capture' ? 'Real screen' : s.tool === 'edit' ? 'Code card' : 'Reference'}</span>}

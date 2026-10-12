@@ -1,6 +1,7 @@
 // The Studio's front door, built like a streaming service home: one featured title on a billboard, then rows of
 // box art for what's finished, what's coming soon, and the proofs. Every card opens its board. Server component.
 import Link from 'next/link';
+import { PlayButton, ScenePlayer } from '@/components/studio/ScenePlayer';
 
 export type HomeEpisode = { id: string; code: string; kind: string; title: string; runtime_s: number | null; logline: string | null; status: string; final_blob?: string | null };
 type Props = { episodes: HomeEpisode[]; covers: Map<string, string>; progress: Map<string, { done: number; total: number }>; featured?: string; current?: Set<string> };
@@ -21,6 +22,7 @@ function Card({ e, cover, p }: { e: HomeEpisode; cover?: string; p?: { done: num
   return (
     <Link href={`/console/studio/${e.code}`} className="sx-card" aria-label={`${e.title}, ${done ? 'finished' : 'coming soon'}`}>
       <Art e={e} cover={cover} />
+      {e.final_blob ? <PlayButton big clips={[{ src: `/api/studio/media/final/${e.id}`, title: e.title }]} /> : null}
       <span className={`sx-badge ${done ? 'new' : 'soon'}`}>{done ? (e.status === 'live' ? 'Now streaming' : 'New') : 'Coming soon'}</span>
       <span className="sx-info">
         <b>{e.title}</b>
@@ -53,6 +55,7 @@ export function StudioHome({ episodes: all, covers, progress, featured, current 
   const proofs = episodes.filter((e) => !finished(e) && e.kind === 'proof');
   return (
     <div className="sx">
+      <ScenePlayer />
       {hero ? (
         <section className="sx-bill" aria-label={`Featured: ${hero.title}`}>
           {cover ? <img className="sx-bill-art" src={`/api/studio/thumb/${cover}`} alt="" /> : <img className="sx-bill-art" src={V2.has(hero.code) ? '/studio/cast/ensemble.jpg' : '/studio/cast/ensemble.jpg'} alt="" />}
@@ -63,7 +66,7 @@ export function StudioHome({ episodes: all, covers, progress, featured, current 
             <span className="sx-meta"><b className={finished(hero) ? 'ok' : 'soon'}>{finished(hero) ? 'Now streaming' : 'Coming soon'}</b>{hero.runtime_s ? <span>{hero.runtime_s}s</span> : null}<span>Marcus · Tasha · Julian</span>{p && p.total ? <span>{p.done}/{p.total} shots</span> : null}</span>
             {hero.logline ? <p>{hero.logline}</p> : null}
             <span className="sx-actions">
-              {hero.final_blob ? <a className="sx-btn play" href={`/api/studio/media/final/${hero.id}`}>▶ Play</a> : null}
+              {hero.final_blob ? <PlayButton clips={[{ src: `/api/studio/media/final/${hero.id}`, title: hero.title }]} /> : null}
               <Link className={hero.final_blob ? 'sx-btn' : 'sx-btn play'} href={`/console/studio/${hero.code}`}>{hero.final_blob ? 'Open the board' : '▶ Open the production board'}</Link>
               <Link className="sx-btn" href="/console/studio/cast">The cast</Link>
             </span>

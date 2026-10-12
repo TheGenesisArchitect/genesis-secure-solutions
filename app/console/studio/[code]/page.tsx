@@ -140,9 +140,9 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   }
   return (
     <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]}>
-      <p className="soft">{e.logline}</p>
+      {!isV2 ? <p className="soft">{e.logline}</p> : null}
       {!V2_EPISODES.has(e.code) ? <div className="notice">Archived · made with the retired development cast (Maya, Trent and Bri). Kept for the record; the V2 cast is Marcus, Tasha and Julian.</div> : null}
-      {isV2 ? <ProductionBoard episode={{ id: e.id, code: e.code, title: e.title, kind: e.kind, runtime_s: e.runtime_s, status: e.status, final_blob: e.final_blob ?? null }} shots={(shots ?? []) as never} cast={(boardCast ?? []) as never} takes={((takeRows ?? []) as unknown as { id: string; shot_id: string; status: string; chosen: boolean | null }[])} lockedRefs={new Map((lockRows ?? []).map((r) => [r.character_id as string, r.id as string]))} studio={studio!} /> : null}
+      {isV2 ? <ProductionBoard episode={{ id: e.id, code: e.code, title: e.title, kind: e.kind, runtime_s: e.runtime_s, status: e.status, final_blob: e.final_blob ?? null, logline: e.logline ?? null }} shots={(shots ?? []) as never} cast={(boardCast ?? []) as never} takes={((takeRows ?? []) as unknown as { id: string; shot_id: string; status: string; chosen: boolean | null }[])} lockedRefs={new Map((lockRows ?? []).map((r) => [r.character_id as string, r.id as string]))} studio={studio!} /> : null}
       <details className="engine-room" open={!isV2}><summary>{isV2 ? 'Engine room · script, format, shots, takes, final cut and posting' : 'Episode workspace'}</summary>
       {e.format === 'viral_fork' && e.fork_mode ? (
         <div className="fork-banner">

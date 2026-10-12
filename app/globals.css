@@ -1022,3 +1022,13 @@ button.chip{cursor:pointer}
 .pc-voice{grid-column:1 / -1;margin:0;font-size:12.5px;color:var(--soft)}.pc-voice i{color:#ffd38a;font-style:normal}
 .pc-review{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pc-review .input{min-width:0;width:220px;max-width:100%;padding:6px 9px;font-size:12.5px}
 @media (max-width:1000px){.pb-story{order:-1}}
+/* Streaming-style screening: the board hero and play-from-the-card. */
+.pb-hero{min-height:340px}.pb-hero h2{font-size:clamp(28px,3.4vw,46px)}
+.sx-btn.ghost-dim{opacity:.7;cursor:default;background:rgba(255,255,255,.08);color:var(--soft)}
+.sp-play{position:absolute;inset:0;margin:auto;z-index:3;width:68px;height:68px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:rgba(10,10,14,.55);color:#fff;font-size:24px;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px);transition:transform .18s ease,background .18s ease;padding-left:5px}
+.sp-play:hover,.sp-play:focus-visible{transform:scale(1.08);background:linear-gradient(135deg,#ff5418,#ff8a24)}
+.pb-card2:hover .pb-frame2 img{transform:scale(1.03)}.pb-frame2 img{transition:transform .4s ease}
+.sp-back{position:fixed;inset:0;z-index:200;background:rgba(3,4,6,.88);display:grid;place-items:center;padding:16px;backdrop-filter:blur(8px)}
+.sp-box{width:min(1200px,100%);display:grid;gap:10px}
+.sp-box video{width:100%;max-height:78vh;aspect-ratio:16/9;background:#000;border-radius:14px}
+.sp-bar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;color:#fff}.sp-bar small{color:#b9bcc6}
