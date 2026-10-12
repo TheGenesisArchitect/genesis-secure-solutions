@@ -21,6 +21,24 @@ export const BIBLE_TOOLS = [{
   ],
 }];
 
+/** On an episode's production board, Helix can direct and produce by voice: the team stays hands-free on the move. */
+export const BOARD_TOOLS = [{
+  functionDeclarations: [
+    ...BIBLE_TOOLS[0].functionDeclarations,
+    { name: 'production_status', description: 'Where every shot on this board is (queued, reading lines, drawing, rendering, ready for review, approved, needs a phone capture, blocked) and what the run has spent. Call it before summarizing progress.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'direct_shot', description: 'Change a shot\'s direction. shot is the BOARD number (1 is the first card). acting: the performance note; read: the line read with the speaker in capitals and bracketed direction tags, e.g. "TASHA: [warm] Got questions? [quiet] Ask Helix."; camera: the camera move. Free: nothing is generated.',
+      parameters: { type: 'OBJECT', properties: { shot: { type: 'NUMBER' }, acting: { type: 'STRING' }, read: { type: 'STRING' }, camera: { type: 'STRING' } }, required: ['shot'] } },
+    { name: 'plan_production', description: 'Price producing shots (one read per line, one keyframe and one take each). shots: "all", one number, a range like "4-9", or a list like "2, 5, 11" (board numbers). Returns a quote_id and a total. Read the total out loud and ask for a yes before approving.',
+      parameters: { type: 'OBJECT', properties: { shots: { type: 'STRING' } } } },
+    { name: 'approve_production', description: 'Start producing exactly the quoted shots. ONLY call this right after the person clearly said yes to the total you read out from plan_production in this conversation. Pass that quote_id. Never guess or reuse an old quote.',
+      parameters: { type: 'OBJECT', properties: { quote_id: { type: 'STRING' } }, required: ['quote_id'] } },
+    { name: 'review_shot', description: 'Approve a finished shot, or send it back with a note (redo makes a new keyframe and take inside the approved budget). shot is the board number.',
+      parameters: { type: 'OBJECT', properties: { shot: { type: 'NUMBER' }, action: { type: 'STRING', enum: ['approve', 'redo'] }, note: { type: 'STRING' } }, required: ['shot', 'action'] } },
+    { name: 'lock_cast', description: 'Lock every cast member\'s identity to the official V2 cast sheet (free). Do this when the person approves the cast sheets or when shots are blocked waiting on a lock.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'pause_production', description: 'Pause the production run: work already started finishes, nothing new starts.', parameters: { type: 'OBJECT', properties: {} } },
+  ],
+}];
+
 export async function bibleSystem(): Promise<string> {
   const db = adminDb();
   const [{ data: series }, { data: chars }, { data: approved }, { data: eps }, { data: looks }] = await Promise.all([
@@ -74,7 +92,8 @@ async function focusBlock(focus: StudioFocus): Promise<string> {
       db.from('studio_qa').select('check_key, pass, note').eq('episode_id', e.id),
     ]);
     const shotLines = (shots ?? []).map((s) => `${s.shot_code ?? `Shot ${s.n}`} (beat ${s.beat ?? '-'}, ${s.shot_kind ?? 'shot'}, ${s.timing ?? ''}, ${s.status}): ${s.description}${((s.lines as { who: string; text: string }[]) ?? []).map((l) => ` ${l.who.replace(/\d+$/, '')}: "${l.text}"`).join('')}`).join('\n');
-    return `ON SCREEN NOW: the episode ${e.code} "${e.title}" (${e.kind}, status ${e.status}${e.format === 'viral_fork' ? `, ${e.fork_mode} Viral Fork, target ${e.target_s}s, ${e.cut_family ?? ''} cut` : ''}${e.final_url ? ', final cut uploaded' : ', no final cut yet'}).\nLogline: ${e.logline}\nScript:\n${e.script}\nMusic/sound: ${e.music}\nShots:\n${shotLines}\nPosts: ${(posts ?? []).map((p) => `${p.platform} ${p.status}${p.method !== 'upload' ? ` (${p.method})` : ''}`).join(', ') || 'none'}.\nAcceptance checks recorded: ${(qa ?? []).length ? (qa ?? []).map((q) => `${q.check_key} ${q.pass ? 'pass' : `FAIL (${q.note})`}`).join('; ') : 'none yet'}.\nHelp them finish this episode: what is left, what to shoot next, whether lines fit the characters, and anything that would fail a check.`;
+    const board = (shots ?? []).map((s, i) => `Board shot ${i + 1} = ${s.shot_code ?? `shot ${s.n}`}`).join('; ');
+    return `PRODUCTION BOARD (you can direct and produce by voice): the team is often on the move, so do the work for them with your tools and keep confirmations short. Shots are referred to by BOARD number: ${board}. To produce: call plan_production, read the total aloud in one sentence and ask "Shall I go ahead?"; only after a clear yes call approve_production with that quote_id. Then say each finished shot is ready for review; they approve or redo by voice. Never claim something was generated, approved or spent unless a tool result says so.\n\nON SCREEN NOW: the episode ${e.code} "${e.title}" (${e.kind}, status ${e.status}${e.format === 'viral_fork' ? `, ${e.fork_mode} Viral Fork, target ${e.target_s}s, ${e.cut_family ?? ''} cut` : ''}${e.final_url ? ', final cut uploaded' : ', no final cut yet'}).\nLogline: ${e.logline}\nScript:\n${e.script}\nMusic/sound: ${e.music}\nShots:\n${shotLines}\nPosts: ${(posts ?? []).map((p) => `${p.platform} ${p.status}${p.method !== 'upload' ? ` (${p.method})` : ''}`).join(', ') || 'none'}.\nAcceptance checks recorded: ${(qa ?? []).length ? (qa ?? []).map((q) => `${q.check_key} ${q.pass ? 'pass' : `FAIL (${q.note})`}`).join('; ') : 'none yet'}.\nHelp them finish this episode: what is left, what to shoot next, whether lines fit the characters, and anything that would fail a check.`;
   }
   if (focus.kind === 'character' && focus.code) {
     const { data: c } = await db.from('studio_characters').select('id, code, name').eq('code', focus.code).maybeSingle();
@@ -84,7 +103,7 @@ async function focusBlock(focus: StudioFocus): Promise<string> {
     const slots = [...new Set((refs ?? []).map((r) => r.slot))];
     return `ON SCREEN NOW: ${c.name} (${c.code})'s character page: their bible profile, voice, and identity package. Approved: ${approved.join(', ') || 'nothing yet'}. Slots generated so far: ${slots.join(', ') || 'none'}. The production order is casting sheet, then the front portrait from it, then every other view derived from the approved front. Help them with this character: who they are, how they'd react or speak, and what to generate or approve next.`;
   }
-  if (focus.kind === 'cast') return 'ON SCREEN NOW: the cast page with Maya, Trent and Bri and the ensemble set. Help with the ensemble: chemistry, seat order, relative scale, and what each character still needs.';
+  if (focus.kind === 'cast') return 'ON SCREEN NOW: the cast page with Marcus, Tasha and Julian and the ensemble set. Help with the ensemble: chemistry, seat order, relative scale, and what each character still needs.';
   if (focus.kind === 'home') return 'ON SCREEN NOW: the Studio home: the season gallery, the trend board of viral moments (Remix / licensed / inspired), fresh takes, the cast and the posting schedule. Help them decide what to make next and keep the season on track.';
   return '';
 }

@@ -87,7 +87,7 @@ try {
   await waitFor(async () => (await db.from('studio_refs').select('id').in('id', refs.map((r) => r.id)).eq('approved', true)).data?.length === 3, 15000);
   await go('/console/studio/gjk-h01');
   const approvedN = (await db.from('studio_refs').select('id').in('id', refs.map((r) => r.id)).eq('approved', true)).data?.length;
-  check(/Identity locked\./.test(await ev('document.body.innerText')) && await ev(`document.querySelectorAll('.bs-lock.casting').length`) === 3, `approving locks all three identities on the board (${approvedN} approved)`);
+  check(/identity locked/i.test(await ev('document.body.innerText')) && await ev(`document.querySelectorAll('.pb-member-info > .bs-lock.casting').length`) === 3, `approving locks all three identities on the board (${approvedN} approved)`);
 
   // 2. Line reads on shot 110 (Tasha's fourth-wall line), each in her preset voice with the direction tags.
   const S110 = `document.querySelector('#shot-110')`;

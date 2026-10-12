@@ -19,6 +19,7 @@ import { ProductionBoard, type BoardStudioData } from '@/components/studio/Produ
 import { parseRead } from '@/lib/studio-read';
 import { runwayConfigured } from '@/lib/runway';
 import { defaultDirection } from '@/lib/studio-board';
+import { shotQuote, type ProdShot } from '@/lib/studio-production';
 import { V2_EPISODES } from '@/lib/studio-board';
 
 export const dynamic = 'force-dynamic';
@@ -130,7 +131,12 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       identity,
       designs: new Map(castList.map((c) => [c.id, clips.filter((x) => x.kind === 'design' && x.character_id === c.id).map((x) => ({ id: x.id, status: x.status, approved: x.approved, error: x.error }))])),
       score: clips.filter((x) => x.kind === 'score').map((x) => ({ id: x.id, status: x.status, error: x.error })),
+      run: { on: false, spent: '$0.00', ceiling: '$0.00', paused_reason: null },
+      runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
+    const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
+    const spentCents = run.at ? Number((await adminDb().rpc('studio_production_spent', { p_episode: e.id, p_since: run.at })).data ?? 0) : 0;
+    studio.run = { on: Boolean(run.on), spent: `$${(spentCents / 100).toFixed(2)}`, ceiling: `$${((run.ceiling_cents ?? 0) / 100).toFixed(2)}`, paused_reason: run.paused_reason ?? null };
   }
   return (
     <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]}>

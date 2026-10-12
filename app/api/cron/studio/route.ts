@@ -6,6 +6,7 @@ import { cronAuthorized } from '@/lib/cron';
 import { pollTake, drainVeoQueue, generationConfigured } from '@/lib/studio-gen';
 import { syncStudioIfChanged } from '@/lib/studio-sync';
 import { pollRunwayJobs } from '@/lib/studio-runway';
+import { advanceAllProductions } from '@/lib/studio-production';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
 
@@ -20,7 +21,10 @@ export async function GET(req: Request) {
   // Runway jobs (StudioNext line reads, keyframes, takes, score) finish here even when the board is closed.
   let runway: Record<string, number> | { error: string } = {};
   try { runway = await pollRunwayJobs(); } catch (e) { runway = { error: e instanceof Error ? e.message : 'runway poll failed' }; }
-  if (!generationConfigured()) return Response.json({ sync, runway, skipped: 'no Gemini key' });
+  // Production runs (approved by a person) take their next steps.
+  let production: unknown = {};
+  try { production = await advanceAllProductions(); } catch (e) { production = { error: e instanceof Error ? e.message : 'production failed' }; }
+  if (!generationConfigured()) return Response.json({ sync, runway, production, skipped: 'no Gemini key' });
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.
   const { data: running } = await db.from('studio_takes').select('id').not('model', 'like', 'runway:%').or('status.eq.running,and(status.eq.queued,params->>waiting_since.is.null)').order('created_at').limit(10);
   const results: Record<string, number> = {};
@@ -30,5 +34,5 @@ export async function GET(req: Request) {
   }
   // Start queued takes as the Veo rate limits allow (and quota backstop retries when due).
   const queue = await drainVeoQueue();
-  return Response.json({ sync, runway, checked: running?.length ?? 0, results, queue });
+  return Response.json({ sync, runway, production, checked: running?.length ?? 0, results, queue });
 }

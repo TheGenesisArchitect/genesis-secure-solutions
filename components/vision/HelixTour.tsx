@@ -135,6 +135,13 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (r.ok) setTab((t) => t);
       return r;
     }
+    // Production board tools (Studio, on an episode): the server does the work with this person's session.
+    if (['production_status', 'direct_shot', 'plan_production', 'approve_production', 'review_shot', 'lock_cast', 'pause_production'].includes(name)) {
+      const tool = ({ production_status: 'status', plan_production: 'plan', approve_production: 'approve', review_shot: 'review', pause_production: 'pause' } as Record<string, string>)[name] ?? name;
+      const r = await fetch('/api/studio/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ episode: focus?.code, tool, args: { ...args, via: 'voice' } }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The Studio didn’t answer.' }));
+      router.refresh();
+      return r;
+    }
     if (name === 'talk_to_team') { setCta(true); return { ok: true, shown: 'A “Talk to the team” button is now on screen.' }; }
     if (name === 'end_tour') { setTimeout(() => end('Tour complete.'), 2500); return { ok: true }; }
     return { ok: false, error: 'unknown tool' };

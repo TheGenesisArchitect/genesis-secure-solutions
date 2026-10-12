@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { studioSystem, BIBLE_TOOLS, type StudioFocus } from '@/lib/helix-bible';
+import { studioSystem, BIBLE_TOOLS, BOARD_TOOLS, type StudioFocus } from '@/lib/helix-bible';
 import { worldStats, statsLine } from '@/lib/world-stats';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
 import { db as userDb } from '@/lib/supabase/server';
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     tenantId = t.id;
     setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])), VOICE_TOOLS, voice);
   } else {
-    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
+    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
   }
   if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 

@@ -60,8 +60,8 @@ check(!/Maya|Trent|\bBri\b/.test(below) && /Marcus/.test(below) && /No takes yet
 
 await go('/console/studio/gjk-h01');
 const t2 = await ev('document.body.innerText');
-check(await ev(`!!document.querySelector('.pb')`) && await ev(`document.querySelectorAll('.pb-frame').length`) === 12, 'the trailer opens on the production board with 12 shots');
-check(/Seedance 2\.5 · hero/i.test(t2) && /Captured screen/i.test(t2) && /Estimate \$/i.test(t2) && await ev(`document.querySelectorAll('.pb-member').length`) === 3, 'board shows engines, the capture, the estimate and the 3 cast members');
+check(await ev(`!!document.querySelector('.pb')`) && await ev(`document.querySelectorAll('.pb-card2').length`) === 12, 'the trailer opens on the production board with 12 shots');
+check(/Seedance 2\.5 · hero/i.test(t2) && /Phone capture|Real screen/i.test(t2) && /Production run/i.test(t2) && await ev(`document.querySelectorAll('.pb-member').length`) === 3, 'board shows engines, the capture, the estimate and the 3 cast members');
 check(await ev(`!!document.querySelector('.pb-read i')`), 'line reads show their direction tags');
 await shot('studio-trailer-board', 1400);
 // Direct a shot: the change saves to the shot's log.
