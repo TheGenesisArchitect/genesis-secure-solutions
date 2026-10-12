@@ -100,9 +100,12 @@ export function EnterpriseHelixDrawer() {
     };
     window.addEventListener(HELIX_EVT, onAsk);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); };
+    const onTalk = () => setOpen(false); // voice takes over: the dock is in view
+    window.addEventListener(HELIX_VOICE_EVT, onTalk);
+    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); window.removeEventListener(HELIX_VOICE_EVT, onTalk); };
   }, []);
-  const voice = <HelixTour context="enterprise" floating={false} openEvent={HELIX_VOICE_EVT} where={`the ${page.name} page`} />;
+  // Studio pages bring their own voice (Helix Live with the bible and what's on screen); everywhere else, Enterprise voice.
+  const voice = path.startsWith('/console/studio') ? null : <HelixTour context="enterprise" floating={false} openEvent={HELIX_VOICE_EVT} where={`the ${page.name} page`} />;
   if (path === '/console/helix/ask') return <>{voice}<HelixTalkButton /></>; // the full view is already open
   return (
     <>

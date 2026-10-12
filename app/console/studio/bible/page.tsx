@@ -8,6 +8,7 @@ import { requireStaff } from '@/lib/session';
 import { Wordmark } from '@/components/Wordmark';
 import { AskHelixEgg } from '@/components/studio/AskHelixEgg';
 import { HelixTour } from '@/components/vision/HelixTour';
+import { HELIX_VOICE_EVT } from '@/components/HelixDrawer';
 import { db } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Character Bible · Studio' };
@@ -136,7 +137,7 @@ export default async function BiblePage() {
         </div>
         <Chip kind="info">All three are fictional adults with original faces and voices.</Chip>
       </article>
-      <HelixTour context="bible" floating={false} />
+      <HelixTour context="bible" floating={false} openEvent={HELIX_VOICE_EVT} />
     </ConsoleShell>
   );
 }

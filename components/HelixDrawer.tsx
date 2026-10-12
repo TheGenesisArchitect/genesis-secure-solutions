@@ -50,7 +50,9 @@ export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string
     };
     window.addEventListener(EVT, onAsk);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener(EVT, onAsk); window.removeEventListener('keydown', onKey); };
+    const onTalk = () => setOpen(false); // voice takes over: the dock is in view
+    window.addEventListener(HELIX_VOICE_EVT, onTalk);
+    return () => { window.removeEventListener(EVT, onAsk); window.removeEventListener('keydown', onKey); window.removeEventListener(HELIX_VOICE_EVT, onTalk); };
   }, []);
   const voice = <HelixTour context="agency" slug={slug} floating={false} openEvent={HELIX_VOICE_EVT} where={`the ${page.name} page`} />;
   if (/\/helix$/.test(path)) return <>{voice}<HelixTalkButton /></>; // the full Ask Helix page is already open
