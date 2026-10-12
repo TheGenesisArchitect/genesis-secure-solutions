@@ -849,3 +849,41 @@ button.chip{cursor:pointer}
 .hx-bar-lines{display:grid;gap:4px;max-height:120px;overflow:auto}
 .hx-bar-lines .hx-line{margin:0;font-size:13px}
 .hx-bar-note{margin:0;font-size:12px;color:var(--muted)}
+/* StudioNext home: a streaming-style billboard and rows of box art (finished, coming soon, proofs). */
+.sx{display:grid;gap:26px}
+.sx-bill{position:relative;min-height:clamp(320px,42vw,520px);border-radius:22px;overflow:hidden;display:flex;align-items:flex-end;background:#05060a;box-shadow:0 30px 80px -40px rgba(0,0,0,.9),0 0 0 1px var(--line)}
+.sx-bill-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;transform:scale(1.04);animation:sx-drift 18s ease-in-out infinite alternate}
+@keyframes sx-drift{from{transform:scale(1.04) translateX(0)}to{transform:scale(1.1) translateX(-1.5%)}}
+.sx-bill-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,6,10,.96) 0%,rgba(5,6,10,.82) 34%,rgba(5,6,10,.2) 70%,rgba(5,6,10,.35) 100%),linear-gradient(0deg,rgba(5,6,10,.95) 0%,transparent 45%)}
+.sx-bill-copy{position:relative;display:grid;gap:12px;padding:clamp(20px,3.4vw,44px);max-width:min(640px,100%)}
+.sx-eyebrow{display:flex;align-items:center;gap:8px;font:600 11px var(--mono);letter-spacing:.22em;text-transform:uppercase;color:#ffd38a}
+.sx-eyebrow img{width:14px;height:18px}
+.sx-bill h2{margin:0;font:900 clamp(30px,4.6vw,58px)/1 var(--display);letter-spacing:-.02em;text-wrap:balance;text-shadow:0 4px 30px rgba(0,0,0,.6)}
+.sx-meta{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;color:#d9d4cc}
+.sx-meta b{font:700 12px var(--body);letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:4px}
+.sx-meta b.soon{background:#ff6a2b;color:#1b0900}.sx-meta b.ok{background:#3fd69a;color:#052114}
+.sx-bill p{margin:0;color:#e3ded6;font-size:15.5px;line-height:1.55;max-width:58ch}
+.sx-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.sx-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:8px;font:700 15px var(--body);text-decoration:none;color:#fff;background:rgba(109,109,110,.55);backdrop-filter:blur(6px)}
+.sx-btn:hover{background:rgba(109,109,110,.8)}
+.sx-btn.play{background:#fff;color:#0b0c10}.sx-btn.play:hover{background:#e6e6e6}
+.sx-row{display:grid;gap:10px}
+.sx-row-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sx-row-head h3{margin:0;font:800 20px var(--display)}
+.sx-row-head span{color:var(--muted);font-size:13px}
+.sx-track{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(240px,300px);gap:12px;overflow-x:auto;padding:6px 4px 18px;scroll-snap-type:x mandatory;scrollbar-width:thin}
+.sx-card{position:relative;display:block;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#0d0f14;scroll-snap-align:start;text-decoration:none;color:#fff;box-shadow:0 0 0 1px var(--line);transition:transform .25s var(--ease),box-shadow .25s var(--ease)}
+.sx-card:hover,.sx-card:focus-visible{transform:scale(1.06);z-index:2;box-shadow:0 0 0 2px #ff6a2b,0 20px 50px -18px rgba(255,106,43,.55)}
+.sx-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sx-blank{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(70% 90% at 50% 40%,rgba(255,120,40,.35),#07080c 70%)}
+.sx-blank img{width:16%;filter:drop-shadow(0 8px 16px rgba(255,110,30,.5))}
+.sx-card::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(5,6,10,.92))}
+.sx-badge{position:absolute;top:8px;left:8px;z-index:2;font:800 10px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:3px}
+.sx-badge.soon{background:#ff6a2b;color:#1b0900}.sx-badge.new{background:#3fd69a;color:#052114}
+.sx-info{position:absolute;left:10px;right:10px;bottom:10px;z-index:2;display:grid;gap:2px}
+.sx-info b{font:800 15px/1.15 var(--display);text-wrap:balance}
+.sx-info small{color:#cfcac2;font-size:11.5px}
+.sx-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.15);z-index:3}
+.sx-progress i{display:block;height:100%;background:#ff6a2b}
+.sx-all summary{cursor:pointer;font-weight:700;color:var(--muted);padding:6px 0}
+@media (prefers-reduced-motion:reduce){.sx-bill-art{animation:none}}

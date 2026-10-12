@@ -2544,6 +2544,287 @@
         }
       ],
       "shot_budget": 17
+    },
+    {
+      "code": "gjk-h01",
+      "kind": "teaser",
+      "sort": 0,
+      "title": "Just Ask Helix · Series Trailer",
+      "runtime_s": 62,
+      "format": "original",
+      "cut_family": "extended",
+      "logline": "Every agency has a breaking point. Three people run GENOVUS: Marcus the Connector, Tasha the People Reader and Julian the Operator. An action-packed dramedy for agencies that need to scale. Got questions? Ask Helix.",
+      "script": "0:00 COLD OPEN, 11:47 PM: Marcus asleep at the strategy table, phone buzzing. 0:04 CARD: EVERY AGENCY HAS A BREAKING POINT. 0:06 Quick cuts: a desk phone ringing out, Tasha racing a hallway, Julian at a whiteboard. MARCUS (V.O.): \"Three agencies called last night.\" 0:12 TASHA: \"And?\" MARCUS: \"I was smoking a brisket.\" 0:16 CARD: THREE PEOPLE. ONE MISSION. 0:18 MARCUS, THE CONNECTOR: \"Before we pitch anything, what's eating up your day?\" 0:22 TASHA, THE PEOPLE READER: \"You've got leads. Who knows what happens after they come in?\" 0:26 JULIAN, THE OPERATOR: \"Open the follow-up. Check the time. Then finish the task.\" 0:30 THE DROP: real screens, the Genovus line with Helix's notes, Ask Helix answering. JULIAN: \"Nobody missed them.\" TASHA: \"She doesn't need more leads. She needs someone answering at seven p.m.\" 0:40 Marcus bursts through the door with a brisket. JULIAN: \"We have a plan. Marcus has equipment.\" 0:46 TASHA to the lens: \"Got questions? Ask Helix.\" (site cue 0:49) 0:51 JULIAN to the lens: \"Genovus Just Knows.\" First Light title: GENOVUS. The series. Coming soon.",
+      "music": "Original trailer cue: low drone under the cold open, drum hits on each title card, the score builds through the intros, a hard silence then a bass drop on the real screens, ducked under every line. No streaming-service logos or sounds.",
+      "thumb": "Series key art: Marcus, Tasha and Julian in a dark office lit by warm amber practicals, the golden egg glowing between them, title space at the bottom.",
+      "shots": [
+        {
+          "n": 10,
+          "shot_code": "H01_SH010",
+          "beat": 1,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:00–0:04",
+          "description": "Cold open, 11:47 PM: Marcus asleep at the strategy table, his phone buzzing.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [],
+          "log": {
+            "camera": "Slow push-in from black, practical light only"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 asleep with his head on folded arms at the strategy table beside a smoker thermometer, office dark at night; his phone lights his face as it buzzes; one eye opens."
+        },
+        {
+          "n": 20,
+          "shot_code": "H01_SH020",
+          "beat": 1,
+          "shot_kind": "sting",
+          "tool": "edit",
+          "tier": "production",
+          "timing": "0:04–0:06",
+          "description": "Title card: EVERY AGENCY HAS A BREAKING POINT.",
+          "cast_codes": [],
+          "lines": [],
+          "log": {
+            "camera": "Code card, hard cut"
+          },
+          "prompt": "Code-made title card, white on black, drum hit. Never generated."
+        },
+        {
+          "n": 30,
+          "shot_code": "H01_SH030",
+          "beat": 2,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "production",
+          "timing": "0:06–0:12",
+          "description": "Quick cuts: a desk phone ringing out, Tasha racing a hallway with coffee and a dance bag, Julian at a whiteboard of arrows.",
+          "cast_codes": [
+            "TASHA01",
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "MARCUS01",
+              "text": "Three agencies called last night."
+            }
+          ],
+          "log": {
+            "camera": "Handheld, whip pans between cuts"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. Fast cinematic cuts: a desk phone ringing with no one to answer; @TASHA01 striding quickly down a hallway holding a coffee with a dance bag on her shoulder; @JULIAN01 staring at a whiteboard of arrows."
+        },
+        {
+          "n": 40,
+          "shot_code": "H01_SH040",
+          "beat": 2,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:12–0:16",
+          "description": "The confession: Marcus in the doorway with a foil-wrapped brisket; Tasha stares.",
+          "cast_codes": [
+            "MARCUS01",
+            "TASHA01"
+          ],
+          "lines": [
+            {
+              "who": "TASHA01",
+              "text": "And?"
+            },
+            {
+              "who": "MARCUS01",
+              "text": "I was smoking a brisket."
+            }
+          ],
+          "log": {
+            "camera": "Two-shot, static, comedic hold"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 in the doorway holding a foil-wrapped brisket, proud then sheepish; @TASHA01 stares at him, unimpressed."
+        },
+        {
+          "n": 50,
+          "shot_code": "H01_SH050",
+          "beat": 3,
+          "shot_kind": "sting",
+          "tool": "edit",
+          "tier": "production",
+          "timing": "0:16–0:18",
+          "description": "Title card: THREE PEOPLE. ONE MISSION.",
+          "cast_codes": [],
+          "lines": [],
+          "log": {
+            "camera": "Code card, hard cut"
+          },
+          "prompt": "Code-made title card, white on black, drum hit, score enters. Never generated."
+        },
+        {
+          "n": 60,
+          "shot_code": "H01_SH060",
+          "beat": 3,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:18–0:22",
+          "description": "Marcus, The Connector: slow motion through the glass doors.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [
+            {
+              "who": "MARCUS01",
+              "text": "Before we pitch anything, what's eating up your day?"
+            }
+          ],
+          "log": {
+            "camera": "Low angle, slow motion, dolly back"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 walks through glass office doors in slow motion, jacket over his shoulder, easy confident smile."
+        },
+        {
+          "n": 70,
+          "shot_code": "H01_SH070",
+          "beat": 3,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:22–0:26",
+          "description": "Tasha, The People Reader: her reflection mid dance count in a glass wall; she turns.",
+          "cast_codes": [
+            "TASHA01"
+          ],
+          "lines": [
+            {
+              "who": "TASHA01",
+              "text": "You've got leads. Who knows what happens after they come in?"
+            }
+          ],
+          "log": {
+            "camera": "Reflection to real, rack focus, slow arc"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @TASHA01 reflected in a glass wall mid dance count, she stops, her eyes register something, then a deliberate slow turn toward camera."
+        },
+        {
+          "n": 80,
+          "shot_code": "H01_SH080",
+          "beat": 3,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:26–0:30",
+          "description": "Julian, The Operator: at the window at dusk, he pushes his glasses up.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Open the follow-up. Check the time. Then finish the task."
+            }
+          ],
+          "log": {
+            "camera": "Silhouette to key light, slow push"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @JULIAN01 at a window at dusk, city lights behind him, comfortable stillness, he pushes his glasses up with one precise gesture."
+        },
+        {
+          "n": 90,
+          "shot_code": "H01_SH090",
+          "beat": 5,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:30–0:40",
+          "description": "The drop: the Genovus line with Helix's notes, then Ask Helix answering \"Who should I call first?\"",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Nobody missed them."
+            },
+            {
+              "who": "TASHA01",
+              "text": "She doesn't need more leads. She needs someone answering at seven p.m."
+            }
+          ],
+          "log": {
+            "camera": "Real screen capture, never generated"
+          },
+          "prompt": "Real capture only: the Call list Genovus line panel with calls and Helix notes, then Ask Helix answering \"Who should I call first?\". Never generated."
+        },
+        {
+          "n": 100,
+          "shot_code": "H01_SH100",
+          "beat": 6,
+          "shot_kind": null,
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:40–0:46",
+          "description": "The action beat: Marcus bursts through the door with a brisket like a trophy; Julian deadpan.",
+          "cast_codes": [
+            "MARCUS01",
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "We have a plan. Marcus has equipment."
+            }
+          ],
+          "log": {
+            "camera": "Slow-motion door burst, then a deadpan cut"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. @MARCUS01 bursts through a door in slow motion holding a brisket high like a trophy, smoke rolling behind him; @JULIAN01 watches, completely still."
+        },
+        {
+          "n": 110,
+          "shot_code": "H01_SH110",
+          "beat": 6,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:46–0:51",
+          "description": "The fourth wall: Tasha turns slowly to the lens. Site cue at 0:49 opens Ask Helix.",
+          "cast_codes": [
+            "TASHA01"
+          ],
+          "lines": [
+            {
+              "who": "TASHA01",
+              "text": "Got questions? Ask Helix."
+            }
+          ],
+          "log": {
+            "camera": "Slow push to the lens on her turn"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. The room keeps moving behind her; @TASHA01 turns slowly and looks straight into the lens, warm and conspiratorial, a small smile."
+        },
+        {
+          "n": 120,
+          "shot_code": "H01_SH120",
+          "beat": 7,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:51–1:02",
+          "description": "The close: Julian to the lens, then the First Light title.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Genovus Just Knows."
+            }
+          ],
+          "log": {
+            "camera": "To the lens, hold, then the First Light title (code)"
+          },
+          "prompt": "Widescreen 16:9 cinematic series-trailer look: anamorphic feel, shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table, workstations and a walkthrough corner. No legible text on any screen or paper, no logos. Keep faces in the center third so a vertical crop works. After a genuine laugh, @JULIAN01 finds the lens with a small knowing smile, a knowing friend rather than an announcer."
+        }
+      ]
     }
   ],
   "posts": {

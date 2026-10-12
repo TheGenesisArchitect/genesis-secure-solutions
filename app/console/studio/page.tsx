@@ -11,6 +11,7 @@ import { resetDemoFollowUps, studioSetBudget, studioSetVeoLimits, studioSaveSour
 import { SourceCard, type Source } from '@/components/studio/SourceCard';
 import { IMAGE_CENTS, generationConfigured, veoRoom, HERO_VIDEO_MODEL } from '@/lib/studio-gen';
 import { StudioHelix } from '@/components/studio/StudioHelix';
+import { StudioHome, type HomeEpisode } from '@/components/studio/StudioHome';
 import { runwayConfigured, runwayOrganization, CREDIT_CENTS } from '@/lib/runway';
 
 export const metadata = { title: 'Studio' };
@@ -29,7 +30,7 @@ export default async function Studio() {
   const supabase = await db();
   const [{ data: series }, { data: eps }, { data: shots }, { data: posts }, { data: tours }, { data: inq }] = await Promise.all([
     supabase.from('studio_series').select('*').order('created_at').limit(1).maybeSingle(),
-    supabase.from('studio_episodes').select('id, code, kind, title, runtime_s, logline, status, sort').order('sort'),
+    supabase.from('studio_episodes').select('id, code, kind, title, runtime_s, logline, status, sort, final_blob').order('sort'),
     supabase.from('studio_shots').select('episode_id, status'),
     supabase.from('studio_posts').select('id, episode_id, platform, scheduled_for, status, posted_url').order('scheduled_for'),
     supabase.from('helix_tour_sessions').select('src, seconds').eq('campaign', 'gjk-soft-launch'),
@@ -63,12 +64,7 @@ export default async function Studio() {
     <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]} actions={<StudioHelix focus={{ kind: 'home', label: 'the Studio' }} />}>
       {series ? (
         <>
-          <div className="studio-hero">
-            <span className="v-eyebrow">{series.division} · Season 1</span>
-            <h2>{series.name}</h2>
-            <p className="soft">{series.logline}</p>
-            {bible.tagline ? <b className="studio-tag">“{bible.tagline}”</b> : null}
-          </div>
+          <StudioHome episodes={(eps ?? []) as HomeEpisode[]} covers={coverFor} featured="gjk-h01" progress={new Map((eps ?? []).map((e) => { const s = (shots ?? []).filter((x) => x.episode_id === e.id); return [e.id, { done: s.filter((x) => x.status === 'approved' || x.status === 'take_ok').length, total: s.length }]; }))} />
           <div className="grid g4">
             <Tile label="Episodes" value={<span className="num">{eps?.length ?? 0}</span>} hint={`${(eps ?? []).filter((e) => e.status === 'approved' || e.status === 'live').length} approved`} />
             <Tile label="Studio budget" value={<span className="num">{money(used)}</span>} hint={`of ${money(cap)} this month · ${Math.max(0, Math.round(100 - (100 * used) / Math.max(1, cap)))}% left`} />
@@ -79,6 +75,7 @@ export default async function Studio() {
             <Tile label="Runway engine" value={!runway ? 'Not connected' : runway.ok ? <span className="num">{runway.credits.toLocaleString('en-US')}</span> : 'Key refused'} hint={!runway ? 'Add Genovus_Runway_API_Key in Vercel' : runway.ok ? `credits left · about ${money(runway.credits * CREDIT_CENTS)} · Seedance 2.5, Gen-4.5, Act-Two, ElevenLabs v4` : runway.error} />
           </div>
 
+          <details className="sx-all"><summary>Every episode, with posting status</summary>
           <section className="gallery" aria-label="Season 1 gallery">
             {(eps ?? []).map((e) => {
               const s = (shots ?? []).filter((x) => x.episode_id === e.id);
@@ -98,6 +95,7 @@ export default async function Studio() {
               );
             })}
           </section>
+          </details>
           <Panel title="Trend board · Trend Remix" sub="Viral moments we build on, three legitimate ways: the platform's own Stitch/Remix (their first seconds, credited, posted in-app), a written license from the creator, or an original in the same energy. Rights are checked before an episode can be approved.">
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,320px),1fr))', alignItems: 'start' }}>
               {sources.map((s) => <SourceCard key={s.id} s={s} />)}
@@ -137,14 +135,15 @@ export default async function Studio() {
             </Panel>
           ) : null}
 
-          <Panel title="Cast · Maya, Trent and Bri" sub="The recurring characters from the GENOVUS Cast Character Bible v1.0. Each face is locked in their identity package before it goes into a shot." actions={<span className="row" style={{ gap: 6 }}><Link className="btn small" href="/console/studio/cast">Cast &amp; identity</Link><Link className="btn small ghost" href="/console/studio/bible">Character Bible</Link></span>}>
+          <Panel title="Cast · Marcus, Tasha and Julian" sub="The GENOVUS team from the Cast Character Bible V2 (Oct 12, 2026). Each face is locked to the V2 reference sheet before it goes into a shot." actions={<span className="row" style={{ gap: 6 }}><Link className="btn small" href="/console/studio/cast">Cast &amp; identity</Link><Link className="btn small ghost" href="/console/studio/bible">Character Bible</Link></span>}>
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,300px),1fr))', alignItems: 'start' }}>
               {(cast ?? []).map((c) => {
                 const fr = (refRows ?? []).find((r) => (r as { character_id?: string; slot?: string; approved?: boolean }).character_id === c.id && (r as { slot?: string }).slot === 'FACE_FRONT' && (r as { approved?: boolean }).approved);
+                const sheet = { MARCUS01: 'marcus', TASHA01: 'tasha', JULIAN01: 'julian' }[c.code as string];
                 return (
                   <Link key={c.id} href={`/console/studio/cast/${c.code}`} className="tile cast-card">
-                    {fr ? <img src={`/api/studio/media/ref/${fr.id}`} alt={`${c.name}`} /> : <span className="cast-blank">{c.name[0]}</span>}
-                    <span className="grid" style={{ gap: 4 }}><b style={{ font: '800 16px var(--display)' }}>{c.name}</b><span className="muted" style={{ fontSize: 13 }}>{c.archetype}</span><span className="soft" style={{ fontSize: 12 }}>{fr ? 'Face locked' : 'Generate and approve the front portrait'}</span></span>
+                    {fr ? <img src={`/api/studio/media/ref/${fr.id}`} alt={`${c.name}`} /> : sheet ? <img src={`/studio/cast/${sheet}.jpg`} alt={`${c.name}`} /> : <span className="cast-blank">{c.name[0]}</span>}
+                    <span className="grid" style={{ gap: 4 }}><b style={{ font: '800 16px var(--display)' }}>{c.name}</b><span className="muted" style={{ fontSize: 13 }}>{c.archetype}</span><span className="soft" style={{ fontSize: 12 }}>{fr ? 'Face locked' : sheet ? 'Locked to the V2 reference sheet' : 'Generate and approve the front portrait'}</span></span>
                   </Link>
                 );
               })}

@@ -196,7 +196,8 @@
           "talking fast",
           "looking smug"
         ]
-      }
+      },
+      "status": "retired"
     },
     {
       "code": "TRENT01",
@@ -268,7 +269,8 @@
           "shouting",
           "slapstick"
         ]
-      }
+      },
+      "status": "retired"
     },
     {
       "code": "BRI01",
@@ -344,6 +346,204 @@
           "eye-rolling to camera",
           "sitcom overacting"
         ]
+      },
+      "status": "retired"
+    },
+    {
+      "code": "MARCUS01",
+      "name": "Marcus",
+      "archetype": "The Connector",
+      "age": 37,
+      "role": "Growth and Partnerships Lead at GENOVUS",
+      "sort": 1,
+      "status": "active",
+      "profile": {
+        "sentence": "Marcus can make a stranger feel like a friend in thirty seconds; he is learning that trust is measured by what happens after the conversation.",
+        "history": "Built his career in relationship sales and community networking. Remembers the detail people think no one noticed. Came to GENOVUS because relationships deserve a better system behind them.",
+        "wants": "To make GENOVUS the first call an agency makes when growth gets messy. Private fear: being valued for charm but left out of serious decisions.",
+        "outside": "Competitive backyard barbecue. Owns more thermometers than necessary and narrates a cook like a championship broadcast.",
+        "competence": "Finds a relevant agency, checks the basic fit, earns a conversation and captures a useful next step. Comfortable asking for the meeting, gracious when the answer is no.",
+        "flaw": "Enthusiastic overcommitment: \"I've basically done this\" usually means he has watched a clip.",
+        "ladder": "Leans forward, talks faster, offers one extra solution, then finally admits what he needs. A brief peak, then a grounded choice.",
+        "funny": "Commits to the experience before checking how difficult it is; recovers with adaptability, never humiliation.",
+        "never": "A fool, a salesman cliché, or humiliated.",
+        "season": "Learns to measure the quality of his commitments. Payoff: a prospect returns because Marcus did exactly what he said he would do."
+      },
+      "identity_prompt": "Marcus from the supplied reference: adult Black man, warm medium-dark brown complexion, cropped textured dark hair, short neat beard, expressive brows, solid build, apparent age late 30s. Navy overshirt over a cream crew-neck, charcoal trousers. Warmly persuasive, attentive, capable, slightly too eager. Natural skin texture, realistic anatomy. Keep his face recognizable at rest.",
+      "visual_anchors": "Cropped textured hair; short neat beard; expressive brows; solid build; forward engagement, active brows, then a visible release of tension.",
+      "wardrobe": "Navy overshirt, cream crew-neck, charcoal trousers. Clothing can change for a hobby or a new day; face and build never.",
+      "voice": {
+        "direction": "Friendly mid-register with an inviting rhythm; excitement increases speed before volume.",
+        "timing": "Roughly 145–165 words per minute; rehearsal guide, never forced in editing.",
+        "samples": [
+          "Before we pitch anything, what's eating up your day?",
+          "I said I knew the rules. I didn't say they were these rules.",
+          "Put my name on the follow-up. I made the promise."
+        ],
+        "runway_voice": "Malachi"
+      },
+      "signature_slot": {
+        "slot": "SIG_LEAN_IN",
+        "label": "The lean-in",
+        "direction": "Leans forward with active brows, offers one idea too many, then exhales and grounds it."
+      },
+      "performance_dna": {
+        "pace": "145–165 words a minute; speeds up when excited",
+        "reaction_delay_ms": [
+          200,
+          500
+        ],
+        "reaction_order": [
+          "brows lift",
+          "leans forward",
+          "a quick smile",
+          "the line, a little fast",
+          "a visible release of tension"
+        ],
+        "smile": "open and quick",
+        "gesture": "forward, active, hands help him talk",
+        "listening": "nods early, leans in",
+        "post_line_hold_ms": [
+          300,
+          700
+        ],
+        "never": [
+          "mugging",
+          "humiliation",
+          "a sales cliché"
+        ]
+      }
+    },
+    {
+      "code": "TASHA01",
+      "name": "Tasha",
+      "archetype": "The People Reader",
+      "age": 36,
+      "role": "Agency Success Lead at GENOVUS",
+      "sort": 2,
+      "status": "active",
+      "profile": {
+        "sentence": "Tasha hears the operational problem hidden inside a polite answer; her challenge is leaving enough room for people to surprise her.",
+        "history": "Worked close to agency operations, onboarding and customer support. Knows \"we need more leads\" can mean \"we cannot keep up with the ones we already have.\"",
+        "wants": "Agencies that feel capable after the demo, not dependent on her. Private fear: a missed detail becoming someone else's exhausting day.",
+        "outside": "Dance classes and local showcases; treats a casual group routine like it has a judging panel.",
+        "competence": "Asks the question that changes the diagnosis, notices who has not spoken, translates a feature into a routine an agency can use. Delivers a difficult truth warmly.",
+        "flaw": "Her accurate first read becomes certainty too quickly; takes over when a plan looks fragile.",
+        "ladder": "Her smile pauses, she asks a pointed question, then speaks very plainly. Her strongest reaction may be a slow turn.",
+        "funny": "Reads two people perfectly, misreads the third, owns the correction. The punchline often arrives on the quietest word.",
+        "never": "Constantly loud, smug, or everyone's safety net.",
+        "season": "Learns to build confidence in other people. Payoff: an agency owner explains the workflow correctly without her prompting."
+      },
+      "identity_prompt": "Tasha from the supplied reference: adult Black woman, warm brown complexion, shoulder-length natural curls, gold hoop earrings, apparent age mid 30s. Burgundy blazer over a black top, black trousers. Poised, perceptive, warm, quietly competitive. Natural skin texture, realistic anatomy. Avoid exaggerated expressions.",
+      "visual_anchors": "Shoulder-length natural curls; gold hoops; eyes register the implication before a deliberate turn.",
+      "wardrobe": "Burgundy blazer, black top and trousers, gold hoops.",
+      "voice": {
+        "direction": "Warm middle register with flexible melody; the punchline often lands on the quietest word.",
+        "timing": "Roughly 140–160 words per minute.",
+        "samples": [
+          "You've got leads. Who knows what happens after they come in?",
+          "That was a discovery call, Marcus. You joined a league.",
+          "Let me ask before I decide I've solved it."
+        ],
+        "runway_voice": "Kiana"
+      },
+      "signature_slot": {
+        "slot": "SIG_SLOW_TURN",
+        "label": "The slow turn",
+        "direction": "Eyes register first, a held beat, then a deliberate slow turn; for the fourth wall she turns to the lens, warm and conspiratorial."
+      },
+      "performance_dna": {
+        "pace": "140–160 words a minute; slows for the important word",
+        "reaction_delay_ms": [
+          400,
+          800
+        ],
+        "reaction_order": [
+          "eyes register",
+          "the smile pauses",
+          "a pointed question",
+          "a slow turn",
+          "then the line, plainly"
+        ],
+        "smile": "warm; pauses when she reads something",
+        "gesture": "precise, musical timing",
+        "listening": "watches who has not spoken",
+        "post_line_hold_ms": [
+          500,
+          900
+        ],
+        "fourth_wall": "the Ask Helix turn: warm, conspiratorial, quiet on the last words",
+        "never": [
+          "constantly loud",
+          "big mugging",
+          "smug"
+        ]
+      }
+    },
+    {
+      "code": "JULIAN01",
+      "name": "Julian",
+      "archetype": "The Operator",
+      "age": 48,
+      "role": "Strategy and Product Lead at GENOVUS",
+      "sort": 3,
+      "status": "active",
+      "profile": {
+        "sentence": "Julian makes complicated work feel manageable; he is learning that explaining the plan is part of making it work.",
+        "history": "Years connecting operations, software and customer needs. Has seen impressive demos collapse in ordinary working conditions.",
+        "wants": "A product and company that earn their reputation through repeated, practical wins. Private fear: losing control of a promise the company cannot keep.",
+        "outside": "Pub trivia and obscure music knowledge; calm about deadlines, deeply unreasonable about a disputed trivia answer.",
+        "competence": "Matches a real agency need to a verified capability, shows a few clear steps, checks the result, assigns the next action. Can say \"We need to find out.\"",
+        "flaw": "Withholds unfinished ideas; can design a process for everything except his own competitiveness.",
+        "ladder": "Becomes still, asks one factual question, shortens his sentences.",
+        "funny": "Restrained confidence punctured by a small personal obsession; the dry line follows a beat of silence.",
+        "never": "Flat, an announcer, or a permanent genius.",
+        "season": "From checking everything himself to shared judgment. Keeps the direct-to-camera close: \"Genovus Just Knows.\""
+      },
+      "identity_prompt": "Julian from the supplied reference: adult Black man, medium brown complexion, salt-and-pepper curls and beard, black rectangular glasses, apparent age late 40s. Olive blazer over a black shirt, dark trousers. Calm, approachable, dryly funny, capable of being caught off guard. Natural skin texture, realistic anatomy.",
+      "visual_anchors": "Salt-and-pepper curls and beard; black rectangular glasses; comfortable stillness, small precise gestures.",
+      "wardrobe": "Olive blazer, black shirt and trousers, rectangular glasses.",
+      "voice": {
+        "direction": "Warm, measured, lower-mid register. Calm does not mean flat.",
+        "timing": "Roughly 125–145 words per minute; \"Genovus Just Knows\" lands after a genuine reaction, as a knowing friend.",
+        "samples": [
+          "Open the follow-up. Check the time. Then finish the task.",
+          "We have a plan. Marcus has equipment.",
+          "I can explain the process. I cannot defend that dance."
+        ],
+        "runway_voice": "Benjamin"
+      },
+      "signature_slot": {
+        "slot": "SIG_LENS_CLOSE",
+        "label": "The close",
+        "direction": "After a real laugh, he finds the lens: \"Genovus Just Knows.\" A knowing friend, not an announcer."
+      },
+      "performance_dna": {
+        "pace": "125–145 words a minute; silence before the dry line",
+        "reaction_delay_ms": [
+          500,
+          900
+        ],
+        "reaction_order": [
+          "goes still",
+          "one factual question",
+          "a beat of silence",
+          "the dry line"
+        ],
+        "smile": "small and knowing; a real laugh at a payoff",
+        "gesture": "minimal and precise",
+        "listening": "still, eyes on the speaker",
+        "post_line_hold_ms": [
+          600,
+          1000
+        ],
+        "fourth_wall": "the close: \"Genovus Just Knows\", 1.3–1.8 s, emphasis on \"knows\"",
+        "signature_timing": "\"Genovus Just Knows\" takes 1.3–1.8 seconds",
+        "never": [
+          "flat",
+          "announcer voice",
+          "smug"
+        ]
       }
     }
   ],
@@ -378,5 +578,30 @@
     "Marcus Hale",
     "Tasha Reyes",
     "Velvet"
-  ]
+  ],
+  "bible_v2": {
+    "title": "GENOVUS Cast Character Bible",
+    "version": "2",
+    "date": "2026-10-12",
+    "owner": "Anthony Maurice Beedles / GENOVUS Studio",
+    "premise": "Marcus, Tasha and Julian run GENOVUS. Every workday brings a new insurance agency lead, a specific business problem, and a person whose life is bigger than the office.",
+    "engine": [
+      "The hook",
+      "The lead",
+      "The diagnosis",
+      "The plan",
+      "The proof",
+      "The payoff",
+      "The close"
+    ],
+    "close": "Julian to the lens: \"Genovus Just Knows.\"",
+    "product_truth": "One problem, one visible workflow, one observable result. Only captured screens with exact labels. Prospects pulls independent and captive agent data.",
+    "palette": [
+      "#0B0C10",
+      "#121419",
+      "#FF6A2B",
+      "#FFA31A",
+      "#F4F5F7"
+    ]
+  }
 }

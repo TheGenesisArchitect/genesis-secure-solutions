@@ -13,9 +13,9 @@ type Season = any;
 
 const KEY = 'studio_sync_hash';
 /** Bump when the sync logic itself changes, so production re-syncs even if the data file didn't. */
-const SYNC_VERSION = 2;
+const SYNC_VERSION = 3;
 
-export const seasonHash = (season: Season, cast: CastMember[] = []) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast.map((c) => (c as { performance_dna?: unknown }).performance_dna ?? null))}`).digest('hex').slice(0, 16);
+export const seasonHash = (season: Season, cast: CastMember[] = []) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast)}`).digest('hex').slice(0, 16);
 
 /** Sync only when the data (or the sync logic) changed since the last run. Cheap when nothing did: one row read. */
 export async function syncStudioIfChanged(db: SupabaseClient, season: Season, cast: CastMember[] = []): Promise<{ synced: boolean; hash: string; summary?: string }> {
@@ -39,6 +39,16 @@ export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember
   const { data: existing } = await db.from('studio_series').select('bible').eq('slug', s.slug).maybeSingle();
   const castBible = (existing?.bible as { cast_bible?: unknown } | null)?.cast_bible;
   const series = must(await db.from('studio_series').upsert({ slug: s.slug, name: s.name, division: s.division, logline: s.logline, bible: { ...s.bible, ...(castBible ? { cast_bible: castBible } : {}) } }, { onConflict: 'slug' }).select('id').single(), 'series') as { id: string };
+
+  // The cast (data/studio-cast.json) syncs too, so a new canon reaches production with the release: the V2 cast
+  // (Marcus, Tasha, Julian) active, earlier development characters kept as retired records.
+  for (const m of cast as any[]) {
+    must(await db.from('studio_characters').upsert({
+      series_id: series.id, code: m.code, name: m.name, archetype: m.archetype, age: m.age, role: m.role, sort: m.sort,
+      profile: { ...m.profile, signature_slot: m.signature_slot }, identity_prompt: m.identity_prompt, visual_anchors: m.visual_anchors,
+      wardrobe: m.wardrobe, voice: m.voice, status: m.status === 'retired' ? 'retired' : 'active',
+    }, { onConflict: 'code' }), `character ${m.code}`);
+  }
 
   let shots = 0, posts = 0;
   for (const e of S.episodes) {

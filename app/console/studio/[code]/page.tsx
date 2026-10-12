@@ -19,11 +19,11 @@ import { StudioHelix } from '@/components/studio/StudioHelix';
 
 export const dynamic = 'force-dynamic';
 
-const TOOL: Record<string, string> = { flow: 'Google Flow', 'nano-banana': 'Nano Banana Pro', capture: 'Real app capture', edit: 'Edit', veo: 'Veo' };
+const TOOL: Record<string, string> = { flow: 'Google Flow', 'nano-banana': 'Nano Banana Pro', capture: 'Real app capture', edit: 'Edit', veo: 'Veo', runway: 'Runway', source: 'Source clip' };
 const PLATFORM: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube Shorts' };
 const STAGES = ['writing', 'shooting', 'editing', 'review', 'approved', 'live'];
 const BEATS = ['Recognition', 'The fork', 'The problem', 'Escalation', 'The save', 'Viral payoff', 'Character payoff', 'Signature'];
-const KIND_LABEL: Record<string, string> = { source: 'Their footage', fork: 'Fork', product: 'Product · real capture', signature: 'Signature', sting: 'End card', pickup: 'Pickup' };
+const KIND_LABEL: Record<string, string> = { source: 'Their footage', fork: 'Fork', product: 'Product · real capture', signature: 'Signature', sting: 'Title or end card', pickup: 'Pickup' };
 const MODE: Record<string, { label: string; note: string }> = {
   split: { label: 'Split-Screen Fork', note: 'Their reel plays whole in one half (Instagram Remix split / TikTok Duet); our fork plays in the other, timed to their hook and payoff. Made in the app; the payoff is never touched.' },
   sequential: { label: 'Sequential Fork', note: 'Their hook first (Remix “Add to end” / Stitch), then our fork. Made in the app.' },
