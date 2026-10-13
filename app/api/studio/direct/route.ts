@@ -134,6 +134,24 @@ export async function POST(req: Request) {
         if (error) return fail(error.message);
         return Response.json({ ok: true, quote_id: id, total: money(cents), ceiling: money(Math.ceil(cents * 1.25)), shots: pending.map((x) => shots.indexOf(x) + 1), say: `Finishing the run needs about ${money(cents)} more. Shall I approve it?` });
       }
+      case 'attach_screen': {
+        const s = boardShot(shots, a.shot);
+        if (!s) return fail(`There’s no shot ${a.shot}.`);
+        const want = String(a.screen ?? '').toLowerCase().trim();
+        if (!want) return fail('Which screen? Say it like “the Genovus line on a phone”.');
+        const { data: lib } = await supabase.from('studio_screens').select('code, device, title, chapter').not('clip_path', 'is', null);
+        const device = /phone|mobile/.test(want) ? 'phone' : /desktop|computer|laptop/.test(want) ? 'desktop' : null;
+        const words = want.replace(/\b(on|a|the|in|of|phone|mobile|desktop|computer|laptop|screen|version)\b/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+        const scored = (lib ?? []).map((r) => ({ r, score: (r.code === want || `${r.code}:${r.device}` === want ? 100 : 0) + words.filter((w) => `${r.code} ${r.title} ${r.chapter}`.toLowerCase().includes(w)).length * 10 + (device && r.device === device ? 5 : 0) }))
+          .filter((x) => x.score > 0).sort((x, y) => y.score - x.score);
+        const pick = scored[0]?.r;
+        if (!pick) return fail('I couldn’t find that screen in the library.');
+        const key = `${pick.code}:${pick.device}`;
+        const next = a.mode === 'add' ? [...new Set([...(s.screens ?? []), key])] : [key];
+        const { error } = await supabase.rpc('studio_set_shot_screens', { p_shot: s.id, p_screens: next });
+        if (error) return fail(error.message);
+        return Response.json({ ok: true, shot: a.shot, screen: key, title: pick.title, say: `Shot ${a.shot} now uses “${pick.title}” (${pick.device}).` });
+      }
       case 'retry_shot':
       case 'cancel_shot': {
         const s = boardShot(shots, a.shot);

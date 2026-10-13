@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
-import { studioApproveRef, studioChooseClip, studioChooseFrame, studioChooseTake, studioRegisterUpload, studioSetRunwayVoice, type ActionResult } from '@/lib/actions';
+import { studioApproveRef, studioChooseClip, studioChooseFrame, studioChooseTake, studioRegisterUpload, studioSetRunwayVoice, studioSetShotScreens, type ActionResult } from '@/lib/actions';
 
 const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: r })); };
 const ok = (msg: string) => toast({ ok: msg, at: Date.now() });
@@ -51,6 +51,7 @@ export type CaptureRecipe = { device?: string; note?: string; steps?: { label: s
 export function ShotStudio(p: {
   shot: string; tool: string; engine: string | null; ready: boolean; lines: BoardLine[]; frames: BoardFrame[]; takes: BoardTake[];
   cost: { line: number; keyframes: number; take: number }; takeSecs: number; capture: CaptureRecipe | null; needsFrame: boolean;
+  screens?: string[]; library?: { key: string; title: string; device: string; chapter: string }[];
 }) {
   const router = useRouter();
   const running = [...p.lines.flatMap((l) => l.reads), ...p.frames, ...p.takes].some((x) => x.status === 'running' || x.status === 'queued');
@@ -94,6 +95,17 @@ export function ShotStudio(p: {
   if (p.tool === 'capture') {
     return (
       <div className="bs">
+        <form className="bs-libpick" action={async (f) => { toast(await studioSetShotScreens(null, f)); router.refresh(); }}>
+          <b>📺 Screens from the Screen Library</b>
+          <input type="hidden" name="id" value={p.shot} />
+          <select className="input" name="screen" defaultValue={p.screens?.[0] ?? ''} aria-label="Screen from the library">
+            <option value="">Choose a screen…</option>
+            {(p.library ?? []).map((l) => <option key={l.key} value={l.key}>{l.device === 'phone' ? '📱' : '🖥'} {l.title}</option>)}
+          </select>
+          <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><button className="btn small primary" type="submit">Use this screen</button><a className="btn small ghost" href="/console/studio/library" target="_blank" rel="noreferrer">Browse the library ↗</a></span>
+          <small className="muted">Real screens, captured with fictional data. Or tell Helix: “use the Genovus line on a phone for this shot”.</small>
+        </form>
+        <details className="pb-more"><summary>Or record it yourself</summary>
         <div className="bs-cap">
           <b>📱 Capture this scene{p.capture?.device === 'phone' ? ' on your phone' : ''}</b>
           {p.capture?.note ? <small>{p.capture.note}</small> : null}
@@ -106,6 +118,7 @@ export function ShotStudio(p: {
             <span className="muted" style={{ fontSize: 11.5 }}>Opens your camera roll on a phone. Signed in to Genovus on the phone? Open this board there and upload directly.</span>
           </div>
         </div>
+        </details>
         {p.takes.length ? <Takes takes={p.takes} refresh={refresh} /> : null}
         {linesStep('Voice-over · line reads')}
       </div>

@@ -73,6 +73,14 @@ check(saved?.acting === 'Verify: a slower turn, eyes first', 'directing a shot s
 must(await db.from('studio_shots').update({ log: prior }).eq('id', shotRow.id), 'restore shot log');
 await go('/console/studio/gjk-t1');
 check(/Archived · made with the retired development cast/i.test(await ev('document.body.innerText')), 'an old episode is marked archived');
+await go('/console/studio/library');
+const libCards = await ev(`document.querySelectorAll('.sl-card').length`);
+const stillsOk = await ev(`Promise.all([...document.querySelectorAll('.sl-card img')].slice(0, 6).map((i) => i.decode().then(() => i.naturalWidth > 0).catch(() => false))).then((r) => r.every(Boolean))`);
+check(libCards >= 30 && stillsOk && /Waiting to be captured/i.test(await ev('document.body.innerText')), `the Screen Library shows real captured screens (${libCards}) and what's still waiting`);
+await ev(`document.querySelector('.sl-card .sp-play').click()`); await new Promise((r) => setTimeout(r, 900));
+check(await ev(`!!document.querySelector('.sp-back video')`), 'pressing play on a library screen opens the player');
+await shot('screen-library', 1600);
+` + '' + `
 await go('/console/studio/bible');
 const tb = await ev('document.body.innerText');
 check(/Version 2/.test(tb) && /Marcus/.test(tb) && /The camera break/i.test(tb) && !/Maya addresses/.test(tb), 'the Character Bible page is V2');

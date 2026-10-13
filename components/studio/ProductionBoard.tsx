@@ -13,7 +13,7 @@ import { ProductionBar, ShotMonitor, ShotReview, type MonitorStep, type RunHealt
 import { PlayButton, ScenePlayer, type Clip } from '@/components/studio/ScenePlayer';
 import { RouterReport, type RouterRow } from '@/components/studio/RouterReport';
 
-type Shot = { capture?: CaptureRecipe | null; produce?: Record<string, string | number | null> | null; id: string; n: number; shot_code: string | null; timing: string | null; description: string; dialogue: string | null; tool: string; tier: string | null; status: string; beat: number | null; shot_kind: string | null; log: Record<string, string> | null };
+type Shot = { screens?: string[] | null; capture?: CaptureRecipe | null; produce?: Record<string, string | number | null> | null; id: string; n: number; shot_code: string | null; timing: string | null; description: string; dialogue: string | null; tool: string; tier: string | null; status: string; beat: number | null; shot_kind: string | null; log: Record<string, string> | null };
 type Character = { id: string; code: string; name: string; archetype: string; wardrobe: string | null; voice: { direction?: string; timing?: string; runway_voice?: string; runway_preset?: string; runway_engine?: string } | null; profile: Record<string, string> | null };
 export type BoardStudioData = {
   ready: boolean;
@@ -30,6 +30,7 @@ export type BoardStudioData = {
   est: { draft: string; final: string; finalDrafts: string };
   routers: RouterRow[];
   routersConnected: boolean;
+  library: { key: string; title: string; device: string; chapter: string }[];
 };
 type Take = { id: string; shot_id: string; status: string; chosen: boolean | null };
 type Props = {
@@ -65,7 +66,9 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
   const counts = { review: count('review'), approved: count('approved'), active: count('queued', 'reading', 'drawing', 'rendering'), capture: count('capture'), blocked: count('blocked'), total: shots.length, draftOk: count('draft_ok') };
   const locked = (c: Character) => ['locked', 'casting'].includes(studio.identity.get(c.id)?.state ?? '');
   const frameOf = (s: Shot) => (studio.frames.get(s.id) ?? []).find((f) => f.chosen && f.status === 'ready');
+  const screenOf = (key: string) => { const [code, device] = key.split(':'); return { src: `/api/studio/library/${code}/${device}`, still: `/api/studio/library/${code}/${device}?still=1`, title: studio.library.find((l) => l.key === key)?.title ?? code }; };
   const sceneOf = (s: Shot): Clip | null => {
+    if (s.tool === 'capture' && s.screens?.length && ['review', 'approved', 'draft_ok'].includes(stageOf(s))) { const x = screenOf(s.screens[0]); return { src: x.src, title: `${shots.indexOf(s) + 1} · ${x.title}`, poster: x.still }; }
     const t = chosen(s.id);
     if (!t || !['review', 'approved', 'draft_ok'].includes(stageOf(s)) || (studio.takes.get(s.id) ?? []).find((x) => x.id === t.id)?.still) return null;
     const f = frameOf(s);
@@ -125,7 +128,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
           <div className="pb-panel">
             <div className="pb-lab"><b>Product accuracy</b><span>Real screens only</span></div>
             <ul className="pb-acc">
-              {captures.map((s) => <li key={s.id}><span>#{shots.indexOf(s) + 1} · {s.description.replace(/^Title card:\s*/i, 'Card: ')}</span><span className={s.status === 'take_ok' || s.status === 'approved' ? 'y' : 'need'}>{s.tool === 'edit' ? 'Code card' : s.status === 'take_ok' || s.status === 'approved' ? 'Captured ✓' : 'Capture needed'}</span></li>)}
+              {captures.map((s) => <li key={s.id}><span>#{shots.indexOf(s) + 1} · {s.description.replace(/^Title card:\s*/i, 'Card: ')}</span><span className={s.status === 'take_ok' || s.status === 'approved' || s.screens?.length ? 'y' : 'need'}>{s.tool === 'edit' ? 'Code card' : s.screens?.length ? 'From the library ✓' : s.status === 'take_ok' || s.status === 'approved' ? 'Captured ✓' : 'Pick a library screen'}</span></li>)}
             </ul>
           </div>
 
@@ -157,6 +160,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     {take ? (still ? <img src={`/api/studio/media/take/${take.id}`} alt="" /> : keyframe ? <img src={`/api/studio/media/frame/${keyframe.id}`} alt="" /> : <video src={`/api/studio/media/take/${take.id}#t=0.5`} muted playsInline preload="metadata" />)
                       : keyframe ? <img src={`/api/studio/media/frame/${keyframe.id}`} alt="" />
                       : s.tool === 'edit' ? <span className="pb-titlecard">{s.description.replace(/^Title card:\s*/i, '')}</span>
+                      : s.tool === 'capture' && s.screens?.length ? <img src={screenOf(s.screens[0]).still} alt="" />
                       : s.tool === 'capture' ? <span className="pb-phone"><i /><i /><i /><i /><i /></span>
                       : who && SHEET[who] ? <img className="ref" src={`/studio/cast/${SHEET[who]}.jpg`} alt="" /> : <span className="pb-titlecard">Frame</span>}
                     {sceneOf(s) ? <PlayButton big clips={scenes} start={scenes.findIndex((c) => c.src === sceneOf(s)!.src)} /> : null}
@@ -169,6 +173,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     {d.read ? <p className="pb-read"><Read text={d.read} /></p> : null}
                     {d.acting ? <p className="pb-act"><b>Acting</b> {d.acting}{s.log?.camera ? <> · <b>Camera</b> {s.log.camera}</> : null}</p> : null}
                     {note && stage === 'capture' ? <p className="pb-flag">{note}</p> : null}
+                    {s.tool === 'capture' && s.screens?.length ? <p className="pb-lib">📺 From the Screen Library: {s.screens.map((k) => `${screenOf(k).title} (${k.split(':')[1]})`).join(' · ')}</p> : null}
                     <ShotMonitor episode={episode.code} board={i + 1} steps={studio.monitor.get(s.id) ?? []} stage={stage} note={note} />
                     <div className="pb-foot">
                       <span className="pb-eng2">{eng?.label ?? (s.tool === 'capture' ? 'Phone capture' : s.tool === 'edit' ? 'Code card' : s.tool)} · {money(costs[i].total)}</span>
@@ -177,7 +182,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     <details className="pb-more">
                       <summary>{s.tool === 'capture' ? 'Capture steps, voice-over & direction' : 'Fine-tune: steps & direction'}</summary>
                       <ShotStudio shot={s.id} tool={s.tool} engine={eng?.label ?? null} ready={studio.ready} lines={s.tool === 'edit' ? [] : shotLines} frames={studio.frames.get(s.id) ?? []} takes={studio.takes.get(s.id) ?? []}
-                        cost={{ line: shotLines.length * PRICE.lineRead, keyframes: 2 * PRICE.keyframe, take: eng ? billedSeconds(s.tier, s.timing) * eng.perSec : 0 }} takeSecs={billedSeconds(s.tier, s.timing)} capture={s.capture ?? null}
+                        cost={{ line: shotLines.length * PRICE.lineRead, keyframes: 2 * PRICE.keyframe, take: eng ? billedSeconds(s.tier, s.timing) * eng.perSec : 0 }} takeSecs={billedSeconds(s.tier, s.timing)} capture={s.capture ?? null} screens={s.screens ?? []} library={studio.library}
                         needsFrame={eng?.model === 'gen4.5' && !keyframe} />
                       <ActionForm action={studioSetShotDirection} className="form pb-direct">
                         <input type="hidden" name="id" value={s.id} />

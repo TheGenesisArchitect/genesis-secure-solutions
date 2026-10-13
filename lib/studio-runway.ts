@@ -35,7 +35,7 @@ export async function blobDataUri(p: string): Promise<string | null> {
   return uri;
 }
 async function readDataUri(p: string): Promise<string | null> {
-  const res = await get(p, { access: 'private', useCache: false });
+  const res = await get(p, { access: 'private', useCache: false, abortSignal: AbortSignal.timeout(30_000) });
   if (!res || res.statusCode !== 200 || !res.stream) return null;
   const buf = Buffer.from(await new Response(res.stream).arrayBuffer());
   if (buf.length > 5 * 1024 * 1024) return null;
@@ -269,7 +269,7 @@ export async function designVoice(reserve: Reserve, characterId: string): Promis
     const audio = await fetch(p.url, { signal: AbortSignal.timeout(30_000) });
     if (!audio.ok) throw new Error(`Could not fetch the sample (${audio.status}).`);
     const file = `studio/voice/design-${id}.mp3`;
-    await put(file, Buffer.from(await audio.arrayBuffer()), { access: 'private', contentType: 'audio/mpeg', addRandomSuffix: false, allowOverwrite: true });
+    await put(file, Buffer.from(await audio.arrayBuffer()), { access: 'private', contentType: 'audio/mpeg', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(60_000) });
     const after = await runwayOrganization().then((o) => o.creditBalance).catch(() => null);
     const cents = before != null && after != null ? Math.max(0, before - after) * CREDIT_CENTS : ESTIMATE.design;
     await db.from('studio_voice_clips').update({ status: 'ready', blob_path: file, cost_cents: cents }).eq('id', id);
@@ -325,7 +325,7 @@ export async function pollRunwayJobs(shotId?: string): Promise<Record<string, nu
           if (!file.ok) { out.download_wait = (out.download_wait ?? 0) + 1; continue; }
           const ext = T.ext(String(row.kind ?? ''));
           const p = `studio/${T.dir}/${id}.${ext}`;
-          await put(p, Buffer.from(await file.arrayBuffer()), { access: 'private', contentType: TYPE[ext], addRandomSuffix: false, allowOverwrite: true });
+          await put(p, Buffer.from(await file.arrayBuffer()), { access: 'private', contentType: TYPE[ext], addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(60_000) });
           const cents = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : Number(row.cost_cents ?? 0);
           await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, runway_status: 'SUCCEEDED', runway_progress: 1, done_at: now(), ...(T.table === 'studio_takes' ? { updated_at: now() } : { source_url: t.output[0], source_at: now(), ...(T.table === 'studio_art' ? { updated_at: now() } : {}) }) }).eq('id', id);
           await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null);

@@ -4,10 +4,12 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './env';
+import { timedFetch } from './timeout';
 
 export async function db() {
   const jar = await cookies();
   return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { fetch: timedFetch },
     cookies: {
       getAll: () => jar.getAll(),
       setAll: (list) => {

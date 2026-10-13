@@ -13,24 +13,33 @@ type Season = any;
 
 const KEY = 'studio_sync_hash';
 /** Bump when the sync logic itself changes, so production re-syncs even if the data file didn't. */
-const SYNC_VERSION = 5;
+const SYNC_VERSION = 6;
 
-export const seasonHash = (season: Season, cast: CastMember[] = [], castBible: unknown = null) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast)}:${JSON.stringify(castBible)}`).digest('hex').slice(0, 16);
+export type ScreenLibrary = { catalog: { screens: { code: string; title: string; side: string; chapter: string; route: string; devices: string[]; pending?: string }[] }; assets: { entries: Record<string, { clip: string | null; still: string | null; secs: number; captured_at: string; captured_on: string | null }> } };
+export const seasonHash = (season: Season, cast: CastMember[] = [], castBible: unknown = null, library: ScreenLibrary | null = null) => createHash('sha256').update(`${SYNC_VERSION}:${JSON.stringify(season)}:${JSON.stringify(cast)}:${JSON.stringify(castBible)}:${JSON.stringify(library)}`).digest('hex').slice(0, 16);
 
 /** Sync only when the data (or the sync logic) changed since the last run. Cheap when nothing did: one row read. */
-export async function syncStudioIfChanged(db: SupabaseClient, season: Season, cast: CastMember[] = [], castBible: unknown = null): Promise<{ synced: boolean; hash: string; summary?: string }> {
-  const hash = seasonHash(season, cast, castBible);
+export async function syncStudioIfChanged(db: SupabaseClient, season: Season, cast: CastMember[] = [], castBible: unknown = null, library: ScreenLibrary | null = null): Promise<{ synced: boolean; hash: string; summary?: string }> {
+  const hash = seasonHash(season, cast, castBible, library);
   const { data } = await db.from('app_settings').select('value').eq('key', KEY).maybeSingle();
   if (data?.value === hash) return { synced: false, hash };
-  const summary = await syncStudio(db, season, cast, castBible);
+  const summary = await syncStudio(db, season, cast, castBible, library);
   await db.from('app_settings').upsert({ key: KEY, value: hash, updated_at: new Date().toISOString() });
   return { synced: true, hash, summary };
 }
 
 /** `cast`: the characters with their Performance DNA (data/studio-cast.json), for compiling Shot Contracts.
  *  `castBible`: the Cast Character Bible (same file); when given it becomes the series' cast bible. */
-export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember[] = [], castBible: unknown = null): Promise<string> {
+export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember[] = [], castBible: unknown = null, library: ScreenLibrary | null = null): Promise<string> {
   const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what}: ${r.error.message}`); return r.data; };
+  // The Screen Library (real screens, captured with fictional data): one row per screen and device.
+  if (library) {
+    const rows = library.catalog.screens.flatMap((s) => s.devices.map((device) => {
+      const a = library.assets.entries[`${s.code}:${device}`];
+      return { code: s.code, device, title: s.title, side: s.side, chapter: s.chapter, route: s.route, clip_path: a?.clip ?? null, still_path: a?.still ?? null, secs: a?.secs ?? null, captured_at: a?.captured_at ?? null, captured_on: a?.captured_on ?? null, pending: s.pending ?? null };
+    }));
+    must(await db.from('studio_screens').upsert(rows, { onConflict: 'code,device' }), 'screen library');
+  }
 
   const c = S.campaign;
   must(await db.from('campaigns').upsert({ slug: c.slug, name: c.name, channel: 'social', segment: 'mixed', starts_on: c.starts_on, ends_on: c.ends_on, notes: 'Studio Season 1 soft launch: Facebook, Instagram, TikTok, YouTube Shorts. Organic only. Links carry src per platform.' }, { onConflict: 'slug', ignoreDuplicates: true }), 'campaign');
@@ -67,6 +76,7 @@ export async function syncStudio(db: SupabaseClient, S: Season, cast: CastMember
         shot_code: sh.shot_code ?? null, beat: sh.beat ?? null, shot_kind: sh.shot_kind ?? null, cast_codes: sh.cast_codes ?? [], lines: sh.lines ?? [], capture: sh.capture ?? null }, { onConflict: 'episode_id,n' }).select('id').single(), `shot ${e.code}/${sh.n}`) as { id: string };
       // The shot log is a working record: only filled when still empty, so edits made in the Studio survive a reload.
       if (sh.log) await db.from('studio_shots').update({ log: sh.log }).eq('id', saved.id).eq('log', '{}');
+      if (sh.screens?.length) await db.from('studio_shots').update({ screens: sh.screens }).eq('id', saved.id).eq('screens', '{}');
       shots++;
     }
     const p = S.posts?.[e.code];

@@ -1,0 +1,637 @@
+{
+  "note": "The Studio's Screen Library: real Genovus screens, captured automatically (scripts/capture-library.mjs) on the PREVIEW database with fictional data only (the demo agency Brooks Family Insurance and the Genovus account's staged demo calls and notes). Each entry is one screen moment; devices are captured separately. Steps: wait ms · scroll {to: 'text' | px, within: css, at: 0-1, ms} · tap {text, within} · type {into: css, text}. 'pending' entries need something preview doesn't have yet.",
+  "version": 1,
+  "chapters": {
+    "setup": "Turnkey setup & site",
+    "today": "The agency's day",
+    "leads": "Leads & follow-up",
+    "line": "The Genovus line",
+    "helix": "Helix Knows",
+    "growth": "Growth & results",
+    "care": "Care & approvals",
+    "enterprise": "Running Genovus",
+    "studio": "Genovus Studio"
+  },
+  "screens": [
+    {
+      "code": "agency-home",
+      "title": "The agency's home in Genovus",
+      "side": "agency",
+      "chapter": "today",
+      "route": "/app/demo-brooks?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": 700,
+            "ms": 2400
+          }
+        },
+        {
+          "wait": 1800
+        }
+      ]
+    },
+    {
+      "code": "agency-today",
+      "title": "Today: tomorrow's calls, ready the night before",
+      "side": "agency",
+      "chapter": "today",
+      "route": "/app/demo-brooks/today?film=1",
+      "devices": [
+        "phone",
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": "Client notes",
+            "within": "section",
+            "at": 0.12,
+            "ms": 1600
+          }
+        },
+        {
+          "wait": 1800
+        },
+        {
+          "scroll": {
+            "to": "Priority follow-ups",
+            "within": "section",
+            "at": 0.2,
+            "ms": 1400
+          }
+        },
+        {
+          "wait": 2200
+        }
+      ]
+    },
+    {
+      "code": "agency-followups",
+      "title": "Follow-ups: who, when and why, on the right day",
+      "side": "agency",
+      "chapter": "leads",
+      "route": "/app/demo-brooks/follow-ups?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 2400
+        },
+        {
+          "scroll": {
+            "to": "The Garcias",
+            "within": "li, tr, article",
+            "at": 0.4,
+            "ms": 1500
+          }
+        },
+        {
+          "wait": 2800
+        }
+      ]
+    },
+    {
+      "code": "agency-leads",
+      "title": "Leads: every inquiry with its source and next step",
+      "side": "agency",
+      "chapter": "leads",
+      "route": "/app/demo-brooks/leads?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": 500,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2200
+        }
+      ]
+    },
+    {
+      "code": "agency-pipeline",
+      "title": "Pipeline: where every client conversation stands",
+      "side": "agency",
+      "chapter": "leads",
+      "route": "/app/demo-brooks/pipeline?film=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 450,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2200
+        }
+      ]
+    },
+    {
+      "code": "agency-calendar",
+      "title": "Calendar: appointments that land on their own",
+      "side": "agency",
+      "chapter": "leads",
+      "route": "/app/demo-brooks/calendar?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 3000
+        },
+        {
+          "scroll": {
+            "to": 400,
+            "ms": 1800
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "agency-performance",
+      "title": "Performance: every lead, link by link",
+      "side": "agency",
+      "chapter": "growth",
+      "route": "/app/demo-brooks/performance?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": "This month, link by link",
+            "within": "h2, h3, .panel-title, section",
+            "at": 0.15,
+            "ms": 1800
+          }
+        },
+        {
+          "wait": 2200
+        },
+        {
+          "scroll": {
+            "to": "Time to first reply",
+            "within": "h2, h3, .panel-title, section",
+            "at": 0.2,
+            "ms": 1600
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "agency-market",
+      "title": "Market: the agency's local opportunity",
+      "side": "agency",
+      "chapter": "growth",
+      "route": "/app/demo-brooks/market?film=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 3000
+        },
+        {
+          "scroll": {
+            "to": 600,
+            "ms": 2200
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "agency-partners",
+      "title": "Partners: referral sources on the radar",
+      "side": "agency",
+      "chapter": "growth",
+      "route": "/app/demo-brooks/partners?film=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 3000
+        },
+        {
+          "scroll": {
+            "to": 500,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "agency-program",
+      "title": "The program: what the agency's plan includes",
+      "side": "agency",
+      "chapter": "setup",
+      "route": "/app/demo-brooks/program?film=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 600,
+            "ms": 2200
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "agency-setup",
+      "title": "Setup: the turnkey build, step by step",
+      "side": "agency",
+      "chapter": "setup",
+      "route": "/app/demo-brooks/setup?film=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 600,
+            "ms": 2200
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "agency-approvals",
+      "title": "Approvals: one tap, with a record of every decision",
+      "side": "agency",
+      "chapter": "care",
+      "route": "/app/demo-brooks/approvals?film=1",
+      "devices": [
+        "phone",
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2200
+        },
+        {
+          "scroll": {
+            "to": "storm season",
+            "within": "article, .panel, .card, li",
+            "at": 0.15,
+            "ms": 1300
+          }
+        },
+        {
+          "wait": 2400
+        }
+      ]
+    },
+    {
+      "code": "agency-care",
+      "title": "Care: ask for a change; posts already on the calendar",
+      "side": "agency",
+      "chapter": "care",
+      "route": "/app/demo-brooks/care?film=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2400
+        },
+        {
+          "scroll": {
+            "to": "Content calendar",
+            "within": "h2, h3, .panel-title, section",
+            "at": 0.15,
+            "ms": 1600
+          }
+        },
+        {
+          "wait": 2400
+        }
+      ]
+    },
+    {
+      "code": "agency-helix",
+      "title": "Ask Helix in the agency (the page)",
+      "side": "agency",
+      "chapter": "helix",
+      "route": "/app/demo-brooks/helix?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 3000
+        },
+        {
+          "scroll": {
+            "to": 400,
+            "ms": 1800
+          }
+        },
+        {
+          "wait": 1800
+        }
+      ]
+    },
+    {
+      "code": "ent-overview",
+      "title": "Genovus Enterprise: the morning view (with sample agencies)",
+      "side": "enterprise",
+      "chapter": "enterprise",
+      "route": "/console?samples=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 4200
+        }
+      ]
+    },
+    {
+      "code": "ent-line-calls",
+      "title": "The Genovus line: every call answered, with Helix's note",
+      "side": "enterprise",
+      "chapter": "line",
+      "route": "/console/prospects/calls",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 2400
+        },
+        {
+          "scroll": {
+            "to": "Calls to the Genovus line",
+            "within": "section, .panel, h2, h3",
+            "at": 0.12,
+            "ms": 1800
+          }
+        },
+        {
+          "wait": 3200
+        }
+      ]
+    },
+    {
+      "code": "ent-clients",
+      "title": "Clients: every agency on Genovus (sample agencies)",
+      "side": "enterprise",
+      "chapter": "enterprise",
+      "route": "/console/clients?q=Insurance",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 600,
+            "ms": 2200
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-pipeline",
+      "title": "Pipeline: agencies moving to launch (sample agencies)",
+      "side": "enterprise",
+      "chapter": "enterprise",
+      "route": "/console/pipeline?samples=1",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 500,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-growth",
+      "title": "Growth & financials: the numbers like a CFO",
+      "side": "enterprise",
+      "chapter": "growth",
+      "route": "/console/growth",
+      "devices": [
+        "desktop"
+      ],
+      "pending": "Growth & financials counts only real revenue by design (sample agencies never count), so preview shows test leftovers. Needs a staged demo ledger first."
+    },
+    {
+      "code": "ent-care",
+      "title": "Care desk: every agency request, handled",
+      "side": "enterprise",
+      "chapter": "care",
+      "route": "/console/care",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": 500,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-approvals",
+      "title": "Approval queue: people approve anything outward",
+      "side": "enterprise",
+      "chapter": "care",
+      "route": "/console/approvals",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": 500,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-helix-knows",
+      "title": "Helix Knows: what Helix remembers about the business",
+      "side": "enterprise",
+      "chapter": "helix",
+      "route": "/console/helix/knows",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 500,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-helix-notes",
+      "title": "Helix notes: questions and ideas that become action",
+      "side": "enterprise",
+      "chapter": "helix",
+      "route": "/console/helix",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2600
+        },
+        {
+          "scroll": {
+            "to": 400,
+            "ms": 1800
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-studio",
+      "title": "Genovus Studio: the series, streaming-style",
+      "side": "enterprise",
+      "chapter": "studio",
+      "route": "/console/studio",
+      "devices": [
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 3200
+        },
+        {
+          "scroll": {
+            "to": 600,
+            "ms": 2400
+          }
+        },
+        {
+          "wait": 2000
+        }
+      ]
+    },
+    {
+      "code": "ent-prospects",
+      "title": "Prospects: agencies that fit Genovus, by carrier and state",
+      "side": "enterprise",
+      "chapter": "enterprise",
+      "route": "/console/prospects",
+      "devices": [
+        "desktop"
+      ],
+      "pending": "Office names load live from Google Places; preview has no Places key, so this list would show codes instead of names."
+    },
+    {
+      "code": "ent-ask-helix-answer",
+      "title": "Ask Helix answers: \"Who should I call first?\"",
+      "side": "enterprise",
+      "chapter": "helix",
+      "route": "/console/helix/ask",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "pending": "Helix's answer needs a live AI key; preview has none, and a staged answer would not be a real screen."
+    }
+  ]
+}

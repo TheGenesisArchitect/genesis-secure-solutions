@@ -477,6 +477,12 @@ export async function studioUpdateShotLog(_: ActionResult, f: FormData) {
   return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Shot log saved.');
 }
 
+/** StudioNext: the Screen Library screens that fill a product shot. */
+export async function studioSetShotScreens(_: ActionResult, f: FormData) {
+  const screens = f.getAll('screen').map((x) => String(x).trim()).filter((x) => /^[a-z0-9-]{2,60}:(desktop|phone)$/.test(x));
+  return call('studio_set_shot_screens', { p_shot: str(f, 'id', 64), p_screens: screens }, screens.length ? 'Screens set from the Screen Library.' : 'Screens cleared.');
+}
+
 /** StudioNext: the Runway Model Router names, one per job. */
 export async function studioSetRouters(_: ActionResult, f: FormData) {
   const r: Record<string, string> = {};

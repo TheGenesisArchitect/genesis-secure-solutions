@@ -69,6 +69,7 @@ export function StudioHome({ episodes: all, covers, progress, featured, current 
               {hero.final_blob ? <PlayButton clips={[{ src: `/api/studio/media/final/${hero.id}`, title: hero.title }]} /> : null}
               <Link className={hero.final_blob ? 'sx-btn' : 'sx-btn play'} href={`/console/studio/${hero.code}`}>{hero.final_blob ? 'Open the board' : '▶ Open the production board'}</Link>
               <Link className="sx-btn" href="/console/studio/cast">The cast</Link>
+              <Link className="sx-btn" href="/console/studio/library">Screen Library</Link>
             </span>
           </div>
         </section>

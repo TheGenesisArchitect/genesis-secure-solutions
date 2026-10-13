@@ -12,8 +12,8 @@ import { identityLocked, pollRunwayJobs, startKeyframes, startLines, startRunway
 import { cancelRunwayTask } from '@/lib/runway';
 
 type Db = ReturnType<typeof adminDb>;
-export type ProdShot = { id: string; n: number; tool: string; tier: string | null; timing: string | null; description: string; log: Record<string, string> | null; cast_codes: string[] | null; produce: Record<string, string | number | null> | null; status: string };
-const SEL = 'id, n, tool, tier, timing, description, log, cast_codes, produce, status';
+export type ProdShot = { id: string; n: number; tool: string; tier: string | null; timing: string | null; description: string; log: Record<string, string> | null; cast_codes: string[] | null; produce: Record<string, string | number | null> | null; status: string; screens?: string[] | null };
+const SEL = 'id, n, tool, tier, timing, description, log, cast_codes, produce, status, screens';
 
 const readOf = (code: string, s: ProdShot) => s.log?.read ?? defaultDirection(code, s.n)?.read ?? '';
 
@@ -148,7 +148,9 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
   }
   if (s.tool === 'capture') {
     if (!linesReady) { await setProduce(db, s, { stage: 'reading' }); return 'reading'; }
-    await setProduce(db, s, { stage: 'capture', note: 'Voice-over ready. Capture the screens on a phone.' }); return 'capture';
+    // Screens from the Screen Library: nothing to record, the shot is ready for review.
+    if (s.screens?.length) { await setProduce(db, s, { stage: 'review', note: 'Screens from the Screen Library; voice-over read.' }); return 'review'; }
+    await setProduce(db, s, { stage: 'capture', note: 'Voice-over ready. Pick screens from the Screen Library, or capture them on a phone.' }); return 'capture';
   }
   if (!eng) { await setProduce(db, s, { stage: 'review' }); return 'review'; }
   if (!linesReady || !frameReady) { const st = !frameReady ? 'drawing' : 'reading'; if (stage !== st) await setProduce(db, s, { stage: st }); return st; }

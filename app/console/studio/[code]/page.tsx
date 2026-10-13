@@ -141,6 +141,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       est: { draft: '$0.00', final: '$0.00', finalDrafts: '$0.00' },
       routers: [],
       routersConnected: false,
+      library: [],
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
     const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
@@ -166,6 +167,8 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     }
     void STUCK_AFTER;
     studio.health = { elapsed: run.at && run.on ? Math.round((now - new Date(run.at).getTime()) / 1000) : 0, left: active ? Math.round(left * Math.ceil(active / 4)) : null, credits: studio.ready ? await runwayOrganization().then((o) => o.creditBalance).catch(() => null) : null, active };
+    const { data: libRows } = await supabase.from('studio_screens').select('code, device, title, chapter').not('clip_path', 'is', null).order('chapter').order('code');
+    studio.library = (libRows ?? []).map((r) => ({ key: `${r.code}:${r.device}`, title: r.title as string, device: r.device as string, chapter: r.chapter as string }));
     // Estimates for the bar: a quick draft of what isn't made, the final render directly, and finals for approved drafts.
     const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
     const made = ['approved', 'review', 'capture', 'queued', 'reading', 'drawing', 'rendering', 'draft_ok'];

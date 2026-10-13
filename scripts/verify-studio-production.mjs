@@ -63,7 +63,8 @@ const cast = must(await db.from('studio_characters').select('id, code, name, voi
 const tasha = cast.find((c) => c.code === 'TASHA01');
 const priorVoice = Object.fromEntries(cast.map((c) => [c.id, c.voice]));
 const env = { ...process.env, Genovus_Runway_API_Key: 'stand-in', RUNWAY_API_BASE: `http://localhost:${MOCK}/v1` };
-const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: 'ignore', shell: true, env });
+const devLog = process.env.DEV_LOG ? fs.openSync(process.env.DEV_LOG, 'w') : 'ignore';
+const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: ['ignore', devLog, devLog], shell: true, env });
 for (let i = 0; i < 150 && !(await up()); i++) await sleep(1000);
 
 const CH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -92,8 +93,12 @@ const priorShots = []; const dirOK = true;
 try {
   const ep = must(await db.from('studio_episodes').select('id, production').eq('code', 'gjk-h01').single(), 'episode');
   const priorRun = ep.production;
-  const shotsAll = must(await db.from('studio_shots').select('id, n, tool, produce, status, log').eq('episode_id', ep.id).order('n'), 'shots');
+  const shotsAll = must(await db.from('studio_shots').select('id, n, tool, produce, status, log, screens').eq('episode_id', ep.id).order('n'), 'shots');
   priorShots.push(...shotsAll);
+  await db.from('studio_shots').update({ produce: {} }).eq('episode_id', ep.id);
+  // Single-flight at the root: five simultaneous claims on a fresh shot, exactly one wins.
+  const wins = await Promise.all([1, 2, 3, 4, 5].map(() => db.rpc('studio_claim_step', { p_shot: shotsAll[1].id, p_step: 'probe', p_seconds: 30 })));
+  check(wins.filter((w) => w.data === true).length === 1, `a step claim has exactly one winner (${wins.filter((w) => w.data === true).length} of 5)`);
   await db.from('studio_shots').update({ produce: {} }).eq('episode_id', ep.id);
   await db.from('studio_episodes').update({ production: {} }).eq('id', ep.id);
   await go('/console/studio/gjk-h01');
@@ -147,7 +152,14 @@ try {
   const st = await stages();
   const runwayBoards = shotsAll.map((s, i) => [i + 1, s]).filter(([, s]) => s.tool === 'runway').map(([b]) => b);
   check(runwayBoards.every((b) => st[b] === 'review'), `every generated shot reached review with no further clicks (${runwayBoards.map((b) => `${b}:${st[b]}`).join(' ')})`);
-  check(st[9] === 'capture' && !st[2] && !st[5], `the product shot gets its voice-over and waits for a phone capture; code cards cost nothing and stay out of the run (9:${st[9]} 2:${st[2] || '-'} 5:${st[5] || '-'})`);
+  check(st[9] === 'review' && !st[2] && !st[5], `the product shot gets its voice-over and its screens from the Screen Library, so it lands in review with no recording; code cards stay out of the run (9:${st[9]} 2:${st[2] || '-'} 5:${st[5] || '-'})`);
+  // Helix can swap the product shot's screen by voice; the board shows the library screen on the card.
+  const at = await api('attach_screen', { shot: 9, screen: 'agency follow-ups on desktop' });
+  const s9 = must(await db.from('studio_shots').select('screens').eq('id', shotsAll.find((x) => x.n === 90).id).single(), 's9');
+  check(at.ok && s9.screens.join() === 'agency-followups:desktop', `“use the agency follow-ups on desktop for shot 9” attaches that library screen (${s9.screens.join()})`);
+  await api('attach_screen', { shot: 9, screen: 'genovus line phone' });
+  await go('/console/studio/gjk-h01');
+  check(/From the Screen Library: The Genovus line/.test(await ev(`document.querySelector('#shot-90').innerText`)) && await ev(`!!document.querySelector('#shot-90 .pb-frame2 img[src*="/api/studio/library/ent-line-calls/phone"]')`), 'the product shot’s card shows its library screen');
   const vids = calls.filter((c) => c.path === '/generate/video').length, imgs = calls.filter((c) => c.path === '/generate/image').length;
   const by = {}; for (const c of calls.filter((c) => c.path === '/generate/image' || c.path === '/text_to_speech')) { const k = c.path.slice(1, 8) + ' ' + (c.body.promptText ?? c.body.input?.promptText ?? '').replace(/@w+ is w+; ?|@w+ is w+. ?/g, '').slice(0, 160); by[k] = (by[k] ?? 0) + 1; } console.log('CALLS', JSON.stringify(Object.entries(by).filter(([, n]) => n > 1)));
   check(vids === runwayBoards.length && imgs === runwayBoards.length, `single-flight: one keyframe and one take per shot (${imgs} keyframes, ${vids} takes for ${runwayBoards.length} shots)`);
@@ -155,8 +167,8 @@ try {
   check(reads === 11, `each spoken line read exactly once (${reads} of 11)`);
   await go('/console/studio/gjk-h01');
   check(await ev(`document.querySelectorAll('.pb-card2.is-review').length`) >= 9 && /to review/.test(await ev(`document.querySelector('.pc-bar').innerText`)), 'the board highlights the shots waiting for review');
-  check(await ev(`!!document.querySelector('.pb-hero')`) && /Play the cut so far · 9 scenes/i.test(await ev(`document.querySelector('.pb-hero').innerText`)), 'the board opens on a streaming-style hero with Play the cut so far');
-  check(await ev(`document.querySelectorAll('.pb-card2 .sp-play').length`) === 9, 'every finished scene has a play button on its card');
+  check(await ev(`!!document.querySelector('.pb-hero')`) && /Play the cut so far · 10 scenes/i.test(await ev(`document.querySelector('.pb-hero').innerText`)), 'the board opens on a streaming-style hero with Play the cut so far');
+  check(await ev(`document.querySelectorAll('.pb-card2 .sp-play').length`) === 10, 'every finished scene has a play button on its card');
   await ev(`document.querySelector('#shot-110 .sp-play').click()`); await sleep(800);
   check(await ev(`!!document.querySelector('.sp-back video') && /11 ·/.test(document.querySelector('.sp-bar').innerText)`), 'pressing play on a card opens the full-screen player on that scene');
   await shot('prod-board-player', 1000);
@@ -296,7 +308,7 @@ try {
   await db.from('expenses').delete().eq('vendor', 'Runway').gte('created_at', startedAt);
   await db.from('studio_decisions').delete().gte('decided_at', startedAt);
   await db.from('studio_quotes').delete().gte('created_at', startedAt);
-  for (const s of priorShots) await db.from('studio_shots').update({ produce: s.produce ?? {}, status: s.status, log: s.log }).eq('id', s.id);
+  for (const s of priorShots) await db.from('studio_shots').update({ produce: s.produce ?? {}, status: s.status, log: s.log, screens: s.screens ?? [] }).eq('id', s.id);
   for (const c of cast) await db.from('studio_characters').update({ voice: priorVoice[c.id] }).eq('id', c.id);
   console.log(`cleaned up: ${clips.length} clips, ${art.length} frames, ${takes.length} takes, ${refs.length} casting refs, ${blobs.length} files`);
   console.log('screenshots in', OUT);

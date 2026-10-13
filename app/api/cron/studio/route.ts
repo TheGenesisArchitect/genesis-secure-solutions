@@ -9,6 +9,8 @@ import { pollRunwayJobs } from '@/lib/studio-runway';
 import { advanceAllProductions } from '@/lib/studio-production';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
+import libraryCatalog from '@/data/screen-library.json';
+import libraryAssets from '@/data/screen-library-assets.json';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -17,7 +19,7 @@ export async function GET(req: Request) {
   if (!cronAuthorized(req)) return new Response('Unauthorized', { status: 401 });
   const db = adminDb();
   let sync: Awaited<ReturnType<typeof syncStudioIfChanged>> | { error: string };
-  try { sync = await syncStudioIfChanged(db, season, castData.characters as never, castData.bible); if (sync.synced) console.log(`[studio-sync] ${sync.hash}: ${sync.summary}`); } catch (e) { sync = { error: e instanceof Error ? e.message : 'sync failed' }; console.error(`[studio-sync] ${'error' in sync ? sync.error : ''}`); }
+  try { sync = await syncStudioIfChanged(db, season, castData.characters as never, castData.bible, { catalog: libraryCatalog as never, assets: libraryAssets as never }); if (sync.synced) console.log(`[studio-sync] ${sync.hash}: ${sync.summary}`); } catch (e) { sync = { error: e instanceof Error ? e.message : 'sync failed' }; console.error(`[studio-sync] ${'error' in sync ? sync.error : ''}`); }
   // Runway jobs (StudioNext line reads, keyframes, takes, score) finish here even when the board is closed.
   let runway: Record<string, number> | { error: string } = {};
   try { runway = await pollRunwayJobs(); } catch (e) { runway = { error: e instanceof Error ? e.message : 'runway poll failed' }; }
