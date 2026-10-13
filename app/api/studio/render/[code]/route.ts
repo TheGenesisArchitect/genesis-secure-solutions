@@ -4,7 +4,7 @@
 // kept apart. Staff only; runs in this function with a bundled ffmpeg.
 import { db } from '@/lib/supabase/server';
 import { buildTimeline, validateTimeline } from '@/lib/studio-timeline';
-import { renderTimeline } from '@/lib/studio-render';
+import { renderTimeline, renderEngineReady } from '@/lib/studio-render';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
@@ -36,4 +36,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ code: string }
     console.error(`[studio-render] ${code}: ${err instanceof Error ? err.message : err}`);
     return Response.json({ ok: false, error: `The render failed: ${err instanceof Error ? err.message.slice(0, 300) : 'unknown error'}` });
   }
+}
+
+/** Is the render engine present on this deployment? Reports only true/false and ffmpeg's version line. */
+export async function GET() {
+  return Response.json(await renderEngineReady());
 }

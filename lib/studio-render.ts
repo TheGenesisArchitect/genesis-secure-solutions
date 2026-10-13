@@ -153,3 +153,11 @@ export async function renderTimeline(episodeId: string, cut: Cut, kind: 'final' 
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/** Is the bundled ffmpeg present and runnable here? */
+export async function renderEngineReady(): Promise<{ ready: boolean; version?: string; error?: string }> {
+  try {
+    const { stdout } = await run(String(ffmpegPath), ['-version']);
+    return { ready: true, version: stdout.split('\n')[0].slice(0, 80) };
+  } catch (e) { return { ready: false, error: e instanceof Error ? e.message.slice(0, 120) : 'not runnable' }; }
+}

@@ -13,7 +13,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "vercel-build": "node scripts/build-template.mjs && node scripts/migrate-on-deploy.mjs && next build"
+    "vercel-build": "node scripts/ensure-ffmpeg.mjs && node scripts/build-template.mjs && node scripts/migrate-on-deploy.mjs && next build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
