@@ -20,6 +20,7 @@ import { parseRead } from '@/lib/studio-read';
 import { runwayConfigured } from '@/lib/runway';
 import { defaultDirection } from '@/lib/studio-board';
 import { shotQuote, type ProdShot } from '@/lib/studio-production';
+import { buildTimeline } from '@/lib/studio-timeline';
 import { shotSteps, statusText, STUCK_AFTER, type Job } from '@/lib/studio-monitor';
 import { runwayOrganization, runwayRouters, runwayRouterRequests } from '@/lib/runway';
 import { getRouters } from '@/lib/studio-runway';
@@ -113,7 +114,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     const lines = new Map<string, NonNullable<BoardStudioData['lines'] extends Map<string, infer V> ? V : never>>();
     for (const s of shots ?? []) {
       const read = (s.log as Record<string, string> | null)?.read ?? defaultDirection(e.code, s.n as number)?.read ?? '';
-      lines.set(s.id as string, parseRead(read, castList).map((l) => ({ slot: l.slot, speaker: l.speaker, text: l.text, reads: clips.filter((c) => c.kind === 'line' && c.shot_id === s.id && c.slot === l.slot).map((c) => ({ id: c.id, status: c.status, approved: c.approved, error: c.error })) })));
+      lines.set(s.id as string, parseRead(read, castList).map((l) => ({ slot: l.slot, speaker: l.speaker, text: l.text, vo: l.vo, reads: clips.filter((c) => c.kind === 'line' && c.shot_id === s.id && c.slot === l.slot).map((c) => ({ id: c.id, status: c.status, approved: c.approved, error: c.error })) })));
     }
     const identity = new Map<string, { state: 'locked' | 'casting' | 'pending' | 'none'; label: string; pendingRef?: string; img?: string }>();
     for (const c of castList) {
@@ -131,7 +132,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       ready: runwayConfigured(),
       lines,
       frames: groupBy((artRows ?? []).filter((a) => a.kind === 'frame' && a.role === 'start').map((a) => ({ id: a.id as string, shot_id: a.shot_id as string | null, status: a.status as string, chosen: a.chosen as boolean, error: a.error as string | null }))),
-      takes: groupBy((boardTakes ?? []).map((t) => ({ id: t.id as string, shot_id: t.shot_id as string, status: t.status as string, chosen: t.chosen as boolean, kind: t.kind as string, error: t.error as string | null, cost_cents: t.cost_cents as number, still: /\.(png|jpe?g)$/i.test(String(t.blob_path ?? '')), synced: (t.params as { audio?: boolean; lipsync?: boolean } | null)?.audio === true || (t.params as { lipsync?: boolean } | null)?.lipsync === true }))),
+      takes: groupBy((boardTakes ?? []).map((t) => ({ id: t.id as string, shot_id: t.shot_id as string, status: t.status as string, chosen: t.chosen as boolean, kind: t.kind as string, error: t.error as string | null, cost_cents: t.cost_cents as number, still: /\.(png|jpe?g)$/i.test(String(t.blob_path ?? '')), guided: (t.params as { audio?: boolean } | null)?.audio === true, actTwo: (t.params as { lipsync?: boolean } | null)?.lipsync === true }))),
       identity,
       designs: new Map(castList.map((c) => [c.id, clips.filter((x) => x.kind === 'design' && x.character_id === c.id).map((x) => ({ id: x.id, status: x.status, approved: x.approved, error: x.error }))])),
       score: clips.filter((x) => x.kind === 'score').map((x) => ({ id: x.id, status: x.status, error: x.error })),
@@ -142,6 +143,8 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       routers: [],
       routersConnected: false,
       library: [],
+      timeline: { total: 0, problems: [] },
+      draft: e.draft_blob ? { at: e.draft_at as string, note: (e.render_note as string | null) ?? null } : null,
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
     const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
@@ -169,6 +172,8 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     studio.health = { elapsed: run.at && run.on ? Math.round((now - new Date(run.at).getTime()) / 1000) : 0, left: active ? Math.round(left * Math.ceil(active / 4)) : null, credits: studio.ready ? await runwayOrganization().then((o) => o.creditBalance).catch(() => null) : null, active };
     const { data: libRows } = await supabase.from('studio_screens').select('code, device, title, chapter').not('clip_path', 'is', null).order('chapter').order('code');
     studio.library = (libRows ?? []).map((r) => ({ key: `${r.code}:${r.device}`, title: r.title as string, device: r.device as string, chapter: r.chapter as string }));
+    // The canonical timeline: what a render would contain, and what's still open before the final.
+    { const t = await buildTimeline(e.id); studio.timeline = { total: t.total, problems: t.problems.map((p) => ({ label: p.label, detail: p.detail, kind: p.kind })) }; }
     // Estimates for the bar: a quick draft of what isn't made, the final render directly, and finals for approved drafts.
     const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
     const made = ['approved', 'review', 'capture', 'queued', 'reading', 'drawing', 'rendering', 'draft_ok'];
@@ -288,7 +293,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         <Thumbnails episodeId={e.id} defaultPrompt={e.thumb_prompt ?? `${e.title}: ${e.logline ?? ''}`} art={art} costLabel={`${(IMAGE_CENTS / 100).toFixed(2)}`} />
       </Panel>
 
-      {generationConfigured() ? (
+      {generationConfigured() && !isV2 ? (
         <Panel title={`Autopilot · ${auto.on ? 'running' : auto.done_at ? 'done: ready for the cut' : auto.at ? 'paused' : 'off'}`} sub="SWIS™ runs the episode: paints frames, chooses production frames, renders takes inside your rate limits, and picks each shot's best take with the Creative Court. You decide the look of the hero shots.">
           <div className="grid" style={{ gap: 10 }}>
             <p style={{ margin: 0 }}>Estimated full run: <b>${(estimate.cents / 100).toFixed(2)}</b> for {estimate.shots} shots ({estimate.heroShots} hero), {estimate.takes} takes, frames and Court reviews.{auto.at ? <> Spent by the autopilot so far: <b>${(autoSpent / 100).toFixed(2)}</b>{auto.ceiling_cents ? <> of a ${(auto.ceiling_cents / 100).toFixed(2)} ceiling</> : null}.</> : null}</p>
@@ -312,6 +317,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         </Panel>
       ) : null}
 
+      {!isV2 ? (
       <Panel title={`Shots · ${(shots ?? []).filter((s) => s.status === 'approved').length}/${shots?.length ?? 0} approved`} sub="Generate each shot in its tool, paste the take's link, approve it. A failed take is redone without touching the others." actions={<span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><Chip kind={sb.used.length >= sb.budget ? 'pending' : 'info'}>Shot budget {sb.used.length}/{sb.budget}</Chip><GenerateFirstTakes shots={firstPass} /></span>}>
         {viewer.staff.role === 'admin' ? (
           <ActionForm action={studioSetShotBudget} className="row" style={{ gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
@@ -383,6 +389,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
           ))}
         </ol>
       </Panel>
+      ) : null}
 
       {e.kind === 'episode' && checks.length ? (
         <Panel title={`Acceptance checks · ${passed}/${checks.length} passed`} sub="From the Character Bible. Watch once silent, once audio-only, at normal speed through the transitions, and on a phone-sized preview. Every check must pass before the episode can be approved.">

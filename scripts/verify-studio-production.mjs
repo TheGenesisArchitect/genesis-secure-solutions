@@ -26,7 +26,12 @@ if (await up()) throw new Error(`port ${PORT} is busy`);
 // ---- Stand-in Runway: every task succeeds on its second check and reports a final cost. ----
 const calls = []; let n = 0; const seen = new Map(); let balance = 100000;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-const FILES = { mp3: Buffer.from('ID3stand-in-audio'), png: PNG, mp4: Buffer.from('stand-in-video') };
+const mediaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'genovus-media-'));
+const FF = (await import('ffmpeg-static')).default;
+const { execFileSync } = await import('node:child_process');
+execFileSync(FF, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30', '-t', '6', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast', path.join(mediaDir, 'take.mp4')]);
+execFileSync(FF, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1.5', '-c:a', 'libmp3lame', path.join(mediaDir, 'read.mp3')]);
+const FILES = { mp3: fs.readFileSync(path.join(mediaDir, 'read.mp3')), png: PNG, mp4: fs.readFileSync(path.join(mediaDir, 'take.mp4')) };
 const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8], '/character_performance': ['mp4', 50] };
 // Test controls: make the next N video takes fail, or make takes hang (stay running).
 const ctl = { failTakes: 0, hang: false, cancelled: [], failMsg: 'The model failed to render this take (test)', failCode: 'INTERNAL.TEST' };
@@ -41,6 +46,11 @@ const mock = http.createServer((req, res) => {
     if (req.method === 'GET' && u.startsWith('/routers?')) return send({ data: [{ id: 'r-hero', slug: 'genovus-video-hero', name: 'Hero', settings: { optimizeFor: 'quality', fallback: { onCapacity: true }, models: { mode: 'allowlist_only', ids: ['seedance2_5', 'veo3.1', 'gen4.5'] } } }, { id: 'r-prod', slug: 'genovus-video-production', name: 'Production', settings: { optimizeFor: 'latency', fallback: { onCapacity: true } } }, { id: 'r-draft', slug: 'genovus-video-draft', name: 'Draft', settings: { optimizeFor: 'cost' } }, { id: 'r-key', slug: 'genovus-image-keyframe', name: 'Keyframe', settings: { optimizeFor: 'quality' } }, { id: 'r-fast', slug: 'genovus-image-fast', name: 'Fast', settings: { optimizeFor: 'latency' } }] });
     if (req.method === 'GET' && /^\/routers\/[^/]+\/requests/.test(u)) { const slug = { 'r-hero': 'genovus-video-hero', 'r-prod': 'genovus-video-production', 'r-draft': 'genovus-video-draft', 'r-key': 'genovus-image-keyframe', 'r-fast': 'genovus-image-fast' }[u.split('/')[2]]; return send({ data: calls.filter((c) => c.body.configId === slug).map((c, i) => ({ id: 'q' + i, createdAt: new Date().toISOString(), model: slug.includes('draft') ? 'gen4_turbo' : slug.includes('image') ? 'gen4_image' : 'seedance2_5', reasonCode: 'best_quality', reason: 'test', estimatedCredits: 8 })) }); }
     if (req.method === 'POST' && u === '/voices/preview') { calls.push({ path: u, body: JSON.parse(body || '{}') }); balance -= 6; return send({ url: `http://localhost:${MOCK}/files/design.mp3`, durationSecs: 6 }); }
+    if (req.method === 'POST' && (u === '/generate/video' || u === '/generate/image') && JSON.parse(body || '{}').dryRun) {
+      const b = JSON.parse(body); calls.push({ path: u, body: b });
+      const draft = /draft|fast/.test(b.configId);
+      return send({ routing: { configId: b.configId, model: u === '/generate/image' ? (draft ? 'gen4_image_turbo' : 'gen4_image') : (draft ? 'gen4_turbo' : 'seedance2_5'), provider: 'runway', estimatedCost: { credits: u === '/generate/image' ? (draft ? 2 : 8) : (draft ? 25 : 340) } } });
+    }
     if (req.method === 'POST' && KIND[u]) {
       const id = `task-${++n}`; const video = u === '/generate/video' || u === '/image_to_video';
       const fail = video && ctl.failTakes > 0 ? (ctl.failTakes--, true) : false;
@@ -91,7 +101,7 @@ const click = (scope, re) => ev(`(() => { const root = ${scope}; const b = root 
 const waitFor = async (fn, ms = 40000) => { for (let i = 0; i < ms / 500; i++) { const v = await fn(); if (v) return v; await sleep(500); } return null; };
 const created = { clips: [], art: [], takes: [], refs: [] };
 
-const priorShots = []; const dirOK = true;
+const priorShots = []; const dirOK = true; const renderedFiles = [];
 try {
   const ep = must(await db.from('studio_episodes').select('id, production').eq('code', 'gjk-h01').single(), 'episode');
   const priorRun = ep.production;
@@ -127,7 +137,7 @@ try {
   check(!again.ok && /already approved/i.test(again.error ?? ''), 'a quote can be approved only once');
   // Approving locks any unlocked cast to the official sheet, so the shot starts at once (no stall on a lock).
   const lockedNow = (await db.from('studio_refs').select('id').in('character_id', cast.map((c) => c.id)).eq('slot', 'CASTING').eq('approved', true).gte('created_at', startedAt)).data?.length;
-  check(lockedNow === 3 && (await stages())[11] !== 'blocked' && calls.some((c) => c.path === '/generate/image') && calls.some((c) => c.path === '/text_to_speech'), `approving locks the cast and starts shot 11's keyframe and line read together (${lockedNow} locked)`);
+  check(lockedNow === 3 && (await stages())[11] !== 'blocked' && calls.some((c) => (c.path === '/generate/image' && !c.body.dryRun)) && calls.some((c) => c.path === '/text_to_speech'), `approving locks the cast and starts shot 11's keyframe and line read together (${lockedNow} locked)`);
   const lock = await api('lock_cast');
   check(lock.ok && lock.locked.length === 0, 'the cast stays locked (lock_cast has nothing left to do)');
   // A blocked shot says why on the bar and comes back with one tap.
@@ -162,11 +172,19 @@ try {
   await api('attach_screen', { shot: 9, screen: 'genovus line phone' });
   await go('/console/studio/gjk-h01');
   check(/From the Screen Library: The Genovus line/.test(await ev(`document.querySelector('#shot-90').innerText`)) && await ev(`!!document.querySelector('#shot-90 .pb-frame2 img[src*="/api/studio/library/ent-line-calls/phone"]')`), 'the product shot’s card shows its library screen');
-  const vids = calls.filter((c) => c.path === '/generate/video').length, imgs = calls.filter((c) => c.path === '/generate/image').length;
-  const by = {}; for (const c of calls.filter((c) => c.path === '/generate/image' || c.path === '/text_to_speech')) { const k = c.path.slice(1, 8) + ' ' + (c.body.promptText ?? c.body.input?.promptText ?? '').replace(/@w+ is w+; ?|@w+ is w+. ?/g, '').slice(0, 160); by[k] = (by[k] ?? 0) + 1; } console.log('CALLS', JSON.stringify(Object.entries(by).filter(([, n]) => n > 1)));
+  const vids = calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).length, imgs = calls.filter((c) => (c.path === '/generate/image' && !c.body.dryRun)).length;
+  const by = {}; for (const c of calls.filter((c) => (c.path === '/generate/image' && !c.body.dryRun) || c.path === '/text_to_speech')) { const k = c.path.slice(1, 8) + ' ' + (c.body.promptText ?? c.body.input?.promptText ?? '').replace(/@w+ is w+; ?|@w+ is w+. ?/g, '').slice(0, 160); by[k] = (by[k] ?? 0) + 1; } console.log('CALLS', JSON.stringify(Object.entries(by).filter(([, n]) => n > 1)));
   check(vids === runwayBoards.length && imgs === runwayBoards.length, `single-flight: one keyframe and one take per shot (${imgs} keyframes, ${vids} takes for ${runwayBoards.length} shots)`);
   const reads = calls.filter((c) => c.path === '/text_to_speech').length;
   check(reads === 11, `each spoken line read exactly once (${reads} of 11)`);
+  // Money: every routed render was quoted with a dry run first, and the reservation is the dry run's estimate.
+  const dry = calls.filter((c) => c.body?.dryRun).length, real = calls.filter((c) => (c.path === '/generate/video' || c.path === '/generate/image') && !c.body?.dryRun).length;
+  const heroTake = must(await db.from('studio_takes').select('estimate_cents, params').eq('shot_id', shotsAll.find((x) => x.n === 120).id).like('model', 'runway:%').order('created_at', { ascending: false }).limit(1).single(), 'hero take');
+  check(dry >= real && real > 0 && heroTake.estimate_cents === 340, `each routed render is quoted with Runway's dry run and reserves that amount (${dry} dry runs for ${real} renders; hero estimate ${heroTake.estimate_cents}¢)`);
+  // One expense per Runway task, however many pollers finish it.
+  const { data: exps } = await db.from('expenses').select('source_ref').eq('vendor', 'Runway').gte('created_at', startedAt);
+  const refs = (exps ?? []).map((x) => x.source_ref).filter(Boolean);
+  check(refs.length > 0 && new Set(refs).size === refs.length, `one expense per Runway task (${refs.length} expenses, ${new Set(refs).size} tasks)`);
   await go('/console/studio/gjk-h01');
   check(await ev(`document.querySelectorAll('.pb-card2.is-review').length`) >= 9 && /to review/.test(await ev(`document.querySelector('.pc-bar').innerText`)), 'the board highlights the shots waiting for review');
   check(await ev(`!!document.querySelector('.pb-hero')`) && /Play the cut so far · 10 scenes/i.test(await ev(`document.querySelector('.pb-hero').innerText`)), 'the board opens on a streaming-style hero with Play the cut so far');
@@ -192,11 +210,11 @@ try {
   check((await stages())[1] === 'approved', 'tapping Approve approves the shot');
   const r12 = await api('review', { shot: 12, action: 'approve', via: 'voice' });
   check(r12.ok && (await stages())[12] === 'approved', '“Approve shot 12” works through Helix’s tool');
-  const before = calls.filter((c) => c.path === '/generate/video').length;
+  const before = calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).length;
   const redo = await api('review', { shot: 11, action: 'redo', note: 'a slower turn, eyes first' });
   for (let i = 0; i < 30 && (await stages())[11] !== 'review'; i++) { await advance(); await sleep(500); }
   const log11 = must(await db.from('studio_shots').select('log').eq('id', shotsAll.find((s) => s.n === 110).id).single(), 'log').log;
-  check(redo.ok && (await stages())[11] === 'review' && calls.filter((c) => c.path === '/generate/video').length === before + 1 && /slower turn/.test(log11.acting ?? ''), 'a redo with a note updates the direction and renders exactly one new take');
+  check(redo.ok && (await stages())[11] === 'review' && calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).length === before + 1 && /slower turn/.test(log11.acting ?? ''), 'a redo with a note updates the direction and renders exactly one new take');
 
   // 4b. The Production Monitor. (Earlier redos used up the run's ceiling; approving more is one tap.)
   await go('/console/studio/gjk-h01');
@@ -206,9 +224,9 @@ try {
   { const cur0 = (await db.from('studio_episodes').select('production').eq('id', ep.id).single()).data.production; await db.from('studio_episodes').update({ production: { ...cur0, on: true, ceiling_cents: 100000, paused_reason: null } }).eq('id', ep.id); }
   const tl = await ev(`[...document.querySelectorAll('#shot-110 .pm-step')].map((x) => x.textContent.trim())`);
   check(tl.length === 3 && /Lines/.test(tl[0]) && /Keyframe/.test(tl[1]) && /Take/.test(tl[2]) && await ev(`/Take on Seedance 2\\.5/.test(document.querySelector('#shot-110 .pm').innerText)`), `each card shows its step timeline and the model the router picked (${tl.join(' | ')})`);
-  const routed = calls.filter((c) => c.path === '/generate/video');
+  const routed = calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun));
   const prodBoards = shotsAll.map((x, i) => [i + 1, x]).filter(([, x]) => x.tool === 'runway');
-  check(routed.length > 0 && routed.every((c) => ['genovus-video-hero', 'genovus-video-production'].includes(c.body.configId)) && routed.some((c) => c.body.configId === 'genovus-video-production') && calls.filter((c) => c.path === '/generate/image').every((c) => c.body.configId === 'genovus-image-keyframe'), `final renders use the hero / production routers by shot, keyframes the keyframe router (${routed.length} takes)`);
+  check(routed.length > 0 && routed.every((c) => ['genovus-video-hero', 'genovus-video-production'].includes(c.body.configId)) && routed.some((c) => c.body.configId === 'genovus-video-production') && calls.filter((c) => (c.path === '/generate/image' && !c.body.dryRun)).every((c) => c.body.configId === 'genovus-image-keyframe'), `final renders use the hero / production routers by shot, keyframes the keyframe router (${routed.length} takes)`);
   void prodBoards;
   // The Router report shows all five routers live from Runway, with what each picked.
   const rr = await ev(`[...document.querySelectorAll('.rr-card')].map((c) => c.innerText)`);
@@ -222,7 +240,7 @@ try {
   check(qd.ok && qd.pass === 'draft' && Number(qd.total.slice(1)) < Number((await api('plan', { shots: '8', pass: 'final' })).total.slice(1)), `a quick draft costs less than the final (${qd.total})`);
   await api('approve', { quote_id: qd.quote_id });
   for (let i = 0; i < 40 && (await stages())[8] !== 'review'; i++) { await advance(); await sleep(500); }
-  const dv = calls.slice(nCalls).filter((c) => c.path === '/generate/video'), di = calls.slice(nCalls).filter((c) => c.path === '/generate/image');
+  const dv = calls.slice(nCalls).filter((c) => (c.path === '/generate/video' && !c.body.dryRun)), di = calls.slice(nCalls).filter((c) => (c.path === '/generate/image' && !c.body.dryRun));
   check((await stages())[8] === 'review' && dv.length === 1 && dv[0].body.configId === 'genovus-video-draft' && dv[0].body.input.resolution === '720p' && di.length === 1 && di[0].body.configId === 'genovus-image-fast', 'the quick draft renders on genovus-video-draft at 720p with a genovus-image-fast keyframe');
   await go('/console/studio/gjk-h01');
   check(/Draft ready for review/i.test(await ev(`document.querySelector('#shot-80').innerText`)), 'the card says the draft is ready for review');
@@ -234,14 +252,14 @@ try {
   const nF = calls.length;
   await api('approve', { quote_id: qf.quote_id });
   for (let i = 0; i < 40 && (await stages())[8] !== 'review'; i++) { await advance(); await sleep(500); }
-  const fv = calls.slice(nF).filter((c) => c.path === '/generate/video'), fi = calls.slice(nF).filter((c) => c.path === '/generate/image');
+  const fv = calls.slice(nF).filter((c) => (c.path === '/generate/video' && !c.body.dryRun)), fi = calls.slice(nF).filter((c) => (c.path === '/generate/image' && !c.body.dryRun));
   check(qf.ok && qf.shots.join() === '8' && (await stages())[8] === 'review' && fv[0]?.body.configId === 'genovus-video-hero' && fv[0]?.body.input.resolution === '1080p' && fi[0]?.body.configId === 'genovus-image-keyframe' && !calls.slice(nF).some((c) => c.path === '/text_to_speech'), 'the final renders on genovus-video-hero at 1080p with a genovus-image-keyframe keyframe, reusing the draft’s line read');
   // A failed take retries by itself without the audio, then succeeds.
   ctl.failTakes = 1;
-  const nBefore = calls.filter((c) => c.path === '/generate/video').length;
+  const nBefore = calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).length;
   await api('review', { shot: 4, action: 'redo', note: 'one more' });
   for (let i = 0; i < 40 && (await stages())[4] !== 'review'; i++) { await advance(); await sleep(500); }
-  const r4 = calls.filter((c) => c.path === '/generate/video').slice(nBefore);
+  const r4 = calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).slice(nBefore);
   check((await stages())[4] === 'review' && r4.length === 2 && r4[0].body.input.referenceAudio?.length && !r4[1].body.input.referenceAudio, `a failed take retries itself without the audio and lands in review (${r4.length} attempts)`);
   // Two failures: the shot blocks, the card says Runway's reason, and Retry brings it back.
   ctl.failTakes = 2;
@@ -257,14 +275,20 @@ try {
   ctl.failTakes = 1; ctl.failMsg = "Your request was blocked by this model provider's content moderation system."; ctl.failCode = 'INPUT_PREPROCESSING.SAFETY.THIRD_PARTY';
   const nMod = calls.length;
   await api('review', { shot: 10, action: 'redo', note: 'moderation' });
+  for (let i = 0; i < 40 && (await stages())[10] !== 'blocked'; i++) { await advance(); await sleep(500); }
+  const s10 = must(await db.from('studio_shots').select('produce').eq('id', shotsAll.find((x) => x.n === 100).id).single(), 's10').produce;
+  check((await stages())[10] === 'blocked' && s10.decision === 'first_party' && !calls.slice(nMod).some((c) => c.path === '/image_to_video'), 'a speaking shot blocked by the provider’s face filter asks instead of switching models on its own');
+  await go('/console/studio/gjk-h01');
+  check(await ev(`[...document.querySelectorAll('#shot-100 button')].some((b) => /Use Gen-4\\.5/.test(b.textContent))`), 'the card offers Use Gen-4.5 or Retry');
+  const ug = await api('use_gen45', { shot: 10 });
   for (let i = 0; i < 40 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
-  const mv = calls.slice(nMod).filter((c) => c.path === '/generate/video' || c.path === '/image_to_video');
-  check((await stages())[10] === 'review' && mv.length === 2 && mv[0].path === '/generate/video' && mv[1].path === '/image_to_video' && mv[1].body.model === 'gen4.5' && mv[1].body.promptImage?.[0]?.position === 'first' && !mv[1].body.referenceAudio, `a take blocked by the provider's safety filter retries on Runway's Gen-4.5 from the keyframe (${mv.map((c) => c.path + ':' + (c.body.model ?? c.body.configId)).join(', ')})`);
+  const mv = calls.slice(nMod).filter((c) => (c.path === '/generate/video' && !c.body.dryRun) || c.path === '/image_to_video');
+  check(ug.ok && (await stages())[10] === 'review' && mv.at(-1)?.path === '/image_to_video' && mv.at(-1).body.model === 'gen4.5' && mv.at(-1).body.promptImage?.[0]?.position === 'first', `after the person chooses, the shot renders on Runway's Gen-4.5 from the keyframe (${mv.map((c) => c.path + ':' + (c.body.model ?? c.body.configId)).join(', ')})`);
   const nMod2 = calls.length;
   await api('review', { shot: 10, action: 'redo', note: 'again' });
   for (let i = 0; i < 40 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
-  const mv2 = calls.slice(nMod2).filter((c) => c.path === '/generate/video' || c.path === '/image_to_video');
-  check(mv2.length === 1 && mv2[0].body.model === 'gen4.5', 'once a shot was flagged, its next take goes straight to Gen-4.5 (no wasted attempt)');
+  const mv2 = calls.slice(nMod2).filter((c) => (c.path === '/generate/video' && !c.body.dryRun) || c.path === '/image_to_video');
+  check(mv2.length === 1 && mv2[0].body.model === 'gen4.5', 'a redo remembers the choice: straight to Gen-4.5, no second ask');
   ctl.failMsg = 'The model failed to render this take (test)'; ctl.failCode = 'INTERNAL.TEST';
   // An approval says what it covers: shot 10's Gen-4.5 take didn't perform to the read, so it approves the picture only.
   const ap10 = await api('review', { shot: 10, action: 'approve', via: 'voice' });
@@ -303,6 +327,22 @@ try {
   const card10b = await ev(`document.querySelector('#shot-100').innerText`);
   check(/✓ Lip-sync/.test(card10b) && !/Not lip-synced/.test(card10b) && /\bApprove\b/.test(card10b) && !/Approve picture/.test(card10b), 'the card now reads ✓ Lip-sync and offers a full Approve');
   if (recRow?.params?.recording) await del(recRow.params.recording).catch(() => {});
+  // Editing one line re-reads only that line.
+  const s4 = shotsAll.find((x) => x.n === 40);
+  const readsBefore = calls.filter((c) => c.path === '/text_to_speech').length;
+  await api('direct_shot', { shot: 4, read: 'TASHA: [flat] And? · MARCUS: [proud, then sheepish] I was smoking a brisket. All night.' });
+  await api('review', { shot: 4, action: 'redo', note: 'new line' });
+  for (let i = 0; i < 40 && (await stages())[4] !== 'review'; i++) { await advance(); await sleep(500); }
+  const newReads = calls.filter((c) => c.path === '/text_to_speech').slice(readsBefore);
+  check(newReads.length === 1 && /All night/.test(newReads[0].body.promptText ?? ''), `a changed line re-reads only that line (${newReads.length} new read)`);
+  await db.from('studio_shots').update({ log: s4.log }).eq('id', s4.id);
+  // An audio-guided take is not verified until a person says the lips look right.
+  await go('/console/studio/gjk-h01');
+  const c12 = await ev(`document.querySelector('#shot-120')?.innerText ?? ''`);
+  const vs = await api('verify_sync', { shot: 12 });
+  await go('/console/studio/gjk-h01');
+  const c12b = await ev(`document.querySelector('#shot-120')?.innerText ?? ''`);
+  check(/Audio-guided · check the lips/.test(c12) && vs.ok && /Lip-sync verified/.test(c12b), 'an audio-guided take reads “check the lips” until a person verifies it');
   // A take that hangs is flagged Stuck with Stop & refund (Runway's job is cancelled).
   ctl.hang = true;
   await api('review', { shot: 7, action: 'redo', note: 'hang' });
@@ -321,6 +361,31 @@ try {
   ctl.hang = false;
   await go('/console/studio/gjk-h01');
   check(/elapsed/.test(await ev(`document.querySelector('.pc-bar').innerText`)) || true, 'the bar shows run health');
+
+  // 4c. The canonical timeline and the export.
+  await go('/console/studio/screen/gjk-h01');
+  check(await ev(`document.body.innerText.includes('Screening Room')`), 'the Screening Room plays the canonical timeline');
+  await go('/console/studio/gjk-h01');
+  const rpText = await ev(`document.querySelector('.rp')?.innerText ?? ''`);
+  check(/Render draft cut/.test(rpText) && /to finish before the final/.test(rpText), 'the board shows the render panel with what’s left before the final');
+  const fin = await ev(`fetch('/api/studio/render/gjk-h01', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'final' }) }).then((r) => r.json())`);
+  check(!fin.ok && Array.isArray(fin.problems) && fin.problems.some((x) => x.kind === 'sync_unverified'), `the final render is refused while lip-sync is unverified (${fin.problems?.length ?? 0} open)`);
+  const t0 = Date.now();
+  const dr = await ev(`fetch('/api/studio/render/gjk-h01', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'draft' }) }).then((r) => r.json())`);
+  const epRow = must(await db.from('studio_episodes').select('draft_blob').eq('id', ep.id).single(), 'draft');
+  let probe = null;
+  if (dr.ok && epRow.draft_blob) {
+    const { get } = await import('@vercel/blob');
+    const res = await get(epRow.draft_blob, { access: 'private', useCache: false });
+    const file = path.join(mediaDir, 'draft.mp4');
+    fs.writeFileSync(file, Buffer.from(await new Response(res.stream).arrayBuffer()));
+    const out = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,width,height', '-of', 'json', file]).toString();
+    probe = JSON.parse(out);
+    renderedFiles.push(epRow.draft_blob);
+  }
+  const dur = Number(probe?.format?.duration ?? 0), streams = (probe?.streams ?? []).map((x) => x.codec_type);
+  const v = (probe?.streams ?? []).find((x) => x.codec_type === 'video');
+  check(dr.ok && Math.abs(dur - dr.secs) < 1.5 && streams.includes('video') && streams.includes('audio') && v?.width === 1920 && v?.height === 1080, `the draft cut renders to a real 1920×1080 MP4 with picture and sound (${dur.toFixed(1)} s of ${dr.secs ?? '?'} s, rendered in ${Math.round((Date.now() - t0) / 1000)} s${dr.error ? ': ' + dr.error : ''})`);
 
   // 5. The ceiling stops the run.
   const cur = must(await db.from('studio_episodes').select('production').eq('id', ep.id).single(), 'p').production;
@@ -347,6 +412,8 @@ try {
   await db.from('expenses').delete().eq('vendor', 'Runway').gte('created_at', startedAt);
   await db.from('studio_decisions').delete().gte('decided_at', startedAt);
   await db.from('studio_quotes').delete().gte('created_at', startedAt);
+  if (renderedFiles.length) await del(renderedFiles).catch(() => {});
+  await db.from('studio_episodes').update({ draft_blob: null, draft_at: null, render_note: null }).eq('code', 'gjk-h01');
   for (const s of priorShots) await db.from('studio_shots').update({ produce: s.produce ?? {}, status: s.status, log: s.log, screens: s.screens ?? [] }).eq('id', s.id);
   for (const c of cast) await db.from('studio_characters').update({ voice: priorVoice[c.id] }).eq('id', c.id);
   console.log(`cleaned up: ${clips.length} clips, ${art.length} frames, ${takes.length} takes, ${refs.length} casting refs, ${blobs.length} files`);

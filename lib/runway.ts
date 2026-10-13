@@ -85,8 +85,8 @@ export type RunwayDoneTask = RunwayTask & { cost?: { credits: number } };
  *  for each take, skipping models at capacity, and reports which model it chose and why. */
 export const VIDEO_ROUTER = () => (process.env.STUDIO_VIDEO_ROUTER ?? 'genovus-video-router').trim();
 export type Routing = { configId: string; model: string; provider: string; estimatedCost?: { credits: number }; capacityFallback?: unknown };
-export function runwayRoutedVideo(p: { router: string; prompt: string; images: { uri: string; role: 'first' | 'last' | 'reference' }[]; audioRefs?: string[]; duration: number; audio?: boolean; seed?: number; resolution?: '480p' | '720p' | '1080p' | '4k' }) {
-  return call<{ id: string; routing: Routing }>('/generate/video', { body: { configId: p.router, input: {
+export function runwayRoutedVideo(p: { router: string; prompt: string; images: { uri: string; role: 'first' | 'last' | 'reference' }[]; audioRefs?: string[]; duration: number; audio?: boolean; seed?: number; resolution?: '480p' | '720p' | '1080p' | '4k'; dryRun?: boolean }) {
+  return call<{ id: string; routing: Routing }>('/generate/video', { body: { configId: p.router, ...(p.dryRun ? { dryRun: true } : {}), input: {
     promptText: p.prompt, referenceImages: p.images, ...(p.audioRefs?.length ? { referenceAudio: p.audioRefs.map((uri) => ({ uri })) } : {}),
     duration: p.duration, aspectRatio: '16:9', resolution: p.resolution ?? '1080p', ...(p.audio != null ? { audio: p.audio } : {}), ...(p.seed != null ? { seed: p.seed } : {}),
   } } });
@@ -94,8 +94,8 @@ export function runwayRoutedVideo(p: { router: string; prompt: string; images: {
 
 /** A still through an image Model Router (keyframes, fast storyboard images). Routed requests don't take @tags,
  *  so the prompt names each reference in order. */
-export function runwayRoutedImage(p: { router: string; prompt: string; refs: string[]; resolution?: '1k' | '2k' | '4k'; seed?: number }) {
-  return call<{ id: string; routing: Routing }>('/generate/image', { body: { configId: p.router, input: {
+export function runwayRoutedImage(p: { router: string; prompt: string; refs: string[]; resolution?: '1k' | '2k' | '4k'; seed?: number; dryRun?: boolean }) {
+  return call<{ id: string; routing: Routing }>('/generate/image', { body: { configId: p.router, ...(p.dryRun ? { dryRun: true } : {}), input: {
     promptText: p.prompt, aspectRatio: '16:9', outputCount: 1, ...(p.refs.length ? { referenceImages: p.refs.map((uri) => ({ uri })) } : {}), ...(p.resolution ? { resolution: p.resolution } : {}), ...(p.seed != null ? { seed: p.seed } : {}),
   } } });
 }

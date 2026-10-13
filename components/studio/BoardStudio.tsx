@@ -43,7 +43,7 @@ function useRunway(shot?: string, running = false) {
 
 const act = async (fn: (p: ActionResult, f: FormData) => Promise<ActionResult>, o: Record<string, string>, refresh: () => void) => { toast(await fn(null, fd(o))); refresh(); };
 
-export type BoardLine = { slot: string; speaker: string; text: string; reads: { id: string; status: string; approved: boolean; error: string | null }[] };
+export type BoardLine = { slot: string; speaker: string; text: string; vo?: boolean; reads: { id: string; status: string; approved: boolean; error: string | null }[] };
 export type BoardFrame = { id: string; status: string; chosen: boolean; error: string | null };
 export type BoardTake = { id: string; status: string; chosen: boolean; kind: string; error: string | null; cost_cents: number; still?: boolean };
 export type CaptureRecipe = { device?: string; note?: string; steps?: { label: string; route: string; action?: string }[] };

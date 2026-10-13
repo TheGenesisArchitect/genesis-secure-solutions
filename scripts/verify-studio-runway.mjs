@@ -39,6 +39,11 @@ const mock = http.createServer((req, res) => {
     if (req.method === 'GET' && u.startsWith('/routers?')) return send({ data: [{ id: 'r-hero', slug: 'genovus-video-hero', name: 'Hero', settings: { optimizeFor: 'quality', fallback: { onCapacity: true }, models: { mode: 'allowlist_only', ids: ['seedance2_5', 'veo3.1', 'gen4.5'] } } }, { id: 'r-prod', slug: 'genovus-video-production', name: 'Production', settings: { optimizeFor: 'latency', fallback: { onCapacity: true } } }, { id: 'r-draft', slug: 'genovus-video-draft', name: 'Draft', settings: { optimizeFor: 'cost' } }, { id: 'r-key', slug: 'genovus-image-keyframe', name: 'Keyframe', settings: { optimizeFor: 'quality' } }, { id: 'r-fast', slug: 'genovus-image-fast', name: 'Fast', settings: { optimizeFor: 'latency' } }] });
     if (req.method === 'GET' && /^\/routers\/[^/]+\/requests/.test(u)) { const slug = { 'r-hero': 'genovus-video-hero', 'r-prod': 'genovus-video-production', 'r-draft': 'genovus-video-draft', 'r-key': 'genovus-image-keyframe', 'r-fast': 'genovus-image-fast' }[u.split('/')[2]]; return send({ data: calls.filter((c) => c.body.configId === slug).map((c, i) => ({ id: 'q' + i, createdAt: new Date().toISOString(), model: slug.includes('draft') ? 'gen4_turbo' : slug.includes('image') ? 'gen4_image' : 'seedance2_5', reasonCode: 'best_quality', reason: 'test', estimatedCredits: 8 })) }); }
     if (req.method === 'POST' && u === '/voices/preview') { calls.push({ path: u, body: JSON.parse(body || '{}') }); balance -= 6; return send({ url: `http://localhost:${MOCK}/files/design.mp3`, durationSecs: 6 }); }
+    if (req.method === 'POST' && (u === '/generate/video' || u === '/generate/image') && JSON.parse(body || '{}').dryRun) {
+      const b = JSON.parse(body); calls.push({ path: u, body: b });
+      const draft = /draft|fast/.test(b.configId);
+      return send({ routing: { configId: b.configId, model: u === '/generate/image' ? (draft ? 'gen4_image_turbo' : 'gen4_image') : (draft ? 'gen4_turbo' : 'seedance2_5'), provider: 'runway', estimatedCost: { credits: u === '/generate/image' ? (draft ? 2 : 8) : (draft ? 25 : 340) } } });
+    }
     if (req.method === 'POST' && KIND[u]) {
       const id = `task-${++n}`; const video = u === '/generate/video' || u === '/image_to_video';
       const fail = video && ctl.failTakes > 0 ? (ctl.failTakes--, true) : false;
@@ -118,7 +123,7 @@ try {
   // 3. Keyframes: Gen-4 Image with Tasha's locked reference tagged in.
   await click(S110, '/Draw 2 keyframes/');
   await waitFor(async () => (await ev(`document.querySelectorAll('#shot-110 .bs-frame img').length`)) === 2);
-  const img = calls.filter((c) => c.path === '/generate/image');
+  const img = calls.filter((c) => (c.path === '/generate/image' && !c.body.dryRun));
   check(img.length === 2 && img[0].body.configId === 'genovus-image-keyframe' && /^data:image\//.test(img[0].body.input.referenceImages?.[0]?.uri ?? '') && /Reference image 1 is Tasha/.test(img[0].body.input.promptText), 'keyframes go through genovus-image-keyframe with Tasha’s locked reference attached');
   await ev(`document.querySelector('#shot-110 .bs-frame').click()`); await sleep(2000);
   await go('/console/studio/gjk-h01');
@@ -127,7 +132,7 @@ try {
   // 4. The take: Seedance 2.5 from the picked frame, guided by the picked read.
   await click(S110, '/Render 5s take/');
   await waitFor(async () => ev(`!!document.querySelector('#shot-110 .bs-take video')`), 60000);
-  const vid = calls.filter((c) => c.path === '/generate/video').at(-1);
+  const vid = calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).at(-1);
   check(vid?.body.configId === 'genovus-video-hero' && vid.body.input.referenceImages?.length >= 2 && vid.body.input.referenceImages.every((x) => x.role === 'reference') && vid.body.input.referenceAudio?.length === 1 && vid.body.input.duration === 5 && vid.body.input.resolution === '1080p' && vid.body.input.aspectRatio === '16:9', 'the hero take goes through genovus-video-hero with the keyframe and cast as references (Seedance can’t pair audio with a start frame), 5 s at 1080p, performing to the picked read');
   const take = must(await db.from('studio_takes').select('id, status, cost_cents, model').eq('shot_id', must(await db.from('studio_shots').select('id, studio_episodes!inner(code)').eq('studio_episodes.code', 'gjk-h01').eq('n', 110).single(), 's110').id).gte('created_at', startedAt).maybeSingle(), 'take') ?? {};
   created.takes.push(take.id);
@@ -164,7 +169,7 @@ try {
   await shot('studio-runway-board', 2200);
   await ev(`document.querySelector('#shot-110').scrollIntoView()`);
   await shot('studio-runway-shot110', 1100);
-  check(calls.filter((c) => c.path === '/generate/video').length === 1, `exactly the takes a person asked for were generated (${calls.length} Runway calls in all)`);
+  check(calls.filter((c) => (c.path === '/generate/video' && !c.body.dryRun)).length === 1, `exactly the takes a person asked for were generated (${calls.length} Runway calls in all)`);
 } finally {
   // Clean up: every row and file this run created, and the voice settings.
   const clips = must(await db.from('studio_voice_clips').select('id, blob_path').gte('created_at', startedAt).or(`character_id.in.(${cast.map((c) => c.id).join(',')}),kind.eq.score`), 'clips');

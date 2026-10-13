@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Wordmark } from '@/components/Wordmark';
-import type { Cut, CutItem } from '@/lib/studio-cut';
+import type { Cut, CutItem } from '@/lib/studio-timeline';
 
 const STATUS_LABEL: Record<CutItem['status'], string> = { picked: 'Picked take', best: 'Court’s best (not picked)', draft: 'Draft take', missing: 'Not rendered yet', card: 'Card' };
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

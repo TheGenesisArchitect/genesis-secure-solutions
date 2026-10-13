@@ -26,7 +26,13 @@ const securityHeaders = process.env.NODE_ENV === 'production'
 
 const nextConfig: NextConfig = {
   // The thumbnail renderer reads the brand fonts and mark from disk.
-  outputFileTracingIncludes: { '/api/studio/thumb/[id]': ['./lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'] },
+  outputFileTracingIncludes: {
+    '/api/studio/thumb/[id]': ['./lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'],
+    // The episode render: a bundled ffmpeg binary plus the brand fonts and egg for cards and captions.
+    '/api/studio/render/[code]': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'],
+  },
+  // ffmpeg-static resolves its binary path at runtime; keep it out of the bundle so the path stays real.
+  serverExternalPackages: ['ffmpeg-static'],
   poweredByHeader: false,
   // Friendly doors under the genovus.io mothership: app. for agencies, partners. for carriers. Everything
   // lives on genovus.io itself so one sign-in covers the whole ecosystem.

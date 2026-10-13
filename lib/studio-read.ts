@@ -1,6 +1,6 @@
 // Parsing a shot's line read ("JULIAN: [dry] Nobody missed them. · TASHA: [plain] …") into spoken lines.
 // Shared by the production board and the Runway engine; no server-only imports.
-export type Line = { slot: string; code: string; speaker: string; text: string };
+export type Line = { slot: string; code: string; speaker: string; text: string; vo?: boolean };
 /** The spoken lines of a shot's line read, with their direction tags. Untagged-speaker cues ([impact] drum hit) are
  *  sound, not dialogue, and are left for the score. */
 export function parseRead(read: string, cast: { code: string; name: string }[]): Line[] {
@@ -10,7 +10,7 @@ export function parseRead(read: string, cast: { code: string; name: string }[]):
     if (!m) return;
     const c = cast.find((x) => x.name.toUpperCase() === m[1] || x.code.startsWith(m[1]));
     if (!c) return;
-    out.push({ slot: `L${out.length + 1}`, code: c.code, speaker: c.name, text: m[3].trim() });
+    out.push({ slot: `L${out.length + 1}`, code: c.code, speaker: c.name, text: m[3].trim(), vo: /\bV\.?\s?O\b|O\.?\s?S\b/i.test(m[2] ?? '') });
   });
   return out;
 }

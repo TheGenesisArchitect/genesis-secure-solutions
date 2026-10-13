@@ -124,11 +124,17 @@ export async function startLines(reserve: Reserve, shotId: string): Promise<Star
   const cast = await activeCast(db);
   const lines = parseRead(directionOf(s).read, cast);
   if (!lines.length) return { ok: false, error: 'This shot has no spoken lines. Write the line read with the speaker’s name, like “TASHA: [warm] Got questions?”.' };
+  // Only lines whose wording or voice changed (or that were never read) get a new read.
+  const { data: existing } = await db.from('studio_voice_clips').select('slot, text, voice_name, status').eq('shot_id', s.id).eq('kind', 'line').in('status', ['ready', 'queued', 'running']);
   const ids: string[] = [];
+  let read = 0;
   for (const l of lines) {
     const c = cast.find((x) => x.code === l.code)!;
     const custom = c.voice?.runway_engine === 'custom' && c.voice?.runway_design;
     const preset = c.voice?.runway_preset || c.voice?.runway_voice || 'Kiana';
+    const voiceName = custom ? `design:${c.voice!.runway_design}` : preset;
+    if ((existing ?? []).some((x) => x.slot === l.slot && x.text === l.text && x.voice_name === voiceName)) continue;
+    read++;
     const id = await reserve({ kind: 'line', shot: s.id, character: c.id, text: l.text, model: custom ? 'seed_audio' : 'eleven_v4', cents: ESTIMATE.line, params: { slot: l.slot, voice: custom ? `design:${c.voice!.runway_design}` : preset, style: directionOf(s).acting } });
     try {
       let task: { id: string };
@@ -144,7 +150,8 @@ export async function startLines(reserve: Reserve, shotId: string): Promise<Star
       ids.push(id);
     } catch (e) { await markFailed(db, 'studio_voice_clips', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
   }
-  return { ok: true, ids, note: `Reading ${lines.length} line${lines.length === 1 ? '' : 's'}… about 10–30 seconds.` };
+  if (!read) return { ok: true, ids, note: 'Every line already has a current read.' };
+  return { ok: true, ids, note: `Reading ${read} line${read === 1 ? '' : 's'}… about 10–30 seconds.` };
 }
 
 /** Two keyframe candidates for a shot, with the cast's identity references tagged in. */
@@ -168,10 +175,16 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
   const router = (await getRouters(db))[pass === 'draft' ? 'image_fast' : 'keyframe'];
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
-    const id = await reserve({ kind: 'keyframe', shot: s.id, character: null, text: prompt, model: router ? 'router' : 'gen4_image', cents: pass === 'draft' ? PRICE.keyframeFast : ESTIMATE.keyframe, refs: refs.map((r) => r.id) });
-    if (router) {
+    // Quote the exact request with Runway's free dry run; reserve that. No eligible model → the direct engine.
+    const routed = { router, prompt: routedPrompt, refs: refs.map((x) => x.uri), resolution: (pass === 'draft' ? '1k' : '2k') as '1k' | '2k' };
+    let estimate = pass === 'draft' ? PRICE.keyframeFast : ESTIMATE.keyframe;
+    let useRouter = Boolean(router);
+    if (router) { try { const q = await runwayRoutedImage({ ...routed, dryRun: true }); if (q.routing?.estimatedCost?.credits != null) estimate = Math.max(1, Math.round(q.routing.estimatedCost.credits * CREDIT_CENTS)); } catch (e) { useRouter = false; console.warn(`[studio-runway] dry run: ${router} has no eligible model for shot ${s.n}'s keyframe: ${e instanceof Error ? e.message : e}`); } }
+    const id = await reserve({ kind: 'keyframe', shot: s.id, character: null, text: prompt, model: useRouter ? 'router' : 'gen4_image', cents: useRouter ? estimate : ESTIMATE.keyframe, refs: refs.map((r) => r.id) });
+    await db.from('studio_art').update({ estimate_cents: useRouter ? estimate : ESTIMATE.keyframe }).eq('id', id);
+    if (useRouter) {
       try {
-        const r = await runwayRoutedImage({ router, prompt: routedPrompt, refs: refs.map((x) => x.uri), resolution: pass === 'draft' ? '1k' : '2k' });
+        const r = await runwayRoutedImage(routed);
         await db.from('studio_art').update({ status: 'running', task_id: r.id, router, model: `runway:${r.routing?.model ?? 'router'}`, runway_status: 'PENDING', ...(r.routing?.estimatedCost?.credits != null ? { cost_cents: Math.round(r.routing.estimatedCost.credits * CREDIT_CENTS) } : {}), updated_at: now() }).eq('id', id);
         ids.push(id);
         continue;
@@ -231,12 +244,21 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   const routers = await getRouters(db);
   const router = firstParty ? '' : pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
   const direct = firstParty ? 'gen4.5' : eng.model;
-  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: router ? 'router' : direct, cents: seconds * (pass === 'draft' ? PRICE.draftPerSec : firstParty ? PRICE.gen45PerSec : eng.perSec), params: { first_party: firstParty, method: audio.length ? 'references+audio' : frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
-  const seed = Math.floor(Math.random() * 4_000_000_000);
+  const routedReq = { router, prompt, images, audioRefs: audio, duration: seconds, audio: audio.length > 0, resolution: (pass === 'draft' ? '720p' : '1080p') as '720p' | '1080p' };
+  const directCents = seconds * (firstParty ? PRICE.gen45PerSec : direct === 'seedance2_5' ? PRICE.seedancePerSec : PRICE.gen45PerSec);
+  let estimate = seconds * (pass === 'draft' ? PRICE.draftPerSec : eng.perSec);
   let routeError: string | null = null;
   if (router) {
+    try { const q = await runwayRoutedVideo({ ...routedReq, dryRun: true }); if (q.routing?.estimatedCost?.credits != null) estimate = Math.max(1, Math.round(q.routing.estimatedCost.credits * CREDIT_CENTS)); }
+    catch (e) { routeError = e instanceof Error ? e.message : String(e); console.warn(`[studio-runway] dry run: ${router} has no eligible model for shot ${s.n}: ${routeError}; using ${direct}`); }
+  }
+  const useRouter = Boolean(router) && !routeError;
+  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: useRouter ? 'router' : direct, cents: useRouter ? estimate : directCents, params: { first_party: firstParty, method: audio.length ? 'references+audio' : frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
+  await db.from('studio_takes').update({ estimate_cents: useRouter ? estimate : directCents }).eq('id', id);
+  const seed = Math.floor(Math.random() * 4_000_000_000);
+  if (useRouter) {
     try {
-      const r = await runwayRoutedVideo({ router, prompt, images, audioRefs: audio, duration: seconds, audio: audio.length > 0, seed, resolution: pass === 'draft' ? '720p' : '1080p' });
+      const r = await runwayRoutedVideo({ ...routedReq, seed });
       const { data: cur } = await db.from('studio_takes').select('params').eq('id', id).single();
       await db.from('studio_takes').update({ status: 'running', operation: r.id, model: `runway:${r.routing?.model ?? 'router'}`, runway_status: 'PENDING',
         ...(r.routing?.estimatedCost?.credits != null ? { cost_cents: Math.round(r.routing.estimatedCost.credits * CREDIT_CENTS) } : {}),
@@ -330,10 +352,11 @@ export async function startScore(reserve: Reserve, episodeId: string, cue: strin
   } catch (e) { await markFailed(db, 'studio_voice_clips', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
 }
 
-async function expense(cents: number, note: string, by: string | null) {
+async function expense(cents: number, note: string, by: string | null, sourceRef?: string) {
   if (cents <= 0) return;
-  const { error } = await adminDb().from('expenses').insert({ spent_on: businessToday(), category: 'ai', vendor: 'Runway', amount_cents: cents, note: note.slice(0, 300), created_by: by });
-  if (error) console.error(`[studio-runway] expense not recorded: ${error.message}`);
+  const { error } = await adminDb().from('expenses').insert({ spent_on: businessToday(), category: 'ai', vendor: 'Runway', amount_cents: cents, note: note.slice(0, 300), created_by: by, ...(sourceRef ? { source_ref: sourceRef } : {}) });
+  // A duplicate source_ref means another poller already recorded this task's expense: that's the guard working.
+  if (error && !/duplicate key|expenses_source_ref/i.test(error.message)) console.error(`[studio-runway] expense not recorded: ${error.message}`);
 }
 
 // ---------- Polling: finish every running Runway job ----------
@@ -344,52 +367,69 @@ const TABLES = [
 ] as const;
 const TYPE: Record<string, string> = { mp3: 'audio/mpeg', png: 'image/png', mp4: 'video/mp4' };
 
-/** Check every running Runway job (optionally only one shot's); copy finished outputs into storage. */
+/**
+ * Check every running Runway job (optionally only one shot's) and complete the finished ones. Completion is claimed
+ * first (a conditional update), so overlapping pollers (cron, board, a run's kick) never copy or expense the same
+ * result twice; the expense itself is unique per Runway task. Downloads run three at a time.
+ */
 export async function pollRunwayJobs(shotId?: string): Promise<Record<string, number>> {
   if (!runwayConfigured()) return {};
   const db = adminDb();
   const out: Record<string, number> = {};
+  const bump = (k: string) => { out[k] = (out[k] ?? 0) + 1; };
+  const jobs: { T: (typeof TABLES)[number]; row: Record<string, string | number | null> }[] = [];
   for (const T of TABLES) {
-    let q = db.from(T.table).select(`id, ${T.task}, cost_cents, created_at, created_by, ${T.table === 'studio_voice_clips' ? 'kind' : T.table === 'studio_takes' ? 'shot_id, params' : 'shot_id'}`).eq('status', 'running').not(T.task, 'is', null).limit(25);
-    if (T.table === 'studio_takes') q = q.like('model', 'runway:%');
-    if (T.table === 'studio_art') q = q.like('model', 'runway:%');
+    let q = db.from(T.table).select(`id, ${T.task}, cost_cents, created_at, created_by, ${T.table === 'studio_voice_clips' ? 'kind, shot_id' : T.table === 'studio_takes' ? 'shot_id, params' : 'shot_id'}`).eq('status', 'running').not(T.task, 'is', null).limit(25);
+    if (T.table !== 'studio_voice_clips') q = q.like('model', 'runway:%');
     if (shotId) q = q.eq('shot_id', shotId);
     const { data } = await q;
-    for (const row of (data ?? []) as unknown as Record<string, string | number | null>[]) {
-      const id = String(row.id);
-      try {
-        const t = (await runwayTask(String(row[T.task]))) as RunwayDoneTask;
-        if (t.status === 'SUCCEEDED' && t.output?.[0]) {
-          const file = await fetch(t.output[0], { signal: AbortSignal.timeout(60_000) });
-          if (!file.ok) { out.download_wait = (out.download_wait ?? 0) + 1; continue; }
-          const ext = T.ext(String(row.kind ?? ''));
-          const p = `studio/${T.dir}/${id}.${ext}`;
-          await put(p, Buffer.from(await file.arrayBuffer()), { access: 'private', contentType: TYPE[ext], addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(60_000) });
-          const cents = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : Number(row.cost_cents ?? 0);
-          await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, runway_status: 'SUCCEEDED', runway_progress: 1, done_at: now(), ...(T.table === 'studio_takes' ? { updated_at: now() } : { source_url: t.output[0], source_at: now(), ...(T.table === 'studio_art' ? { updated_at: now() } : {}) }) }).eq('id', id);
-          await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null);
-          if (T.table === 'studio_takes' && (row.params as unknown as { method?: string } | null)?.method === 'act_two') {
-            await db.rpc('studio_auto_choose_take', { p_id: id });
-            await db.rpc('studio_shot_produce_patch', { p_shot: row.shot_id, p_patch: { stage: 'review', force: true, dialogue_open: false, note: 'Dialogue lip-synced with Act-Two.' } });
-          }
-          out.ready = (out.ready ?? 0) + 1;
-        } else if (t.status === 'FAILED' || t.status === 'CANCELLED') {
-          console.warn(`[studio-runway] ${T.label} ${id.slice(0, 8)} ${t.status}: ${t.failure ?? ''} ${t.failureCode ?? ''}`);
-          if (T.table === 'studio_takes' && (row.params as unknown as { method?: string } | null)?.method === 'act_two') await db.rpc('studio_shot_produce_patch', { p_shot: row.shot_id, p_patch: { stage: 'review', force: true, last_error: `Finish dialogue failed: ${t.failure ?? t.status}`.slice(0, 300) } });
-          await db.from(T.table).update({ status: 'failed', runway_status: t.status, done_at: now(), error: `${t.failure ?? t.status}${t.failureCode ? ` (${t.failureCode})` : ''}`.slice(0, 300), cost_cents: t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : 0, ...(T.table === 'studio_voice_clips' ? {} : { updated_at: now() }) }).eq('id', id);
-          out.failed = (out.failed ?? 0) + 1;
-        } else if (Date.now() - new Date(String(row.created_at)).getTime() > 45 * 60_000) {
-          await markFailed(db, T.table, id, 'Timed out after 45 minutes.');
-          out.failed = (out.failed ?? 0) + 1;
-        } else {
-          await db.from(T.table).update({ runway_status: t.status, runway_progress: typeof t.progress === 'number' ? t.progress : null }).eq('id', id);
-          out.running = (out.running ?? 0) + 1;
-        }
-      } catch (e) {
-        out.errors = (out.errors ?? 0) + 1;
-        console.error(`[studio-runway] poll ${T.table}/${id}: ${e instanceof Error ? e.message : e}`);
-      }
-    }
+    for (const row of (data ?? []) as unknown as Record<string, string | number | null>[]) jobs.push({ T, row });
   }
+  const one = async ({ T, row }: (typeof jobs)[number]) => {
+    const id = String(row.id);
+    const isActTwo = T.table === 'studio_takes' && (row.params as unknown as { method?: string } | null)?.method === 'act_two';
+    const stamp = T.table === 'studio_voice_clips' ? {} : { updated_at: now() };
+    try {
+      const t = (await runwayTask(String(row[T.task]))) as RunwayDoneTask;
+      if (t.status === 'SUCCEEDED' && t.output?.[0]) {
+        // Claim the completion: only one poller proceeds (a stale claim from a crashed poller expires in 5 minutes).
+        const stale = new Date(Date.now() - 5 * 60_000).toISOString();
+        const { data: claimed } = await db.from(T.table).update({ runway_status: 'COMPLETING', done_at: now() })
+          .eq('id', id).eq('status', 'running').or(`runway_status.is.null,runway_status.neq.COMPLETING,done_at.lt.${stale}`).select('id');
+        if (!claimed?.length) { bump('claimed_elsewhere'); return; }
+        const file = await fetch(t.output[0], { signal: AbortSignal.timeout(60_000) });
+        if (!file.ok) { await db.from(T.table).update({ runway_status: 'SUCCEEDED' }).eq('id', id); bump('download_wait'); return; }
+        const ext = T.ext(String(row.kind ?? ''));
+        const path = `studio/${T.dir}/${id}.${ext}`;
+        await put(path, Buffer.from(await file.arrayBuffer()), { access: 'private', contentType: TYPE[ext], addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(60_000) });
+        const cents = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : Number(row.cost_cents ?? 0);
+        await db.from(T.table).update({ status: 'ready', blob_path: path, cost_cents: cents, runway_status: 'SUCCEEDED', runway_progress: 1, done_at: now(), refund_status: 'n/a', ...stamp, ...(T.table === 'studio_takes' ? {} : { source_url: t.output[0], source_at: now() }) }).eq('id', id);
+        await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null, `runway:${row[T.task]}`);
+        if (isActTwo) {
+          await db.rpc('studio_auto_choose_take', { p_id: id });
+          await db.rpc('studio_shot_produce_patch', { p_shot: row.shot_id, p_patch: { stage: 'review', force: true, dialogue_open: false, note: 'Dialogue lip-synced with Act-Two.' } });
+        }
+        bump('ready');
+      } else if (t.status === 'FAILED' || t.status === 'CANCELLED') {
+        console.warn(`[studio-runway] ${T.label} ${id.slice(0, 8)} ${t.status}: ${t.failure ?? ''} ${t.failureCode ?? ''}`);
+        if (isActTwo) await db.rpc('studio_shot_produce_patch', { p_shot: row.shot_id, p_patch: { stage: 'review', force: true, last_error: `Finish dialogue failed: ${t.failure ?? t.status}`.slice(0, 300) } });
+        // Runway reports the final charge on terminal tasks; without it, the reservation keeps counting (unconfirmed).
+        const billed = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : null;
+        await db.from(T.table).update({ status: 'failed', runway_status: t.status, done_at: now(), error: `${t.failure ?? t.status}${t.failureCode ? ` (${t.failureCode})` : ''}`.slice(0, 300), cost_cents: billed ?? Number(row.cost_cents ?? 0), refund_status: billed === 0 ? 'refunded' : billed == null ? 'unconfirmed' : 'n/a', ...stamp }).eq('id', id).eq('status', 'running');
+        if (billed && billed > 0) await expense(billed, `Studio: Runway ${T.label} (failed, billed)`, (row.created_by as string) ?? null, `runway:${row[T.task]}`);
+        bump('failed');
+      } else if (Date.now() - new Date(String(row.created_at)).getTime() > 45 * 60_000) {
+        await db.from(T.table).update({ status: 'failed', error: 'Timed out after 45 minutes.', refund_status: 'unconfirmed', done_at: now(), ...stamp }).eq('id', id).eq('status', 'running');
+        bump('failed');
+      } else {
+        await db.from(T.table).update({ runway_status: t.status, runway_progress: typeof t.progress === 'number' ? t.progress : null }).eq('id', id).eq('status', 'running');
+        bump('running');
+      }
+    } catch (e) {
+      bump('errors');
+      console.error(`[studio-runway] poll ${T.table}/${id}: ${e instanceof Error ? e.message : e}`);
+    }
+  };
+  for (let i = 0; i < jobs.length; i += 3) await Promise.all(jobs.slice(i, i + 3).map(one));
   return out;
 }

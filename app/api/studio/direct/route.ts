@@ -39,11 +39,11 @@ async function shotReadiness(admin: ReturnType<typeof adminDb>, code: string, s:
   const { data: cast } = await admin.from('studio_characters').select('code, name').eq('status', 'active');
   const lines = s.tool === 'edit' ? [] : parseRead(s.log?.read ?? defaultDirection(code, s.n)?.read ?? '', (cast ?? []) as { code: string; name: string }[]);
   const [{ data: take }, { data: clips }] = await Promise.all([
-    admin.from('studio_takes').select('params').eq('shot_id', s.id).eq('chosen', true).eq('status', 'ready').maybeSingle(),
+    admin.from('studio_takes').select('id, params').eq('shot_id', s.id).eq('chosen', true).eq('status', 'ready').maybeSingle(),
     admin.from('studio_voice_clips').select('slot, text').eq('shot_id', s.id).eq('kind', 'line').eq('status', 'ready'),
   ]);
   const readsReady = lines.filter((l) => (clips ?? []).some((c) => c.slot === l.slot && c.text === l.text)).length;
-  return readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: lines.length, readsReady, takePerformedToAudio: (take?.params as { audio?: boolean } | null)?.audio === true || (take?.params as { lipsync?: boolean } | null)?.lipsync === true });
+  return readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: lines.length, readsReady, takePerformedToAudio: (take?.params as { audio?: boolean } | null)?.audio === true, syncVerified: Boolean(take && ((take.params as { lipsync?: boolean } | null)?.lipsync === true || s.produce?.sync_verified === take.id)), voiceOverOnly: lines.length > 0 && lines.every((l) => l.vo) });
 }
 const boardShot = (shots: ProdShot[], n: unknown) => { const i = Math.round(Number(n)); return Number.isFinite(i) && i >= 1 && i <= shots.length ? shots[i - 1] : null; };
 
@@ -189,6 +189,23 @@ export async function POST(req: Request) {
         };
         const r = await startFinishDialogue(reserve, s.id, a.recording, Number(a.intensity ?? 3));
         return r.ok ? Response.json({ ok: true, shot: a.shot, say: r.note }) : fail(r.error);
+      }
+      case 'verify_sync': {
+        // A person watched the take and the lips match the read: the dialogue is verified for this take.
+        const s = boardShot(shots, a.shot);
+        if (!s) return fail(`There’s no shot ${a.shot}.`);
+        const { data: take } = await adminDb().from('studio_takes').select('id').eq('shot_id', s.id).eq('chosen', true).eq('status', 'ready').maybeSingle();
+        if (!take) return fail('There’s no picked take to verify.');
+        await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { sync_verified: take.id } });
+        return Response.json({ ok: true, shot: a.shot, say: `Shot ${a.shot}: lip-sync marked verified.` });
+      }
+      case 'use_gen45': {
+        // The person chose: render this speaking shot on Runway's Gen-4.5 (no third-party filter); dialogue mixed in the edit.
+        const s = boardShot(shots, a.shot);
+        if (!s) return fail(`There’s no shot ${a.shot}.`);
+        await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { allow_first_party: true, decision: null, note: null, stage: 'queued', since_now: true, force: true, leases: {} } });
+        const progress = await advanceProduction(e.id).catch(() => ({}));
+        return Response.json({ ok: true, shot: a.shot, progress, say: `Rendering shot ${a.shot} on Gen-4.5; its dialogue will be mixed in the edit (or finished with Act-Two).` });
       }
       case 'retry_shot':
       case 'cancel_shot': {

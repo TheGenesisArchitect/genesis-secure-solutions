@@ -9,7 +9,7 @@ import { Chip } from '@/components/ui';
 import { studioSetShotDirection } from '@/lib/actions';
 import { billedSeconds, defaultDirection, engineFor, PRICE, shotCast, shotCost, shotSeconds } from '@/lib/studio-board';
 import { CastStudio, ScoreStudio, ShotStudio, type BoardLine, type CaptureRecipe, type CastIdentity, type CastVoice } from '@/components/studio/BoardStudio';
-import { FinishDialogue, ProductionBar, ShotMonitor, ShotReview, type MonitorStep, type RunHealth, type RunState } from '@/components/studio/ProductionControls';
+import { FinishDialogue, ProductionBar, RenderPanel, ShotMonitor, ShotReview, VerifySync, type MonitorStep, type RunHealth, type RunState } from '@/components/studio/ProductionControls';
 import { PlayButton, ScenePlayer, type Clip } from '@/components/studio/ScenePlayer';
 import { RouterReport, type RouterRow } from '@/components/studio/RouterReport';
 import { readiness, dialogueOpen } from '@/lib/studio-monitor';
@@ -20,7 +20,7 @@ export type BoardStudioData = {
   ready: boolean;
   lines: Map<string, BoardLine[]>;
   frames: Map<string, { id: string; status: string; chosen: boolean; error: string | null }[]>;
-  takes: Map<string, { id: string; status: string; chosen: boolean; kind: string; error: string | null; cost_cents: number; still?: boolean; synced?: boolean }[]>;
+  takes: Map<string, { id: string; status: string; chosen: boolean; kind: string; error: string | null; cost_cents: number; still?: boolean; guided?: boolean; actTwo?: boolean }[]>;
   identity: Map<string, CastIdentity & { img?: string }>;
   designs: Map<string, CastVoice['designs']>;
   score: { id: string; status: string; error: string | null }[];
@@ -32,6 +32,8 @@ export type BoardStudioData = {
   routers: RouterRow[];
   routersConnected: boolean;
   library: { key: string; title: string; device: string; chapter: string }[];
+  timeline: { total: number; problems: { label: string; detail: string; kind: string }[] };
+  draft: { at: string; note: string | null } | null;
 };
 type Take = { id: string; shot_id: string; status: string; chosen: boolean | null };
 type Props = {
@@ -155,7 +157,8 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
               const [stageLabel0, stageKind] = STAGE[stage] ?? ['', ''];
               const stageLabel = isDraft && stage === 'review' ? 'Draft ready for review' : isDraft && ['queued', 'reading', 'drawing', 'rendering'].includes(stage) ? `Draft · ${stageLabel0}` : stageLabel0;
               const note = (s.produce?.note ?? s.produce?.last_error ?? null) as string | null;
-              const ready = readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: shotLines.length, readsReady: shotLines.filter((l) => l.reads.some((r) => r.status === 'ready')).length, takePerformedToAudio: Boolean(take && (studio.takes.get(s.id) ?? []).find((t) => t.id === take.id)?.synced) });
+              const pickedTake = take ? (studio.takes.get(s.id) ?? []).find((t) => t.id === take.id) : undefined;
+              const ready = readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: shotLines.length, readsReady: shotLines.filter((l) => l.reads.some((r) => r.status === 'ready')).length, takePerformedToAudio: Boolean(pickedTake?.guided), syncVerified: Boolean(pickedTake && (pickedTake.actTwo || s.produce?.sync_verified === pickedTake.id)), voiceOverOnly: shotLines.length > 0 && shotLines.every((l) => l.vo) });
               const showReady = ['review', 'approved', 'draft_ok'].includes(stage) && s.tool !== 'edit';
               return (
                 <article key={s.id} className={'pb-card2' + (stage === 'review' ? ' is-review' : '')} id={`shot-${s.n}`}>
@@ -177,19 +180,20 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     {d.acting ? <p className="pb-act"><b>Acting</b> {d.acting}{s.log?.camera ? <> · <b>Camera</b> {s.log.camera}</> : null}</p> : null}
                     {note && stage === 'capture' ? <p className="pb-flag">{note}</p> : null}
                     {s.tool === 'capture' && s.screens?.length ? <p className="pb-lib">📺 From the Screen Library: {s.screens.map((k) => `${screenOf(k).title} (${k.split(':')[1]})`).join(' · ')}</p> : null}
-                    <ShotMonitor episode={episode.code} board={i + 1} steps={studio.monitor.get(s.id) ?? []} stage={stage} note={note} />
+                    <ShotMonitor episode={episode.code} board={i + 1} steps={studio.monitor.get(s.id) ?? []} stage={stage} note={note} decision={(s.produce?.decision as string | null) ?? null} />
                     {showReady ? (
                       <div className="pb-ready">
                         <span className={ready.picture ? 'y' : 'n'}>{ready.picture ? '✓' : '✕'} Picture</span>
                         {ready.voice !== 'none' ? <span className={ready.voice === 'ready' ? 'y' : 'n'}>{ready.voice === 'ready' ? '✓' : '✕'} Voice</span> : null}
-                        {ready.lipsync !== 'none' ? <span className={ready.lipsync === 'edit' ? 'w' : 'y'}>{ready.lipsync === 'synced' ? '✓ Lip-sync' : ready.lipsync === 'voiceover' ? '✓ Voice-over' : '◐ Not lip-synced · mixed in the edit'}</span> : null}
+                        {ready.lipsync !== 'none' ? <span className={ready.lipsync === 'edit' || ready.lipsync === 'audio_guided' ? 'w' : 'y'}>{ready.lipsync === 'sync_verified' ? '✓ Lip-sync verified' : ready.lipsync === 'voiceover' ? '✓ Voice-over' : ready.lipsync === 'audio_guided' ? '◐ Audio-guided · check the lips' : '◐ Not lip-synced · mixed in the edit'}</span> : null}
+                        {ready.lipsync === 'audio_guided' && ['review', 'approved'].includes(stage) ? <VerifySync episode={episode.code} board={i + 1} /> : null}
                         {stage === 'approved' && s.produce?.dialogue_open ? <b className="n">Approved picture only · dialogue to finish</b> : null}
                       </div>
                     ) : null}
                     <div className="pb-foot">
                       <span className="pb-eng2">{eng?.label ?? (s.tool === 'capture' ? 'Phone capture' : s.tool === 'edit' ? 'Code card' : s.tool)} · {money(costs[i].total)}</span>
                       <ShotReview episode={episode.code} board={i + 1} stage={stage} draft={isDraft} pictureOnly={dialogueOpen(ready)} />
-                      {stage === 'review' && ready.lipsync === 'edit' && take ? <FinishDialogue episode={episode.code} board={i + 1} shotId={s.id} reads={shotLines.map((l) => ({ id: (l.reads.find((r) => r.approved && r.status === 'ready') ?? l.reads.find((r) => r.status === 'ready'))?.id ?? '', label: l.speaker })).filter((r) => r.id)} /> : null}
+                      {stage === 'review' && (ready.lipsync === 'edit' || ready.lipsync === 'audio_guided') && take ? <FinishDialogue episode={episode.code} board={i + 1} shotId={s.id} reads={shotLines.map((l) => ({ id: (l.reads.find((r) => r.approved && r.status === 'ready') ?? l.reads.find((r) => r.status === 'ready'))?.id ?? '', label: l.speaker })).filter((r) => r.id)} /> : null}
                     </div>
                     <details className="pb-more">
                       <summary>{s.tool === 'capture' ? 'Capture steps, voice-over & direction' : 'Fine-tune: steps & direction'}</summary>
@@ -229,7 +233,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
           <div className="pb-track"><span>Dialogue</span><div className="pb-lane">{shots.filter((s) => linesOf(s).length).map((s) => <span key={s.id} className="pb-clip d" style={{ left: pct(startOf(s) + .3), width: `calc(${pct(Math.max(.5, shotSeconds(s.timing) - .6))} - 2px)` }} />)}</div></div>
           <div className="pb-track"><span>Score cues</span><div className="pb-lane">{shots.filter((s) => /\[(impact|sound design)\]|score enters/i.test(s.log?.read ?? defaultDirection(episode.code, s.n)?.read ?? '')).map((s) => <span key={s.id} className="pb-clip k" style={{ left: pct(startOf(s)), width: '18px' }} title={(s.log?.read ?? defaultDirection(episode.code, s.n)?.read) ?? ''}>♪</span>)}</div></div>
         </div>
-        <p className="pb-note">{episode.final_blob ? <a href={`/api/studio/media/final/${episode.id}`}>Play the final render</a> : 'The in-platform render (16:9 and 9:16, captions, score and dialogue mix) arrives with the render worker; until then the final cut uploads in the engine room below.'}</p>
+        <RenderPanel episode={episode.code} episodeId={episode.id} hasFinal={Boolean(episode.final_blob)} draft={studio.draft} problems={studio.timeline.problems} />
       </div>
 
       <RouterReport rows={studio.routers} connected={studio.routersConnected} />

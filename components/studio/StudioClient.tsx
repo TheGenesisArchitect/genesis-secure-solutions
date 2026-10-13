@@ -232,38 +232,6 @@ export function ShotTakes({ shotId, tool, prompt, takes, costLabel }: { shotId: 
   );
 }
 
-export function CastSheets({ seriesId, character, prompt, refs, costLabel }: { seriesId: string; character: string; prompt: string; refs: Ref[]; costLabel: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const generate = async () => {
-    setBusy(true);
-    ok(`Drawing ${character}’s sheet… about 20–40 seconds.`);
-    const r = await fetch('/api/studio/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'ref', series: seriesId, character, prompt }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
-    setBusy(false);
-    if (r.okay) ok(`${character}’s sheet is ready.`); else err(r.j.error ?? 'Could not generate.');
-    router.refresh();
-  };
-  return (
-    <div className="grid" style={{ gap: 8 }}>
-      {refs.length ? (
-        <div className="take-strip">
-          {refs.map((r) => (
-            <figure key={r.id} className={'take sheet' + (r.canonical ? ' chosen' : '')}>
-              {r.status === 'ready' ? <a href={`/api/studio/media/ref/${r.id}`} target="_blank" rel="noreferrer"><img src={`/api/studio/media/ref/${r.id}`} alt={`${character} reference sheet`} /></a> : <div className="take-wait">{r.status === 'failed' ? <span>✕ {r.error ?? 'Failed'}</span> : <><span className="take-spin" />Drawing…</>}</div>}
-              <figcaption>
-                {r.status === 'ready' ? (r.canonical ? <b className="take-chosen">✓ Reference</b> : (
-                  <button className="btn small" type="button" onClick={async () => { const f = new FormData(); f.set('id', r.id); toast(await studioSetCanonical(null, f)); router.refresh(); }}>Make reference</button>
-                )) : null}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      ) : null}
-      <button className="btn small primary" type="button" disabled={busy} onClick={generate} style={{ justifySelf: 'start' }}>{busy ? 'Drawing…' : `${refs.length ? 'New sheet' : 'Generate sheet'} · ${costLabel}`}</button>
-    </div>
-  );
-}
-
 export function FinalUpload({ episodeId, hasFinal }: { episodeId: string; hasFinal: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState('');

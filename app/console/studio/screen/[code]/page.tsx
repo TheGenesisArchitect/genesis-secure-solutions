@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { buildCut, type CutFormat } from '@/lib/studio-cut';
+import { buildTimeline, type CutFormat } from '@/lib/studio-timeline';
 import { ScreeningRoom } from '@/components/studio/ScreeningRoom';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ export default async function Screen({ params, searchParams }: { params: Promise
   const supabase = await db();
   const { data: e } = await supabase.from('studio_episodes').select('id, code, title').eq('code', code).maybeSingle();
   if (!e) notFound();
-  const cut = await buildCut(e.id, format);
+  const cut = await buildTimeline(e.id, format);
   const href = `/console/studio/${e.code}`;
   return (
     <ConsoleShell
@@ -32,7 +32,7 @@ export default async function Screen({ params, searchParams }: { params: Promise
       }
     >
       <ScreeningRoom key={format} cut={cut} episodeHref={href} />
-      <p className="muted" style={{ fontSize: 13 }}>The rough cut assembles itself: picked takes first, then the Creative Court’s best, then drafts, each trimmed to the Court’s usable window or the Shot Contract’s timing. Screen-capture shots play their uploaded recording with Maya’s voice-over clips. Shots not rendered yet show as cards so the timing still reads.</p>
+      <p className="muted" style={{ fontSize: 13 }}>The same timeline the render uses: each shot’s picked take (or its Screen Library clips), the current lines with their picked reads and captions, and code cards. Shots not made yet show as cards so the timing still reads.</p>
     </ConsoleShell>
   );
 }

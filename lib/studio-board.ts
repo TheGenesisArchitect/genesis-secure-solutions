@@ -42,12 +42,16 @@ export function billedSeconds(tier: string | null | undefined, timing: string | 
 
 // Runway's published "from" prices (docs.dev.runwayml.com/guides/models, Oct 2026), in cents.
 // Gen-4 Image at 1080p is 8 credits; line reads are estimated at 3 credits and replaced by Runway's final cost.
-export const PRICE = { seedancePerSec: 20, gen45PerSec: 12, actTwoPerSec: 5, keyframe: 8, lineRead: 3, soundEffect: 5, draftPerSec: 6, keyframeFast: 3 };
+// Runway list prices, Oct 2026 (credits = cents): Seedance 2.5 is 20/30/68 per second at 480p/720p/1080p, Gen-4.5 12,
+// Gen-4 Turbo 5, Act-Two 5; Gen-4 Image 8 at 1080p, Turbo 2. Routed tiers quote their most expensive eligible model at
+// the requested resolution (hero 1080p Seedance, production 720p, drafts 720p), so a quote never under-reserves;
+// each job then reserves Runway's own dry-run estimate for its exact request.
+export const PRICE = { seedancePerSec: 68, gen45PerSec: 12, actTwoPerSec: 5, keyframe: 8, lineRead: 3, soundEffect: 5, draftPerSec: 30, productionPerSec: 30, keyframeFast: 3 };
 export type Engine = { model: string; label: string; perSec: number; takes: number };
 /** Which engine a shot uses: hero shots on Seedance 2.5 (2 takes), production shots on Gen-4.5 (2 takes). */
 export function engineFor(tool: string, tier: string | null | undefined): Engine | null {
   if (tool !== 'runway') return null;
-  return tier === 'hero' ? { model: 'seedance2_5', label: 'Seedance 2.5 · hero', perSec: PRICE.seedancePerSec, takes: 2 } : { model: 'gen4.5', label: 'Gen-4.5', perSec: PRICE.gen45PerSec, takes: 2 };
+  return tier === 'hero' ? { model: 'seedance2_5', label: 'Seedance 2.5 · hero', perSec: PRICE.seedancePerSec, takes: 2 } : { model: 'gen4.5', label: 'Gen-4.5', perSec: PRICE.productionPerSec, takes: 2 };
 }
 export type ShotCost = { video: number; keyframes: number; voice: number; total: number };
 export function shotCost(s: { tool: string; tier?: string | null; timing?: string | null; dialogue?: string | null }, lines: number): ShotCost {

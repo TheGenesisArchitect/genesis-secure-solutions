@@ -51,12 +51,15 @@ export const statusText = (s: Step) => (s.status ? `${STATUS[s.status] ?? s.stat
 // What a shot is ready for, so an approval says exactly what it covers. Picture: a picked take (or library screens,
 // or a code card). Voice: every spoken line has a read. Lip-sync: the picked take performed to the reads; otherwise
 // the reads are mixed in the edit (fine for voice-over and cutaways, not for a close-up of someone speaking).
-export type Readiness = { picture: boolean; voice: 'ready' | 'missing' | 'none'; lipsync: 'synced' | 'edit' | 'voiceover' | 'none' };
-export function readiness(p: { tool: string; hasTake: boolean; screens: number; lines: number; readsReady: number; takePerformedToAudio: boolean }): Readiness {
+// Lip-sync states: verified (an Act-Two performance, or a person confirmed the lips in review), audio-guided (the
+// take was generated with the read attached: likely close, not verified), mixed in the edit (no sync attempted),
+// voice-over (no speaking face: screen shots and V.O. lines), none (no dialogue).
+export type Readiness = { picture: boolean; voice: 'ready' | 'missing' | 'none'; lipsync: 'sync_verified' | 'audio_guided' | 'edit' | 'voiceover' | 'none' };
+export function readiness(p: { tool: string; hasTake: boolean; screens: number; lines: number; readsReady: number; takePerformedToAudio: boolean; syncVerified?: boolean; voiceOverOnly?: boolean }): Readiness {
   const picture = p.tool === 'edit' || p.hasTake || p.screens > 0;
   const voice = p.lines === 0 ? 'none' : p.readsReady >= p.lines ? 'ready' : 'missing';
-  const lipsync = p.lines === 0 ? 'none' : p.tool === 'capture' ? 'voiceover' : p.takePerformedToAudio ? 'synced' : 'edit';
+  const lipsync = p.lines === 0 ? 'none' : p.tool === 'capture' || p.voiceOverOnly ? 'voiceover' : p.syncVerified ? 'sync_verified' : p.takePerformedToAudio ? 'audio_guided' : 'edit';
   return { picture, voice, lipsync };
 }
 /** Is anything about the dialogue still unfinished? (An approval then covers the picture only.) */
-export const dialogueOpen = (r: Readiness) => r.voice === 'missing' || r.lipsync === 'edit';
+export const dialogueOpen = (r: Readiness) => r.voice === 'missing' || r.lipsync === 'edit' || r.lipsync === 'audio_guided';

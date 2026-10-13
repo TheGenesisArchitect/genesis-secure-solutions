@@ -105,14 +105,14 @@ export type MonitorStep = { key: string; label: string; state: 'waiting' | 'runn
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 /** A shot's live step timeline: each step's time, Runway's status, why it failed, and Retry / Stop when it's stuck. */
-export function ShotMonitor({ episode, board, steps, stage, note }: { episode: string; board: number; steps: MonitorStep[]; stage: string; note: string | null }) {
+export function ShotMonitor({ episode, board, steps, stage, note, decision }: { episode: string; board: number; steps: MonitorStep[]; stage: string; note: string | null; decision?: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const failed = steps.find((s) => s.state === 'failed');
   const stuck = steps.find((s) => s.stuck);
   const running = steps.some((s) => s.state === 'running');
   const needsHand = stage === 'blocked' || Boolean(stuck) || (Boolean(failed) && !running && stage !== 'review' && stage !== 'approved');
-  const act = async (tool: 'retry_shot' | 'cancel_shot') => {
+  const act = async (tool: 'retry_shot' | 'cancel_shot' | 'use_gen45') => {
     setBusy(true);
     const r = await direct(episode, tool, { shot: board });
     setBusy(false);
@@ -138,7 +138,8 @@ export function ShotMonitor({ episode, board, steps, stage, note }: { episode: s
       {stage === 'blocked' && note && !failed ? <p className="pm-msg err">⚠ {note}</p> : null}
       {needsHand ? (
         <span className="pm-actions">
-          <button className="btn small primary" type="button" disabled={busy} onClick={() => act('retry_shot')}>Retry shot</button>
+          {decision === 'first_party' ? <button className="btn small primary" type="button" disabled={busy} onClick={() => act('use_gen45')}>Use Gen-4.5</button> : null}
+          <button className={'btn small ' + (decision === 'first_party' ? 'ghost' : 'primary')} type="button" disabled={busy} onClick={() => act('retry_shot')}>Retry shot</button>
           {running ? <button className="btn small ghost" type="button" disabled={busy} onClick={() => act('cancel_shot')}>Stop &amp; refund</button> : null}
         </span>
       ) : null}
@@ -242,6 +243,44 @@ export function FinishDialogue({ episode, board, shotId, reads }: { episode: str
         <button className="btn small ghost" type="button" onClick={() => { stop(); setOpen(false); setPhase('idle'); setClip(null); }}>Close</button>
       </span>
       {err ? <p className="pm-msg err">{err}</p> : null}
+    </div>
+  );
+}
+
+/** A person watched the take: the lips match the read. Marks this take's lip-sync verified. */
+export function VerifySync({ episode, board }: { episode: string; board: number }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  return <button className="btn small ghost" type="button" disabled={busy} onClick={async () => { setBusy(true); const r = await direct(episode, 'verify_sync', { shot: board }); setBusy(false); toast(r.ok ? { ok: r.say, at: Date.now() } : { err: r.error, at: Date.now() }); router.refresh(); }}>✓ Lips look right</button>;
+}
+
+/** Render the episode from its timeline: a draft cut any time, the final once nothing's left open. */
+export function RenderPanel({ episode, episodeId, hasFinal, draft, problems }: { episode: string; episodeId: string; hasFinal: boolean; draft: { at: string; note: string | null } | null; problems: { label: string; detail: string; kind: string }[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<'draft' | 'final' | null>(null);
+  const render = async (kind: 'draft' | 'final') => {
+    setBusy(kind);
+    const r = await fetch(`/api/studio/render/${episode}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The render didn’t answer.' }));
+    setBusy(null);
+    toast(r.ok ? { ok: r.say, at: Date.now() } : { err: r.error, at: Date.now() });
+    router.refresh();
+  };
+  return (
+    <div className="rp">
+      <span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="btn small" type="button" disabled={Boolean(busy)} onClick={() => render('draft')}>{busy === 'draft' ? 'Rendering the draft cut…' : 'Render draft cut'}</button>
+        <button className="btn small primary" type="button" disabled={Boolean(busy) || problems.length > 0} onClick={() => render('final')} title={problems.length ? 'Finish the items below first' : undefined}>{busy === 'final' ? 'Rendering the final…' : 'Render final'}</button>
+        <a className="btn small ghost" href={`/console/studio/screen/${episode}`}>Preview the cut</a>
+        {draft ? <a className="btn small ghost" href={`/api/studio/media/draft/${episodeId}`} target="_blank" rel="noreferrer">Play the draft cut</a> : null}
+        {hasFinal ? <a className="btn small ghost" href={`/api/studio/media/final/${episodeId}`} target="_blank" rel="noreferrer">Play the final</a> : null}
+        {busy ? <small className="muted">This takes a minute or two: picture, captions, dialogue and score.</small> : null}
+      </span>
+      {problems.length ? (
+        <details className="pb-more" open={problems.length <= 4}>
+          <summary>{problems.length} thing{problems.length === 1 ? '' : 's'} to finish before the final</summary>
+          <ul className="rp-list">{problems.map((p, i) => <li key={i}><b>{p.label}</b> {p.detail}</li>)}</ul>
+        </details>
+      ) : <small className="pb-lib">✓ Everything's in place for the final render.</small>}
     </div>
   );
 }
