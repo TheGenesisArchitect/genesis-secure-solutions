@@ -29,7 +29,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const FILES = { mp3: Buffer.from('ID3stand-in-audio'), png: PNG, mp4: Buffer.from('stand-in-video') };
 const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8] };
 // Test controls: make the next N video takes fail, or make takes hang (stay running).
-const ctl = { failTakes: 0, hang: false, cancelled: [] };
+const ctl = { failTakes: 0, hang: false, cancelled: [], failMsg: 'The model failed to render this take (test)', failCode: 'INTERNAL.TEST' };
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
     const send = (o, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -50,7 +50,7 @@ const mock = http.createServer((req, res) => {
     }
     if (req.method === 'DELETE' && u.startsWith('/tasks/')) { ctl.cancelled.push(u.slice(7)); const s = seen.get(u.slice(7)); if (s) s.cancelled = true; res.writeHead(204); return res.end(); }
     const t = u.match(/^\/tasks\/(.+)$/);
-    if (t && seen.has(t[1])) { const s = seen.get(t[1]); s.polls++; if (s.cancelled) return send({ id: t[1], status: 'CANCELLED', cost: { credits: 0 } }); if (s.hang) return send({ id: t[1], status: 'RUNNING', progress: 0.4 }); if (s.fail && s.polls >= 2) return send({ id: t[1], status: 'FAILED', failure: 'Content moderation flagged the reference audio (test)', failureCode: 'SAFETY.INPUT.AUDIO', cost: { credits: 0 } }); return send(s.polls < 2 ? { id: t[1], status: 'RUNNING', progress: 0.5 } : { id: t[1], status: 'SUCCEEDED', output: [`http://localhost:${MOCK}/files/${t[1]}.${s.k[0]}`], cost: { credits: s.k[1] } }); }
+    if (t && seen.has(t[1])) { const s = seen.get(t[1]); s.polls++; if (s.cancelled) return send({ id: t[1], status: 'CANCELLED', cost: { credits: 0 } }); if (s.hang) return send({ id: t[1], status: 'RUNNING', progress: 0.4 }); if (s.fail && s.polls >= 2) return send({ id: t[1], status: 'FAILED', failure: ctl.failMsg, failureCode: ctl.failCode, cost: { credits: 0 } }); return send(s.polls < 2 ? { id: t[1], status: 'RUNNING', progress: 0.5 } : { id: t[1], status: 'SUCCEEDED', output: [`http://localhost:${MOCK}/files/${t[1]}.${s.k[0]}`], cost: { credits: s.k[1] } }); }
     send({ error: 'not found' }, 404);
   });
 });
@@ -235,10 +235,23 @@ try {
   for (let i = 0; i < 40 && (await stages())[6] !== 'blocked'; i++) { await advance(); await sleep(500); }
   await go('/console/studio/gjk-h01');
   const card6 = await ev(`document.querySelector('#shot-60 .pm')?.innerText ?? ''`);
-  check((await stages())[6] === 'blocked' && /Content moderation flagged the reference audio/.test(card6) && /Retry shot/.test(card6), 'after two failures the card shows Runway’s reason and a Retry button');
+  check((await stages())[6] === 'blocked' && /The model failed to render this take/.test(card6) && /Retry shot/.test(card6), 'after two failures the card shows Runway’s reason and a Retry button');
   await click(`document.querySelector('#shot-60')`, '/Retry shot/');
   for (let i = 0; i < 40 && (await stages())[6] !== 'review'; i++) { await advance(); await sleep(500); }
   check((await stages())[6] === 'review', 'Retry shot brings it back to review');
+  // A provider's safety filter (Seedance on photoreal faces) blocks a take: the retry renders on Runway's own Gen-4.5.
+  ctl.failTakes = 1; ctl.failMsg = "Your request was blocked by this model provider's content moderation system."; ctl.failCode = 'INPUT_PREPROCESSING.SAFETY.THIRD_PARTY';
+  const nMod = calls.length;
+  await api('review', { shot: 10, action: 'redo', note: 'moderation' });
+  for (let i = 0; i < 40 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
+  const mv = calls.slice(nMod).filter((c) => c.path === '/generate/video' || c.path === '/image_to_video');
+  check((await stages())[10] === 'review' && mv.length === 2 && mv[0].path === '/generate/video' && mv[1].path === '/image_to_video' && mv[1].body.model === 'gen4.5' && mv[1].body.promptImage?.[0]?.position === 'first' && !mv[1].body.referenceAudio, `a take blocked by the provider's safety filter retries on Runway's Gen-4.5 from the keyframe (${mv.map((c) => c.path + ':' + (c.body.model ?? c.body.configId)).join(', ')})`);
+  const nMod2 = calls.length;
+  await api('review', { shot: 10, action: 'redo', note: 'again' });
+  for (let i = 0; i < 40 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
+  const mv2 = calls.slice(nMod2).filter((c) => c.path === '/generate/video' || c.path === '/image_to_video');
+  check(mv2.length === 1 && mv2[0].body.model === 'gen4.5', 'once a shot was flagged, its next take goes straight to Gen-4.5 (no wasted attempt)');
+  ctl.failMsg = 'The model failed to render this take (test)'; ctl.failCode = 'INTERNAL.TEST';
   // A take that hangs is flagged Stuck with Stop & refund (Runway's job is cancelled).
   ctl.hang = true;
   await api('review', { shot: 7, action: 'redo', note: 'hang' });

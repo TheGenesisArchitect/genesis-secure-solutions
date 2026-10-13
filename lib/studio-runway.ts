@@ -192,9 +192,14 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
  * routing itself is refused, the shot's own engine is called directly. A retry (attempt 2) leaves the audio out,
  * since an audio reference is the input models most often refuse.
  */
-export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number; pass?: Pass } = {}): Promise<Started> {
+/** A take blocked by a model provider's own safety filter (e.g. Seedance on photoreal faces), not by Runway. */
+export const MODERATED = /SAFETY\.THIRD_PARTY|provider's content moderation/i;
+export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number; pass?: Pass; moderated?: boolean } = {}): Promise<Started> {
   const attempt = opts.attempt ?? 1;
   const pass = opts.pass ?? 'final';
+  // Once a provider's safety filter has blocked this shot's cast, render on Runway's own Gen-4.5 (first-party,
+  // no third-party filter) from the keyframe; the line read is mixed in the edit instead of lip-synced.
+  const firstParty = Boolean(opts.moderated);
   const db = adminDb();
   const s = await loadShot(db, shotId);
   const eng = engineFor(s.tool, s.tier);
@@ -204,30 +209,34 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   const frameUri = frame ? (fresh(frame.source_at) && frame.source_url ? frame.source_url : frame.blob_path ? await blobDataUri(frame.blob_path) : null) : null;
   const cast = await activeCast(db);
   const refs: { id: string; uri: string }[] = [];
-  if (!frameUri) {
-    if (eng.model !== 'seedance2_5') return { ok: false, error: 'Pick a keyframe first: Gen-4.5 animates from a starting frame.' };
-    for (const c of cast.filter((x) => (s.cast_codes ?? []).includes(x.code))) {
-      const r = await identityRef(db, c.id);
-      if (!r) return { ok: false, error: `Lock ${c.name}’s identity first, or pick a keyframe.` };
-      refs.push({ id: r.id, uri: r.uri });
-    }
+  if (!frameUri && (firstParty || eng.model !== 'seedance2_5')) return { ok: false, error: 'Pick a keyframe first: Gen-4.5 animates from a starting frame.' };
+  if (!firstParty) for (const c of cast.filter((x) => (s.cast_codes ?? []).includes(x.code))) {
+    const r = await identityRef(db, c.id);
+    if (!r) { if (!frameUri) return { ok: false, error: `Lock ${c.name}’s identity first, or pick a keyframe.` }; continue; }
+    refs.push({ id: r.id, uri: r.uri });
   }
   // The chosen read for each line (or the newest ready one), in line order.
   const { data: clips } = await db.from('studio_voice_clips').select('id, slot, blob_path, approved, created_at, source_url, source_at').eq('shot_id', s.id).eq('kind', 'line').eq('status', 'ready').order('created_at', { ascending: false });
   const bySlot = new Map<string, { id: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }>();
   for (const c of (clips ?? []) as { id: string; slot: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }[]) { const cur = bySlot.get(c.slot); if (!cur || (c.approved && !cur.approved)) bySlot.set(c.slot, c); }
   const audio: string[] = [];
-  if (eng.model === 'seedance2_5' && attempt < 2) for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
-  const seconds = takeSeconds(s.tool, s.tier, s.timing);
+  if (eng.model === 'seedance2_5' && attempt < 2 && !firstParty) for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
+  const seconds = firstParty ? Math.min(10, Math.max(2, takeSeconds(s.tool, s.tier, s.timing))) : takeSeconds(s.tool, s.tier, s.timing);
+  // Seedance can't combine audio references with a positioned keyframe: with audio, every image (the keyframe and
+  // the cast's identity references) goes in as an unpositioned reference. Without audio, the keyframe opens the shot.
+  const images: { uri: string; role: 'first' | 'reference' }[] = audio.length
+    ? [...(frameUri ? [{ uri: frameUri, role: 'reference' as const }] : []), ...refs.map((x) => ({ uri: x.uri, role: 'reference' as const }))]
+    : frameUri ? [{ uri: frameUri, role: 'first' }] : refs.map((x) => ({ uri: x.uri, role: 'reference' as const }));
   const prompt = `${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''}${audio.length ? ` The characters speak the attached dialogue on camera with natural, accurate lip movement and the delivery of the read.` : ''} ${LOOK} Keep every person exactly as in the references.`;
   const routers = await getRouters(db);
-  const router = pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
-  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: router ? 'router' : eng.model, cents: seconds * (pass === 'draft' ? PRICE.draftPerSec : eng.perSec), params: { method: frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
+  const router = firstParty ? '' : pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
+  const direct = firstParty ? 'gen4.5' : eng.model;
+  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: router ? 'router' : direct, cents: seconds * (pass === 'draft' ? PRICE.draftPerSec : firstParty ? PRICE.gen45PerSec : eng.perSec), params: { first_party: firstParty, method: audio.length ? 'references+audio' : frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
   const seed = Math.floor(Math.random() * 4_000_000_000);
   let routeError: string | null = null;
   if (router) {
     try {
-      const r = await runwayRoutedVideo({ router, prompt, images: frameUri ? [{ uri: frameUri, role: 'first' }] : refs.map((x) => ({ uri: x.uri, role: 'reference' as const })), audioRefs: audio, duration: seconds, audio: audio.length > 0, seed, resolution: pass === 'draft' ? '720p' : '1080p' });
+      const r = await runwayRoutedVideo({ router, prompt, images, audioRefs: audio, duration: seconds, audio: audio.length > 0, seed, resolution: pass === 'draft' ? '720p' : '1080p' });
       const { data: cur } = await db.from('studio_takes').select('params').eq('id', id).single();
       await db.from('studio_takes').update({ status: 'running', operation: r.id, model: `runway:${r.routing?.model ?? 'router'}`, runway_status: 'PENDING',
         ...(r.routing?.estimatedCost?.credits != null ? { cost_cents: Math.round(r.routing.estimatedCost.credits * CREDIT_CENTS) } : {}),
@@ -235,15 +244,15 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
       return { ok: true, ids: [id], note: `Rendering a ${seconds}s ${pass === 'draft' ? 'draft' : 'take'} on ${r.routing?.model ?? 'the routed model'}…` };
     } catch (e) {
       routeError = e instanceof Error ? e.message : String(e);
-      console.warn(`[studio-runway] router ${router} refused shot ${s.n}: ${routeError}; calling ${eng.model} directly`);
+      console.warn(`[studio-runway] router ${router} refused shot ${s.n}: ${routeError}; calling ${direct} directly`);
     }
   }
   try {
-    const task = eng.model === 'seedance2_5'
-      ? await runwaySeedance({ images: frameUri ? [{ uri: frameUri, position: 'first' }] : refs.map((r) => ({ uri: r.uri })), prompt, ratio: '1920:1080', duration: seconds, audio: audio.length > 0, audioRefs: audio, seed })
+    const task = direct === 'seedance2_5'
+      ? await runwaySeedance({ images: images.map((x) => (x.role === 'first' ? { uri: x.uri, position: 'first' as const } : { uri: x.uri })), prompt, ratio: '1920:1080', duration: seconds, audio: audio.length > 0, audioRefs: audio, seed })
       : await runwayVideo({ model: 'gen4.5', images: [{ uri: frameUri!, position: 'first' }], prompt, ratio: '1280:720', duration: seconds, seed });
-    await db.from('studio_takes').update({ status: 'running', operation: task.id, model: `runway:${eng.model}`, runway_status: 'PENDING', ...(routeError ? { error: `Router: ${routeError.slice(0, 200)} · used ${eng.label}` } : {}), updated_at: now() }).eq('id', id);
-    return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${eng.label}… usually 1–4 minutes.` };
+    await db.from('studio_takes').update({ status: 'running', operation: task.id, model: `runway:${direct}`, runway_status: 'PENDING', ...(routeError ? { error: `Router: ${routeError.slice(0, 200)} · used ${direct}` } : {}), updated_at: now() }).eq('id', id);
+    return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${direct === 'gen4.5' ? 'Gen-4.5' : eng.label}… usually 1–4 minutes.` };
   } catch (e) { console.warn(`[studio-runway] take start refused for shot ${s.n}: ${e instanceof Error ? e.message : e}`); await markFailed(db, 'studio_takes', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
 }
 

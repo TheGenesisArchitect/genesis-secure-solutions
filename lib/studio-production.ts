@@ -163,7 +163,10 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
   if (takes.some((t) => busy(t.status))) { if (stage !== 'rendering') await setProduce(db, s, { stage: 'rendering' }); return 'rendering'; }
   if (takes.filter((t) => t.status === 'failed' && !/^Cancelled/.test(t.error ?? '')).length >= 2) { await setProduce(db, s, { stage: 'blocked', note: 'The take keeps failing.' }); return 'blocked'; }
   const attempt = takes.filter((t) => t.status === 'failed' && !/^Cancelled/.test(t.error ?? '')).length + 1;
-  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt, pass }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
+  // Has a provider's safety filter ever blocked this shot? Then go straight to Runway's first-party model.
+  const { count: modCount } = await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('status', 'failed').or('error.ilike.%SAFETY.THIRD_PARTY%,error.ilike.%content moderation%');
+  const moderated = (modCount ?? 0) > 0;
+  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt, pass, moderated }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   await setProduce(db, s, { stage: 'rendering' });
   return 'rendering';
 }

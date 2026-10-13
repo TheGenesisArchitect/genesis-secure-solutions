@@ -29,7 +29,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const FILES = { mp3: Buffer.from('ID3stand-in-audio'), png: PNG, mp4: Buffer.from('stand-in-video') };
 const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8] };
 // Test controls: make the next N video takes fail, or make takes hang (stay running).
-const ctl = { failTakes: 0, hang: false, cancelled: [] };
+const ctl = { failTakes: 0, hang: false, cancelled: [], failMsg: 'The model failed to render this take (test)', failCode: 'INTERNAL.TEST' };
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
     const send = (o, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -50,7 +50,7 @@ const mock = http.createServer((req, res) => {
     }
     if (req.method === 'DELETE' && u.startsWith('/tasks/')) { ctl.cancelled.push(u.slice(7)); const s = seen.get(u.slice(7)); if (s) s.cancelled = true; res.writeHead(204); return res.end(); }
     const t = u.match(/^\/tasks\/(.+)$/);
-    if (t && seen.has(t[1])) { const s = seen.get(t[1]); s.polls++; if (s.cancelled) return send({ id: t[1], status: 'CANCELLED', cost: { credits: 0 } }); if (s.hang) return send({ id: t[1], status: 'RUNNING', progress: 0.4 }); if (s.fail && s.polls >= 2) return send({ id: t[1], status: 'FAILED', failure: 'Content moderation flagged the reference audio (test)', failureCode: 'SAFETY.INPUT.AUDIO', cost: { credits: 0 } }); return send(s.polls < 2 ? { id: t[1], status: 'RUNNING', progress: 0.5 } : { id: t[1], status: 'SUCCEEDED', output: [`http://localhost:${MOCK}/files/${t[1]}.${s.k[0]}`], cost: { credits: s.k[1] } }); }
+    if (t && seen.has(t[1])) { const s = seen.get(t[1]); s.polls++; if (s.cancelled) return send({ id: t[1], status: 'CANCELLED', cost: { credits: 0 } }); if (s.hang) return send({ id: t[1], status: 'RUNNING', progress: 0.4 }); if (s.fail && s.polls >= 2) return send({ id: t[1], status: 'FAILED', failure: ctl.failMsg, failureCode: ctl.failCode, cost: { credits: 0 } }); return send(s.polls < 2 ? { id: t[1], status: 'RUNNING', progress: 0.5 } : { id: t[1], status: 'SUCCEEDED', output: [`http://localhost:${MOCK}/files/${t[1]}.${s.k[0]}`], cost: { credits: s.k[1] } }); }
     send({ error: 'not found' }, 404);
   });
 });
@@ -128,7 +128,7 @@ try {
   await click(S110, '/Render 5s take/');
   await waitFor(async () => ev(`!!document.querySelector('#shot-110 .bs-take video')`), 60000);
   const vid = calls.filter((c) => c.path === '/generate/video').at(-1);
-  check(vid?.body.configId === 'genovus-video-hero' && vid.body.input.referenceImages?.[0]?.role === 'first' && vid.body.input.referenceAudio?.length === 1 && vid.body.input.duration === 5 && vid.body.input.resolution === '1080p' && vid.body.input.aspectRatio === '16:9', 'the hero take goes through genovus-video-hero from the start frame, 5 s at 1080p, performing to the picked read');
+  check(vid?.body.configId === 'genovus-video-hero' && vid.body.input.referenceImages?.length >= 2 && vid.body.input.referenceImages.every((x) => x.role === 'reference') && vid.body.input.referenceAudio?.length === 1 && vid.body.input.duration === 5 && vid.body.input.resolution === '1080p' && vid.body.input.aspectRatio === '16:9', 'the hero take goes through genovus-video-hero with the keyframe and cast as references (Seedance can’t pair audio with a start frame), 5 s at 1080p, performing to the picked read');
   const take = must(await db.from('studio_takes').select('id, status, cost_cents, model').eq('shot_id', must(await db.from('studio_shots').select('id, studio_episodes!inner(code)').eq('studio_episodes.code', 'gjk-h01').eq('n', 110).single(), 's110').id).gte('created_at', startedAt).maybeSingle(), 'take') ?? {};
   created.takes.push(take.id);
   check(take.status === 'ready' && take.cost_cents === 100 && take.model === 'runway:seedance2_5', 'the take records the model the router picked and its final cost ($1.00)');
