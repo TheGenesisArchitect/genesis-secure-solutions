@@ -264,6 +264,18 @@ try {
   const mv2 = calls.slice(nMod2).filter((c) => c.path === '/generate/video' || c.path === '/image_to_video');
   check(mv2.length === 1 && mv2[0].body.model === 'gen4.5', 'once a shot was flagged, its next take goes straight to Gen-4.5 (no wasted attempt)');
   ctl.failMsg = 'The model failed to render this take (test)'; ctl.failCode = 'INTERNAL.TEST';
+  // An approval says what it covers: shot 10's Gen-4.5 take didn't perform to the read, so it approves the picture only.
+  const ap10 = await api('review', { shot: 10, action: 'approve', via: 'voice' });
+  await go('/console/studio/gjk-h01');
+  const card10 = await ev(`document.querySelector('#shot-100').innerText`);
+  check(ap10.ok && /picture only/i.test(ap10.say) && /Approved picture only · dialogue to finish/i.test(card10) && /Not lip-synced/i.test(card10), 'approving a scene whose dialogue isn’t synced approves the picture only, and the card keeps the dialogue flagged');
+  // Reopen by tap, then approve again and reopen by voice (Helix).
+  await click(`document.querySelector('#shot-100')`, '/^Reopen$/');
+  await waitFor(async () => (await stages())[10] === 'review', 10000);
+  check((await stages())[10] === 'review', 'Reopen puts an approved scene back in review');
+  await api('review', { shot: 10, action: 'approve' });
+  const ro = await api('review', { shot: 10, action: 'reopen', via: 'voice' });
+  check(ro.ok && (await stages())[10] === 'review', '“Reopen shot 10” works through Helix’s tool');
   // A take that hangs is flagged Stuck with Stop & refund (Runway's job is cancelled).
   ctl.hang = true;
   await api('review', { shot: 7, action: 'redo', note: 'hang' });

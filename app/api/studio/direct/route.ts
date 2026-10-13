@@ -8,6 +8,9 @@ import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { advanceProduction, cancelShotJobs, episodeShots, quote, type ProdShot } from '@/lib/studio-production';
 import { castSheetBytes, identityLocked } from '@/lib/studio-runway';
+import { dialogueOpen, readiness } from '@/lib/studio-monitor';
+import { parseRead } from '@/lib/studio-read';
+import { defaultDirection } from '@/lib/studio-board';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -27,9 +30,20 @@ async function status(e: { id: string; code: string; title: string }) {
   const run = (fresh?.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; shots?: string[]; paused_reason?: string };
   const shots = await episodeShots(admin, e.id);
   const { data: spent } = run.at ? await admin.rpc('studio_production_spent', { p_episode: e.id, p_since: run.at }) : { data: 0 };
-  const list = shots.map((s, i) => ({ board: i + 1, title: s.description.slice(0, 70), tool: s.tool, stage: String(s.produce?.stage ?? (s.status === 'approved' ? 'approved' : 'not started')), note: (s.produce?.redo_note ?? s.produce?.note ?? s.produce?.last_error ?? null) as string | null }));
+  const list = shots.map((s, i) => ({ board: i + 1, title: s.description.slice(0, 70), tool: s.tool, stage: String(s.produce?.stage ?? (s.status === 'approved' ? 'approved' : 'not started')), note: (s.produce?.redo_note ?? s.produce?.note ?? s.produce?.last_error ?? null) as string | null, dialogue_open: Boolean(s.produce?.dialogue_open) }));
   return { episode: e.title, run: { on: Boolean(run.on), spent: money(Number(spent ?? 0)), ceiling: money(run.ceiling_cents ?? 0), paused_reason: run.paused_reason ?? null }, shots: list,
     summary: `${list.filter((x) => x.stage === 'review').length} ready for review, ${list.filter((x) => x.stage === 'approved').length} approved, ${list.filter((x) => ['queued', 'reading', 'drawing', 'rendering'].includes(x.stage)).length} in production, ${list.filter((x) => x.stage === 'capture').length} need a phone capture, ${list.filter((x) => x.stage === 'blocked').length} blocked.` };
+}
+/** A shot's readiness from its data: picked take (and whether it performed to the reads), screens, reads. */
+async function shotReadiness(admin: ReturnType<typeof adminDb>, code: string, s: ProdShot) {
+  const { data: cast } = await admin.from('studio_characters').select('code, name').eq('status', 'active');
+  const lines = s.tool === 'edit' ? [] : parseRead(s.log?.read ?? defaultDirection(code, s.n)?.read ?? '', (cast ?? []) as { code: string; name: string }[]);
+  const [{ data: take }, { data: clips }] = await Promise.all([
+    admin.from('studio_takes').select('params').eq('shot_id', s.id).eq('chosen', true).eq('status', 'ready').maybeSingle(),
+    admin.from('studio_voice_clips').select('slot, text').eq('shot_id', s.id).eq('kind', 'line').eq('status', 'ready'),
+  ]);
+  const readsReady = lines.filter((l) => (clips ?? []).some((c) => c.slot === l.slot && c.text === l.text)).length;
+  return readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: lines.length, readsReady, takePerformedToAudio: (take?.params as { audio?: boolean } | null)?.audio === true });
 }
 const boardShot = (shots: ProdShot[], n: unknown) => { const i = Math.round(Number(n)); return Number.isFinite(i) && i >= 1 && i <= shots.length ? shots[i - 1] : null; };
 
@@ -102,11 +116,19 @@ export async function POST(req: Request) {
       case 'review': {
         const s = boardShot(shots, a.shot);
         if (!s) return fail(`There’s no shot ${a.shot}.`);
-        const action = a.action === 'redo' ? 'redo' : a.action === 'approve' ? 'approve' : null;
-        if (!action) return fail('Approve it or redo it?');
+        const action = a.action === 'redo' ? 'redo' : a.action === 'approve' ? 'approve' : a.action === 'reopen' ? 'reopen' : null;
+        if (!action) return fail('Approve, redo or reopen it?');
         const { error } = await supabase.rpc('studio_review_shot', { p_shot: s.id, p_action: action, p_note: typeof a.note === 'string' ? a.note.slice(0, 300) : '' });
         if (error) return fail(error.message);
         if (action === 'redo') await advanceProduction(e.id).catch(() => ({}));
+        if (action === 'approve') {
+          // Record what the approval covered, so nobody (and no Helix) mistakes a picture approval for a finished scene.
+          const r = await shotReadiness(adminDb(), e.code, s);
+          await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { approved_parts: r, dialogue_open: dialogueOpen(r) } });
+          const open = dialogueOpen(r) ? (r.voice === 'missing' ? ' Its line reads aren’t ready yet.' : ' The take isn’t lip-synced: the read will be mixed in the edit, or reopen it to finish the sync.') : '';
+          return Response.json({ ok: true, shot: a.shot, action, covered: r, say: `Shot ${a.shot} approved${dialogueOpen(r) ? ' (picture only)' : ''}.${open}` });
+        }
+        if (action === 'reopen') return Response.json({ ok: true, shot: a.shot, action, say: `Shot ${a.shot} is back in review.` });
         return Response.json({ ok: true, shot: a.shot, action });
       }
       case 'lock_cast': {

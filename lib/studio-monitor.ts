@@ -47,3 +47,16 @@ export function shotSteps(p: { since: string | null; clips: Job[]; frames: Job[]
 export const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 const STATUS: Record<string, string> = { PENDING: 'queued at Runway', THROTTLED: 'waiting for a Runway slot', RUNNING: 'rendering' };
 export const statusText = (s: Step) => (s.status ? `${STATUS[s.status] ?? s.status.toLowerCase()}${s.progress != null ? ` ${Math.round(s.progress * 100)}%` : ''}` : '');
+
+// What a shot is ready for, so an approval says exactly what it covers. Picture: a picked take (or library screens,
+// or a code card). Voice: every spoken line has a read. Lip-sync: the picked take performed to the reads; otherwise
+// the reads are mixed in the edit (fine for voice-over and cutaways, not for a close-up of someone speaking).
+export type Readiness = { picture: boolean; voice: 'ready' | 'missing' | 'none'; lipsync: 'synced' | 'edit' | 'voiceover' | 'none' };
+export function readiness(p: { tool: string; hasTake: boolean; screens: number; lines: number; readsReady: number; takePerformedToAudio: boolean }): Readiness {
+  const picture = p.tool === 'edit' || p.hasTake || p.screens > 0;
+  const voice = p.lines === 0 ? 'none' : p.readsReady >= p.lines ? 'ready' : 'missing';
+  const lipsync = p.lines === 0 ? 'none' : p.tool === 'capture' ? 'voiceover' : p.takePerformedToAudio ? 'synced' : 'edit';
+  return { picture, voice, lipsync };
+}
+/** Is anything about the dialogue still unfinished? (An approval then covers the picture only.) */
+export const dialogueOpen = (r: Readiness) => r.voice === 'missing' || r.lipsync === 'edit';

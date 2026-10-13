@@ -72,22 +72,23 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
   );
 }
 
-export function ShotReview({ episode, board, stage, draft }: { episode: string; board: number; stage: string; draft?: boolean }) {
+export function ShotReview({ episode, board, stage, draft, pictureOnly }: { episode: string; board: number; stage: string; draft?: boolean; pictureOnly?: boolean }) {
   const router = useRouter();
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (stage !== 'review') return null;
-  const send = async (action: 'approve' | 'redo') => {
+  if (!['review', 'approved', 'draft_ok'].includes(stage)) return null;
+  const send = async (action: 'approve' | 'redo' | 'reopen') => {
     setBusy(true);
     const r = await direct(episode, 'review', { shot: board, action, note: note ?? '' });
     setBusy(false);
-    toast(r.ok ? { ok: action === 'approve' ? (draft ? `Shot ${board} draft approved: it’s ready for its final render.` : `Shot ${board} approved.`) : `Shot ${board} is being redone.`, at: Date.now() } : { err: r.error, at: Date.now() });
+    toast(r.ok ? { ok: action === 'approve' ? (draft ? `Shot ${board} draft approved: it’s ready for its final render.` : r.say ?? `Shot ${board} approved.`) : action === 'reopen' ? `Shot ${board} is back in review.` : `Shot ${board} is being redone.`, at: Date.now() } : { err: r.error, at: Date.now() });
     setNote(null);
     router.refresh();
   };
+  if (stage !== 'review') return <span className="pc-review"><button className="btn small ghost" type="button" disabled={busy} onClick={() => send('reopen')}>Reopen</button></span>;
   return note === null ? (
     <span className="pc-review">
-      <button className="btn small primary" type="button" disabled={busy} onClick={() => send('approve')}>{draft ? 'Approve draft' : 'Approve'}</button>
+      <button className="btn small primary" type="button" disabled={busy} onClick={() => send('approve')} title={pictureOnly ? 'The dialogue isn’t finished: this approves the picture; the card keeps the dialogue flagged.' : undefined}>{draft ? 'Approve draft' : pictureOnly ? 'Approve picture' : 'Approve'}</button>
       <button className="btn small ghost" type="button" disabled={busy} onClick={() => setNote('')}>Redo…</button>
     </span>
   ) : (
