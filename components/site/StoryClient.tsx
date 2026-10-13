@@ -55,12 +55,12 @@ export function StoryClient({ map }: { map: MapData }) {
         const q = gsap.utils.selector(el);
         const c = ctx.conditions ?? {};
 
-        // Hero hand-off: the headline drifts up and fades, the 3D scene recedes, in step with the scroll.
+        // Hero hand-off: the headline drifts up and fades, the trailer recedes, in step with the scroll.
         const hero = document.querySelector('.hero2');
         if (hero && !c.still) {
           gsap.timeline({ scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } })
             .to('.hero2-copy', { y: -80, autoAlpha: 0, ease: 'none' }, 0)
-            .to('.hero-visual', { scale: 0.9, autoAlpha: 0.15, ease: 'none' }, 0);
+            .to('.hero-trailer', { scale: 0.94, autoAlpha: 0.2, ease: 'none' }, 0);
         }
         if (c.still) return;
 

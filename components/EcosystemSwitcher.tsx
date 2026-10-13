@@ -11,10 +11,12 @@ export async function EcosystemSwitcher({ current, slug }: { current: Surface; s
   const v = await getViewer();
   if (!v) return null;
   const supabase = await db();
-  const agencies = v.staff
-    ? ((await supabase.from('tenants').select('slug, name, is_sample').eq('kind', 'agency').order('is_sample').order('name').limit(13)).data ?? [])
-    : v.memberships.map((m) => ({ slug: m.slug, name: m.name, is_sample: m.isSample }));
-  const networks = v.staff ? ((await supabase.from('networks').select('slug, name').order('name')).data ?? []) : v.networks;
+  const [agencies, networks] = v.staff
+    ? await Promise.all([
+        supabase.from('tenants').select('slug, name, is_sample').eq('kind', 'agency').order('is_sample').order('name').limit(13).then((r) => r.data ?? []),
+        supabase.from('networks').select('slug, name').order('name').then((r) => r.data ?? []),
+      ])
+    : [v.memberships.map((m) => ({ slug: m.slug, name: m.name, is_sample: m.isSample })), v.networks];
   const showAgencies = v.staff || agencies.length > 1;
   const showCarriers = v.staff || (v.networks.length > 0 && (agencies.length > 0 || networks.length > 1));
   if (!v.staff && !showAgencies && !showCarriers) return null;

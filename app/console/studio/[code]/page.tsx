@@ -22,7 +22,7 @@ import { defaultDirection } from '@/lib/studio-board';
 import { shotQuote, type ProdShot } from '@/lib/studio-production';
 import { buildTimeline } from '@/lib/studio-timeline';
 import { shotSteps, statusText, STUCK_AFTER, type Job } from '@/lib/studio-monitor';
-import { runwayOrganization, runwayRouters, runwayRouterRequests } from '@/lib/runway';
+import { runwayOrganization, runwayRouters, runwayRouterRequests, shownRouters, shownRouterRequests, shownOrganization } from '@/lib/runway';
 import { getRouters } from '@/lib/studio-runway';
 import { modelName } from '@/lib/studio-monitor';
 import { V2_EPISODES } from '@/lib/studio-board';
@@ -52,6 +52,20 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const supabase = await db();
   const { data: e } = await supabase.from('studio_episodes').select('*, studio_series(name, bible)').eq('code', code).maybeSingle();
   if (!e) notFound();
+  const fire = <T,>(q: PromiseLike<T>) => Promise.resolve(q);
+  const isV2early = V2_EPISODES.has(e.code);
+  const autoEarly = (e.autopilot ?? {}) as { at?: string };
+  const early = {
+    src: fire(supabase.from('studio_sources').select('*').or(`episode_id.eq.${e.id},and(series_id.eq.${e.series_id},route.eq.stitch)`).order('created_at')),
+    sb: shotBudget(e.id),
+    estimate: estimateEpisode(e.id),
+    autoSpent: autoEarly.at ? fire(adminDb().rpc('studio_episode_auto_spent', { p_episode: e.id, p_since: autoEarly.at })) : null,
+    cast: fire(supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id)),
+    qa: fire(supabase.from('studio_qa').select('check_key, category, pass, note, reviewed_at').eq('episode_id', e.id)),
+    forks: fire(supabase.from('studio_sources').select('id, title, remix_allowed, route').eq('route', 'stitch')),
+    boardCast: isV2early ? fire(supabase.from('studio_characters').select('id, code, name, archetype, wardrobe, voice, profile').eq('status', 'active').order('sort')) : null,
+    locks: isV2early ? fire(supabase.from('studio_refs').select('id, character_id').eq('approved', true).eq('slot', 'FACE_FRONT')) : null,
+  };
   const [{ data: shots }, { data: posts }, { data: takeRows }, { data: artRows }] = await Promise.all([
     supabase.from('studio_shots').select('*').eq('episode_id', e.id).order('n'),
     supabase.from('studio_posts').select('*').eq('episode_id', e.id).order('platform'),
@@ -61,7 +75,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const art = (artRows ?? []).filter((a) => a.kind !== 'frame') as Art[];
   const framesFor = (shot: string) => (artRows ?? []).filter((a) => a.kind === 'frame' && a.shot_id === shot).reverse() as unknown as Frame[];
   const contractOf = (s: { contract?: unknown }) => { const c = s.contract as ShotContract | null; return c?.timeline?.length ? c : null; };
-  const { data: srcRows } = await supabase.from('studio_sources').select('*').or(`episode_id.eq.${e.id},and(series_id.eq.${e.series_id},route.eq.stitch)`).order('created_at');
+  const { data: srcRows } = await early.src;
   const allSources = (srcRows ?? []) as unknown as Source[];
   const mine = allSources.filter((s) => (s as unknown as { episode_id: string | null }).episode_id === e.id);
   const remixable = allSources.filter((s) => s.route === 'stitch');
@@ -70,39 +84,51 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
   const costLabel = (tier: string) => `${(videoFor(tier).cents / 100).toFixed(2)} · ${VIDEO_SECONDS}s${tier === 'hero' ? ' · hero' : ''}`;
   // Cast shots still waiting for their first take (a failed take doesn't count), for the one-tap first pass.
   // The shot budget (default 12, set per episode in the pitch) caps how many distinct shots it generates.
-  const sb = await shotBudget(e.id);
+  const sb = await early.sb;
   // SWIS™ autopilot: estimate, what it has spent since it started, and each cast shot's stage.
   const auto = (e.autopilot ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string; done_at?: string };
-  const estimate = await estimateEpisode(e.id);
-  const autoSpent = auto.at ? Number((await adminDb().rpc('studio_episode_auto_spent', { p_episode: e.id, p_since: auto.at })).data ?? 0) : 0;
+  const estimate = await early.estimate;
+  const autoSpent = early.autoSpent ? Number((await early.autoSpent).data ?? 0) : 0;
   const frameRows = (artRows ?? []).filter((a) => a.kind === 'frame') as unknown as { id: string; shot_id: string; role: string; status: string; chosen: boolean; cost_cents: number }[];
   const castShots = (shots ?? []).filter((s) => s.tool === 'veo' && contractOf(s));
   const stageFor = (s: (typeof castShots)[number]) => stageOf(s as never, frameRows, (takeRows ?? []) as never) as Stage;
   const lookWaiting = castShots.filter((s) => stageFor(s) === 'your-look');
   const suggested = Math.ceil((estimate.cents * 1.15) / 100);
   const firstPass = generationConfigured() ? (shots ?? []).filter((s) => s.tool === 'veo' && s.status !== 'approved' && !takesFor(s.id).some((t) => t.status !== 'failed')).map((s) => ({ id: s.id as string, code: (s.shot_code ?? `Shot ${s.n}`) as string, prompt: (s.prompt ?? s.description) as string, takes: s.tier === 'hero' ? (contractOf(s)?.takes ?? 3) : 1, cents: videoFor(s.tier).cents })).slice(0, Math.max(0, sb.budget - sb.used.length)) : [];
-  const { data: castRows } = await supabase.from('studio_characters').select('code, name').eq('series_id', e.series_id);
-  const [{ data: lineClips }, { data: qaRows }] = await Promise.all([
+  const [{ data: castRows }, { data: lineClips }, { data: qaRows }] = await Promise.all([
+    early.cast,
     supabase.from('studio_voice_clips').select('id, shot_id, slot, voice_name, status, error, text, created_at').eq('kind', 'line').in('shot_id', (shots ?? []).map((s) => s.id)).order('created_at', { ascending: false }),
-    supabase.from('studio_qa').select('check_key, category, pass, note, reviewed_at').eq('episode_id', e.id),
+    early.qa,
   ]);
   const acceptance = ((e.studio_series as { bible?: { cast_bible?: { acceptance?: Record<string, string[]> } } } | null)?.bible?.cast_bible?.acceptance) ?? {};
   const checks = (['script', 'visual', 'brand'] as const).flatMap((cat) => (acceptance[cat] ?? []).map((label, i) => ({ key: `${cat}-${i + 1}`, cat, label })));
   const qa = (k: string) => (qaRows ?? []).find((r) => r.check_key === k);
   const passed = checks.filter((c) => qa(c.key)?.pass).length;
   const who = (code: string) => (castRows ?? []).find((c) => c.code === code)?.name.split(' ')[0] ?? code.replace(/\d+$/, '');
-  const { data: forkSources } = await supabase.from('studio_sources').select('id, title, remix_allowed, route').eq('route', 'stitch');
+  const { data: forkSources } = await early.forks;
   const series = e.studio_series as { name: string; bible: { platform_notes?: Record<string, string> } } | null;
   const notes = series?.bible?.platform_notes ?? {};
   const approved = e.status === 'approved' || e.status === 'live';
   const isV2 = V2_EPISODES.has(e.code);
-  const { data: boardCast } = isV2 ? await supabase.from('studio_characters').select('id, code, name, archetype, wardrobe, voice, profile').eq('status', 'active').order('sort') : { data: [] };
-  const { data: lockRows } = isV2 ? await supabase.from('studio_refs').select('id, character_id').eq('approved', true).eq('slot', 'FACE_FRONT') : { data: [] };
+  const { data: boardCast } = early.boardCast ? await early.boardCast : { data: [] };
+  const { data: lockRows } = early.locks ? await early.locks : { data: [] };
   // StudioNext generation state for the board: line reads, keyframes, takes, identity references, designed voices, score.
   let studio: BoardStudioData | null = null;
   if (isV2) {
     const shotIds = (shots ?? []).map((s) => s.id as string);
     const castIds = (boardCast ?? []).map((c) => c.id as string);
+    const runEarly = (e.production ?? {}) as { at?: string };
+    const v2 = {
+      spent: runEarly.at ? fire(adminDb().rpc('studio_production_spent', { p_episode: e.id, p_since: runEarly.at })) : null,
+      frameJobs: fire(supabase.from('studio_art').select('id, shot_id, status, error, created_at, done_at, runway_status, runway_progress, model').eq('episode_id', e.id).eq('kind', 'frame').like('model', 'runway:%')),
+      credits: runwayConfigured() ? shownOrganization().then((o) => o.creditBalance).catch(() => null) : Promise.resolve(null),
+      lib: fire(supabase.from('studio_screens').select('code, device, title, chapter').not('clip_path', 'is', null).order('chapter').order('code')),
+      timeline: buildTimeline(e.id),
+      routerNames: getRouters(adminDb()),
+      configs: runwayConfigured() ? shownRouters().then((r) => ({ ok: true, data: r.data ?? [] }), () => ({ ok: false, data: [] as Awaited<ReturnType<typeof runwayRouters>>['data'] })) : Promise.resolve({ ok: false, data: [] as Awaited<ReturnType<typeof runwayRouters>>['data'] }),
+      routedTakes: fire(adminDb().from('studio_takes').select('model, status, cost_cents, created_at, done_at, params').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300)),
+      routedArt: fire(adminDb().from('studio_art').select('model, status, cost_cents, created_at, done_at, router').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300)),
+    };
     const [{ data: clipRows }, { data: refRows }, { data: boardTakes }] = await Promise.all([
       supabase.from('studio_voice_clips').select('id, shot_id, character_id, kind, slot, status, approved, error, created_at, done_at, runway_status, runway_progress, engine').in('kind', ['line', 'design', 'score']).or(`shot_id.in.(${shotIds.join(',') || '00000000-0000-0000-0000-000000000000'}),character_id.in.(${castIds.join(',') || '00000000-0000-0000-0000-000000000000'})`).order('created_at', { ascending: false }),
       supabase.from('studio_refs').select('id, character_id, slot, status, approved, created_at').in('character_id', castIds.length ? castIds : ['00000000-0000-0000-0000-000000000000']).in('slot', ['CASTING', 'FACE_FRONT']).order('created_at', { ascending: false }),
@@ -148,9 +174,9 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
     const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
-    const spentCents = run.at ? Number((await adminDb().rpc('studio_production_spent', { p_episode: e.id, p_since: run.at })).data ?? 0) : 0;
+    const spentCents = v2.spent ? Number((await v2.spent).data ?? 0) : 0;
     // The Production Monitor: each shot's steps since its current pass started.
-    const { data: frameJobs } = await supabase.from('studio_art').select('id, shot_id, status, error, created_at, done_at, runway_status, runway_progress, model').eq('episode_id', e.id).eq('kind', 'frame').like('model', 'runway:%');
+    const { data: frameJobs } = await v2.frameJobs;
     const now = Date.now();
     let active = 0, left = 0;
     for (const s of shots ?? []) {
@@ -169,11 +195,11 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       }
     }
     void STUCK_AFTER;
-    studio.health = { elapsed: run.at && run.on ? Math.round((now - new Date(run.at).getTime()) / 1000) : 0, left: active ? Math.round(left * Math.ceil(active / 4)) : null, credits: studio.ready ? await runwayOrganization().then((o) => o.creditBalance).catch(() => null) : null, active };
-    const { data: libRows } = await supabase.from('studio_screens').select('code, device, title, chapter').not('clip_path', 'is', null).order('chapter').order('code');
+    studio.health = { elapsed: run.at && run.on ? Math.round((now - new Date(run.at).getTime()) / 1000) : 0, left: active ? Math.round(left * Math.ceil(active / 4)) : null, credits: await v2.credits, active };
+    const { data: libRows } = await v2.lib;
     studio.library = (libRows ?? []).map((r) => ({ key: `${r.code}:${r.device}`, title: r.title as string, device: r.device as string, chapter: r.chapter as string }));
     // The canonical timeline: what a render would contain, and what's still open before the final.
-    { const t = await buildTimeline(e.id); studio.timeline = { total: t.total, problems: t.problems.map((p) => ({ label: p.label, detail: p.detail, kind: p.kind })) }; }
+    { const t = await v2.timeline; studio.timeline = { total: t.total, problems: t.problems.map((p) => ({ label: p.label, detail: p.detail, kind: p.kind })) }; }
     // Estimates for the bar: a quick draft of what isn't made, the final render directly, and finals for approved drafts.
     const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
     const made = ['approved', 'review', 'capture', 'queued', 'reading', 'drawing', 'rendering', 'draft_ok'];
@@ -181,18 +207,17 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     const sumQ = (list: typeof open, pass: 'draft' | 'final') => list.reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList, pass), 0);
     studio.est = { draft: usd(sumQ(open, 'draft')), final: usd(sumQ(open, 'final')), finalDrafts: usd(sumQ((shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage === 'draft_ok'), 'final')) };
     // The Router report: our five routers, how Runway has them tuned, what they picked, and how those picks performed.
-    const routerNames = await getRouters(adminDb());
+    const routerNames = await v2.routerNames;
     const JOBS: [keyof typeof routerNames, string][] = [['hero', 'Hero video · realest'], ['production', 'Production video · fast'], ['draft', 'Quick drafts · fastest'], ['keyframe', 'Keyframes · best images'], ['image_fast', 'Fast images · drafts']];
     let configs: Awaited<ReturnType<typeof runwayRouters>>['data'] = [];
-    if (studio.ready) { try { configs = (await runwayRouters()).data ?? []; studio.routersConnected = true; } catch { studio.routersConnected = false; } }
-    const { data: routedTakes } = await adminDb().from('studio_takes').select('model, status, cost_cents, created_at, done_at, params').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300);
-    const { data: routedArt } = await adminDb().from('studio_art').select('model, status, cost_cents, created_at, done_at, router').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300);
+    { const c = await v2.configs; configs = c.data; studio.routersConnected = c.ok; }
+    const [{ data: routedTakes }, { data: routedArt }] = await Promise.all([v2.routedTakes, v2.routedArt]);
     const routerOfTake = (t: { params: unknown }) => ((t.params as { routing?: { router?: string } } | null)?.routing?.router ?? null);
     studio.routers = await Promise.all(JOBS.map(async ([key, job]) => {
       const slug = routerNames[key];
       const cfg = configs.find((c) => c.slug === slug);
       let recent: { model: string | null; reasonCode: string | null; reason: string | null; status?: string }[] = [];
-      if (cfg) { try { recent = (await runwayRouterRequests(cfg.id, 20)).data ?? []; } catch {} }
+      if (cfg) { try { recent = (await shownRouterRequests(cfg.id, 20)).data ?? []; } catch {} }
       const picks = new Map<string, number>(); for (const r of recent) if (r.model) picks.set(modelName(r.model) ?? r.model, (picks.get(modelName(r.model) ?? r.model) ?? 0) + 1);
       const refused = recent.filter((r) => !r.model);
       // Measured: renders this router made for us (takes record their router; images by the router's job).

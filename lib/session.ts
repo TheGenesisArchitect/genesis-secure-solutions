@@ -22,9 +22,11 @@ export type Viewer = {
 export const getViewer = cache(async (): Promise<Viewer | null> => {
   if (!supabaseConfigured()) return null;
   const supabase = await db();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return null;
-  const uid = auth.user.id;
+  // The signed session token, verified locally (the proxy already refreshed it); RLS checks it again on every query.
+  const { data: auth } = await supabase.auth.getClaims();
+  const claims = auth?.claims;
+  if (!claims?.sub) return null;
+  const uid = claims.sub;
   const [staff, members, nets] = await Promise.all([
     supabase.from('staff').select('role, display_name').eq('user_id', uid).maybeSingle(),
     supabase.from('memberships').select('role, tenants(id, slug, name, is_sample, plan)').eq('user_id', uid),
@@ -33,7 +35,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   type T = { id: string; slug: string; name: string; is_sample: boolean };
   return {
     userId: uid,
-    email: auth.user.email ?? '',
+    email: (claims.email as string | undefined) ?? '',
     staff: staff.data ? { role: staff.data.role as StaffRole, name: staff.data.display_name } : null,
     memberships: (members.data ?? []).flatMap((m) => {
       const t = m.tenants as unknown as (T & { plan: string | null }) | null;

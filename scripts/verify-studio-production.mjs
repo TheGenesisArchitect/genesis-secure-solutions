@@ -323,7 +323,7 @@ try {
   const act = calls.slice(nFd).find((c) => c.path === '/character_performance');
   const ups = calls.slice(nFd).filter((c) => c.path === '/uploads').length;
   const chosen = must(await db.from('studio_takes').select('model, params').eq('shot_id', shotsAll.find((x) => x.n === 100).id).eq('chosen', true).single(), 'chosen');
-  check(ups === 2 && act?.body.model === 'act_two' && act.body.character.type === 'video' && /^runway:\/\//.test(act.body.character.uri) && /^runway:\/\//.test(act.body.reference.uri) && chosen.model === 'runway:act_two' && chosen.params.lipsync === true && (await stages())[10] === 'review', 'Act-Two drives the approved take with the recording; the lip-synced take becomes the scene’s take and it returns to review');
+  check(ups === 2 && act?.body.model === 'act_two' && act.body.character.type === 'video' && /^runway:\/\//.test(act.body.character.uri) && /^runway:\/\//.test(act.body.reference.uri) && chosen.model === 'runway:act_two' && chosen.params.lipsync === true && (await stages())[10] === 'review', `Act-Two drives the approved take with the recording; the lip-synced take becomes the scene’s take and it returns to review (uploads ${ups}, model ${act?.body.model}, chosen ${chosen.model}, lipsync ${chosen.params?.lipsync}, stage ${(await stages())[10]})`);
   await go('/console/studio/gjk-h01');
   const card10b = await ev(`document.querySelector('#shot-100').innerText`);
   check(/✓ Lip-sync/.test(card10b) && !/Not lip-synced/.test(card10b) && /\bApprove\b/.test(card10b) && !/Approve picture/.test(card10b), 'the card now reads ✓ Lip-sync and offers a full Approve');

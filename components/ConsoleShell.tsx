@@ -1,7 +1,7 @@
 // The Enterprise Dashboard frame: staff only, with live counts on the rail, and Ask Helix on every page (Helix Knows).
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { Shell } from './Shell';
+import { Shell, type NavSection } from './Shell';
 import { EcosystemSwitcher } from './EcosystemSwitcher';
 import { EnterpriseHelixDrawer } from './EnterpriseHelix';
 
@@ -10,12 +10,14 @@ const ROLE: Record<string, string> = { admin: 'Platform admin', account_lead: 'A
 export async function ConsoleShell(props: { title: string; crumbs?: { href?: string; label: string }[]; actions?: React.ReactNode; children: React.ReactNode }) {
   const v = await requireStaff();
   const supabase = await db();
-  const [appr, inq, care, notes] = await Promise.all([
-    supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('approver', 'team'),
-    supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new'),
-    supabase.from('care_requests').select('id', { count: 'exact', head: true }).in('status', ['new', 'in_progress']).eq('is_sample', false),
-    supabase.from('helix_notes').select('id', { count: 'exact', head: true }).in('status', ['new', 'drafted', 'failed']),
-  ]);
+  // Not awaited: the rail draws now and each badge fills in when its count arrives.
+  const n = (q: PromiseLike<{ count: number | null }>) => Promise.resolve(q).then((r) => r.count ?? 0, () => 0);
+  const counts = {
+    approvals: n(supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('approver', 'team')),
+    inquiries: n(supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new')),
+    care: n(supabase.from('care_requests').select('id', { count: 'exact', head: true }).in('status', ['new', 'in_progress']).eq('is_sample', false)),
+    notes: n(supabase.from('helix_notes').select('id', { count: 'exact', head: true }).in('status', ['new', 'drafted', 'failed'])),
+  };
   return (
     <Shell
       searchClients
@@ -26,12 +28,22 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
       actions={props.actions}
       who={{ name: v.staff.name, detail: ROLE[v.staff.role] ?? v.staff.role }}
       switcher={<EcosystemSwitcher current="enterprise" />}
-      nav={[
+      nav={consoleNav(v.staff.role, counts)}
+    >
+      {props.children}
+      <EnterpriseHelixDrawer />
+    </Shell>
+  );
+}
+
+/** The console rail (counts optional: the loading frame draws it without them). */
+export function consoleNav(role: string | null, counts?: { approvals?: Promise<number>; inquiries?: Promise<number>; care?: Promise<number>; notes?: Promise<number> }): NavSection[] {
+  return [
         { items: [{ href: '/console', label: 'Overview', exact: true }, { href: '/console/helix/ask', label: 'Ask Helix', icon: 'helix', exact: true }] },
         {
           title: 'Grow',
           items: [
-            { href: '/console/inquiries', label: 'Inquiries', count: inq.count ?? 0 },
+            { href: '/console/inquiries', label: 'Inquiries', count: counts?.inquiries },
             { href: '/console/pipeline', label: 'Pipeline' },
             { href: '/console/clients', label: 'Clients' },
             { href: '/console/campaigns', label: 'Campaigns', icon: 'growth' },
@@ -44,9 +56,9 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
         {
           title: 'Deliver',
           items: [
-            { href: '/console/approvals', label: 'Approval queue', count: appr.count ?? 0 },
-            { href: '/console/care', label: 'Care desk', count: care.count ?? 0 },
-            { href: '/console/helix', label: 'Helix notes', count: notes.count ?? 0 },
+            { href: '/console/approvals', label: 'Approval queue', count: counts?.approvals },
+            { href: '/console/care', label: 'Care desk', count: counts?.care },
+            { href: '/console/helix', label: 'Helix notes', count: counts?.notes },
             { href: '/console/assets', label: 'Asset library' },
           ],
         },
@@ -54,16 +66,11 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
           title: 'Oversee',
           items: [
             { href: '/console/audit', label: 'Audit log' },
-            ...(v.staff.role === 'admin' ? [{ href: '/console/setup', label: 'Domains & email' }] : []),
+            ...(role === 'admin' ? [{ href: '/console/setup', label: 'Domains & email' }] : []),
             { href: '/console/meta', label: 'Meta connector', plain: true },
           ],
         },
-      ]}
-    >
-      {props.children}
-      <EnterpriseHelixDrawer />
-    </Shell>
-  );
+  ];
 }
 
 /** The one-line result banner after a form posts back (?ok= or ?err=). */

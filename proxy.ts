@@ -22,7 +22,8 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await supabase.auth.getUser();
+  // Refreshes an expiring session and verifies the token locally against the project's signing keys.
+  await supabase.auth.getClaims();
   return response;
 }
 

@@ -2,13 +2,15 @@
 // On phones the rail slides in from a checkbox toggle, so it works without client JavaScript. On wider screens
 // it collapses to an icon strip (button or "["), remembered in a cookie the server reads; Ctrl/⌘K jumps anywhere.
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { NavLink } from './NavLink';
 import { Wordmark } from './Wordmark';
 import { Icon, iconFor } from './icons';
 import { RailToggle, CommandBar, type JumpItem } from './RailControls';
 
-export type NavItem = { href: string; label: string; exact?: boolean; count?: number; plain?: boolean; icon?: string };
+/** `count` may be a promise: the rail draws at once and the badge fills in when it resolves. */
+export type NavItem = { href: string; label: string; exact?: boolean; count?: number | Promise<number>; plain?: boolean; icon?: string };
 export type NavSection = { title?: string; items: NavItem[] };
 
 export async function Shell(props: {
@@ -44,7 +46,7 @@ export async function Shell(props: {
         </Link>
         <RailToggle collapsed={collapsed} />
         </div>
-        <div className="rail-switcher">{props.switcher}</div>
+        <div className="rail-switcher"><Suspense fallback={<div className="eco eco-skel" aria-hidden="true" />}>{props.switcher}</Suspense></div>
         <nav className="nav">
           {props.nav.map((s, i) => (
             <div key={i} style={{ display: 'grid', gap: 2 }}>

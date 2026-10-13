@@ -123,3 +123,17 @@ export async function runwayUpload(bytes: Buffer, filename: string, contentType:
 export function runwayActTwo(p: { character: string; reference: string; expressionIntensity?: number; ratio?: string; bodyControl?: boolean }) {
   return call<{ id: string }>('/character_performance', { body: { model: 'act_two', character: { type: 'video', uri: p.character }, reference: { type: 'video', uri: p.reference }, bodyControl: p.bodyControl ?? false, expressionIntensity: p.expressionIntensity ?? 3, ratio: p.ratio ?? '1280:720' } });
 }
+
+const shown = new Map<string, { at: number; p: Promise<unknown> }>();
+function forAMinute<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = shown.get(key);
+  if (hit && Date.now() - hit.at < 60_000) return hit.p as Promise<T>;
+  const p = load();
+  shown.set(key, { at: Date.now(), p });
+  p.catch(() => shown.delete(key));
+  return p;
+}
+/** For display only (the Router report and credit balance): cached for 60 s. */
+export const shownRouters = () => forAMinute('routers', runwayRouters);
+export const shownRouterRequests = (id: string, limit = 20) => forAMinute(`requests:${id}:${limit}`, () => runwayRouterRequests(id, limit));
+export const shownOrganization = () => forAMinute('organization', runwayOrganization);
