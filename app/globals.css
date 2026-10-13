@@ -1128,3 +1128,30 @@ button.chip{cursor:pointer}
   .hero-trailer-scrim{background:linear-gradient(to top,rgba(7,8,11,.98) 0%,rgba(7,8,11,.88) 48%,rgba(7,8,11,.35) 74%,rgba(7,8,11,.6) 100%)}
   .hero-trailer-meta{top:96px;bottom:auto;left:16px;right:16px}
 }
+/* Trailer hero on phones: the whole film as a full-width 16:9 band under the nav (no portrait crop), fading
+   into the page; the headline and actions follow below it */
+@media (max-width:760px){
+  .hero2-film{display:flex;flex-direction:column;align-items:stretch;min-height:auto;padding:0 0 44px}
+  .hero2-film .hero-trailer{position:relative;inset:auto;width:100%;aspect-ratio:16/9;flex:none;margin-bottom:-18px}
+  .hero2-film .hero-trailer-video{transform:none;filter:brightness(.92) saturate(1.06)}
+  .hero2-film .hero-trailer-scrim{background:linear-gradient(to top,#07080b 0%,rgba(7,8,11,.55) 22%,rgba(7,8,11,0) 48%)}
+  .hero2-film .hero-trailer-meta{top:auto;bottom:26px;left:12px;right:12px;gap:8px;justify-content:space-between;flex-wrap:nowrap}
+  .hero2-film .hero-trailer-cap{font-size:9.5px;letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .hero2-film .hero-trailer-sound{padding:7px 11px;font-size:12px;flex:none}
+  .hero2-film .hero2-copy{gap:18px}
+}
+@media (max-width:760px){
+  .hero2-film .hero-trailer{margin-bottom:22px}
+  .hero2-film .hero-trailer-cap{display:none}
+  .hero2-film .hero-trailer-meta{left:auto;right:10px;bottom:10px}
+  .hero2-film .hero-trailer-scrim{background:linear-gradient(to top,#07080b 0%,rgba(7,8,11,.35) 16%,rgba(7,8,11,0) 38%)}
+}
+/* Portrait tablets get the same full-film band (a full-bleed portrait crop cuts the cast out of frame) */
+@media (min-width:761px) and (max-aspect-ratio:1/1){
+  .hero2-film{display:flex;flex-direction:column;align-items:stretch;min-height:auto;padding:0 0 56px}
+  .hero2-film .hero-trailer{position:relative;inset:auto;width:100%;aspect-ratio:16/9;flex:none;margin-bottom:28px}
+  .hero2-film .hero-trailer-video{transform:none;filter:brightness(.92) saturate(1.06)}
+  .hero2-film .hero-trailer-scrim{background:linear-gradient(to top,#07080b 0%,rgba(7,8,11,.35) 16%,rgba(7,8,11,0) 38%)}
+  .hero2-film .hero-trailer-meta{top:auto;bottom:14px;left:auto;right:16px}
+  .hero2-film .scroll-cue{display:none}
+}
