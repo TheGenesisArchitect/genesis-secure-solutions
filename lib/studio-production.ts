@@ -18,10 +18,12 @@ const SEL = 'id, n, tool, tier, timing, description, log, cast_codes, produce, s
 const readOf = (code: string, s: ProdShot) => s.log?.read ?? defaultDirection(code, s.n)?.read ?? '';
 
 /** What producing one shot should cost in a run: one read per line, one keyframe, one take. */
-export function shotQuote(code: string, s: ProdShot, cast: { code: string; name: string }[]) {
-  const lines = s.tool === 'edit' ? 0 : parseRead(readOf(code, s), cast).length;
+export function shotQuote(code: string, s: ProdShot, cast: { code: string; name: string }[], pass: 'draft' | 'final' = 'final') {
+  // A final after an approved draft reuses the draft's line reads.
+  const lines = s.tool === 'edit' || (pass === 'final' && s.produce?.stage === 'draft_ok') ? 0 : parseRead(readOf(code, s), cast).length;
   const eng = engineFor(s.tool, s.tier);
-  return lines * PRICE.lineRead + (eng ? PRICE.keyframe + billedSeconds(s.tier, s.timing) * eng.perSec : 0);
+  if (!eng) return lines * PRICE.lineRead;
+  return lines * PRICE.lineRead + (pass === 'draft' ? PRICE.keyframeFast + billedSeconds(s.tier, s.timing) * PRICE.draftPerSec : PRICE.keyframe + billedSeconds(s.tier, s.timing) * eng.perSec);
 }
 
 /** Board numbering (1…12 in shot order) ⇄ the shots. "all", "3", "4-9", "2, 5, 11". */
@@ -46,14 +48,17 @@ async function activeCast(db: Db) {
 }
 
 /** Price a set of shots (only those with something to make). */
-export async function quote(db: Db, episode: { id: string; code: string }, which: string | null | undefined) {
+export async function quote(db: Db, episode: { id: string; code: string }, which: string | null | undefined, pass: 'draft' | 'final' = 'final') {
   const shots = await episodeShots(db, episode.id);
   const cast = await activeCast(db);
   // "All" means what isn't made yet; a named shot is re-produced unless it's approved.
   const named = !!which && !/^(all|everything)?$/i.test(String(which).trim());
   const made = ['approved', 'review', 'capture', 'queued', 'reading', 'drawing', 'rendering'];
-  const chosen = pickShots(shots, which).filter((s) => s.produce?.stage !== 'approved' && (named || !made.includes(String(s.produce?.stage ?? ''))));
-  const items = chosen.map((s) => ({ board: shots.indexOf(s) + 1, id: s.id, tool: s.tool, cents: shotQuote(episode.code, s, cast) })).filter((x) => x.cents > 0);
+  // "drafts" = the approved drafts, ready for their final render. A draft pass skips shots already drafted.
+  const chosen = String(which ?? '').trim().toLowerCase() === 'drafts'
+    ? shots.filter((s) => s.produce?.stage === 'draft_ok')
+    : pickShots(shots, which).filter((s) => s.produce?.stage !== 'approved' && (named || !made.includes(String(s.produce?.stage ?? ''))) && !(pass === 'draft' && !named && s.produce?.stage === 'draft_ok'));
+  const items = chosen.map((s) => ({ board: shots.indexOf(s) + 1, id: s.id, tool: s.tool, cents: shotQuote(episode.code, s, cast, pass) })).filter((x) => x.cents > 0);
   return { items, cents: items.reduce((a, x) => a + x.cents, 0) };
 }
 
@@ -88,7 +93,8 @@ const busy = (st: string) => st === 'running' || st === 'queued';
  */
 async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string; code: string; name: string }[], since: string): Promise<string> {
   const stage = String(s.produce?.stage ?? '');
-  if (!stage || ['review', 'approved', 'capture', 'blocked'].includes(stage)) return stage || 'idle';
+  if (!stage || ['review', 'approved', 'capture', 'blocked', 'draft_ok'].includes(stage)) return stage || 'idle';
+  const pass = s.produce?.pass === 'draft' ? 'draft' : 'final';
   if (s.tool === 'edit') { await setProduce(db, s, { stage: 'review', note: 'Code card: made in the render.' }); return 'review'; }
   const runStart = String(s.produce?.since ?? since);
   const reserve = autoReserve(db);
@@ -133,7 +139,7 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
     if (ready) { await db.rpc('studio_auto_choose_frame', { p_id: ready.id }); frameReady = true; return; }
     if (frames.some((f) => busy(f.status))) return;
     if (frames.filter((f) => f.status === 'failed').length >= 2) throw new Error('BLOCK:The keyframe keeps failing.');
-    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1), async () => !((await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
+    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1, { pass }), async () => !((await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   };
   try { await Promise.all([lineStep(), frameStep()]); } catch (e) {
     const msg = e instanceof Error ? e.message : '';
@@ -157,7 +163,7 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
   if (takes.some((t) => busy(t.status))) { if (stage !== 'rendering') await setProduce(db, s, { stage: 'rendering' }); return 'rendering'; }
   if (takes.filter((t) => t.status === 'failed' && !/^Cancelled/.test(t.error ?? '')).length >= 2) { await setProduce(db, s, { stage: 'blocked', note: 'The take keeps failing.' }); return 'blocked'; }
   const attempt = takes.filter((t) => t.status === 'failed' && !/^Cancelled/.test(t.error ?? '')).length + 1;
-  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
+  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt, pass }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   await setProduce(db, s, { stage: 'rendering' });
   return 'rendering';
 }

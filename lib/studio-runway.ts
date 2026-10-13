@@ -14,7 +14,7 @@ import path from 'node:path';
 import { get, put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
-import { CREDIT_CENTS, VIDEO_ROUTER, runwayRoutedVideo, runwayConfigured, runwayCustomSpeech, runwayImage, runwaySeedance, runwaySound, runwaySpeech, runwayTask, runwayVideo, runwayVoicePreview, runwayOrganization, type RunwayDoneTask } from '@/lib/runway';
+import { CREDIT_CENTS, runwayRoutedImage, runwayRoutedVideo, runwayConfigured, runwayCustomSpeech, runwayImage, runwaySeedance, runwaySound, runwaySpeech, runwayTask, runwayVideo, runwayVoicePreview, runwayOrganization, type RunwayDoneTask } from '@/lib/runway';
 import { billedSeconds, defaultDirection, engineFor, PRICE } from '@/lib/studio-board';
 
 type Db = ReturnType<typeof adminDb>;
@@ -69,6 +69,15 @@ export async function identityRef(db: Db, characterId: string): Promise<{ id: st
 }
 
 import { parseRead, type Line } from '@/lib/studio-read';
+// ---------- Routers: one Runway Model Router per job, named in Studio settings ----------
+export type Routers = { hero: string; production: string; draft: string; keyframe: string; image_fast: string };
+export const DEFAULT_ROUTERS: Routers = { hero: 'genovus-video-hero', production: 'genovus-video-production', draft: 'genovus-video-draft', keyframe: 'genovus-image-keyframe', image_fast: 'genovus-image-fast' };
+export async function getRouters(db: Db): Promise<Routers> {
+  const { data } = await db.from('studio_budget').select('routers').eq('id', true).maybeSingle();
+  return { ...DEFAULT_ROUTERS, ...((data?.routers as Partial<Routers>) ?? {}) };
+}
+export type Pass = 'draft' | 'final';
+
 export { parseRead, type Line };
 const plain = (t: string) => t.replace(/\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -139,7 +148,8 @@ export async function startLines(reserve: Reserve, shotId: string): Promise<Star
 }
 
 /** Two keyframe candidates for a shot, with the cast's identity references tagged in. */
-export async function startKeyframes(reserve: Reserve, shotId: string, count = 2): Promise<Started> {
+export async function startKeyframes(reserve: Reserve, shotId: string, count = 2, opts: { pass?: Pass } = {}): Promise<Started> {
+  const pass = opts.pass ?? 'final';
   const db = adminDb();
   const s = await loadShot(db, shotId);
   const cast = await activeCast(db);
@@ -153,12 +163,23 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
   const d = directionOf(s);
   const who = refs.map((r) => `@${r.tag} is ${r.name}`).join('; ');
   const prompt = `${who ? who + '. ' : ''}${s.description.replace(/\b(Marcus|Tasha|Julian)\b/g, (n) => `@${n.toLowerCase()}`)}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''} ${LOOK} Keep every person exactly as in their reference: face, skin tone, hair, beard, glasses, build and accessories.`;
+  // Routed image requests don't take @tags, so the routed prompt names each reference image in order.
+  const routedPrompt = `${refs.map((r, i) => `Reference image ${i + 1} is ${r.name}`).join('; ')}${refs.length ? '. ' : ''}${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''} ${LOOK} Keep every person exactly as in their reference image: face, skin tone, hair, beard, glasses, build and accessories.`;
+  const router = (await getRouters(db))[pass === 'draft' ? 'image_fast' : 'keyframe'];
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
-    const id = await reserve({ kind: 'keyframe', shot: s.id, character: null, text: prompt, model: 'gen4_image', cents: ESTIMATE.keyframe, refs: refs.map((r) => r.id) });
+    const id = await reserve({ kind: 'keyframe', shot: s.id, character: null, text: prompt, model: router ? 'router' : 'gen4_image', cents: pass === 'draft' ? PRICE.keyframeFast : ESTIMATE.keyframe, refs: refs.map((r) => r.id) });
+    if (router) {
+      try {
+        const r = await runwayRoutedImage({ router, prompt: routedPrompt, refs: refs.map((x) => x.uri), resolution: pass === 'draft' ? '1k' : '2k' });
+        await db.from('studio_art').update({ status: 'running', task_id: r.id, router, model: `runway:${r.routing?.model ?? 'router'}`, runway_status: 'PENDING', ...(r.routing?.estimatedCost?.credits != null ? { cost_cents: Math.round(r.routing.estimatedCost.credits * CREDIT_CENTS) } : {}), updated_at: now() }).eq('id', id);
+        ids.push(id);
+        continue;
+      } catch (e) { console.warn(`[studio-runway] router ${router} refused keyframe for shot ${s.n}: ${e instanceof Error ? e.message : e}; using gen4_image`); }
+    }
     try {
       const task = await runwayImage({ prompt, ratio: '1920:1080', refs: refs.map((r) => ({ uri: r.uri, tag: r.tag })), seed: Math.floor(Math.random() * 4_000_000_000) });
-      await db.from('studio_art').update({ status: 'running', task_id: task.id, updated_at: now() }).eq('id', id);
+      await db.from('studio_art').update({ status: 'running', task_id: task.id, model: 'runway:gen4_image', runway_status: 'PENDING', updated_at: now() }).eq('id', id);
       ids.push(id);
     } catch (e) { await markFailed(db, 'studio_art', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
   }
@@ -171,8 +192,9 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
  * routing itself is refused, the shot's own engine is called directly. A retry (attempt 2) leaves the audio out,
  * since an audio reference is the input models most often refuse.
  */
-export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number } = {}): Promise<Started> {
+export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number; pass?: Pass } = {}): Promise<Started> {
   const attempt = opts.attempt ?? 1;
+  const pass = opts.pass ?? 'final';
   const db = adminDb();
   const s = await loadShot(db, shotId);
   const eng = engineFor(s.tool, s.tier);
@@ -198,18 +220,19 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   if (eng.model === 'seedance2_5' && attempt < 2) for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
   const seconds = takeSeconds(s.tool, s.tier, s.timing);
   const prompt = `${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''}${audio.length ? ` The characters speak the attached dialogue on camera with natural, accurate lip movement and the delivery of the read.` : ''} ${LOOK} Keep every person exactly as in the references.`;
-  const router = VIDEO_ROUTER();
-  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: router ? 'router' : eng.model, cents: seconds * eng.perSec, params: { method: frameUri ? 'keyframe' : 'references', seconds, attempt, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
+  const routers = await getRouters(db);
+  const router = pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
+  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: router ? 'router' : eng.model, cents: seconds * (pass === 'draft' ? PRICE.draftPerSec : eng.perSec), params: { method: frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
   const seed = Math.floor(Math.random() * 4_000_000_000);
   let routeError: string | null = null;
   if (router) {
     try {
-      const r = await runwayRoutedVideo({ router, prompt, images: frameUri ? [{ uri: frameUri, role: 'first' }] : refs.map((x) => ({ uri: x.uri, role: 'reference' as const })), audioRefs: audio, duration: seconds, audio: audio.length > 0, seed });
+      const r = await runwayRoutedVideo({ router, prompt, images: frameUri ? [{ uri: frameUri, role: 'first' }] : refs.map((x) => ({ uri: x.uri, role: 'reference' as const })), audioRefs: audio, duration: seconds, audio: audio.length > 0, seed, resolution: pass === 'draft' ? '720p' : '1080p' });
       const { data: cur } = await db.from('studio_takes').select('params').eq('id', id).single();
       await db.from('studio_takes').update({ status: 'running', operation: r.id, model: `runway:${r.routing?.model ?? 'router'}`, runway_status: 'PENDING',
         ...(r.routing?.estimatedCost?.credits != null ? { cost_cents: Math.round(r.routing.estimatedCost.credits * CREDIT_CENTS) } : {}),
         params: { ...((cur?.params as object) ?? {}), routing: { router, model: r.routing?.model ?? null, provider: r.routing?.provider ?? null, credits: r.routing?.estimatedCost?.credits ?? null, capacity_fallback: Boolean(r.routing?.capacityFallback) } }, updated_at: now() }).eq('id', id);
-      return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${r.routing?.model ?? 'the routed model'}… usually 1–4 minutes.` };
+      return { ok: true, ids: [id], note: `Rendering a ${seconds}s ${pass === 'draft' ? 'draft' : 'take'} on ${r.routing?.model ?? 'the routed model'}…` };
     } catch (e) {
       routeError = e instanceof Error ? e.message : String(e);
       console.warn(`[studio-runway] router ${router} refused shot ${s.n}: ${routeError}; calling ${eng.model} directly`);

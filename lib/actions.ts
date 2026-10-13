@@ -477,6 +477,13 @@ export async function studioUpdateShotLog(_: ActionResult, f: FormData) {
   return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Shot log saved.');
 }
 
+/** StudioNext: the Runway Model Router names, one per job. */
+export async function studioSetRouters(_: ActionResult, f: FormData) {
+  const r: Record<string, string> = {};
+  for (const k of ['hero', 'production', 'draft', 'keyframe', 'image_fast']) if (f.has(k)) r[k] = str(f, k, 64).toLowerCase();
+  return call('studio_set_routers', { p_routers: r }, 'Routers saved: the next renders use them.');
+}
+
 /** StudioNext: the line read that goes into the edit and guides the take. */
 export async function studioChooseClip(_: ActionResult, f: FormData) {
   return call('studio_choose_clip', { p_id: str(f, 'id', 64) }, 'Read picked: the next take performs to it.');

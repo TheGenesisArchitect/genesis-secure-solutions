@@ -21,7 +21,9 @@ import { runwayConfigured } from '@/lib/runway';
 import { defaultDirection } from '@/lib/studio-board';
 import { shotQuote, type ProdShot } from '@/lib/studio-production';
 import { shotSteps, statusText, STUCK_AFTER, type Job } from '@/lib/studio-monitor';
-import { runwayOrganization } from '@/lib/runway';
+import { runwayOrganization, runwayRouters, runwayRouterRequests } from '@/lib/runway';
+import { getRouters } from '@/lib/studio-runway';
+import { modelName } from '@/lib/studio-monitor';
 import { V2_EPISODES } from '@/lib/studio-board';
 
 export const dynamic = 'force-dynamic';
@@ -136,6 +138,9 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       run: { on: false, spent: '$0.00', ceiling: '$0.00', paused_reason: null },
       monitor: new Map(),
       health: { elapsed: 0, left: null, credits: null, active: 0 },
+      est: { draft: '$0.00', final: '$0.00', finalDrafts: '$0.00' },
+      routers: [],
+      routersConnected: false,
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
     const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
@@ -161,6 +166,46 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     }
     void STUCK_AFTER;
     studio.health = { elapsed: run.at && run.on ? Math.round((now - new Date(run.at).getTime()) / 1000) : 0, left: active ? Math.round(left * Math.ceil(active / 4)) : null, credits: studio.ready ? await runwayOrganization().then((o) => o.creditBalance).catch(() => null) : null, active };
+    // Estimates for the bar: a quick draft of what isn't made, the final render directly, and finals for approved drafts.
+    const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+    const made = ['approved', 'review', 'capture', 'queued', 'reading', 'drawing', 'rendering', 'draft_ok'];
+    const open = (shots ?? []).filter((s) => !made.includes(String((s.produce as { stage?: string } | null)?.stage ?? '')));
+    const sumQ = (list: typeof open, pass: 'draft' | 'final') => list.reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList, pass), 0);
+    studio.est = { draft: usd(sumQ(open, 'draft')), final: usd(sumQ(open, 'final')), finalDrafts: usd(sumQ((shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage === 'draft_ok'), 'final')) };
+    // The Router report: our five routers, how Runway has them tuned, what they picked, and how those picks performed.
+    const routerNames = await getRouters(adminDb());
+    const JOBS: [keyof typeof routerNames, string][] = [['hero', 'Hero video · realest'], ['production', 'Production video · fast'], ['draft', 'Quick drafts · fastest'], ['keyframe', 'Keyframes · best images'], ['image_fast', 'Fast images · drafts']];
+    let configs: Awaited<ReturnType<typeof runwayRouters>>['data'] = [];
+    if (studio.ready) { try { configs = (await runwayRouters()).data ?? []; studio.routersConnected = true; } catch { studio.routersConnected = false; } }
+    const { data: routedTakes } = await adminDb().from('studio_takes').select('model, status, cost_cents, created_at, done_at, params').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300);
+    const { data: routedArt } = await adminDb().from('studio_art').select('model, status, cost_cents, created_at, done_at, router').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300);
+    const routerOfTake = (t: { params: unknown }) => ((t.params as { routing?: { router?: string } } | null)?.routing?.router ?? null);
+    studio.routers = await Promise.all(JOBS.map(async ([key, job]) => {
+      const slug = routerNames[key];
+      const cfg = configs.find((c) => c.slug === slug);
+      let recent: { model: string | null; reasonCode: string | null; reason: string | null; status?: string }[] = [];
+      if (cfg) { try { recent = (await runwayRouterRequests(cfg.id, 20)).data ?? []; } catch {} }
+      const picks = new Map<string, number>(); for (const r of recent) if (r.model) picks.set(modelName(r.model) ?? r.model, (picks.get(modelName(r.model) ?? r.model) ?? 0) + 1);
+      const refused = recent.filter((r) => !r.model);
+      // Measured: renders this router made for us (takes record their router; images by the router's job).
+      const mine = key === 'keyframe' || key === 'image_fast'
+        ? (routedArt ?? []).filter((a) => a.router === slug)
+        : (routedTakes ?? []).filter((t) => routerOfTake(t) === slug);
+      const byModel = new Map<string, { renders: number; secs: number[]; failed: number; cents: number[] }>();
+      for (const m of mine) {
+        const k = modelName(m.model) ?? String(m.model);
+        const b = byModel.get(k) ?? { renders: 0, secs: [], failed: 0, cents: [] };
+        b.renders++; if (m.status === 'failed') b.failed++;
+        if (m.done_at && m.status === 'ready') b.secs.push((new Date(m.done_at as string).getTime() - new Date(m.created_at as string).getTime()) / 1000);
+        if (m.status === 'ready') b.cents.push(Number(m.cost_cents ?? 0));
+        byModel.set(k, b);
+      }
+      return {
+        key, job, slug, found: Boolean(cfg), optimizeFor: cfg?.settings?.optimizeFor ?? null, models: cfg?.settings?.models?.ids ?? null, capacityFallback: cfg?.settings?.fallback?.onCapacity ?? null,
+        picks: [...picks.entries()].map(([model, n]) => ({ model, n })).sort((a, b) => b.n - a.n), recent: recent.length, refused: refused.length, reasons: refused.map((r) => r.reason ?? r.reasonCode ?? '').filter(Boolean),
+        measured: [...byModel.entries()].map(([model, b]) => ({ model, renders: b.renders, avgSecs: b.secs.length ? b.secs.reduce((x, y) => x + y, 0) / b.secs.length : null, failRate: b.renders ? b.failed / b.renders : 0, avgCents: b.cents.length ? b.cents.reduce((x, y) => x + y, 0) / b.cents.length : null })),
+      };
+    }));
     studio.run = { on: Boolean(run.on), spent: `$${(spentCents / 100).toFixed(2)}`, ceiling: `$${((run.ceiling_cents ?? 0) / 100).toFixed(2)}`, paused_reason: run.paused_reason ?? null };
   }
   return (

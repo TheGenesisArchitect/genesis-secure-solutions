@@ -11,6 +11,7 @@ import { billedSeconds, defaultDirection, engineFor, PRICE, shotCast, shotCost, 
 import { CastStudio, ScoreStudio, ShotStudio, type BoardLine, type CaptureRecipe, type CastIdentity, type CastVoice } from '@/components/studio/BoardStudio';
 import { ProductionBar, ShotMonitor, ShotReview, type MonitorStep, type RunHealth, type RunState } from '@/components/studio/ProductionControls';
 import { PlayButton, ScenePlayer, type Clip } from '@/components/studio/ScenePlayer';
+import { RouterReport, type RouterRow } from '@/components/studio/RouterReport';
 
 type Shot = { capture?: CaptureRecipe | null; produce?: Record<string, string | number | null> | null; id: string; n: number; shot_code: string | null; timing: string | null; description: string; dialogue: string | null; tool: string; tier: string | null; status: string; beat: number | null; shot_kind: string | null; log: Record<string, string> | null };
 type Character = { id: string; code: string; name: string; archetype: string; wardrobe: string | null; voice: { direction?: string; timing?: string; runway_voice?: string; runway_preset?: string; runway_engine?: string } | null; profile: Record<string, string> | null };
@@ -26,6 +27,9 @@ export type BoardStudioData = {
   runCents: number;
   monitor: Map<string, MonitorStep[]>;
   health: RunHealth;
+  est: { draft: string; final: string; finalDrafts: string };
+  routers: RouterRow[];
+  routersConnected: boolean;
 };
 type Take = { id: string; shot_id: string; status: string; chosen: boolean | null };
 type Props = {
@@ -37,7 +41,7 @@ const KIND: Record<string, string> = { teaser: 'Trailer', episode: 'Episode', pr
 const SHEET: Record<string, string> = { MARCUS01: 'marcus', TASHA01: 'tasha', JULIAN01: 'julian' };
 const STAGE: Record<string, [string, string]> = {
   queued: ['Queued', 'run'], reading: ['Reading lines…', 'run'], drawing: ['Drawing keyframe…', 'run'], rendering: ['Rendering take…', 'run'],
-  review: ['Ready for review', 'review'], approved: ['Approved', 'ok'], capture: ['Phone capture', 'cap'], blocked: ['Blocked', 'stop'],
+  review: ['Ready for review', 'review'], approved: ['Approved', 'ok'], draft_ok: ['Draft approved', 'ok'], capture: ['Phone capture', 'cap'], blocked: ['Blocked', 'stop'],
 };
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 /** "[warm] Got questions?" → the bracketed direction tags styled. */
@@ -58,12 +62,12 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
   const engines = [...new Set(shots.map((s) => engineFor(s.tool, s.tier)?.label).filter(Boolean))];
   const stageOf = (s: Shot) => String(s.produce?.stage ?? (s.status === 'approved' ? 'approved' : ''));
   const count = (...k: string[]) => shots.filter((s) => k.includes(stageOf(s))).length;
-  const counts = { review: count('review'), approved: count('approved'), active: count('queued', 'reading', 'drawing', 'rendering'), capture: count('capture'), blocked: count('blocked'), total: shots.length };
+  const counts = { review: count('review'), approved: count('approved'), active: count('queued', 'reading', 'drawing', 'rendering'), capture: count('capture'), blocked: count('blocked'), total: shots.length, draftOk: count('draft_ok') };
   const locked = (c: Character) => ['locked', 'casting'].includes(studio.identity.get(c.id)?.state ?? '');
   const frameOf = (s: Shot) => (studio.frames.get(s.id) ?? []).find((f) => f.chosen && f.status === 'ready');
   const sceneOf = (s: Shot): Clip | null => {
     const t = chosen(s.id);
-    if (!t || !['review', 'approved'].includes(stageOf(s)) || (studio.takes.get(s.id) ?? []).find((x) => x.id === t.id)?.still) return null;
+    if (!t || !['review', 'approved', 'draft_ok'].includes(stageOf(s)) || (studio.takes.get(s.id) ?? []).find((x) => x.id === t.id)?.still) return null;
     const f = frameOf(s);
     return { src: `/api/studio/media/take/${t.id}`, title: `${shots.indexOf(s) + 1} · ${s.description.split(':')[0]}`, poster: f ? `/api/studio/media/frame/${f.id}` : undefined };
   };
@@ -89,7 +93,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
           </span>
         </div>
       </section>
-      <ProductionBar episode={episode.code} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} health={studio.health} blocked={shots.map((s, i) => ({ board: i + 1, s })).filter((x) => stageOf(x.s) === 'blocked').map((x) => ({ board: x.board, note: String(x.s.produce?.note ?? x.s.produce?.last_error ?? 'Blocked') }))} />
+      <ProductionBar episode={episode.code} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} health={studio.health} est={studio.est} blocked={shots.map((s, i) => ({ board: i + 1, s })).filter((x) => stageOf(x.s) === 'blocked').map((x) => ({ board: x.board, note: String(x.s.produce?.note ?? x.s.produce?.last_error ?? 'Blocked') }))} />
 
       <div className="pb-layout">
         <aside className="pb-col">
@@ -143,7 +147,9 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
               const keyframe = (studio.frames.get(s.id) ?? []).find((f) => f.chosen && f.status === 'ready');
               const shotLines = studio.lines.get(s.id) ?? [];
               const stage = stageOf(s);
-              const [stageLabel, stageKind] = STAGE[stage] ?? ['', ''];
+              const isDraft = s.produce?.pass === 'draft';
+              const [stageLabel0, stageKind] = STAGE[stage] ?? ['', ''];
+              const stageLabel = isDraft && stage === 'review' ? 'Draft ready for review' : isDraft && ['queued', 'reading', 'drawing', 'rendering'].includes(stage) ? `Draft · ${stageLabel0}` : stageLabel0;
               const note = (s.produce?.note ?? s.produce?.last_error ?? null) as string | null;
               return (
                 <article key={s.id} className={'pb-card2' + (stage === 'review' ? ' is-review' : '')} id={`shot-${s.n}`}>
@@ -166,7 +172,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     <ShotMonitor episode={episode.code} board={i + 1} steps={studio.monitor.get(s.id) ?? []} stage={stage} note={note} />
                     <div className="pb-foot">
                       <span className="pb-eng2">{eng?.label ?? (s.tool === 'capture' ? 'Phone capture' : s.tool === 'edit' ? 'Code card' : s.tool)} · {money(costs[i].total)}</span>
-                      <ShotReview episode={episode.code} board={i + 1} stage={stage} />
+                      <ShotReview episode={episode.code} board={i + 1} stage={stage} draft={isDraft} />
                     </div>
                     <details className="pb-more">
                       <summary>{s.tool === 'capture' ? 'Capture steps, voice-over & direction' : 'Fine-tune: steps & direction'}</summary>
@@ -208,6 +214,8 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
         </div>
         <p className="pb-note">{episode.final_blob ? <a href={`/api/studio/media/final/${episode.id}`}>Play the final render</a> : 'The in-platform render (16:9 and 9:16, captions, score and dialogue mix) arrives with the render worker; until then the final cut uploads in the engine room below.'}</p>
       </div>
+
+      <RouterReport rows={studio.routers} connected={studio.routersConnected} />
 
       <div className="pb-panel">
         <div className="pb-lab"><b>Original score</b><span>Cue sheet</span></div>

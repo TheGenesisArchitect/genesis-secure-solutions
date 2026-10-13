@@ -27,7 +27,7 @@ if (await up()) throw new Error(`port ${PORT} is busy`);
 const calls = []; let n = 0; const seen = new Map(); let balance = 100000;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const FILES = { mp3: Buffer.from('ID3stand-in-audio'), png: PNG, mp4: Buffer.from('stand-in-video') };
-const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100] };
+const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8] };
 // Test controls: make the next N video takes fail, or make takes hang (stay running).
 const ctl = { failTakes: 0, hang: false, cancelled: [] };
 const mock = http.createServer((req, res) => {
@@ -36,12 +36,17 @@ const mock = http.createServer((req, res) => {
     const u = req.url.replace(/^\/v1/, '');
     if (u.startsWith('/files/')) { const ext = u.split('.').pop(); res.writeHead(200); return res.end(FILES[ext] ?? PNG); }
     if (req.method === 'GET' && u === '/organization') return send({ creditBalance: balance });
+    if (req.method === 'GET' && u.startsWith('/routers?')) return send({ data: [{ id: 'r-hero', slug: 'genovus-video-hero', name: 'Hero', settings: { optimizeFor: 'quality', fallback: { onCapacity: true }, models: { mode: 'allowlist_only', ids: ['seedance2_5', 'veo3.1', 'gen4.5'] } } }, { id: 'r-prod', slug: 'genovus-video-production', name: 'Production', settings: { optimizeFor: 'latency', fallback: { onCapacity: true } } }, { id: 'r-draft', slug: 'genovus-video-draft', name: 'Draft', settings: { optimizeFor: 'cost' } }, { id: 'r-key', slug: 'genovus-image-keyframe', name: 'Keyframe', settings: { optimizeFor: 'quality' } }, { id: 'r-fast', slug: 'genovus-image-fast', name: 'Fast', settings: { optimizeFor: 'latency' } }] });
+    if (req.method === 'GET' && /^\/routers\/[^/]+\/requests/.test(u)) { const slug = { 'r-hero': 'genovus-video-hero', 'r-prod': 'genovus-video-production', 'r-draft': 'genovus-video-draft', 'r-key': 'genovus-image-keyframe', 'r-fast': 'genovus-image-fast' }[u.split('/')[2]]; return send({ data: calls.filter((c) => c.body.configId === slug).map((c, i) => ({ id: 'q' + i, createdAt: new Date().toISOString(), model: slug.includes('draft') ? 'gen4_turbo' : slug.includes('image') ? 'gen4_image' : 'seedance2_5', reasonCode: 'best_quality', reason: 'test', estimatedCredits: 8 })) }); }
     if (req.method === 'POST' && u === '/voices/preview') { calls.push({ path: u, body: JSON.parse(body || '{}') }); balance -= 6; return send({ url: `http://localhost:${MOCK}/files/design.mp3`, durationSecs: 6 }); }
     if (req.method === 'POST' && KIND[u]) {
       const id = `task-${++n}`; const video = u === '/generate/video' || u === '/image_to_video';
       const fail = video && ctl.failTakes > 0 ? (ctl.failTakes--, true) : false;
       seen.set(id, { k: KIND[u], polls: 0, fail, hang: video && ctl.hang }); calls.push({ path: u, body: JSON.parse(body || '{}') });
-      return send(u === '/generate/video' ? { id, routing: { configId: 'genovus-video-router', model: 'seedance2_5', provider: 'bytedance', estimatedCost: { credits: 100 } } } : { id });
+      const b = calls.at(-1).body;
+      if (u === '/generate/video') return send({ id, routing: { configId: b.configId, model: b.configId === 'genovus-video-draft' ? 'gen4_turbo' : 'seedance2_5', provider: 'runway', estimatedCost: { credits: b.configId === 'genovus-video-draft' ? 25 : 100 } } });
+      if (u === '/generate/image') return send({ id, routing: { configId: b.configId, model: b.configId === 'genovus-image-fast' ? 'gen4_image_turbo' : 'gen4_image', provider: 'runway', estimatedCost: { credits: b.configId === 'genovus-image-fast' ? 2 : 8 } } });
+      return send({ id });
     }
     if (req.method === 'DELETE' && u.startsWith('/tasks/')) { ctl.cancelled.push(u.slice(7)); const s = seen.get(u.slice(7)); if (s) s.cancelled = true; res.writeHead(204); return res.end(); }
     const t = u.match(/^\/tasks\/(.+)$/);
@@ -113,8 +118,8 @@ try {
   // 3. Keyframes: Gen-4 Image with Tasha's locked reference tagged in.
   await click(S110, '/Draw 2 keyframes/');
   await waitFor(async () => (await ev(`document.querySelectorAll('#shot-110 .bs-frame img').length`)) === 2);
-  const img = calls.filter((c) => c.path === '/text_to_image');
-  check(img.length === 2 && img[0].body.model === 'gen4_image' && img[0].body.referenceImages?.[0]?.tag === 'tasha' && /^data:image\//.test(img[0].body.referenceImages[0].uri) && /@tasha/.test(img[0].body.promptText), 'keyframes are drawn with @tasha’s locked reference attached');
+  const img = calls.filter((c) => c.path === '/generate/image');
+  check(img.length === 2 && img[0].body.configId === 'genovus-image-keyframe' && /^data:image\//.test(img[0].body.input.referenceImages?.[0]?.uri ?? '') && /Reference image 1 is Tasha/.test(img[0].body.input.promptText), 'keyframes go through genovus-image-keyframe with Tasha’s locked reference attached');
   await ev(`document.querySelector('#shot-110 .bs-frame').click()`); await sleep(2000);
   await go('/console/studio/gjk-h01');
   check(await ev(`!!document.querySelector('#shot-110 .bs-frame.on')`), 'a keyframe is picked as the start frame');
@@ -123,7 +128,7 @@ try {
   await click(S110, '/Render 5s take/');
   await waitFor(async () => ev(`!!document.querySelector('#shot-110 .bs-take video')`), 60000);
   const vid = calls.filter((c) => c.path === '/generate/video').at(-1);
-  check(vid?.body.configId === 'genovus-video-router' && vid.body.input.referenceImages?.[0]?.role === 'first' && vid.body.input.referenceAudio?.length === 1 && vid.body.input.duration === 5 && vid.body.input.resolution === '1080p' && vid.body.input.aspectRatio === '16:9', 'the take goes through genovus-video-router from the start frame, 5 s at 1080p, performing to the picked read');
+  check(vid?.body.configId === 'genovus-video-hero' && vid.body.input.referenceImages?.[0]?.role === 'first' && vid.body.input.referenceAudio?.length === 1 && vid.body.input.duration === 5 && vid.body.input.resolution === '1080p' && vid.body.input.aspectRatio === '16:9', 'the hero take goes through genovus-video-hero from the start frame, 5 s at 1080p, performing to the picked read');
   const take = must(await db.from('studio_takes').select('id, status, cost_cents, model').eq('shot_id', must(await db.from('studio_shots').select('id, studio_episodes!inner(code)').eq('studio_episodes.code', 'gjk-h01').eq('n', 110).single(), 's110').id).gte('created_at', startedAt).maybeSingle(), 'take') ?? {};
   created.takes.push(take.id);
   check(take.status === 'ready' && take.cost_cents === 100 && take.model === 'runway:seedance2_5', 'the take records the model the router picked and its final cost ($1.00)');

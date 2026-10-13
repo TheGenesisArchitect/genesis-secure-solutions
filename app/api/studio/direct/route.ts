@@ -80,12 +80,13 @@ export async function POST(req: Request) {
         return error ? fail(error.message) : Response.json({ ok: true, shot: a.shot, changed: Object.keys(log) });
       }
       case 'plan': {
-        const q = await quote(adminDb(), e, typeof a.shots === 'string' ? a.shots : 'all');
+        const pass = a.pass === 'draft' ? 'draft' : 'final';
+        const q = await quote(adminDb(), e, typeof a.shots === 'string' ? a.shots : 'all', pass);
         if (!q.items.length) return fail('Nothing to produce in those shots: they’re approved already or have nothing to generate.');
-        const { data: id, error } = await supabase.rpc('studio_quote_production', { p_episode: e.id, p_shots: q.items.map((x) => x.id), p_cents: q.cents, p_detail: { items: q.items } });
+        const { data: id, error } = await supabase.rpc('studio_quote_production', { p_episode: e.id, p_shots: q.items.map((x) => x.id), p_cents: q.cents, p_detail: { items: q.items, pass } });
         if (error) return fail(error.message);
-        return Response.json({ ok: true, quote_id: id, total: money(q.cents), ceiling: money(Math.ceil(q.cents * 1.25)), shots: q.items.map((x) => x.board), expires_in_minutes: 15,
-          say: `Producing shots ${q.items.map((x) => x.board).join(', ')} is about ${money(q.cents)} (ceiling ${money(Math.ceil(q.cents * 1.25))}). Shall I go ahead?` });
+        return Response.json({ ok: true, quote_id: id, pass, total: money(q.cents), ceiling: money(Math.ceil(q.cents * 1.25)), shots: q.items.map((x) => x.board), expires_in_minutes: 15,
+          say: `${pass === 'draft' ? 'A quick draft of' : 'Producing'} shots ${q.items.map((x) => x.board).join(', ')} is about ${money(q.cents)} (ceiling ${money(Math.ceil(q.cents * 1.25))}). Shall I go ahead?` });
       }
       case 'approve': {
         if (typeof a.quote_id !== 'string') return fail('Get a quote first, read it back, and approve that quote.');

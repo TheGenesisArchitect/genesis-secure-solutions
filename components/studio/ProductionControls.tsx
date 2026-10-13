@@ -11,12 +11,13 @@ const direct = async (episode: string, tool: string, args: Record<string, unknow
   fetch('/api/studio/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ episode, tool, args }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The Studio didn’t answer.' }));
 
 export type RunState = { on: boolean; spent: string; ceiling: string; paused_reason: string | null };
-export type Counts = { review: number; approved: number; active: number; capture: number; blocked: number; total: number };
+export type Counts = { review: number; approved: number; active: number; capture: number; blocked: number; total: number; draftOk?: number };
+export type Estimates = { draft: string; final: string; finalDrafts: string };
 
-export function ProductionBar({ episode, run, counts, estimate, needsLock, ready, blocked = [], health }: { episode: string; run: RunState; counts: Counts; estimate: string; needsLock: boolean; ready: boolean; blocked?: { board: number; note: string }[]; health?: RunHealth }) {
+export function ProductionBar({ episode, run, counts, estimate, needsLock, ready, blocked = [], health, est }: { episode: string; run: RunState; counts: Counts; estimate: string; needsLock: boolean; ready: boolean; blocked?: { board: number; note: string }[]; health?: RunHealth; est?: Estimates }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [q, setQ] = useState<{ quote_id: string; total: string; ceiling: string; shots: number[] } | null>(null);
+  const [q, setQ] = useState<{ quote_id: string; total: string; ceiling: string; shots: number[]; pass?: string } | null>(null);
   // Live while a run is going: advance it and refresh the board.
   useEffect(() => {
     if (!run.on) return;
@@ -33,7 +34,7 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
     router.refresh();
     return r;
   };
-  const plan = async () => { const r = await go('plan', { shots: 'all' }); if (r.ok) setQ(r); };
+  const plan = async (pass: 'draft' | 'final' = 'final', shots = 'all') => { const r = await go('plan', { shots, pass }); if (r.ok) setQ(r); };
   const raise = async () => { const r = await go('raise_ceiling'); if (r.ok) setQ(r); };
   const atCeiling = /ceiling/i.test(run.paused_reason ?? '');
   const approve = async () => { if (!q) return; const r = await go('approve', { quote_id: q.quote_id }); if (r.ok) { setQ(null); toast({ ok: r.say, at: Date.now() }); } };
@@ -45,7 +46,7 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
         <span className={'pc-dot' + (run.on ? ' on' : '')} aria-hidden="true" />
         <span>
           <b>{run.on ? (counts.active ? 'In production' : 'Waiting on review') : run.paused_reason ? 'Paused' : counts.approved || counts.review ? 'Run finished' : 'Ready to produce'}</b>
-          <small>{counts.approved} approved · {counts.review} to review · {counts.active} in production{counts.capture ? ` · ${counts.capture} phone capture` : ''}{counts.blocked ? ` · ${counts.blocked} blocked` : ''}{run.on || run.paused_reason ? ` · ${run.spent} of ${run.ceiling}` : ''}</small>
+          <small>{counts.approved} approved{counts.draftOk ? ` · ${counts.draftOk} drafts approved` : ''} · {counts.review} to review · {counts.active} in production{counts.capture ? ` · ${counts.capture} phone capture` : ''}{counts.blocked ? ` · ${counts.blocked} blocked` : ''}{run.on || run.paused_reason ? ` · ${run.spent} of ${run.ceiling}` : ''}</small>
           {run.paused_reason ? <small className="pc-warn">{run.paused_reason}</small> : null}
           {health && (run.on || health.active) ? <RunHealthLine h={health} /> : null}
         </span>
@@ -56,13 +57,14 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
         {needsLock && !blocked.length ? <button className="btn small" type="button" disabled={busy} onClick={() => go('lock_cast').then((r) => r.ok && toast({ ok: r.say, at: Date.now() }))}>Lock the cast</button> : null}
         {q ? (
           <span className="pc-confirm">
-            <span>Shots {q.shots.join(', ')} · <b>{q.total}</b> <small>(ceiling {q.ceiling})</small></span>
+            <span>{(q as { pass?: string }).pass === 'draft' ? 'Quick draft of shots' : 'Final render of shots'} {q.shots.join(', ')} · <b>{q.total}</b> <small>(ceiling {q.ceiling})</small></span>
             <button className="btn small primary" type="button" disabled={busy} onClick={approve}>Approve {q.total}</button>
             <button className="btn small ghost" type="button" onClick={() => setQ(null)}>Cancel</button>
           </span>
         ) : atCeiling ? <button className="btn small primary" type="button" disabled={busy} onClick={raise}>Approve more to finish</button>
-          : run.on ? <button className="btn small ghost" type="button" disabled={busy} onClick={() => go('pause')}>Pause</button>
-          : <button className="btn small primary" type="button" disabled={busy || !ready} onClick={plan}>Produce the episode · ~{estimate}</button>}
+          : run.on && !counts.draftOk ? <button className="btn small ghost" type="button" disabled={busy} onClick={() => go('pause')}>Pause</button>
+          : counts.draftOk ? <><button className="btn small primary" type="button" disabled={busy || !ready} onClick={() => plan('final', 'drafts')}>Render final · {counts.draftOk} approved draft{counts.draftOk === 1 ? '' : 's'} · ~{est?.finalDrafts ?? estimate}</button><button className="btn small ghost" type="button" disabled={busy || !ready} onClick={() => plan('draft')}>Draft the rest</button></>
+          : <><button className="btn small primary" type="button" disabled={busy || !ready} onClick={() => plan('draft')}>Quick draft the episode · ~{est?.draft ?? estimate}</button><button className="btn small ghost" type="button" disabled={busy || !ready} onClick={() => plan('final')}>Final quality · ~{est?.final ?? estimate}</button></>}
       </div>
       {blocked.length ? <p className="pc-blocked">⚠ {blocked.map((b) => `Shot ${b.board}: ${b.note}`).join(' · ')}</p> : null}
       <p className="pc-voice">🎙 Hands-free: open <b>Ask Helix</b> and say <i>“Produce the trailer”</i>, <i>“Approve shot 4”</i> or <i>“Redo shot 11, slower turn”</i>. Helix prices it, asks once, and does the rest.</p>
@@ -70,7 +72,7 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
   );
 }
 
-export function ShotReview({ episode, board, stage }: { episode: string; board: number; stage: string }) {
+export function ShotReview({ episode, board, stage, draft }: { episode: string; board: number; stage: string; draft?: boolean }) {
   const router = useRouter();
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,13 +81,13 @@ export function ShotReview({ episode, board, stage }: { episode: string; board: 
     setBusy(true);
     const r = await direct(episode, 'review', { shot: board, action, note: note ?? '' });
     setBusy(false);
-    toast(r.ok ? { ok: action === 'approve' ? `Shot ${board} approved.` : `Shot ${board} is being redone.`, at: Date.now() } : { err: r.error, at: Date.now() });
+    toast(r.ok ? { ok: action === 'approve' ? (draft ? `Shot ${board} draft approved: it’s ready for its final render.` : `Shot ${board} approved.`) : `Shot ${board} is being redone.`, at: Date.now() } : { err: r.error, at: Date.now() });
     setNote(null);
     router.refresh();
   };
   return note === null ? (
     <span className="pc-review">
-      <button className="btn small primary" type="button" disabled={busy} onClick={() => send('approve')}>Approve</button>
+      <button className="btn small primary" type="button" disabled={busy} onClick={() => send('approve')}>{draft ? 'Approve draft' : 'Approve'}</button>
       <button className="btn small ghost" type="button" disabled={busy} onClick={() => setNote('')}>Redo…</button>
     </span>
   ) : (

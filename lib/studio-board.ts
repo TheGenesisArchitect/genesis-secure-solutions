@@ -42,7 +42,7 @@ export function billedSeconds(tier: string | null | undefined, timing: string | 
 
 // Runway's published "from" prices (docs.dev.runwayml.com/guides/models, Oct 2026), in cents.
 // Gen-4 Image at 1080p is 8 credits; line reads are estimated at 3 credits and replaced by Runway's final cost.
-export const PRICE = { seedancePerSec: 20, gen45PerSec: 12, actTwoPerSec: 5, keyframe: 8, lineRead: 3, soundEffect: 5 };
+export const PRICE = { seedancePerSec: 20, gen45PerSec: 12, actTwoPerSec: 5, keyframe: 8, lineRead: 3, soundEffect: 5, draftPerSec: 6, keyframeFast: 3 };
 export type Engine = { model: string; label: string; perSec: number; takes: number };
 /** Which engine a shot uses: hero shots on Seedance 2.5 (2 takes), production shots on Gen-4.5 (2 takes). */
 export function engineFor(tool: string, tier: string | null | undefined): Engine | null {
