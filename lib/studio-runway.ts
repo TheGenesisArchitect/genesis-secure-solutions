@@ -243,17 +243,31 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   const prompt = `${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''}${audio.length ? ` The characters speak the attached dialogue on camera with natural, accurate lip movement and the delivery of the read.` : ''} ${LOOK} Keep every person exactly as in the references.`;
   const routers = await getRouters(db);
   const router = firstParty ? '' : pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
-  const direct = firstParty ? 'gen4.5' : eng.model;
-  const routedReq = { router, prompt, images, audioRefs: audio, duration: seconds, audio: audio.length > 0, resolution: (pass === 'draft' ? '720p' : '1080p') as '720p' | '1080p' };
+  // With routers in use, the direct fallback is Runway's own Gen-4.5 (the routers decide which outside models are
+  // allowed; Seedance was removed from the hero router because its filter blocks our photoreal cast).
+  const direct = firstParty || router ? 'gen4.5' : eng.model;
+  let routedReq = { router, prompt, images, audioRefs: audio, duration: seconds, audio: audio.length > 0, resolution: (pass === 'draft' ? '720p' : '1080p') as '720p' | '1080p' };
+  let audioDropped = false;
   const directCents = seconds * (firstParty ? PRICE.gen45PerSec : direct === 'seedance2_5' ? PRICE.seedancePerSec : PRICE.gen45PerSec);
   let estimate = seconds * (pass === 'draft' ? PRICE.draftPerSec : eng.perSec);
   let routeError: string | null = null;
   if (router) {
-    try { const q = await runwayRoutedVideo({ ...routedReq, dryRun: true }); if (q.routing?.estimatedCost?.credits != null) estimate = Math.max(1, Math.round(q.routing.estimatedCost.credits * CREDIT_CENTS)); }
-    catch (e) { routeError = e instanceof Error ? e.message : String(e); console.warn(`[studio-runway] dry run: ${router} has no eligible model for shot ${s.n}: ${routeError}; using ${direct}`); }
+    const quote = async (req: typeof routedReq) => { const q = await runwayRoutedVideo({ ...req, dryRun: true }); if (q.routing?.estimatedCost?.credits != null) estimate = Math.max(1, Math.round(q.routing.estimatedCost.credits * CREDIT_CENTS)); };
+    try { await quote(routedReq); }
+    catch (e) {
+      routeError = e instanceof Error ? e.message : String(e);
+      // No allowed model takes the line read as audio: ask again without it (the keyframe opens the shot). The
+      // shot is then honestly "mixed in the edit", not audio-guided.
+      if (audio.length) {
+        const plainReq = { ...routedReq, audioRefs: [] as string[], audio: false, images: frameUri ? [{ uri: frameUri, role: 'first' as const }] : routedReq.images, prompt: routedReq.prompt.replace(/ The characters speak the attached dialogue[^.]*\./, '') };
+        try { await quote(plainReq); routedReq = plainReq; audioDropped = true; routeError = null; console.warn(`[studio-runway] ${router}: no model takes the read as audio for shot ${s.n}; rendering without it (dialogue mixed in the edit)`); }
+        catch (e2) { routeError = e2 instanceof Error ? e2.message : String(e2); }
+      }
+      if (routeError) console.warn(`[studio-runway] dry run: ${router} has no eligible model for shot ${s.n}: ${routeError}; using ${direct}`);
+    }
   }
   const useRouter = Boolean(router) && !routeError;
-  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: useRouter ? 'router' : direct, cents: useRouter ? estimate : directCents, params: { first_party: firstParty, method: audio.length ? 'references+audio' : frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
+  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: prompt, model: useRouter ? 'router' : direct, cents: useRouter ? estimate : directCents, params: { first_party: firstParty || direct === 'gen4.5' && !router, audio_dropped: audioDropped, method: audio.length && !audioDropped ? 'references+audio' : frameUri ? 'keyframe' : 'references', seconds, attempt, pass, audio: audio.length > 0 && !audioDropped, lines: [...bySlot.values()].map((c) => c.id), frame: frame?.id ?? null }, refs: refs.map((r) => r.id) });
   await db.from('studio_takes').update({ estimate_cents: useRouter ? estimate : directCents }).eq('id', id);
   const seed = Math.floor(Math.random() * 4_000_000_000);
   if (useRouter) {
@@ -272,7 +286,7 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   try {
     const task = direct === 'seedance2_5'
       ? await runwaySeedance({ images: images.map((x) => (x.role === 'first' ? { uri: x.uri, position: 'first' as const } : { uri: x.uri })), prompt, ratio: '1920:1080', duration: seconds, audio: audio.length > 0, audioRefs: audio, seed })
-      : await runwayVideo({ model: 'gen4.5', images: [{ uri: frameUri!, position: 'first' }], prompt, ratio: '1280:720', duration: seconds, seed });
+      : await runwayVideo({ model: 'gen4.5', images: [{ uri: frameUri!, position: 'first' }], prompt, ratio: '1280:720', duration: Math.min(10, Math.max(2, seconds)), seed });
     await db.from('studio_takes').update({ status: 'running', operation: task.id, model: `runway:${direct}`, runway_status: 'PENDING', ...(routeError ? { error: `Router: ${routeError.slice(0, 200)} · used ${direct}` } : {}), updated_at: now() }).eq('id', id);
     return { ok: true, ids: [id], note: `Rendering a ${seconds}s take on ${direct === 'gen4.5' ? 'Gen-4.5' : eng.label}… usually 1–4 minutes.` };
   } catch (e) { console.warn(`[studio-runway] take start refused for shot ${s.n}: ${e instanceof Error ? e.message : e}`); await markFailed(db, 'studio_takes', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }

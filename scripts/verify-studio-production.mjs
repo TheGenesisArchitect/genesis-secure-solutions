@@ -34,7 +34,7 @@ execFileSync(FF, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequen
 const FILES = { mp3: fs.readFileSync(path.join(mediaDir, 'read.mp3')), png: PNG, mp4: fs.readFileSync(path.join(mediaDir, 'take.mp4')) };
 const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8], '/character_performance': ['mp4', 50] };
 // Test controls: make the next N video takes fail, or make takes hang (stay running).
-const ctl = { failTakes: 0, hang: false, cancelled: [], failMsg: 'The model failed to render this take (test)', failCode: 'INTERNAL.TEST' };
+const ctl = { heroNoAudio: false, heroNone: false, failTakes: 0, hang: false, cancelled: [], failMsg: 'The model failed to render this take (test)', failCode: 'INTERNAL.TEST' };
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
     const send = (o, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -48,6 +48,7 @@ const mock = http.createServer((req, res) => {
     if (req.method === 'POST' && u === '/voices/preview') { calls.push({ path: u, body: JSON.parse(body || '{}') }); balance -= 6; return send({ url: `http://localhost:${MOCK}/files/design.mp3`, durationSecs: 6 }); }
     if (req.method === 'POST' && (u === '/generate/video' || u === '/generate/image') && JSON.parse(body || '{}').dryRun) {
       const b = JSON.parse(body); calls.push({ path: u, body: b });
+      if (b.configId === 'genovus-video-hero' && (ctl.heroNone || (ctl.heroNoAudio && b.input?.referenceAudio?.length))) return send({ error: 'No eligible model for this request' }, 400);
       const draft = /draft|fast/.test(b.configId);
       return send({ routing: { configId: b.configId, model: u === '/generate/image' ? (draft ? 'gen4_image_turbo' : 'gen4_image') : (draft ? 'gen4_turbo' : 'seedance2_5'), provider: 'runway', estimatedCost: { credits: u === '/generate/image' ? (draft ? 2 : 8) : (draft ? 25 : 340) } } });
     }
@@ -343,6 +344,23 @@ try {
   await go('/console/studio/gjk-h01');
   const c12b = await ev(`document.querySelector('#shot-120')?.innerText ?? ''`);
   check(/Audio-guided · check the lips/.test(c12) && vs.ok && /Lip-sync verified/.test(c12b), 'an audio-guided take reads “check the lips” until a person verifies it');
+  // The hero router without Seedance: no allowed model takes the read as audio → it renders without it (dialogue
+  // mixed in the edit, never marked synced); no eligible model at all → Runway's own Gen-4.5, never Seedance directly.
+  ctl.heroNoAudio = true;
+  const nH = calls.length;
+  await api('review', { shot: 7, action: 'redo', note: 'no audio models' });
+  for (let i = 0; i < 40 && (await stages())[7] !== 'review'; i++) { await advance(); await sleep(500); }
+  const h7 = calls.slice(nH).filter((c) => c.path === '/generate/video' && !c.body.dryRun);
+  const t7 = must(await db.from('studio_takes').select('params').eq('shot_id', shotsAll.find((x) => x.n === 70).id).like('model', 'runway:%').order('created_at', { ascending: false }).limit(1).single(), 't7').params;
+  check((await stages())[7] === 'review' && h7.length === 1 && !h7[0].body.input.referenceAudio && h7[0].body.input.referenceImages?.[0]?.role === 'first' && t7.audio_dropped === true && t7.audio === false, 'when no hero model takes the read as audio, the shot renders without it and is marked mixed in the edit');
+  ctl.heroNoAudio = false; ctl.heroNone = true;
+  const nN = calls.length;
+  await api('review', { shot: 12, action: 'reopen' }).catch(() => null);
+  await api('review', { shot: 12, action: 'redo', note: 'no eligible model' });
+  for (let i = 0; i < 40 && (await stages())[12] !== 'review'; i++) { await advance(); await sleep(500); }
+  const d12 = calls.slice(nN).filter((c) => c.path === '/image_to_video');
+  check((await stages())[12] === 'review' && d12.length === 1 && d12[0].body.model === 'gen4.5' && d12[0].body.duration <= 10 && !calls.slice(nN).some((c) => c.path === '/image_to_video' && c.body.model === 'seedance2_5'), `with no eligible hero model, the take goes to Runway's Gen-4.5 (never Seedance), capped at 10 s (${d12.map((c) => c.body.model + ' ' + c.body.duration + 's').join(', ')})`);
+  ctl.heroNone = false;
   // A take that hangs is flagged Stuck with Stop & refund (Runway's job is cancelled).
   ctl.hang = true;
   await api('review', { shot: 7, action: 'redo', note: 'hang' });
