@@ -9,7 +9,7 @@ import os from 'node:os';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
-import { del } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 
 const OUT = process.argv[2] || path.join(os.tmpdir(), 'genovus-verify');
 const PORT = 3911, ORIGIN = `http://localhost:${PORT}`, MOCK = 3917;
@@ -27,7 +27,7 @@ if (await up()) throw new Error(`port ${PORT} is busy`);
 const calls = []; let n = 0; const seen = new Map(); let balance = 100000;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const FILES = { mp3: Buffer.from('ID3stand-in-audio'), png: PNG, mp4: Buffer.from('stand-in-video') };
-const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8] };
+const KIND = { '/text_to_speech': ['mp3', 4], '/sound_effect': ['mp3', 9], '/text_to_image': ['png', 8], '/image_to_video': ['mp4', 100], '/generate/video': ['mp4', 100], '/generate/image': ['png', 8], '/character_performance': ['mp4', 50] };
 // Test controls: make the next N video takes fail, or make takes hang (stay running).
 const ctl = { failTakes: 0, hang: false, cancelled: [], failMsg: 'The model failed to render this take (test)', failCode: 'INTERNAL.TEST' };
 const mock = http.createServer((req, res) => {
@@ -35,6 +35,8 @@ const mock = http.createServer((req, res) => {
     const send = (o, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
     const u = req.url.replace(/^\/v1/, '');
     if (u.startsWith('/files/')) { const ext = u.split('.').pop(); res.writeHead(200); return res.end(FILES[ext] ?? PNG); }
+    if (req.method === 'POST' && u === '/upload-target') { calls.push({ path: u, body: {} }); res.writeHead(204); return res.end(); }
+    if (req.method === 'POST' && u === '/uploads') { const b = JSON.parse(body || '{}'); calls.push({ path: u, body: b }); return send({ uploadUrl: `http://localhost:${MOCK}/v1/upload-target`, fields: { key: 'k' }, runwayUri: `runway://upload/${b.filename}` }); }
     if (req.method === 'GET' && u === '/organization') return send({ creditBalance: balance });
     if (req.method === 'GET' && u.startsWith('/routers?')) return send({ data: [{ id: 'r-hero', slug: 'genovus-video-hero', name: 'Hero', settings: { optimizeFor: 'quality', fallback: { onCapacity: true }, models: { mode: 'allowlist_only', ids: ['seedance2_5', 'veo3.1', 'gen4.5'] } } }, { id: 'r-prod', slug: 'genovus-video-production', name: 'Production', settings: { optimizeFor: 'latency', fallback: { onCapacity: true } } }, { id: 'r-draft', slug: 'genovus-video-draft', name: 'Draft', settings: { optimizeFor: 'cost' } }, { id: 'r-key', slug: 'genovus-image-keyframe', name: 'Keyframe', settings: { optimizeFor: 'quality' } }, { id: 'r-fast', slug: 'genovus-image-fast', name: 'Fast', settings: { optimizeFor: 'latency' } }] });
     if (req.method === 'GET' && /^\/routers\/[^/]+\/requests/.test(u)) { const slug = { 'r-hero': 'genovus-video-hero', 'r-prod': 'genovus-video-production', 'r-draft': 'genovus-video-draft', 'r-key': 'genovus-image-keyframe', 'r-fast': 'genovus-image-fast' }[u.split('/')[2]]; return send({ data: calls.filter((c) => c.body.configId === slug).map((c, i) => ({ id: 'q' + i, createdAt: new Date().toISOString(), model: slug.includes('draft') ? 'gen4_turbo' : slug.includes('image') ? 'gen4_image' : 'seedance2_5', reasonCode: 'best_quality', reason: 'test', estimatedCredits: 8 })) }); }
@@ -69,7 +71,7 @@ for (let i = 0; i < 150 && !(await up()); i++) await sleep(1000);
 
 const CH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const port = 9498, profile = fs.mkdtempSync(path.join(os.tmpdir(), 'genovus-verify-'));
-const chrome = spawn(CH, ['--headless=new', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn(CH, ['--headless=new', '--hide-scrollbars', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
 let list; for (let i = 0; i < 60; i++) { try { list = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if (list.find((x) => x.type === 'page')) break; } catch {} await sleep(250); }
 const ws = new WebSocket(list.find((x) => x.type === 'page').webSocketDebuggerUrl);
 let id = 0; const pend = new Map(); const on = new Map();
@@ -276,6 +278,31 @@ try {
   await api('review', { shot: 10, action: 'approve' });
   const ro = await api('review', { shot: 10, action: 'reopen', via: 'voice' });
   check(ro.ok && (await stages())[10] === 'review', '“Reopen shot 10” works through Helix’s tool');
+  // Finish dialogue (Act-Two): the card offers it; Helix opens the recorder; a recording lip-syncs the take.
+  await go('/console/studio/gjk-h01');
+  check(await ev(`[...document.querySelectorAll('#shot-100 button')].some((b) => /Finish dialogue/.test(b.textContent))`), 'a reopened scene that isn’t lip-synced offers Finish dialogue');
+  const fh = await api('finish_dialogue', { shot: 10 });
+  await ev(`window.dispatchEvent(new CustomEvent('genovus:finish-dialogue', { detail: { shot: 10 } }))`); await sleep(400);
+  check(fh.ok && fh.needs_recording && await ev(`!!document.querySelector('#shot-100 .fd')`), '“Finish the dialogue on shot 10” opens the recorder on that scene');
+  // The real recorder (Chrome's simulated camera): open the camera, record along with the read, use the take.
+  const nFd = calls.length;
+  await click(`document.querySelector('#shot-100 .fd')`, '/Open the camera/'); await sleep(1500);
+  await click(`document.querySelector('#shot-100 .fd')`, '/Record along with the read/');
+  await waitFor(async () => ev(`[...document.querySelectorAll('#shot-100 .fd button')].some((b) => /Use this take/.test(b.textContent))`), 20000);
+  await click(`document.querySelector('#shot-100 .fd')`, '/Use this take/');
+  await waitFor(async () => (await stages())[10] === 'syncing' || (await stages())[10] === 'review' && calls.slice(nFd).some((c) => c.path === '/character_performance'), 30000);
+  const recPath = calls.slice(nFd).find((c) => c.path === '/character_performance') ? 'uploaded' : null;
+  const recRow = must(await db.from('studio_takes').select('params').eq('shot_id', shotsAll.find((x) => x.n === 100).id).eq('model', 'runway:act_two').order('created_at', { ascending: false }).limit(1).maybeSingle(), 'act two row');
+  check(Boolean(recPath) && /^studio\/uploads\/.+performance-.+\.(webm|mp4)$/.test(recRow?.params?.recording ?? ''), `the camera recorder records along with the read, uploads, and starts Act-Two (${recRow?.params?.recording ?? 'no recording'})`);
+  for (let i = 0; i < 30 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
+  const act = calls.slice(nFd).find((c) => c.path === '/character_performance');
+  const ups = calls.slice(nFd).filter((c) => c.path === '/uploads').length;
+  const chosen = must(await db.from('studio_takes').select('model, params').eq('shot_id', shotsAll.find((x) => x.n === 100).id).eq('chosen', true).single(), 'chosen');
+  check(ups === 2 && act?.body.model === 'act_two' && act.body.character.type === 'video' && /^runway:\/\//.test(act.body.character.uri) && /^runway:\/\//.test(act.body.reference.uri) && chosen.model === 'runway:act_two' && chosen.params.lipsync === true && (await stages())[10] === 'review', 'Act-Two drives the approved take with the recording; the lip-synced take becomes the scene’s take and it returns to review');
+  await go('/console/studio/gjk-h01');
+  const card10b = await ev(`document.querySelector('#shot-100').innerText`);
+  check(/✓ Lip-sync/.test(card10b) && !/Not lip-synced/.test(card10b) && /\bApprove\b/.test(card10b) && !/Approve picture/.test(card10b), 'the card now reads ✓ Lip-sync and offers a full Approve');
+  if (recRow?.params?.recording) await del(recRow.params.recording).catch(() => {});
   // A take that hangs is flagged Stuck with Stop & refund (Runway's job is cancelled).
   ctl.hang = true;
   await api('review', { shot: 7, action: 'redo', note: 'hang' });

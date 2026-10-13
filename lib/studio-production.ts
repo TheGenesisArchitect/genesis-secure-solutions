@@ -93,7 +93,7 @@ const busy = (st: string) => st === 'running' || st === 'queued';
  */
 async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string; code: string; name: string }[], since: string): Promise<string> {
   const stage = String(s.produce?.stage ?? '');
-  if (!stage || ['review', 'approved', 'capture', 'blocked', 'draft_ok'].includes(stage)) return stage || 'idle';
+  if (!stage || ['review', 'approved', 'capture', 'blocked', 'draft_ok', 'syncing'].includes(stage)) return stage || 'idle';
   const pass = s.produce?.pass === 'draft' ? 'draft' : 'final';
   if (s.tool === 'edit') { await setProduce(db, s, { stage: 'review', note: 'Code card: made in the render.' }); return 'review'; }
   const runStart = String(s.produce?.since ?? since);

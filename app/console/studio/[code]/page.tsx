@@ -131,7 +131,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       ready: runwayConfigured(),
       lines,
       frames: groupBy((artRows ?? []).filter((a) => a.kind === 'frame' && a.role === 'start').map((a) => ({ id: a.id as string, shot_id: a.shot_id as string | null, status: a.status as string, chosen: a.chosen as boolean, error: a.error as string | null }))),
-      takes: groupBy((boardTakes ?? []).map((t) => ({ id: t.id as string, shot_id: t.shot_id as string, status: t.status as string, chosen: t.chosen as boolean, kind: t.kind as string, error: t.error as string | null, cost_cents: t.cost_cents as number, still: /\.(png|jpe?g)$/i.test(String(t.blob_path ?? '')), synced: (t.params as { audio?: boolean } | null)?.audio === true }))),
+      takes: groupBy((boardTakes ?? []).map((t) => ({ id: t.id as string, shot_id: t.shot_id as string, status: t.status as string, chosen: t.chosen as boolean, kind: t.kind as string, error: t.error as string | null, cost_cents: t.cost_cents as number, still: /\.(png|jpe?g)$/i.test(String(t.blob_path ?? '')), synced: (t.params as { audio?: boolean; lipsync?: boolean } | null)?.audio === true || (t.params as { lipsync?: boolean } | null)?.lipsync === true }))),
       identity,
       designs: new Map(castList.map((c) => [c.id, clips.filter((x) => x.kind === 'design' && x.character_id === c.id).map((x) => ({ id: x.id, status: x.status, approved: x.approved, error: x.error }))])),
       score: clips.filter((x) => x.kind === 'score').map((x) => ({ id: x.id, status: x.status, error: x.error })),

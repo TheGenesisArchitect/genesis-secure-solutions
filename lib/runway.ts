@@ -105,3 +105,21 @@ export type RouterRequest = { id: string; createdAt: string; model: string | nul
 /** The organization's Model Routers and their recent routing decisions (for the Studio's Router report). */
 export const runwayRouters = () => call<{ data: RouterConfig[] }>('/routers?limit=50');
 export const runwayRouterRequests = (id: string, limit = 15) => call<{ data: RouterRequest[] }>(`/routers/${encodeURIComponent(id)}/requests?limit=${limit}`);
+
+/** Upload a file to Runway's temporary storage (for inputs over the 5 MB data-URI limit, e.g. a take or a phone
+ *  recording); returns the runway:// URI to pass as an input. */
+export async function runwayUpload(bytes: Buffer, filename: string, contentType: string): Promise<string> {
+  const slot = await call<{ uploadUrl: string; fields: Record<string, string>; runwayUri: string }>('/uploads', { body: { filename, type: 'ephemeral' } });
+  const form = new FormData();
+  for (const [k, v] of Object.entries(slot.fields ?? {})) form.append(k, v);
+  form.append('file', new Blob([new Uint8Array(bytes)], { type: contentType }), filename);
+  const res = await fetch(slot.uploadUrl, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
+  if (!res.ok) throw new Error(`Runway upload failed (${res.status})`);
+  return slot.runwayUri;
+}
+
+/** Act-Two on a video character: the reference performance (someone saying or mouthing the line in time with the
+ *  read) drives the character's face in the approved take, keeping the take's own movement. */
+export function runwayActTwo(p: { character: string; reference: string; expressionIntensity?: number; ratio?: string; bodyControl?: boolean }) {
+  return call<{ id: string }>('/character_performance', { body: { model: 'act_two', character: { type: 'video', uri: p.character }, reference: { type: 'video', uri: p.reference }, bodyControl: p.bodyControl ?? false, expressionIntensity: p.expressionIntensity ?? 3, ratio: p.ratio ?? '1280:720' } });
+}

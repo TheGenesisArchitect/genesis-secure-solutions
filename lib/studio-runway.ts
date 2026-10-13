@@ -14,7 +14,7 @@ import path from 'node:path';
 import { get, put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
-import { CREDIT_CENTS, runwayRoutedImage, runwayRoutedVideo, runwayConfigured, runwayCustomSpeech, runwayImage, runwaySeedance, runwaySound, runwaySpeech, runwayTask, runwayVideo, runwayVoicePreview, runwayOrganization, type RunwayDoneTask } from '@/lib/runway';
+import { CREDIT_CENTS, runwayActTwo, runwayUpload, runwayRoutedImage, runwayRoutedVideo, runwayConfigured, runwayCustomSpeech, runwayImage, runwaySeedance, runwaySound, runwaySpeech, runwayTask, runwayVideo, runwayVoicePreview, runwayOrganization, type RunwayDoneTask } from '@/lib/runway';
 import { billedSeconds, defaultDirection, engineFor, PRICE } from '@/lib/studio-board';
 
 type Db = ReturnType<typeof adminDb>;
@@ -256,6 +256,45 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   } catch (e) { console.warn(`[studio-runway] take start refused for shot ${s.n}: ${e instanceof Error ? e.message : e}`); await markFailed(db, 'studio_takes', id, e instanceof Error ? e.message : 'Runway refused it.'); return { ok: false, error: e instanceof Error ? e.message : 'Runway refused it.' }; }
 }
 
+/** Read a private file's bytes (for uploading a take or a phone recording to Runway). */
+async function blobBytes(p: string): Promise<Buffer | null> {
+  const res = await get(p, { access: 'private', useCache: false, abortSignal: AbortSignal.timeout(60_000) });
+  if (!res || res.statusCode !== 200 || !res.stream) return null;
+  return Buffer.from(await new Response(res.stream).arrayBuffer());
+}
+
+/**
+ * Finish a scene's dialogue with Act-Two: the approved take is the character video, and a phone recording of
+ * someone saying or mouthing the line in time with the read drives the character's face, so the lips match the
+ * read. The result becomes the scene's take (marked lip-synced); the character's voice stays the line read.
+ */
+export async function startFinishDialogue(reserve: Reserve, shotId: string, recording: string, intensity = 3): Promise<Started> {
+  const db = adminDb();
+  const s = await loadShot(db, shotId);
+  const { data: take } = await db.from('studio_takes').select('id, blob_path, params').eq('shot_id', s.id).eq('chosen', true).eq('status', 'ready').maybeSingle();
+  if (!take?.blob_path) return { ok: false, error: 'This scene needs a picked take before its dialogue can be finished.' };
+  const [takeBytes, recBytes] = await Promise.all([blobBytes(take.blob_path), blobBytes(recording)]);
+  if (!takeBytes) return { ok: false, error: 'The take’s file is missing.' };
+  if (!recBytes) return { ok: false, error: 'The recording didn’t arrive. Record it again.' };
+  const secs = Number((take.params as { seconds?: number } | null)?.seconds ?? 8);
+  const id = await reserve({ kind: 'take', shot: s.id, character: null, text: `Act-Two: finish the dialogue on ${s.description}`.slice(0, 900), model: 'act_two', cents: Math.max(1, Math.ceil(Math.min(30, Math.max(3, secs)) * PRICE.actTwoPerSec)), params: { method: 'act_two', lipsync: true, base_take: take.id, recording, seconds: secs } });
+  try {
+    const ext = recording.split('.').pop()?.toLowerCase() ?? 'mp4';
+    const [character, reference] = await Promise.all([
+      runwayUpload(takeBytes, `take-${take.id}.mp4`, 'video/mp4'),
+      runwayUpload(recBytes, `performance.${ext}`, ext === 'webm' ? 'video/webm' : ext === 'mov' ? 'video/quicktime' : 'video/mp4'),
+    ]);
+    const task = await runwayActTwo({ character, reference, expressionIntensity: Math.min(5, Math.max(1, Math.round(intensity))) });
+    await db.from('studio_takes').update({ status: 'running', operation: task.id, model: 'runway:act_two', runway_status: 'PENDING', updated_at: now() }).eq('id', id);
+    await db.rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'syncing', force: true, note: 'Finishing the dialogue with Act-Two…', last_error: null } });
+    return { ok: true, ids: [id], note: 'Finishing the dialogue: Act-Two is matching the lips to the read (about a minute or two).' };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Runway refused it.';
+    await markFailed(db, 'studio_takes', id, msg);
+    return { ok: false, error: msg };
+  }
+}
+
 /** A designed voice for a character, from the bible's voice description. Runway returns the sample immediately. */
 export async function designVoice(reserve: Reserve, characterId: string): Promise<Started> {
   const db = adminDb();
@@ -311,7 +350,7 @@ export async function pollRunwayJobs(shotId?: string): Promise<Record<string, nu
   const db = adminDb();
   const out: Record<string, number> = {};
   for (const T of TABLES) {
-    let q = db.from(T.table).select(`id, ${T.task}, cost_cents, created_at, created_by, ${T.table === 'studio_voice_clips' ? 'kind' : 'shot_id'}`).eq('status', 'running').not(T.task, 'is', null).limit(25);
+    let q = db.from(T.table).select(`id, ${T.task}, cost_cents, created_at, created_by, ${T.table === 'studio_voice_clips' ? 'kind' : T.table === 'studio_takes' ? 'shot_id, params' : 'shot_id'}`).eq('status', 'running').not(T.task, 'is', null).limit(25);
     if (T.table === 'studio_takes') q = q.like('model', 'runway:%');
     if (T.table === 'studio_art') q = q.like('model', 'runway:%');
     if (shotId) q = q.eq('shot_id', shotId);
@@ -329,9 +368,14 @@ export async function pollRunwayJobs(shotId?: string): Promise<Record<string, nu
           const cents = t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : Number(row.cost_cents ?? 0);
           await db.from(T.table).update({ status: 'ready', blob_path: p, cost_cents: cents, runway_status: 'SUCCEEDED', runway_progress: 1, done_at: now(), ...(T.table === 'studio_takes' ? { updated_at: now() } : { source_url: t.output[0], source_at: now(), ...(T.table === 'studio_art' ? { updated_at: now() } : {}) }) }).eq('id', id);
           await expense(cents, `Studio: Runway ${T.label}`, (row.created_by as string) ?? null);
+          if (T.table === 'studio_takes' && (row.params as unknown as { method?: string } | null)?.method === 'act_two') {
+            await db.rpc('studio_auto_choose_take', { p_id: id });
+            await db.rpc('studio_shot_produce_patch', { p_shot: row.shot_id, p_patch: { stage: 'review', force: true, dialogue_open: false, note: 'Dialogue lip-synced with Act-Two.' } });
+          }
           out.ready = (out.ready ?? 0) + 1;
         } else if (t.status === 'FAILED' || t.status === 'CANCELLED') {
           console.warn(`[studio-runway] ${T.label} ${id.slice(0, 8)} ${t.status}: ${t.failure ?? ''} ${t.failureCode ?? ''}`);
+          if (T.table === 'studio_takes' && (row.params as unknown as { method?: string } | null)?.method === 'act_two') await db.rpc('studio_shot_produce_patch', { p_shot: row.shot_id, p_patch: { stage: 'review', force: true, last_error: `Finish dialogue failed: ${t.failure ?? t.status}`.slice(0, 300) } });
           await db.from(T.table).update({ status: 'failed', runway_status: t.status, done_at: now(), error: `${t.failure ?? t.status}${t.failureCode ? ` (${t.failureCode})` : ''}`.slice(0, 300), cost_cents: t.cost?.credits != null ? Math.round(t.cost.credits * CREDIT_CENTS) : 0, ...(T.table === 'studio_voice_clips' ? {} : { updated_at: now() }) }).eq('id', id);
           out.failed = (out.failed ?? 0) + 1;
         } else if (Date.now() - new Date(String(row.created_at)).getTime() > 45 * 60_000) {

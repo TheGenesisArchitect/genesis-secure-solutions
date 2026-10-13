@@ -7,7 +7,7 @@ import { put } from '@vercel/blob';
 import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { advanceProduction, cancelShotJobs, episodeShots, quote, type ProdShot } from '@/lib/studio-production';
-import { castSheetBytes, identityLocked } from '@/lib/studio-runway';
+import { castSheetBytes, identityLocked, startFinishDialogue } from '@/lib/studio-runway';
 import { dialogueOpen, readiness } from '@/lib/studio-monitor';
 import { parseRead } from '@/lib/studio-read';
 import { defaultDirection } from '@/lib/studio-board';
@@ -43,7 +43,7 @@ async function shotReadiness(admin: ReturnType<typeof adminDb>, code: string, s:
     admin.from('studio_voice_clips').select('slot, text').eq('shot_id', s.id).eq('kind', 'line').eq('status', 'ready'),
   ]);
   const readsReady = lines.filter((l) => (clips ?? []).some((c) => c.slot === l.slot && c.text === l.text)).length;
-  return readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: lines.length, readsReady, takePerformedToAudio: (take?.params as { audio?: boolean } | null)?.audio === true });
+  return readiness({ tool: s.tool, hasTake: Boolean(take), screens: (s.screens ?? []).length, lines: lines.length, readsReady, takePerformedToAudio: (take?.params as { audio?: boolean } | null)?.audio === true || (take?.params as { lipsync?: boolean } | null)?.lipsync === true });
 }
 const boardShot = (shots: ProdShot[], n: unknown) => { const i = Math.round(Number(n)); return Number.isFinite(i) && i >= 1 && i <= shots.length ? shots[i - 1] : null; };
 
@@ -173,6 +173,22 @@ export async function POST(req: Request) {
         const { error } = await supabase.rpc('studio_set_shot_screens', { p_shot: s.id, p_screens: next });
         if (error) return fail(error.message);
         return Response.json({ ok: true, shot: a.shot, screen: key, title: pick.title, say: `Shot ${a.shot} now uses “${pick.title}” (${pick.device}).` });
+      }
+      case 'finish_dialogue': {
+        const s = boardShot(shots, a.shot);
+        if (!s) return fail(`There’s no shot ${a.shot}.`);
+        if (typeof a.recording !== 'string' || !/^studio\/uploads\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/i.test(a.recording)) {
+          // From Helix (no recording yet): the person records on the card; the board opens the recorder.
+          return Response.json({ ok: true, needs_recording: true, shot: a.shot, say: `The recorder is open on shot ${a.shot}: say or mouth the line along with the read, then tap Use this take.` });
+        }
+        if (String(s.produce?.stage ?? '') !== 'review') return fail('Reopen the scene first, then finish its dialogue.');
+        const reserve = async (p: { kind: string; shot: string | null; character: string | null; text: string; model: string; cents: number; params?: Record<string, unknown>; refs?: string[] }) => {
+          const { data, error } = await supabase.rpc('studio_reserve_runway', { p_kind: p.kind, p_shot: p.shot, p_character: p.character, p_text: p.text, p_model: p.model, p_cents: Math.max(1, Math.round(p.cents)), p_params: p.params ?? {}, p_refs: p.refs ?? [] });
+          if (error) throw new Error(error.message);
+          return data as string;
+        };
+        const r = await startFinishDialogue(reserve, s.id, a.recording, Number(a.intensity ?? 3));
+        return r.ok ? Response.json({ ok: true, shot: a.shot, say: r.note }) : fail(r.error);
       }
       case 'retry_shot':
       case 'cancel_shot': {

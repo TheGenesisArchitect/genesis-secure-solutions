@@ -9,7 +9,7 @@ import { Chip } from '@/components/ui';
 import { studioSetShotDirection } from '@/lib/actions';
 import { billedSeconds, defaultDirection, engineFor, PRICE, shotCast, shotCost, shotSeconds } from '@/lib/studio-board';
 import { CastStudio, ScoreStudio, ShotStudio, type BoardLine, type CaptureRecipe, type CastIdentity, type CastVoice } from '@/components/studio/BoardStudio';
-import { ProductionBar, ShotMonitor, ShotReview, type MonitorStep, type RunHealth, type RunState } from '@/components/studio/ProductionControls';
+import { FinishDialogue, ProductionBar, ShotMonitor, ShotReview, type MonitorStep, type RunHealth, type RunState } from '@/components/studio/ProductionControls';
 import { PlayButton, ScenePlayer, type Clip } from '@/components/studio/ScenePlayer';
 import { RouterReport, type RouterRow } from '@/components/studio/RouterReport';
 import { readiness, dialogueOpen } from '@/lib/studio-monitor';
@@ -43,7 +43,7 @@ const KIND: Record<string, string> = { teaser: 'Trailer', episode: 'Episode', pr
 const SHEET: Record<string, string> = { MARCUS01: 'marcus', TASHA01: 'tasha', JULIAN01: 'julian' };
 const STAGE: Record<string, [string, string]> = {
   queued: ['Queued', 'run'], reading: ['Reading lines…', 'run'], drawing: ['Drawing keyframe…', 'run'], rendering: ['Rendering take…', 'run'],
-  review: ['Ready for review', 'review'], approved: ['Approved', 'ok'], draft_ok: ['Draft approved', 'ok'], capture: ['Phone capture', 'cap'], blocked: ['Blocked', 'stop'],
+  review: ['Ready for review', 'review'], approved: ['Approved', 'ok'], draft_ok: ['Draft approved', 'ok'], syncing: ['Lip-syncing…', 'run'], capture: ['Phone capture', 'cap'], blocked: ['Blocked', 'stop'],
 };
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 /** "[warm] Got questions?" → the bracketed direction tags styled. */
@@ -189,6 +189,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     <div className="pb-foot">
                       <span className="pb-eng2">{eng?.label ?? (s.tool === 'capture' ? 'Phone capture' : s.tool === 'edit' ? 'Code card' : s.tool)} · {money(costs[i].total)}</span>
                       <ShotReview episode={episode.code} board={i + 1} stage={stage} draft={isDraft} pictureOnly={dialogueOpen(ready)} />
+                      {stage === 'review' && ready.lipsync === 'edit' && take ? <FinishDialogue episode={episode.code} board={i + 1} shotId={s.id} reads={shotLines.map((l) => ({ id: (l.reads.find((r) => r.approved && r.status === 'ready') ?? l.reads.find((r) => r.status === 'ready'))?.id ?? '', label: l.speaker })).filter((r) => r.id)} /> : null}
                     </div>
                     <details className="pb-more">
                       <summary>{s.tool === 'capture' ? 'Capture steps, voice-over & direction' : 'Fine-tune: steps & direction'}</summary>
