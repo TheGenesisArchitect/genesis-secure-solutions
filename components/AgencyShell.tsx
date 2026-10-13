@@ -41,7 +41,8 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
     { href: `${base}/follow-ups`, label: 'Follow-ups', count: due },
   ];
   const programItems = [
-    ...(has('helix') ? [{ href: `${base}/helix`, label: 'Ask Helix', icon: 'helix' }] : []),
+    ...(has('helix') ? [{ href: `${base}/helix`, label: 'Ask Helix', icon: 'helix', exact: true }] : []),
+    ...(has('helix-notes') ? [{ href: `${base}/helix/notes`, label: 'Helix notes', icon: 'inbox' }] : []),
     ...(has('market') ? [{ href: `${base}/market`, label: 'Market', icon: 'globe' }] : []),
     { href: `${base}/setup`, label: 'Setup' },
     { href: `${base}/approvals`, label: 'Approvals', count: pending },

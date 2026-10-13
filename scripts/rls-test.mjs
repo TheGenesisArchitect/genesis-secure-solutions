@@ -58,6 +58,21 @@ try {
   check('owner cannot file a request for another agency', !!(await owner.rpc('create_care_request', { p_tenant: mendez, p_kind: 'change', p_title: 'cross-tenant' })).error);
   const req = await owner.rpc('create_care_request', { p_tenant: brooks, p_kind: 'support', p_title: 'RLS test request' });
   check('owner can file a request for own agency', !req.error, req.error?.message);
+
+  // Helix notes: the office's own notes are private to its agency; a to-do becomes a follow-up.
+  const hn = await owner.rpc('agency_add_helix_note', { p_tenant: brooks, p_kind: 'action_item', p_text: `RLS note ${stamp}` });
+  check('owner can add a Helix note for own agency', !hn.error && !!hn.data, hn.error?.message);
+  check('owner reads own Helix note', ((await owner.from('helix_notes').select('id').eq('id', hn.data)).data ?? []).length === 1);
+  check('another agency cannot read it', ((await staff.from('helix_notes').select('id').eq('id', hn.data)).data ?? []).length === 0);
+  check('another agency cannot add a note for this agency', !!(await staff.rpc('agency_add_helix_note', { p_tenant: brooks, p_kind: 'idea', p_text: 'cross-tenant note' })).error);
+  check("another agency cannot close this agency's note", !!(await staff.rpc('agency_set_helix_note', { p_id: hn.data, p_status: 'done' })).error);
+  check("owner cannot read the team's own notes", ((await owner.from('helix_notes').select('id').is('tenant_id', null)).data ?? []).length === 0);
+  check('owner cannot write notes directly', !!(await owner.from('helix_notes').insert({ kind: 'idea', text: 'direct', tenant_id: brooks, chapter: 'agency' })).error);
+  const tmr = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const hnFu = await owner.rpc('agency_helix_note_follow_up', { p_id: hn.data, p_who: '', p_due: tmr });
+  const after = (await owner.from('helix_notes').select('status, follow_up_id').eq('id', hn.data).single()).data;
+  check('a to-do becomes a follow-up and the note is done', !hnFu.error && after?.status === 'done' && after?.follow_up_id === hnFu.data, hnFu.error?.message);
+  if (hnFu.data) await admin.from('follow_ups').delete().eq('id', hnFu.data);
   const pend = (await owner.from('approvals').select('id').eq('status', 'pending').eq('approver', 'client').limit(1)).data?.[0];
   if (pend) check('owner can decide own client approval', !(await owner.rpc('decide_approval', { p_id: pend.id, p_decision: 'approved', p_note: 'RLS test' })).error);
   const team = (await admin.from('approvals').select('id').eq('tenant_id', brooks).eq('approver', 'team').eq('status', 'pending').limit(1)).data?.[0];
@@ -154,13 +169,16 @@ try {
 
   // Genovus's own growth data (campaigns, scanner, prospects, finance) is staff-only: agency members and
   // network partners read nothing and can call nothing that writes it.
-  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage', 'helix_tour_sessions', 'helix_notes', 'studio_series', 'studio_episodes', 'studio_shots', 'studio_posts', 'studio_refs', 'studio_takes', 'studio_budget', 'studio_art', 'studio_sources', 'studio_characters', 'studio_looks', 'studio_decisions', 'studio_voice_clips', 'studio_qa'];
+  const staffOnly = ['campaigns', 'carriers', 'scan_cells', 'scan_runs', 'prospects', 'prospect_events', 'suppression', 'expenses', 'places_usage', 'helix_tour_sessions', 'studio_series', 'studio_episodes', 'studio_shots', 'studio_posts', 'studio_refs', 'studio_takes', 'studio_budget', 'studio_art', 'studio_sources', 'studio_characters', 'studio_looks', 'studio_decisions', 'studio_voice_clips', 'studio_qa'];
   const seed = { prospect: (await admin.from('prospects').insert({ place_id: `rls-test-${stamp}`, segment: 'independent' }).select('id').single()).data };
   for (const [who, c] of [['agency owner', owner], ['network partner', netUser], ['signed out', anon]]) {
     for (const t of staffOnly) {
       const { data } = await c.from(t).select('*').limit(5);
       check(`${who} reads no ${t}`, !data || data.length === 0, `${data?.length ?? 0} rows`);
     }
+    // Helix notes: an agency owner sees only its own agency's notes; partners and visitors see none.
+    const { data: hnRows } = await c.from('helix_notes').select('tenant_id, chapter').limit(50);
+    check(`${who} reads only its own agency's Helix notes`, who === 'agency owner' ? (hnRows ?? []).every((r) => r.tenant_id === brooks && ['agency', 'ask-helix'].includes(r.chapter)) : (hnRows ?? []).length === 0, `${hnRows?.length ?? 0} rows`);
     const counts = await c.rpc('prospect_counts');
     check(`${who} gets no prospect counts`, !!counts.error || (counts.data ?? []).length === 0);
     check(`${who} cannot log on a prospect`, !!(await c.rpc('log_prospect', { p_id: seed.prospect.id, p_kind: 'note', p_outcome: '', p_note: 'x' })).error);
@@ -174,6 +192,8 @@ try {
   for (const u of Object.values(users)) if (u) await admin.auth.admin.deleteUser(u.id);
 
   await admin.from('care_requests').delete().eq('title', 'RLS test request');
+  await admin.from('helix_notes').delete().like('text', 'RLS note %');
+  await admin.from('helix_notes').delete().eq('text', 'cross-tenant note');
 }
 console.log(fails ? `\n${fails} check(s) FAILED` : '\nAll checks passed');
 process.exit(fails ? 1 : 0);

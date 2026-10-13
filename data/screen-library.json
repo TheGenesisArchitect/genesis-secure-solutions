@@ -390,6 +390,31 @@
       ]
     },
     {
+      "code": "agency-helix-notes",
+      "title": "Helix notes: what the office tells Helix, turned into work",
+      "side": "agency",
+      "chapter": "helix",
+      "route": "/app/demo-brooks/helix/notes?film=1",
+      "devices": [
+        "desktop",
+        "phone"
+      ],
+      "steps": [
+        {
+          "wait": 3000
+        },
+        {
+          "scroll": {
+            "to": 360,
+            "ms": 1800
+          }
+        },
+        {
+          "wait": 1800
+        }
+      ]
+    },
+    {
       "code": "ent-overview",
       "title": "Genovus Enterprise: the morning view (with sample agencies)",
       "side": "enterprise",

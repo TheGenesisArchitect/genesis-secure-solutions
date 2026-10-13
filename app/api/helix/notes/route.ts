@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const ask = session.context === 'enterprise' || session.context === 'agency';
   const { data, error } = await db.from('helix_notes').insert({
     session_id: b.sessionId, kind: KINDS.includes(String(b.kind)) ? b.kind : 'idea', text,
-    chapter: ask ? 'ask-helix' : CHAPTERS.includes(String(b.chapter)) ? b.chapter : null, source: b.source === 'person' ? 'person' : 'helix',
+    chapter: ask ? (session.context === 'agency' && b.kind !== 'question' && b.kind !== 'risk' ? 'agency' : 'ask-helix') : CHAPTERS.includes(String(b.chapter)) ? b.chapter : null, source: b.source === 'person' ? 'person' : 'helix',
     ...(ask ? { tenant_id: session.tenant_id, asked_by: session.viewer_id } : {}),
   }).select('id, kind, text, chapter, status, created_at').single();
   if (error || !data) return Response.json({ error: 'The note could not be saved.' }, { status: 500 });

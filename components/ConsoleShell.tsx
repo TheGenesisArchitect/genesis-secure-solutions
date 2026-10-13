@@ -16,7 +16,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
     approvals: n(supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('approver', 'team')),
     inquiries: n(supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new')),
     care: n(supabase.from('care_requests').select('id', { count: 'exact', head: true }).in('status', ['new', 'in_progress']).eq('is_sample', false)),
-    notes: n(supabase.from('helix_notes').select('id', { count: 'exact', head: true }).in('status', ['new', 'drafted', 'failed'])),
+    notes: n(supabase.from('helix_notes').select('id', { count: 'exact', head: true }).in('status', ['new', 'drafted', 'failed']).or('chapter.is.null,chapter.neq.agency')),
   };
   return (
     <Shell

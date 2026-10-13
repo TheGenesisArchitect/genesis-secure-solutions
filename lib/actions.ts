@@ -315,6 +315,21 @@ export async function updateFollowUp(_: ActionResult, f: FormData) {
   return call('update_follow_up', { p_id: str(f, 'id', 64), p_status: status, p_due: due }, status === 'done' ? 'Done. Nice.' : due ? 'Moved.' : 'Reopened.');
 }
 
+// ---------- Helix notes (agency) ----------
+export async function agencyAddHelixNote(_: ActionResult, f: FormData) {
+  const kind = str(f, 'kind', 20) || 'action_item';
+  return call('agency_add_helix_note', { p_tenant: str(f, 'tenant', 64), p_kind: kind, p_text: str(f, 'text', 600) }, kind === 'question' ? 'Sent to the Genovus team. Helix will learn the answer.' : 'Noted. Helix will remember.');
+}
+
+export async function agencySetHelixNote(_: ActionResult, f: FormData) {
+  const status = str(f, 'status', 12) || 'done';
+  return call('agency_set_helix_note', { p_id: str(f, 'id', 64), p_status: status }, status === 'done' ? 'Done.' : status === 'dismissed' ? 'Dismissed.' : 'Reopened.');
+}
+
+export async function agencyHelixNoteFollowUp(_: ActionResult, f: FormData) {
+  return call('agency_helix_note_follow_up', { p_id: str(f, 'id', 64), p_who: str(f, 'who', 120), p_due: str(f, 'due', 10) || null }, 'Added to tomorrow’s follow-ups.');
+}
+
 // ---------- Genovus Studio ----------
 export async function studioUpdateShot(_: ActionResult, f: FormData) {
   return call('studio_update_shot', { p_id: str(f, 'id', 64), p_status: str(f, 'status', 20), p_take_url: str(f, 'take', 500), p_notes: str(f, 'notes', 1000) }, 'Shot updated.');

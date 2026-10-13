@@ -24,6 +24,16 @@ const NOTES = [
   { kind: 'question', chapter: 'ask-helix', text: 'Do we offer a Spanish-language site option for agencies in Gainesville? · missing: no language options in the program catalog yet' },
 ];
 
+// The demo agency's own Helix notes (Brooks Family Insurance, fictional): what the office told Helix this week.
+const AGENCY_NOTES = [
+  { kind: 'action_item', status: 'new', source: 'helix', text: 'Call the Lake Oliver marina about a boat referral partnership before spring launch season.' },
+  { kind: 'action_item', status: 'new', source: 'helix', text: 'Send the Garcias their renewal review before Friday; they emailed Tuesday with questions.' },
+  { kind: 'idea', status: 'new', source: 'helix', text: 'Post an RV pre-trip checklist when the campgrounds open in March.' },
+  { kind: 'action_item', status: 'new', source: 'person', text: 'Ask the Okafor Bakery about coverage for the new location.' },
+  { kind: 'question', status: 'new', source: 'helix', chapter: 'ask-helix', text: 'Can our website take quote requests in Spanish? · missing: no language options in the program yet' },
+  { kind: 'action_item', status: 'done', source: 'helix', text: 'Follow up with Maria Delgado about adding her teen driver.' },
+];
+
 export async function stageLibrary(origin = 'http://localhost:3911') {
   if (!/sckbuj/.test(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')) throw new Error('refusing: the Screen Library is staged on the preview database only');
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -46,6 +56,9 @@ export async function stageLibrary(origin = 'http://localhost:3911') {
   must(await db.from('calls').insert(CALLS.map((c, i) => ({ tenant_id: house.id, number_id: num.id, call_sid: `CAdemo${String(i).padStart(28, '0')}`, from_e164: c.from, started_at: new Date(now - c.minutesAgo * 60_000).toISOString(), duration_s: c.secs, status: c.status, summary: c.summary }))), 'demo calls');
   must(await db.from('helix_notes').delete().contains('work', { demo: true }), 'clear demo notes');
   must(await db.from('helix_notes').insert(NOTES.map((n) => ({ ...n, source: 'helix', status: 'new', work: { demo: true } }))), 'demo notes');
+  const brooks = must(await db.from('tenants').select('id').eq('slug', 'demo-brooks').single(), 'demo agency');
+  const hour = 3_600_000;
+  must(await db.from('helix_notes').insert(AGENCY_NOTES.map((n, i) => ({ chapter: 'agency', ...n, tenant_id: brooks.id, work: { demo: true }, created_at: new Date(now - (i + 1) * 5 * hour).toISOString(), updated_at: new Date(now - (i + 1) * 4 * hour).toISOString() }))), 'demo agency notes');
 
   // Preview test leftovers never belong on camera: a stand-in morning brief, and a note's "no AI provider" error.
   const { data: briefs } = await db.from('helix_briefs').select('tenant_id, day, body').eq('tenant_id', house.id);
@@ -57,6 +70,6 @@ export async function stageLibrary(origin = 'http://localhost:3911') {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const r = await stageLibrary(process.argv[2]);
-  console.log('Staged: Brooks Family Insurance, Tasha (Genovus), 5 Genovus-line calls, 3 Helix notes.', r.agencyLink ? 'Links ready.' : '');
+  console.log('Staged: Brooks Family Insurance (with 6 Helix notes), Tasha (Genovus), 5 Genovus-line calls, 3 Helix notes.', r.agencyLink ? 'Links ready.' : '');
   process.exit(0);
 }

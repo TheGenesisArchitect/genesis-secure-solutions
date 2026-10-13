@@ -40,6 +40,7 @@ export const MODULES: ProgramModule[] = [
   { key: 'market', label: 'Market', tier: 'growth', live: true, path: '/market', blurb: 'What your market needs this season, who’s out there, and which sources bring leads for less than the $50 vendors charge.' },
   { key: 'calendar', label: 'Calendar', tier: 'growth', live: true, path: '/calendar', blurb: 'Your week in one place: follow-ups, booked consults and scheduled posts; subscribe from Google or Apple Calendar.' },
   { key: 'helix', label: 'Ask Helix', tier: 'growth', live: true, path: '/helix', blurb: 'Helix knows your business: who to call today, where leads come from, a follow-up drafted for one tap.' },
+  { key: 'helix-notes', label: 'Helix notes', tier: 'growth', live: true, path: '/helix/notes', blurb: 'What you tell Helix, kept and turned into work: to-dos become follow-ups in one tap, questions go to the Genovus team.' },
   { key: 'kpis', label: 'KPI scorecard', tier: 'growth', live: true, path: '/performance', blurb: 'Contact, booked and won rates, time to first call and posts published, every week.' },
   { key: 'content', label: 'Content calendar', tier: 'growth', live: true, path: '/care', blurb: 'Monthly posts drafted for your approval and scheduled for you.' },
   { key: 'calls', label: 'Call tracking', tier: 'growth', option: true, live: true, path: '/leads', blurb: 'Local numbers for your site, Google profile or partners: every call rings your office, lands in Leads tagged with where it came from, and Helix writes the note. A Growth option.' },

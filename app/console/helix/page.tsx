@@ -72,7 +72,7 @@ function NoteCard({ n }: { n: Note }) {
 export default async function HelixNotes() {
   await requireStaff();
   const supabase = await db();
-  const { data } = await supabase.from('helix_notes').select('id, kind, text, chapter, status, work, created_at, updated_at, source, helix_tour_sessions(is_staff), tenants(name, slug)').order('created_at', { ascending: false }).limit(300);
+  const { data } = await supabase.from('helix_notes').select('id, kind, text, chapter, status, work, created_at, updated_at, source, helix_tour_sessions(is_staff), tenants(name, slug)').or('chapter.is.null,chapter.neq.agency').order('created_at', { ascending: false }).limit(300);
   const notes = (data ?? []) as unknown as Note[];
   const count = (s: string[]) => notes.filter((n) => s.includes(n.status)).length;
   return (
