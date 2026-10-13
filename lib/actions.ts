@@ -477,6 +477,11 @@ export async function studioUpdateShotLog(_: ActionResult, f: FormData) {
   return call('studio_update_shot_log', { p_id: str(f, 'id', 64), p_log: log }, 'Shot log saved.');
 }
 
+/** Audit: an admin acknowledges a known race fork (a dead-end entry written in the same instant as its sibling). */
+export async function auditAcknowledgeFork(_: ActionResult, f: FormData) {
+  return call('acknowledge_audit_fork', { p_leaf: Number(str(f, 'id', 20)), p_reason: str(f, 'reason', 500) }, 'Acknowledged and recorded in the audit log.');
+}
+
 /** StudioNext: the Screen Library screens that fill a product shot. */
 export async function studioSetShotScreens(_: ActionResult, f: FormData) {
   const screens = f.getAll('screen').map((x) => String(x).trim()).filter((x) => /^[a-z0-9-]{2,60}:(desktop|phone)$/.test(x));
