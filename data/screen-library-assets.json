@@ -4,16 +4,16 @@
     "agency-today:phone": {
       "clip": "studio/library/agency-today-phone.mp4",
       "still": "studio/library/agency-today-phone.jpg",
-      "secs": 20.2,
-      "captured_at": "2026-10-14T00:09:36.362Z",
-      "captured_on": "2c27300"
+      "secs": 20.3,
+      "captured_at": "2026-10-14T03:51:13.526Z",
+      "captured_on": "6ce2666"
     },
     "agency-today:desktop": {
       "clip": "studio/library/agency-today-desktop.mp4",
       "still": "studio/library/agency-today-desktop.jpg",
-      "secs": 20.2,
-      "captured_at": "2026-10-14T00:10:01.202Z",
-      "captured_on": "2c27300"
+      "secs": 16.8,
+      "captured_at": "2026-10-14T03:51:40.217Z",
+      "captured_on": "6ce2666"
     },
     "ent-line-calls:desktop": {
       "clip": "studio/library/ent-line-calls-desktop.mp4",
@@ -32,93 +32,93 @@
     "agency-home:desktop": {
       "clip": "studio/library/agency-home-desktop.mp4",
       "still": "studio/library/agency-home-desktop.jpg",
-      "secs": 11.2,
-      "captured_at": "2026-10-14T00:08:52.443Z",
-      "captured_on": "2c27300"
+      "secs": 10,
+      "captured_at": "2026-10-14T03:50:25.197Z",
+      "captured_on": "6ce2666"
     },
     "agency-home:phone": {
       "clip": "studio/library/agency-home-phone.mp4",
       "still": "studio/library/agency-home-phone.jpg",
       "secs": 14.6,
-      "captured_at": "2026-10-14T00:09:12.273Z",
-      "captured_on": "2c27300"
+      "captured_at": "2026-10-14T03:50:47.424Z",
+      "captured_on": "6ce2666"
     },
     "agency-followups:desktop": {
       "clip": "studio/library/agency-followups-desktop.mp4",
       "still": "studio/library/agency-followups-desktop.jpg",
-      "secs": 13.8,
-      "captured_at": "2026-10-14T00:10:22.886Z",
-      "captured_on": "2c27300"
+      "secs": 10.1,
+      "captured_at": "2026-10-14T03:52:02.546Z",
+      "captured_on": "6ce2666"
     },
     "agency-followups:phone": {
       "clip": "studio/library/agency-followups-phone.mp4",
       "still": "studio/library/agency-followups-phone.jpg",
       "secs": 14.4,
-      "captured_at": "2026-10-14T00:10:42.871Z",
-      "captured_on": "2c27300"
+      "captured_at": "2026-10-14T03:52:25.689Z",
+      "captured_on": "6ce2666"
     },
     "agency-leads:desktop": {
       "clip": "studio/library/agency-leads-desktop.mp4",
       "still": "studio/library/agency-leads-desktop.jpg",
-      "secs": 14.4,
-      "captured_at": "2026-10-14T00:11:04.753Z",
-      "captured_on": "2c27300"
+      "secs": 9.8,
+      "captured_at": "2026-10-14T03:52:52.535Z",
+      "captured_on": "6ce2666"
     },
     "agency-leads:phone": {
       "clip": "studio/library/agency-leads-phone.mp4",
       "still": "studio/library/agency-leads-phone.jpg",
-      "secs": 14.6,
-      "captured_at": "2026-10-14T00:11:24.719Z",
-      "captured_on": "2c27300"
+      "secs": 14.7,
+      "captured_at": "2026-10-14T03:53:18.922Z",
+      "captured_on": "6ce2666"
     },
     "agency-pipeline:desktop": {
       "clip": "studio/library/agency-pipeline-desktop.mp4",
       "still": "studio/library/agency-pipeline-desktop.jpg",
-      "secs": 14.2,
-      "captured_at": "2026-10-14T00:11:46.531Z",
-      "captured_on": "2c27300"
+      "secs": 10.5,
+      "captured_at": "2026-10-14T03:53:42.524Z",
+      "captured_on": "6ce2666"
     },
     "agency-calendar:desktop": {
       "clip": "studio/library/agency-calendar-desktop.mp4",
       "still": "studio/library/agency-calendar-desktop.jpg",
-      "secs": 14.3,
-      "captured_at": "2026-10-14T00:12:08.139Z",
-      "captured_on": "2c27300"
+      "secs": 10.8,
+      "captured_at": "2026-10-14T03:54:03.816Z",
+      "captured_on": "6ce2666"
     },
     "agency-calendar:phone": {
       "clip": "studio/library/agency-calendar-phone.mp4",
       "still": "studio/library/agency-calendar-phone.jpg",
       "secs": 14.6,
-      "captured_at": "2026-10-14T00:12:28.620Z",
-      "captured_on": "2c27300"
+      "captured_at": "2026-10-14T03:54:24.563Z",
+      "captured_on": "6ce2666"
     },
     "agency-performance:desktop": {
       "clip": "studio/library/agency-performance-desktop.mp4",
       "still": "studio/library/agency-performance-desktop.jpg",
-      "secs": 18.1,
-      "captured_at": "2026-10-14T00:12:55.355Z",
-      "captured_on": "2c27300"
+      "secs": 16,
+      "captured_at": "2026-10-14T03:54:53.422Z",
+      "captured_on": "6ce2666"
     },
     "agency-performance:phone": {
       "clip": "studio/library/agency-performance-phone.mp4",
       "still": "studio/library/agency-performance-phone.jpg",
-      "secs": 21.4,
-      "captured_at": "2026-10-14T00:13:21.872Z",
-      "captured_on": "2c27300"
+      "secs": 21.2,
+      "captured_at": "2026-10-14T03:55:22.337Z",
+      "captured_on": "6ce2666"
     },
     "agency-market:desktop": {
       "clip": "studio/library/agency-market-desktop.mp4",
       "still": "studio/library/agency-market-desktop.jpg",
-      "secs": 15.1,
-      "captured_at": "2026-10-14T00:13:44.570Z",
-      "captured_on": "2c27300"
+      "secs": 11.1,
+      "captured_at": "2026-10-14T03:55:45.439Z",
+      "captured_on": "6ce2666"
     },
     "agency-partners:desktop": {
       "clip": "studio/library/agency-partners-desktop.mp4",
       "still": "studio/library/agency-partners-desktop.jpg",
-      "secs": 14.9,
-      "captured_at": "2026-10-14T00:14:05.980Z",
-      "captured_on": "2c27300"
+      "secs": 10.8,
+      "captured_at": "2026-10-14T03:56:07.880Z",
+      "captured_on": "6ce2666"
     },
     "agency-program:desktop": {
       "clip": "studio/library/agency-program-desktop.mp4",
