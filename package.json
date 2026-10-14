@@ -13,6 +13,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "verify:headers": "node scripts/verify-prod-headers.mjs",
     "vercel-build": "node scripts/ensure-ffmpeg.mjs && node scripts/build-template.mjs && node scripts/migrate-on-deploy.mjs && next build"
   },
   "dependencies": {
