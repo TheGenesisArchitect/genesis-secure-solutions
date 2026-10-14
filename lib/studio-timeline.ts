@@ -27,7 +27,7 @@ export type CutItem = {
   in: number;
   dur: number;
   start: number;
-  card?: { style: 'helix' | 'end' | 'placeholder' | 'title'; title: string; body?: string };
+  card?: { style: 'helix' | 'end' | 'placeholder' | 'title' | 'packages'; title: string; body?: string };
   captions: Caption[];
   voice: Voice[];
   score?: number | null;
@@ -44,7 +44,8 @@ type TakeRow = { id: string; shot_id: string; status: string; chosen: boolean; c
 type ClipRow = { id: string; shot_id: string | null; slot: string; text: string; status: string; approved: boolean; kind: string; created_at: string };
 
 /** Build the episode's timeline from the Studio's data. */
-export async function buildTimeline(episodeId: string, format: CutFormat = 'wide'): Promise<Cut & { problems: Problem[] }> {
+/** `only`: a Short, the listed shot numbers laid end to end (their own timings, not the master's positions). */
+export async function buildTimeline(episodeId: string, format: CutFormat = 'wide', only?: number[]): Promise<Cut & { problems: Problem[] }> {
   const db = adminDb();
   const { data: ep } = await db.from('studio_episodes').select('code').eq('id', episodeId).single();
   const code = String(ep?.code ?? '');
@@ -67,9 +68,10 @@ export async function buildTimeline(episodeId: string, format: CutFormat = 'wide
   const items: CutItem[] = [];
   let at = 0;
   for (const s of shots) {
+    if (only && !only.includes(s.n)) continue;
     const label = `${shots.indexOf(s) + 1} · ${s.description.split(':')[0].slice(0, 48)}`;
     const dur = Math.max(1, shotSeconds(s.timing) || 3);
-    const start = startOf(s.timing) ?? at;
+    const start = only ? at : (startOf(s.timing) ?? at);
     // Dialogue: the current lines, each with its picked read (or the newest read of that exact wording).
     const read = s.log?.read ?? defaultDirection(code, s.n)?.read ?? '';
     const lines = s.tool === 'edit' ? [] : parseRead(read, cast);
@@ -88,8 +90,9 @@ export async function buildTimeline(episodeId: string, format: CutFormat = 'wide
     const speaking = lines.some((l) => !l.vo && (s.cast_codes ?? []).includes(l.code));
     let item: CutItem;
     if (s.tool === 'edit') {
-      const title = s.description.replace(/^Title card:\s*/i, '').replace(/\.$/, '');
-      item = { shotId: s.id, code: s.shot_code ?? '', label, kind: 'card', status: 'card', in: 0, dur, start, card: { style: /end|close|tag/i.test(s.shot_kind ?? '') ? 'end' : 'title', title }, captions, voice };
+      const pkg = /^Package card:/i.test(s.description);
+      const title = s.description.replace(/^(Title|Package) card:\s*/i, '').replace(/\.$/, '');
+      item = { shotId: s.id, code: s.shot_code ?? '', label, kind: 'card', status: 'card', in: 0, dur, start, card: { style: pkg ? 'packages' : /end|close|tag/i.test(s.shot_kind ?? '') ? 'end' : 'title', title }, captions, voice };
     } else if (s.tool === 'capture' && (s.screens ?? []).length) {
       const keys = (s.screens ?? []).filter((k) => library.has(k));
       for (const k of (s.screens ?? []).filter((k) => !library.has(k))) problems.push({ shot: s.id, label, kind: 'screen_unresolved', detail: `${k} isn't in the Screen Library` });

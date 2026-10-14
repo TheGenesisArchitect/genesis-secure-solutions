@@ -54,7 +54,7 @@ await shot('studio-home-full', 2000);
 // The old cast is retired everywhere on the front page.
 const rows = await ev(`[...document.querySelectorAll('.sx-row')].map((r) => ({ h: r.querySelector('h3').textContent, cards: [...r.querySelectorAll('.sx-info b')].map((b) => b.textContent) }))`);
 const soonRow = rows.find((r) => /Coming soon/.test(r.h)), vault = rows.find((r) => /Archive/.test(r.h));
-check(soonRow && soonRow.cards.length === 1 && /Just Ask Helix/.test(soonRow.cards[0]) && vault && vault.cards.length >= 4, `Coming soon holds only the V2 trailer; the old episodes sit in the archive (${vault?.cards.length ?? 0})`);
+check(soonRow && soonRow.cards.length === 2 && soonRow.cards.some((c) => /Just Ask Helix/.test(c)) && soonRow.cards.some((c) => /Julian/.test(c)) && vault && vault.cards.length >= 4, `Coming soon holds the V2 trailer and Julian's Play-by-Play; the old episodes sit in the archive (${soonRow?.cards.join(', ')} · ${vault?.cards.length ?? 0} archived)`);
 const below = await ev(`(() => { const s = [...document.querySelectorAll('.panel')].filter((p) => /Series bible|Fresh takes/.test(p.innerText)); return s.map((p) => p.innerText).join(' '); })()`);
 check(!/Maya|Trent|\bBri\b/.test(below) && /Marcus/.test(below) && /No takes yet from Marcus, Tasha and Julian/.test(below), 'Series bible and Fresh takes show only the V2 cast');
 

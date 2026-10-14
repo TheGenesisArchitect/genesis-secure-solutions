@@ -6,6 +6,7 @@ import { PLANS, ADD_ONS, RESPONSE_TIMES } from '@/data/offers';
 import { doors } from '@/lib/surfaces';
 import { Hero } from '@/components/site/Hero';
 import { Story } from '@/components/site/Story';
+import { FilmEndCard } from '@/components/site/FilmEndCard';
 
 export const metadata = { title: { absolute: 'Genovus · The right technology inside every agency' } };
 
@@ -49,9 +50,7 @@ export default async function Home() {
         <section className="wrapx sec" id="film">
           <div className="eyebrow">The film</div>
           <h2 className="big">See Genovus in seventy-eight seconds.</h2>
-          <video className="film-frame" controls playsInline preload="metadata" poster="/site/poster-agency.jpg" src="/site/genovus-agency.mp4">
-            Your browser can’t play this film.
-          </video>
+          <FilmEndCard src="/site/genovus-agency.mp4" poster="/site/poster-agency.jpg" />
           <p className="muted" style={{ fontSize: 13 }}>The agency in the film, Brooks Family Insurance, is fictional. Product screens are real; screens marked “In development” are concepts.</p>
         </section>
 
@@ -116,7 +115,10 @@ export default async function Home() {
                 <div className="amt">{usd(p.setupCents!)} <small>setup</small></div>
                 <div className="soft">{p.careName} {usd(p.careCents!)}/mo from launch</div>
                 <ul>{p.includes.map((x) => <li key={x}>{x}</li>)}</ul>
-                <Link href={`/start?plan=${p.id}`} className={'btn ' + (p.id === 'growth' ? 'primary' : '')} style={{ justifySelf: 'start' }}>Choose {p.name}</Link>
+                <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <Link href={`/start?plan=${p.id}`} className={'btn ' + (p.id === 'growth' ? 'primary' : '')}>Choose {p.name}</Link>
+                  <Link href={`/tour?plan=${p.id}`} className="btn ghost">Take the tour</Link>
+                </span>
               </article>
             ))}
           </div>

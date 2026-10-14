@@ -100,7 +100,13 @@ export function ScreeningRoom({ cut, episodeHref }: { cut: Cut; episodeHref: str
           {vids.map((r, i) => <video key={i} ref={r} playsInline muted={false} preload="auto" className={item?.kind === 'video' && active.current === i ? 'on' : ''} />)}
           {item?.kind === 'card' && item.card ? (
             <div className={'screen-card ' + item.card.style}>
-              {item.card.style === 'end' ? (
+              {item.card.style === 'packages' ? (
+                <div className="screen-packages">
+                  <b>{item.card.title}</b>
+                  <div>{['Launch', 'Growth', 'Premium'].map((p) => <span key={p}>{p}<small>Take the tour →</small></span>)}</div>
+                  <small>Ask Helix · genovus.io/tour</small>
+                </div>
+              ) : item.card.style === 'end' ? (
                 <div className="grid" style={{ gap: 14, justifyItems: 'center' }}>
                   <Wordmark size={cut.format === 'vertical' ? 44 : 64} />
                   <b>{item.card.body}</b>

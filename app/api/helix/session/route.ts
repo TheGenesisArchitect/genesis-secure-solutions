@@ -7,6 +7,7 @@ import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
 import { studioSystem, BIBLE_TOOLS, BOARD_TOOLS, type StudioFocus } from '@/lib/helix-bible';
+import { packageTour, packageTourVoice, PACKAGE_TOOLS } from '@/lib/package-tour';
 import { worldStats, statsLine } from '@/lib/world-stats';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
 import { db as userDb } from '@/lib/supabase/server';
@@ -51,7 +52,7 @@ function campaignRef(raw?: string): { c: string | null; src: string | null } {
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string; slug?: string; focus?: { kind?: string; code?: string } };
   const voice = pickVoice(body.voice);
-  const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : body.context === 'enterprise' ? 'enterprise' : body.context === 'agency' ? 'agency' : 'tour';
+  const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : body.context === 'enterprise' ? 'enterprise' : body.context === 'agency' ? 'agency' : body.context === 'packages' ? 'packages' : 'tour';
   // What the person is looking at in the Studio (validated: a known kind and a simple code).
   const kinds = ['home', 'bible', 'cast', 'episode', 'character'];
   const focus: StudioFocus = { kind: (kinds.includes(String(body.focus?.kind)) ? body.focus!.kind : body.context === 'bible' ? 'bible' : 'home') as StudioFocus['kind'], code: /^[A-Za-z0-9-]{1,30}$/.test(String(body.focus?.code ?? '')) ? body.focus!.code : undefined };
@@ -91,6 +92,10 @@ export async function POST(req: Request) {
     if (!access.has('helix')) return Response.json({ error: 'Ask Helix is part of Growth.' }, { status: 403 });
     tenantId = t.id;
     setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])), VOICE_TOOLS, voice);
+  } else if (context === 'packages') {
+    // The public package tour: facts only from that package's steps (no prices), driving the page with show_step.
+    const plan = ['launch', 'growth', 'premium'].includes(String(body.focus?.code)) ? (body.focus!.code as 'launch' | 'growth' | 'premium') : 'growth';
+    setup = liveSetupWith(packageTourVoice(packageTour(plan)), PACKAGE_TOOLS, voice);
   } else {
     setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
   }

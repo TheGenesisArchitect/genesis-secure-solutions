@@ -34,6 +34,8 @@ export type BoardStudioData = {
   library: { key: string; title: string; device: string; chapter: string }[];
   timeline: { total: number; problems: { label: string; detail: string; kind: string }[] };
   draft: { at: string; note: string | null } | null;
+  shorts: { code: string; title: string; shots: number[] }[];
+  renders: { id: string; kind: string; format: string; short: string | null; title: string; secs: number; at: string }[];
 };
 type Take = { id: string; shot_id: string; status: string; chosen: boolean | null };
 type Props = {
@@ -233,7 +235,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
           <div className="pb-track"><span>Dialogue</span><div className="pb-lane">{shots.filter((s) => linesOf(s).length).map((s) => <span key={s.id} className="pb-clip d" style={{ left: pct(startOf(s) + .3), width: `calc(${pct(Math.max(.5, shotSeconds(s.timing) - .6))} - 2px)` }} />)}</div></div>
           <div className="pb-track"><span>Score cues</span><div className="pb-lane">{shots.filter((s) => /\[(impact|sound design)\]|score enters/i.test(s.log?.read ?? defaultDirection(episode.code, s.n)?.read ?? '')).map((s) => <span key={s.id} className="pb-clip k" style={{ left: pct(startOf(s)), width: '18px' }} title={(s.log?.read ?? defaultDirection(episode.code, s.n)?.read) ?? ''}>♪</span>)}</div></div>
         </div>
-        <RenderPanel episode={episode.code} episodeId={episode.id} hasFinal={Boolean(episode.final_blob)} draft={studio.draft} problems={studio.timeline.problems} />
+        <RenderPanel episode={episode.code} episodeId={episode.id} hasFinal={Boolean(episode.final_blob)} draft={studio.draft} problems={studio.timeline.problems} shorts={studio.shorts} renders={studio.renders} />
       </div>
 
       <RouterReport rows={studio.routers} connected={studio.routersConnected} />

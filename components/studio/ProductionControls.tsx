@@ -255,12 +255,12 @@ export function VerifySync({ episode, board }: { episode: string; board: number 
 }
 
 /** Render the episode from its timeline: a draft cut any time, the final once nothing's left open. */
-export function RenderPanel({ episode, episodeId, hasFinal, draft, problems }: { episode: string; episodeId: string; hasFinal: boolean; draft: { at: string; note: string | null } | null; problems: { label: string; detail: string; kind: string }[] }) {
+export function RenderPanel({ episode, episodeId, hasFinal, draft, problems, shorts = [], renders = [] }: { episode: string; episodeId: string; hasFinal: boolean; draft: { at: string; note: string | null } | null; problems: { label: string; detail: string; kind: string }[]; shorts?: { code: string; title: string; shots: number[] }[]; renders?: { id: string; kind: string; format: string; short: string | null; title: string; secs: number; at: string }[] }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<'draft' | 'final' | null>(null);
-  const render = async (kind: 'draft' | 'final') => {
-    setBusy(kind);
-    const r = await fetch(`/api/studio/render/${episode}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The render didn’t answer.' }));
+  const [busy, setBusy] = useState<string | null>(null);
+  const render = async (kind: 'draft' | 'final' | 'short', short?: string) => {
+    setBusy(short ? `short:${short}` : kind);
+    const r = await fetch(`/api/studio/render/${episode}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, short, format: short ? 'vertical' : 'wide' }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The render didn’t answer.' }));
     setBusy(null);
     toast(r.ok ? { ok: r.say, at: Date.now() } : { err: r.error, at: Date.now() });
     router.refresh();
@@ -281,6 +281,23 @@ export function RenderPanel({ episode, episodeId, hasFinal, draft, problems }: {
           <ul className="rp-list">{problems.map((p, i) => <li key={i}><b>{p.label}</b> {p.detail}</li>)}</ul>
         </details>
       ) : <small className="pb-lib">✓ Everything's in place for the final render.</small>}
+      {shorts.length ? (
+        <div className="rp-shorts">
+          <b>Shorts · 9:16</b>
+          {shorts.map((s) => {
+            const last = renders.find((x) => x.kind === 'short' && x.short === s.code && x.format === 'vertical');
+            return (
+              <div key={s.code} className="rp-short">
+                <span><b>{s.title}</b><small className="muted"> · {s.shots.length} shots{last ? ` · rendered ${Math.round(last.secs)} s` : ''}</small></span>
+                <span className="row" style={{ gap: 6 }}>
+                  {last ? <a className="btn small ghost" href={`/api/studio/media/render/${last.id}`} target="_blank" rel="noreferrer">Play</a> : null}
+                  <button className="btn small" type="button" disabled={Boolean(busy)} onClick={() => render('short', s.code)}>{busy === `short:${s.code}` ? 'Rendering…' : last ? 'Render again' : 'Render'}</button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

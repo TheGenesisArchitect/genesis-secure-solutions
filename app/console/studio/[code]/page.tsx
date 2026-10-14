@@ -21,6 +21,7 @@ import { runwayConfigured } from '@/lib/runway';
 import { defaultDirection } from '@/lib/studio-board';
 import { shotQuote, type ProdShot } from '@/lib/studio-production';
 import { buildTimeline } from '@/lib/studio-timeline';
+import { shortsOf } from '@/lib/studio-board';
 import { shotSteps, statusText, STUCK_AFTER, type Job } from '@/lib/studio-monitor';
 import { runwayOrganization, runwayRouters, runwayRouterRequests, shownRouters, shownRouterRequests, shownOrganization } from '@/lib/runway';
 import { getRouters } from '@/lib/studio-runway';
@@ -124,6 +125,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       credits: runwayConfigured() ? shownOrganization().then((o) => o.creditBalance).catch(() => null) : Promise.resolve(null),
       lib: fire(supabase.from('studio_screens').select('code, device, title, chapter').not('clip_path', 'is', null).order('chapter').order('code')),
       timeline: buildTimeline(e.id),
+      renders: fire(supabase.from('studio_renders').select('id, kind, format, short_code, title, secs, created_at').eq('episode_id', e.id).order('created_at', { ascending: false }).limit(40)),
       routerNames: getRouters(adminDb()),
       configs: runwayConfigured() ? shownRouters().then((r) => ({ ok: true, data: r.data ?? [] }), () => ({ ok: false, data: [] as Awaited<ReturnType<typeof runwayRouters>>['data'] })) : Promise.resolve({ ok: false, data: [] as Awaited<ReturnType<typeof runwayRouters>>['data'] }),
       routedTakes: fire(adminDb().from('studio_takes').select('model, status, cost_cents, created_at, done_at, params').like('model', 'runway:%').order('created_at', { ascending: false }).limit(300)),
@@ -170,6 +172,8 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       routersConnected: false,
       library: [],
       timeline: { total: 0, problems: [] },
+      shorts: shortsOf(e.code),
+      renders: [],
       draft: e.draft_blob ? { at: e.draft_at as string, note: (e.render_note as string | null) ?? null } : null,
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
@@ -199,6 +203,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
     const { data: libRows } = await v2.lib;
     studio.library = (libRows ?? []).map((r) => ({ key: `${r.code}:${r.device}`, title: r.title as string, device: r.device as string, chapter: r.chapter as string }));
     // The canonical timeline: what a render would contain, and what's still open before the final.
+    studio.renders = ((await v2.renders).data ?? []).map((x) => ({ id: x.id as string, kind: x.kind as string, format: x.format as string, short: (x.short_code as string | null) ?? null, title: (x.title as string | null) ?? '', secs: Number(x.secs ?? 0), at: x.created_at as string }));
     { const t = await v2.timeline; studio.timeline = { total: t.total, problems: t.problems.map((p) => ({ label: p.label, detail: p.detail, kind: p.kind })) }; }
     // Estimates for the bar: a quick draft of what isn't made, the final render directly, and finals for approved drafts.
     const usd = (c: number) => `$${(c / 100).toFixed(2)}`;

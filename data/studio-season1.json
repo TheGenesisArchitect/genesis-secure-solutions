@@ -2893,6 +2893,417 @@
           }
         }
       ]
+    },
+    {
+      "code": "gjk-pbp1",
+      "kind": "teaser",
+      "sort": 1,
+      "title": "Julian's Play-by-Play",
+      "runtime_s": 74,
+      "format": "original",
+      "cut_family": "extended",
+      "logline": "Our salesman at the push of a button. Julian walks an agency owner through exactly what Genovus does for them, on the real product, and closes on Helix: the agent that knows and grows with your business.",
+      "script": "0:00 JULIAN to the lens: \"You run an agency. Here's exactly what Genovus does for you, starting day one.\" 0:06 CARD: DAY ONE. 0:08 Setup (desktop), Approvals (phone). 0:22 CARD: EVERY MORNING. 0:24 Today (phone), Leads, Follow-ups, Pipeline and Calendar (Growth), Care (phone). 0:50 CARD: MEET HELIX. 0:52 Ask Helix, then Helix notes. 1:04 JULIAN to the lens: \"That's the agent every agency needs. Want to see it in your package? Ask Helix.\" 1:09 PACKAGE CARD: Launch · Growth · Premium, take the tour with Helix.",
+      "music": "Original cue: a warm, confident groove that lets Julian lead; light hits on each title card; lifts on \"Meet Helix\"; settles under the package card. Ducked under every line.",
+      "thumb": "Julian at the strategy table in warm amber light, a phone in his hand showing Genovus, the golden egg glowing softly behind him, title space at the bottom.",
+      "shots": [
+        {
+          "n": 10,
+          "shot_code": "PBP_SH010",
+          "beat": 1,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:00–0:06",
+          "description": "Julian at the strategy table, to the lens: the open.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "You run an agency. Here's exactly what Genovus does for you, starting day one."
+            }
+          ],
+          "log": {
+            "camera": "Medium close-up, slow push-in, eye line to the lens"
+          },
+          "prompt": "Widescreen 16:9 cinematic look: shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table and workstations. No legible text on any screen or paper, no logos. Keep the face in the center third so a vertical crop works. @JULIAN01 sits at the strategy table in warm afternoon light, looks up from his phone and speaks to the lens like a trusted friend who knows the answer.",
+          "direction": {
+            "acting": "Warm, direct, confident: a friend who knows exactly what you need",
+            "camera": "Slow push-in, eye line to the lens",
+            "read": "JULIAN: [warm, direct] You run an agency. [beat] Here's exactly what Genovus does for you, starting day one."
+          }
+        },
+        {
+          "n": 20,
+          "shot_code": "PBP_SH020",
+          "beat": 1,
+          "shot_kind": "sting",
+          "tool": "edit",
+          "tier": "production",
+          "timing": "0:06–0:08",
+          "description": "Title card: DAY ONE.",
+          "cast_codes": [],
+          "lines": [],
+          "log": {
+            "camera": "Code card, hard cut"
+          },
+          "prompt": "Code-made title card. Never generated.",
+          "direction": {
+            "acting": "—",
+            "read": "[impact] soft hit"
+          }
+        },
+        {
+          "n": 30,
+          "shot_code": "PBP_SH030",
+          "beat": 1,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:08–0:15",
+          "description": "Setup: the turnkey build, step by step.",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Day one, we build it with you. Your agent record becomes your website, your profiles and your welcome film."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [confident] Day one, we build it with you. Your agent record becomes your website, your profiles and your welcome film."
+          },
+          "screens": [
+            "agency-setup:desktop"
+          ]
+        },
+        {
+          "n": 40,
+          "shot_code": "PBP_SH040",
+          "beat": 2,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:15–0:22",
+          "description": "Approvals on the phone: one tap, with a record.",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Nothing goes public until you approve it. One tap, and every decision is on record."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [reassuring] Nothing goes public until you approve it. One tap, and every decision is on record."
+          },
+          "screens": [
+            "agency-approvals:phone"
+          ]
+        },
+        {
+          "n": 50,
+          "shot_code": "PBP_SH050",
+          "beat": 2,
+          "shot_kind": "sting",
+          "tool": "edit",
+          "tier": "production",
+          "timing": "0:22–0:24",
+          "description": "Title card: EVERY MORNING.",
+          "cast_codes": [],
+          "lines": [],
+          "log": {
+            "camera": "Code card, hard cut"
+          },
+          "prompt": "Code-made title card. Never generated.",
+          "direction": {
+            "acting": "—",
+            "read": "[impact] soft hit"
+          }
+        },
+        {
+          "n": 60,
+          "shot_code": "PBP_SH060",
+          "beat": 2,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:24–0:30",
+          "description": "Today on the phone: tomorrow's calls, ready the night before.",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Every night, tomorrow's calls are ready. You know who to call, and why."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [easy] Every night, tomorrow's calls are ready. You know who to call, and why."
+          },
+          "screens": [
+            "agency-today:phone"
+          ]
+        },
+        {
+          "n": 70,
+          "shot_code": "PBP_SH070",
+          "beat": 3,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:30–0:37",
+          "description": "Leads with their source, then Follow-ups on the right day.",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Every lead shows where it came from. Follow-ups come back the day they're due."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [matter-of-fact] Every lead shows where it came from. Follow-ups come back the day they're due."
+          },
+          "screens": [
+            "agency-leads:desktop",
+            "agency-followups:phone"
+          ]
+        },
+        {
+          "n": 80,
+          "shot_code": "PBP_SH080",
+          "beat": 3,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:37–0:44",
+          "description": "Pipeline, then Calendar (Growth).",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "On Growth, your week runs itself: every lead by stage, every consult on the calendar."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [building] On Growth, your week runs itself: every lead by stage, every consult on the calendar."
+          },
+          "screens": [
+            "agency-pipeline:desktop",
+            "agency-calendar:desktop"
+          ]
+        },
+        {
+          "n": 90,
+          "shot_code": "PBP_SH090",
+          "beat": 3,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:44–0:50",
+          "description": "Care: ask for a change; posts already on the calendar.",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Need a change? Ask. Your posts are already on the calendar."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [light] Need a change? Ask. Your posts are already on the calendar."
+          },
+          "screens": [
+            "agency-care:desktop"
+          ]
+        },
+        {
+          "n": 100,
+          "shot_code": "PBP_SH100",
+          "beat": 4,
+          "shot_kind": "sting",
+          "tool": "edit",
+          "tier": "production",
+          "timing": "0:50–0:52",
+          "description": "Title card: MEET HELIX.",
+          "cast_codes": [],
+          "lines": [],
+          "log": {
+            "camera": "Code card, hard cut"
+          },
+          "prompt": "Code-made title card. Never generated.",
+          "direction": {
+            "acting": "—",
+            "read": "[impact] soft hit"
+          }
+        },
+        {
+          "n": 110,
+          "shot_code": "PBP_SH110",
+          "beat": 4,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:52–0:58",
+          "description": "Ask Helix in the agency: \"Who should I call first?\" (Growth).",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Then there's Helix. The agent that knows your business. Ask who to call first, and it already knows."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [lifting, proud] Then there's Helix. The agent that knows your business. Ask who to call first, and it already knows."
+          },
+          "screens": [
+            "agency-helix:desktop"
+          ]
+        },
+        {
+          "n": 120,
+          "shot_code": "PBP_SH120",
+          "beat": 4,
+          "shot_kind": "product",
+          "tool": "capture",
+          "tier": "production",
+          "timing": "0:58–1:04",
+          "description": "Helix notes: what the office tells Helix, turned into work (Growth).",
+          "cast_codes": [],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Every question and idea you give Helix becomes a note your office can act on. It grows with your business."
+            }
+          ],
+          "log": {
+            "camera": "Real Genovus screen from the Screen Library, never generated"
+          },
+          "prompt": "Real screen from the Screen Library only. Never generated.",
+          "direction": {
+            "acting": "Julian narrates: a sharp friend walking you through it, not an announcer",
+            "read": "JULIAN (V.O.): [warm, certain] Every question and idea you give Helix becomes a note your office can act on. It grows with your business."
+          },
+          "screens": [
+            "agency-helix-notes:desktop"
+          ]
+        },
+        {
+          "n": 130,
+          "shot_code": "PBP_SH130",
+          "beat": 5,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "1:04–1:09",
+          "description": "Julian to the lens: the handoff to Ask Helix.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "That's the agent every agency needs. Want to see it in your package? Ask Helix."
+            }
+          ],
+          "log": {
+            "camera": "Medium close-up, held, a small knowing smile at the end"
+          },
+          "prompt": "Widescreen 16:9 cinematic look: shallow depth of field, deep charcoal shadows with warm amber practicals and restrained orange accents. GENOVUS headquarters, a working studio office with a strategy table and workstations. No legible text on any screen or paper, no logos. Keep the face in the center third so a vertical crop works. @JULIAN01 leans back slightly at the strategy table, sets his phone down and speaks to the lens with a small knowing smile, inviting rather than selling.",
+          "direction": {
+            "acting": "Inviting, not selling: a knowing friend",
+            "camera": "Held, eye line to the lens",
+            "read": "JULIAN: [warm, knowing] That's the agent every agency needs. [beat] Want to see it in your package? [smile] Ask Helix."
+          }
+        },
+        {
+          "n": 140,
+          "shot_code": "PBP_SH140",
+          "beat": 5,
+          "shot_kind": "signature",
+          "tool": "edit",
+          "tier": "production",
+          "timing": "1:09–1:14",
+          "description": "Package card: Helix, the agent that knows and grows with your business.",
+          "cast_codes": [],
+          "lines": [],
+          "log": {
+            "camera": "Code card: Launch · Growth · Premium, take the tour with Helix (clickable on genovus.io)"
+          },
+          "prompt": "Code-made package card. Never generated.",
+          "direction": {
+            "acting": "—",
+            "read": "[impact] soft resolve"
+          }
+        }
+      ],
+      "shorts": [
+        {
+          "code": "tomorrow",
+          "title": "Tomorrow is ready",
+          "shots": [
+            10,
+            50,
+            60,
+            70,
+            140
+          ]
+        },
+        {
+          "code": "approve",
+          "title": "Nothing goes out without you",
+          "shots": [
+            10,
+            40,
+            90,
+            140
+          ]
+        },
+        {
+          "code": "helix",
+          "title": "Knows and grows",
+          "shots": [
+            100,
+            110,
+            120,
+            130,
+            140
+          ]
+        }
+      ]
     }
   ],
   "posts": {

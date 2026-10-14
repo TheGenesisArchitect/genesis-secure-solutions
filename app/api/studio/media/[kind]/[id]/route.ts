@@ -19,6 +19,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string; i
   else if (kind === 'frame') path = (await supabase.from('studio_art').select('blob_path').eq('id', id).eq('kind', 'frame').maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'take') path = (await supabase.from('studio_takes').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'final') path = (await supabase.from('studio_episodes').select('final_blob').eq('id', id).maybeSingle()).data?.final_blob ?? null;
+  else if (kind === 'render') path = (await supabase.from('studio_renders').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'draft') path = (await supabase.from('studio_episodes').select('draft_blob').eq('id', id).maybeSingle()).data?.draft_blob ?? null;
   else if (kind === 'voice') path = (await supabase.from('studio_voice_clips').select('blob_path').eq('id', id).maybeSingle()).data?.blob_path ?? null;
   else if (kind === 'rights') path = (await supabase.from('studio_sources').select('license_blob').eq('id', id).maybeSingle()).data?.license_blob ?? null;

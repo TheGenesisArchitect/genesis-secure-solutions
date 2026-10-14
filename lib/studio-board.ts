@@ -5,7 +5,9 @@ import season from '@/data/studio-season1.json';
 import castFile from '@/data/studio-cast.json';
 
 type SeasonShot = { n: number; cast_codes?: string[]; tool: string; tier?: string; timing?: string; direction?: { acting: string; read: string } };
-type SeasonEpisode = { code: string; shots: SeasonShot[] };
+type SeasonEpisode = { code: string; shots: SeasonShot[]; shorts?: Short[] };
+/** A Short: a selection of the episode's shots, rendered on its own (9:16 by default), ending on its last card. */
+export type Short = { code: string; title: string; shots: number[] };
 type Cast = { code: string; status?: string };
 
 const EPISODES = (season as unknown as { episodes: SeasonEpisode[] }).episodes;
@@ -60,4 +62,9 @@ export function shotCost(s: { tool: string; tier?: string | null; timing?: strin
   const keyframes = eng ? 2 * PRICE.keyframe : 0;
   const voice = eng ? lines * 2 * PRICE.lineRead : 0;
   return { video, keyframes, voice, total: video + keyframes + voice };
+}
+
+/** The Shorts cut from an episode (from the season file). */
+export function shortsOf(code: string): Short[] {
+  return EPISODES.find((e) => e.code === code)?.shorts ?? [];
 }

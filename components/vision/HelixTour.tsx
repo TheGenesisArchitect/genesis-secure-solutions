@@ -22,7 +22,7 @@ const b64 = (buf: ArrayBuffer) => { let s = ''; const b = new Uint8Array(buf); f
  *  (`slug`). `floating`: show the tour's launch pill (otherwise open it with `openEvent`). `embedded`: the voice bar
  *  inside Ask Helix (one Ask Helix: voice and typing in the same panel); `autoStart` begins listening when it opens
  *  unless the person turned voice off on this device. */
-export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where, embedded, autoStart }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string; embedded?: boolean; autoStart?: boolean } = {}) {
+export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where, embedded, autoStart }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency' | 'packages'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string; embedded?: boolean; autoStart?: boolean } = {}) {
   const ask = context === 'enterprise' || context === 'agency';
   const convo = context !== 'tour'; // Studio and Ask Helix: a conversation, not the guided tour
   const [mounted, setMounted] = useState(false);
@@ -144,6 +144,12 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (name === 'finish_dialogue' && r?.needs_recording) window.dispatchEvent(new CustomEvent('genovus:finish-dialogue', { detail: { shot: Number(args.shot) } }));
       return r;
     }
+    // The package tour (genovus.io/tour): the page shows the step or switches package.
+    if (name === 'show_step' || name === 'switch_package') {
+      window.dispatchEvent(new CustomEvent('genovus:package-tour', { detail: { tool: name, args } }));
+      await new Promise((r) => setTimeout(r, 150));
+      return { ok: true };
+    }
     if (name === 'talk_to_team') { setCta(true); return { ok: true, shown: 'A “Talk to the team” button is now on screen.' }; }
     if (name === 'end_tour') { setTimeout(() => end('Tour complete.'), 2500); return { ok: true }; }
     return { ok: false, error: 'unknown tool' };
@@ -162,7 +168,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       diag.current.live = true;
       // If Helix says nothing within 12 seconds, say so instead of sitting silently.
       setTimeout(() => { if (session.current && diag.current.audio === 0) setErr('Helix hasn’t answered yet. Say hello, or tap Voice off and Talk to reconnect.'); }, 12000);
-      send({ realtimeInput: { text: ask ? `The person just opened voice Ask Helix${where ? ` on ${where}` : ''}. Greet them in one short sentence and ask what they need. Don't summarize the brief unless asked.` : context !== 'tour' ? `The Studio team just opened Ask Helix${focus?.label ? ` on ${focus.label}` : ' on the Character Bible'}. Greet them in one sentence, mention what is on screen, and ask what they want to work on.` : `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
+      send({ realtimeInput: { text: context === 'packages' ? `The visitor just opened ${focus?.label ?? 'a package tour'} on genovus.io. Welcome them in one sentence and begin the tour.` : ask ? `The person just opened voice Ask Helix${where ? ` on ${where}` : ''}. Greet them in one short sentence and ask what they need. Don't summarize the brief unless asked.` : context !== 'tour' ? `The Studio team just opened Ask Helix${focus?.label ? ` on ${focus.label}` : ' on the Character Bible'}. Greet them in one sentence, mention what is on screen, and ask what they want to work on.` : `The tour is starting now. The listener is on the chapter "${toSlug(pathRef.current)}". Begin.` } });
       return;
     }
     const sc = m.serverContent;

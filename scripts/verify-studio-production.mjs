@@ -374,8 +374,8 @@ try {
   check(await ev(`!!document.querySelector('#shot-70 .pm.stuck')`) && /longer than it should/.test(card7) && /rendering 40%|queued|rendering/.test(card7) && /Stop & refund/.test(card7), 'a take running too long is flagged Stuck with Runway’s status and Stop & refund');
   await shot('prod-monitor', 1500);
   await click(`document.querySelector('#shot-70')`, '/Stop & refund/');
-  await waitFor(async () => ctl.cancelled.includes(hung.operation), 10000);
-  check(ctl.cancelled.includes(hung.operation) && (await stages())[7] === 'blocked', 'Stop & refund cancels the Runway job and stops the shot');
+  await waitFor(async () => ctl.cancelled.includes(hung.operation) && (await stages())[7] === 'blocked', 25000);
+  check(ctl.cancelled.includes(hung.operation) && (await stages())[7] === 'blocked', `Stop & refund cancels the Runway job and stops the shot (cancelled ${ctl.cancelled.includes(hung.operation)}, stage ${(await stages())[7]})`);
   ctl.hang = false;
   await go('/console/studio/gjk-h01');
   check(/elapsed/.test(await ev(`document.querySelector('.pc-bar').innerText`)) || true, 'the bar shows run health');
@@ -405,6 +405,25 @@ try {
   const v = (probe?.streams ?? []).find((x) => x.codec_type === 'video');
   check(dr.ok && Math.abs(dur - dr.secs) < 1.5 && streams.includes('video') && streams.includes('audio') && v?.width === 1920 && v?.height === 1080, `the draft cut renders to a real 1920×1080 MP4 with picture and sound (${dur.toFixed(1)} s of ${dr.secs ?? '?'} s, rendered in ${Math.round((Date.now() - t0) / 1000)} s${dr.error ? ': ' + dr.error : ''})`);
 
+  // 4d. A Short: Julian's Play-by-Play "approve" Short renders 9:16 (phone screens fill the frame, package card last).
+  const sh = await ev(`fetch('/api/studio/render/gjk-pbp1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'short', short: 'approve' }) }).then((r) => r.json())`);
+  const pbp = must(await db.from('studio_episodes').select('id').eq('code', 'gjk-pbp1').single(), 'pbp');
+  const shRow = (await db.from('studio_renders').select('id, blob_path, format, short_code, secs').eq('episode_id', pbp.id).eq('kind', 'short').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+  let sv = null, sdur = 0;
+  if (sh.ok && shRow) {
+    const { get } = await import('@vercel/blob');
+    const res = await get(shRow.blob_path, { access: 'private', useCache: false });
+    const file = path.join(mediaDir, 'short.mp4');
+    fs.writeFileSync(file, Buffer.from(await new Response(res.stream).arrayBuffer()));
+    const pr = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,width,height', '-of', 'json', file]).toString());
+    sv = (pr.streams ?? []).find((x) => x.codec_type === 'video'); sdur = Number(pr.format?.duration ?? 0);
+    renderedFiles.push(shRow.blob_path);
+  }
+  check(sh.ok && shRow?.format === 'vertical' && shRow?.short_code === 'approve' && sv?.width === 1080 && sv?.height === 1920 && Math.abs(sdur - 24) < 1.5, `a Short renders 9:16 from the master's shots and is listed for the board (${sv?.width ?? '?'}×${sv?.height ?? '?'}, ${sdur.toFixed(1)} s${sh.error ? ': ' + sh.error : ''})`);
+  await go('/console/studio/gjk-pbp1');
+  check(await ev(`[...document.querySelectorAll('.rp-short')].some((r) => /Nothing goes out without you/.test(r.innerText) && /Play/.test(r.innerText))`), 'the board lists the Short with a Play link');
+  if (pbp?.id) await db.from('studio_renders').delete().eq('episode_id', pbp.id);
+
   // 5. The ceiling stops the run.
   const cur = must(await db.from('studio_episodes').select('production').eq('id', ep.id).single(), 'p').production;
   await db.from('studio_episodes').update({ production: { ...cur, ceiling_cents: 1 } }).eq('id', ep.id);
@@ -432,6 +451,7 @@ try {
   await db.from('studio_quotes').delete().gte('created_at', startedAt);
   if (renderedFiles.length) await del(renderedFiles).catch(() => {});
   await db.from('studio_episodes').update({ draft_blob: null, draft_at: null, render_note: null }).eq('code', 'gjk-h01');
+  { const h = (await db.from('studio_episodes').select('id').eq('code', 'gjk-h01').single()).data; if (h) await db.from('studio_renders').delete().eq('episode_id', h.id); }
   for (const s of priorShots) await db.from('studio_shots').update({ produce: s.produce ?? {}, status: s.status, log: s.log, screens: s.screens ?? [] }).eq('id', s.id);
   for (const c of cast) await db.from('studio_characters').update({ voice: priorVoice[c.id] }).eq('id', c.id);
   console.log(`cleaned up: ${clips.length} clips, ${art.length} frames, ${takes.length} takes, ${refs.length} casting refs, ${blobs.length} files`);

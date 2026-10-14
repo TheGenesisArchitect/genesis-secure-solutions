@@ -104,6 +104,7 @@ async function run(steps) {
 // ---------- recording: screencast frames → constant-frame-rate MP4, plus a still ----------
 async function record(name, kind, url, steps) {
   await go(url); await go(url); // dev compiles a route on first visit: warm it so the clip opens on its own screen
+  await sleep(2400); // let tile count-ups settle so the still shows the real numbers
   const stillFile = path.join(OUT, `${name}.jpg`);
   fs.writeFileSync(stillFile, Buffer.from((await send('Page.captureScreenshot', { format: 'jpeg', quality: 90 })).result.data, 'base64'));
   const dir = path.join(OUT, `_frames-${name}`);
