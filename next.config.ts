@@ -10,7 +10,8 @@ const CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob:",
   "font-src 'self'",
-  "connect-src 'self' wss://generativelanguage.googleapis.com",
+  // Helix voice (Gemini Live), and the Studio's direct-to-Blob uploads (@vercel/blob/client: recorded takes, files).
+  "connect-src 'self' wss://generativelanguage.googleapis.com https://vercel.com/api/blob/",
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -20,7 +21,8 @@ const securityHeaders = process.env.NODE_ENV === 'production'
   ? [
       { key: 'Content-Security-Policy', value: CSP },
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
+      // Camera for the Studio's Finish dialogue recorder (Act-Two), microphone for Helix voice; this site only.
+      { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
     ]
   : [];
 
