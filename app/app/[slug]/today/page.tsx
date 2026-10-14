@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 type F = { id: string; who: string; reason: string | null; due_on: string; due_at: string | null; priority: boolean };
 type L = { id: string; name: string; phone: string | null; topic: string | null; source: string; channel: string; created_at: string };
 const ago = (t: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(t).getTime()) / 60000)); return m < 60 ? `${m || 1} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
-const telOf = (p: string) => p.replace(/[^d+]/g, '');
+const telOf = (p: string) => p.replace(/[^\d+]/g, '');
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
 const time = (t: string | null) => { if (!t) return 'Any time'; const [h, m] = t.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
