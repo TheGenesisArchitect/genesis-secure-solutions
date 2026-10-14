@@ -27,6 +27,18 @@ export async function GET(req: Request) {
     const list = (Array.isArray(r.data) ? r.data : ((r.data as { data?: unknown[] })?.data ?? [])) as unknown[];
     return Response.json({ ok: true, posts: list.length, shapes: list.slice(0, 4).map((p) => shape(p)) });
   }
+  if (new URL(req.url).searchParams.get('probe') === 'draft') {
+    // One-time format check: a DRAFT (never published) on the Genovus brand, read back for its full field
+    // structure, then deleted. Shows exactly how Metricool names Reels, YouTube and the AI label.
+    const at = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10) + 'T10:00:00';
+    const body = { text: 'Genovus API format check (draft). Safe to delete.', publicationDate: { dateTime: at, timezone: 'America/New_York' }, providers: [{ network: 'instagram' }, { network: 'facebook' }, { network: 'youtube' }], draft: true, autoPublish: false, media: [], instagramData: { type: 'REEL' } };
+    const made = await mc<Record<string, unknown>>('/v2/scheduler/posts', { method: 'POST', body });
+    if (!made.ok) return Response.json({ ok: false, step: 'create draft', status: made.status, error: made.error });
+    const post = ((made.data as { data?: Record<string, unknown> })?.data ?? made.data) as Record<string, unknown>;
+    const id = String(post.id ?? post.postId ?? '');
+    const del = id ? await mc(`/v2/scheduler/posts/${id}`, { method: 'DELETE' }) : null;
+    return Response.json({ ok: true, created: shape(post), deleted: del ? (del.ok ? true : `${del.status}: ${del.error}`) : 'no id returned' });
+  }
   const r = await metricoolBrands();
   return Response.json(r.ok
     ? { ok: true, configured: true, userId: METRICOOL_USER_ID(), genovusBrand: GENOVUS_BLOG_ID(), brands: r.data }
