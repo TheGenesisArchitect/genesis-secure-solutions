@@ -27,10 +27,8 @@ const fail = (m) => { failed++; console.log(`FAIL  ${m}`); };
 
 // --- 1. The production headers, exactly as next.config.ts builds them --------------------------------------------
 process.env.NODE_ENV = 'production';
-const warn = process.listeners('warning');
-process.removeAllListeners('warning'); // Node's "module type not specified" notice for next.config.ts; harmless here
+process.removeAllListeners('warning'); // Node's "module type not specified" notice for next.config.ts (emitted after the import resolves); harmless here
 const config = (await import(pathToFileURL(path.join(ROOT, 'next.config.ts')).href)).default;
-for (const l of warn) process.on('warning', l);
 const all = (await config.headers()).find((h) => h.source === '/:path*')?.headers ?? [];
 const header = (k) => all.find((h) => h.key.toLowerCase() === k.toLowerCase())?.value ?? '';
 const csp = Object.fromEntries(header('Content-Security-Policy').split(';').map((d) => d.trim().split(/\s+/)).filter((d) => d[0]).map(([k, ...v]) => [k, v]));
