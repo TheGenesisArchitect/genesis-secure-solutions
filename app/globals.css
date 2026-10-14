@@ -1220,3 +1220,8 @@ button.chip{cursor:pointer}
 @keyframes fd-pace{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .fd-hear{font-size:12px;display:inline-flex;gap:6px;align-items:center}
 @media (max-width:760px){.fd-prompt p.on span{font-size:19px}}
+.pc-ok{color:#7ee2a8 !important}
+/* Today: "Call now" leads. Name and what they asked about; Call is the big target on a phone. */
+.today-lead{display:grid;gap:1px;min-width:0}.today-lead b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.today-lead small{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today-now{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+@media (max-width:520px){.today-list.leads li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"lead lead" "time act"}.today-list.leads .today-lead{grid-area:lead}.today-list.leads .today-time{grid-area:time}.today-list.leads .row{grid-area:act}}

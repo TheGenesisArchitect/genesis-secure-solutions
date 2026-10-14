@@ -1,7 +1,10 @@
 // StudioNext direction: the board and Helix's voice tools share this one door. Every action runs with the caller's
 // own session (staff only) through audited Studio functions. Spending happens only through a production run, and a
 // run starts only by approving a quote the server priced (a tap, or a spoken yes that Helix confirms with the quote).
-//   POST { episode: code, tool, args }   tools: status, direct_shot, plan, approve, review, lock_cast, pause
+// "Produce the episode" (plan with auto) approves itself when the run's ceiling is inside the approval line ($5,
+// studio_budget.approval_over_cents) and the month has room: same audited approval, recorded as via 'auto'. A final
+// run then finishes itself (lib/studio-finish.ts): final cut and Shorts render, and the episode waits for Publish.
+//   POST { episode: code, tool, args }   tools: status, direct_shot, plan, approve, review, lock_cast, pause, finish, publish
 //   GET  ?episode=code                    advance the run (single-flight) and report where every shot is
 import { put } from '@vercel/blob';
 import { db } from '@/lib/supabase/server';
@@ -9,6 +12,7 @@ import { adminDb } from '@/lib/supabase/admin';
 import { advanceProduction, cancelShotJobs, episodeShots, quote, type ProdShot } from '@/lib/studio-production';
 import { castSheetBytes, identityLocked, startFinishDialogue } from '@/lib/studio-runway';
 import { dialogueOpen, readiness } from '@/lib/studio-monitor';
+import { kickFinish } from '@/lib/studio-finish';
 import { parseRead } from '@/lib/studio-read';
 import { defaultDirection } from '@/lib/studio-board';
 
@@ -27,11 +31,11 @@ async function episodeOf(code: unknown) {
 async function status(e: { id: string; code: string; title: string }) {
   const admin = adminDb();
   const { data: fresh } = await admin.from('studio_episodes').select('production').eq('id', e.id).single();
-  const run = (fresh?.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; shots?: string[]; paused_reason?: string };
+  const run = (fresh?.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; shots?: string[]; paused_reason?: string; finishing?: string; finished_at?: string; finish_note?: string; finish_failed_at?: string };
   const shots = await episodeShots(admin, e.id);
   const { data: spent } = run.at ? await admin.rpc('studio_production_spent', { p_episode: e.id, p_since: run.at }) : { data: 0 };
   const list = shots.map((s, i) => ({ board: i + 1, title: s.description.slice(0, 70), tool: s.tool, stage: String(s.produce?.stage ?? (s.status === 'approved' ? 'approved' : 'not started')), note: (s.produce?.redo_note ?? s.produce?.note ?? s.produce?.last_error ?? null) as string | null, dialogue_open: Boolean(s.produce?.dialogue_open) }));
-  return { episode: e.title, run: { on: Boolean(run.on), spent: money(Number(spent ?? 0)), ceiling: money(run.ceiling_cents ?? 0), paused_reason: run.paused_reason ?? null }, shots: list,
+  return { episode: e.title, run: { on: Boolean(run.on), spent: money(Number(spent ?? 0)), ceiling: money(run.ceiling_cents ?? 0), paused_reason: run.paused_reason ?? null, finishing: Boolean(run.finishing), finished: Boolean(run.finished_at), finish_note: run.finish_note ?? null }, shots: list,
     summary: `${list.filter((x) => x.stage === 'review').length} ready for review, ${list.filter((x) => x.stage === 'approved').length} approved, ${list.filter((x) => ['queued', 'reading', 'drawing', 'rendering'].includes(x.stage)).length} in production, ${list.filter((x) => x.stage === 'capture').length} need a phone capture, ${list.filter((x) => x.stage === 'blocked').length} blocked.` };
 }
 /** A shot's readiness from its data: picked take (and whether it performed to the reads), screens, reads. */
@@ -81,6 +85,29 @@ export async function POST(req: Request) {
     for (const s of fresh.filter((x) => x.produce?.stage === 'blocked' && /identity/i.test(String(x.produce?.note ?? '')))) await admin.rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since_now: true, force: true, note: null, leases: {} } });
     return { locked };
   };
+  /** Approve a priced quote (tap, voice or auto): the audited studio_approve_production checks the $5 line and the
+   *  monthly cap. A final run finishes itself once its shots land. */
+  const approveQuote = async (quoteId: string, via: 'tap' | 'voice' | 'auto') => {
+    const { error } = await supabase.rpc('studio_approve_production', { p_quote: quoteId, p_via: via });
+    if (error) return { error: error.message };
+    // Producing means producing with the official cast: any character not yet locked is locked to the official V2
+    // sheet now (recorded as this person's decision), so no shot stalls waiting on a lock.
+    const locked = await lockCast();
+    if ('error' in locked) return { error: locked.error };
+    const admin = adminDb();
+    const { data: q } = await admin.from('studio_quotes').select('detail').eq('id', quoteId).maybeSingle();
+    const final = (q?.detail as { pass?: string } | null)?.pass !== 'draft';
+    await admin.rpc('studio_production_patch', { p_episode: e.id, p_patch: { auto_finish: final }, p_remove: ['finishing', 'finished_at', 'finish_note', 'finish_failed_at'] });
+    const progress = await advanceProduction(e.id).catch(() => ({}));
+    return { progress, final };
+  };
+  const monthLine = async () => {
+    const admin = adminDb();
+    const [{ data: spent }, { data: bud }] = await Promise.all([admin.rpc('studio_spent_cents'), admin.from('studio_budget').select('monthly_cap_cents').eq('id', true).maybeSingle()]);
+    return typeof spent === 'number' && bud ? ` This month: ${money(spent)} of ${money(bud.monthly_cap_cents)}.` : '';
+  };
+  // A change to the run (redo, retry, a model switch, Finish now) reopens the finish: the final follows the new shots.
+  const clearFailedFinish = () => adminDb().rpc('studio_production_patch', { p_episode: e.id, p_patch: {}, p_remove: ['finish_failed_at', 'finished_at', 'finishing'] });
   try {
     switch (b.tool) {
       case 'status': return Response.json({ ok: true, ...(await status(e)) });
@@ -99,19 +126,27 @@ export async function POST(req: Request) {
         if (!q.items.length) return fail('Nothing to produce in those shots: they’re approved already or have nothing to generate.');
         const { data: id, error } = await supabase.rpc('studio_quote_production', { p_episode: e.id, p_shots: q.items.map((x) => x.id), p_cents: q.cents, p_detail: { items: q.items, pass } });
         if (error) return fail(error.message);
-        return Response.json({ ok: true, quote_id: id, pass, total: money(q.cents), ceiling: money(Math.ceil(q.cents * 1.25)), shots: q.items.map((x) => x.board), expires_in_minutes: 15,
+        const ceiling = Math.ceil(q.cents * 1.25);
+        if (a.auto === true && pass === 'final') {
+          const { data: bud } = await adminDb().from('studio_budget').select('approval_over_cents').eq('id', true).maybeSingle();
+          const line = Number(bud?.approval_over_cents ?? 0);
+          if (ceiling <= line) {
+            const r = await approveQuote(id as string, 'auto');
+            if ('error' in r) return Response.json({ ok: true, quote_id: id, pass, total: money(q.cents), ceiling: money(ceiling), shots: q.items.map((x) => x.board), auto: false, say: `It couldn't start on its own: ${r.error}` });
+            return Response.json({ ok: true, started: true, auto: true, total: money(q.cents), ceiling: money(ceiling), progress: r.progress,
+              say: `Producing the episode: ${money(q.cents)} (ceiling ${money(ceiling)}), inside the ${money(line)} line, so it started on its own. It finishes itself: final cut and Shorts, then it waits for Publish.${await monthLine()}` });
+          }
+          return Response.json({ ok: true, quote_id: id, pass, total: money(q.cents), ceiling: money(ceiling), shots: q.items.map((x) => x.board), expires_in_minutes: 15, auto: false,
+            say: `This run is ${money(q.cents)} (ceiling ${money(ceiling)}), over the ${money(line)} line, so it needs one approval. Shall I go ahead?` });
+        }
+        return Response.json({ ok: true, quote_id: id, pass, total: money(q.cents), ceiling: money(ceiling), shots: q.items.map((x) => x.board), expires_in_minutes: 15,
           say: `${pass === 'draft' ? 'A quick draft of' : 'Producing'} shots ${q.items.map((x) => x.board).join(', ')} is about ${money(q.cents)} (ceiling ${money(Math.ceil(q.cents * 1.25))}). Shall I go ahead?` });
       }
       case 'approve': {
         if (typeof a.quote_id !== 'string') return fail('Get a quote first, read it back, and approve that quote.');
-        const { error } = await supabase.rpc('studio_approve_production', { p_quote: a.quote_id, p_via: a.via === 'voice' ? 'voice' : 'tap' });
-        if (error) return fail(error.message);
-        // Producing means producing with the official cast: any character not yet locked is locked to the official V2
-        // sheet now (recorded as this person's decision), so no shot stalls waiting on a lock.
-        const locked = await lockCast();
-        if ('error' in locked) return fail(locked.error);
-        const progress = await advanceProduction(e.id).catch(() => ({}));
-        return Response.json({ ok: true, started: true, progress, say: 'Approved. Lines, keyframes and takes are underway; each shot lands in review as it finishes.' });
+        const r = await approveQuote(a.quote_id, a.via === 'voice' ? 'voice' : 'tap');
+        if ('error' in r) return fail(r.error ?? 'That didn’t work.');
+        return Response.json({ ok: true, started: true, progress: r.progress, say: r.final ? `Approved. It finishes itself: final cut and Shorts, then it waits for Publish.${await monthLine()}` : 'Approved. The drafts are underway; each lands in review as it finishes.' });
       }
       case 'review': {
         const s = boardShot(shots, a.shot);
@@ -120,7 +155,7 @@ export async function POST(req: Request) {
         if (!action) return fail('Approve, redo or reopen it?');
         const { error } = await supabase.rpc('studio_review_shot', { p_shot: s.id, p_action: action, p_note: typeof a.note === 'string' ? a.note.slice(0, 300) : '' });
         if (error) return fail(error.message);
-        if (action === 'redo') await advanceProduction(e.id).catch(() => ({}));
+        if (action === 'redo') { await clearFailedFinish(); await advanceProduction(e.id).catch(() => ({})); }
         if (action === 'approve') {
           // Record what the approval covered, so nobody (and no Helix) mistakes a picture approval for a finished scene.
           const r = await shotReadiness(adminDb(), e.code, s);
@@ -128,7 +163,7 @@ export async function POST(req: Request) {
           const open = dialogueOpen(r) ? (r.voice === 'missing' ? ' Its line reads aren’t ready yet.' : ' The take isn’t lip-synced: the read will be mixed in the edit, or reopen it to finish the sync.') : '';
           return Response.json({ ok: true, shot: a.shot, action, covered: r, say: `Shot ${a.shot} approved${dialogueOpen(r) ? ' (picture only)' : ''}.${open}` });
         }
-        if (action === 'reopen') return Response.json({ ok: true, shot: a.shot, action, say: `Shot ${a.shot} is back in review.` });
+        if (action === 'reopen') { await clearFailedFinish(); return Response.json({ ok: true, shot: a.shot, action, say: `Shot ${a.shot} is back in review.` }); }
         return Response.json({ ok: true, shot: a.shot, action });
       }
       case 'lock_cast': {
@@ -140,6 +175,7 @@ export async function POST(req: Request) {
         // Blocked shots in the run start over (fresh failure counts); the run resumes if it was paused for no spend reason.
         const blocked = shots.filter((x) => x.produce?.stage === 'blocked');
         for (const s of blocked) await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since_now: true, force: true, note: null, last_error: null, leases: {} } });
+        await clearFailedFinish();
         const progress = await advanceProduction(e.id).catch(() => ({}));
         return Response.json({ ok: true, retried: blocked.length, progress, say: blocked.length ? `Retrying ${blocked.length} shot${blocked.length === 1 ? '' : 's'}.` : 'Nothing is blocked.' });
       }
@@ -188,6 +224,8 @@ export async function POST(req: Request) {
           return data as string;
         };
         const r = await startFinishDialogue(reserve, s.id, a.recording, Number(a.intensity ?? 3));
+        // The scene's take is about to change: the final cut has to follow it.
+        if (r.ok) await clearFailedFinish();
         return r.ok ? Response.json({ ok: true, shot: a.shot, say: r.note }) : fail(r.error);
       }
       case 'verify_sync': {
@@ -204,6 +242,7 @@ export async function POST(req: Request) {
         const s = boardShot(shots, a.shot);
         if (!s) return fail(`There’s no shot ${a.shot}.`);
         await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { allow_first_party: true, decision: null, note: null, stage: 'queued', since_now: true, force: true, leases: {} } });
+        await clearFailedFinish();
         const progress = await advanceProduction(e.id).catch(() => ({}));
         return Response.json({ ok: true, shot: a.shot, progress, say: `Rendering shot ${a.shot} on Gen-4.5; its dialogue will be mixed in the edit (or finished with Act-Two).` });
       }
@@ -221,8 +260,22 @@ export async function POST(req: Request) {
         if (!(run.shots ?? []).includes(s.id)) return fail(`Shot ${a.shot} isn’t in the approved run. Ask Helix to produce it first.`);
         await adminDb().rpc('studio_shot_produce_patch', { p_shot: s.id, p_patch: { stage: 'queued', since_now: true, force: true, note: null, last_error: null, leases: {} } });
         if (!run.on) await adminDb().rpc('studio_production_patch', { p_episode: e.id, p_patch: { on: true }, p_remove: ['paused_at', 'paused_reason', 'idle_at'] });
+        await clearFailedFinish();
         const progress = await advanceProduction(e.id).catch(() => ({}));
         return Response.json({ ok: true, shot: a.shot, cancelled, progress, say: `Retrying shot ${a.shot}.` });
+      }
+      case 'finish': {
+        // "Finish now": a person asks again after a failed finish, or before the minute's check comes round.
+        await clearFailedFinish();
+        const kicked = await kickFinish(new URL(req.url).origin, e.id);
+        return Response.json({ ok: true, started: kicked, say: kicked ? 'Finishing: rendering the final cut and the Shorts now.' : 'Not ready to finish: some shots are still landing or need attention.' });
+      }
+      case 'publish': {
+        // One tap per episode: sign off the checks, approve the episode and every post (studio_publish_episode).
+        const { data, error } = await supabase.rpc('studio_publish_episode', { p_episode: e.id });
+        if (error) return fail(error.message);
+        const r = (data ?? {}) as { checks_signed?: number; posts?: number };
+        return Response.json({ ok: true, ...r, say: `Published: the episode is approved${r.posts ? ` and ${r.posts} post${r.posts === 1 ? '' : 's'} are ready to go out` : ''}.` });
       }
       case 'pause': {
         const { error } = await supabase.rpc('studio_pause_production', { p_episode: e.id });
@@ -242,5 +295,7 @@ export async function GET(req: Request) {
   const e = await episodeOf(new URL(req.url).searchParams.get('episode'));
   if (!e) return Response.json({ error: 'not found' }, { status: 404 });
   const progress = (e.production as { on?: boolean }).on ? await advanceProduction(e.id).catch((x) => ({ error: String(x) })) : {};
+  // The open board finishes a landed run within seconds instead of waiting for the minute's cron.
+  if ((e.production as { on?: boolean }).on) await kickFinish(new URL(req.url).origin, e.id).catch(() => false);
   return Response.json({ progress, ...(await status(e)) });
 }

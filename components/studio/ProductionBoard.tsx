@@ -101,7 +101,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
           </span>
         </div>
       </section>
-      <ProductionBar episode={episode.code} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} health={studio.health} est={studio.est} blocked={shots.map((s, i) => ({ board: i + 1, s })).filter((x) => stageOf(x.s) === 'blocked').map((x) => ({ board: x.board, note: String(x.s.produce?.note ?? x.s.produce?.last_error ?? 'Blocked') }))} />
+      <ProductionBar episode={episode.code} hasFinal={Boolean(episode.final_blob)} published={episode.status === 'approved' || episode.status === 'live'} run={studio.run} counts={counts} estimate={money(studio.runCents)} needsLock={!inEpisode.every(locked)} ready={studio.ready} health={studio.health} est={studio.est} blocked={shots.map((s, i) => ({ board: i + 1, s })).filter((x) => stageOf(x.s) === 'blocked').map((x) => ({ board: x.board, note: String(x.s.produce?.note ?? x.s.produce?.last_error ?? 'Blocked') }))} />
 
       <div className="pb-layout">
         <aside className="pb-col">

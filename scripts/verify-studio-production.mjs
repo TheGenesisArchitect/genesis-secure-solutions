@@ -75,7 +75,8 @@ const startedAt = new Date().toISOString();
 const cast = must(await db.from('studio_characters').select('id, code, name, voice').in('code', ['MARCUS01', 'TASHA01', 'JULIAN01']), 'cast');
 const tasha = cast.find((c) => c.code === 'TASHA01');
 const priorVoice = Object.fromEntries(cast.map((c) => [c.id, c.voice]));
-const env = { ...process.env, Genovus_Runway_API_Key: 'stand-in', RUNWAY_API_BASE: `http://localhost:${MOCK}/v1` };
+// CRON_SECRET lets the board's live advance kick the finisher (as the Studio cron does in production).
+const env = { ...process.env, Genovus_Runway_API_Key: 'stand-in', RUNWAY_API_BASE: `http://localhost:${MOCK}/v1`, CRON_SECRET: process.env.CRON_SECRET || 'verify-studio-local' };
 const devLog = process.env.DEV_LOG ? fs.openSync(process.env.DEV_LOG, 'w') : 'ignore';
 const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: ['ignore', devLog, devLog], shell: true, env });
 for (let i = 0; i < 150 && !(await up()); i++) await sleep(1000);
@@ -103,6 +104,8 @@ const waitFor = async (fn, ms = 40000) => { for (let i = 0; i < ms / 500; i++) {
 const created = { clips: [], art: [], takes: [], refs: [] };
 
 const priorShots = []; const dirOK = true; const renderedFiles = [];
+// The finisher can render the trailer's final cut during any section; restore the episode's own state at the end.
+const epStart = must(await db.from('studio_episodes').select('status, final_blob, final_sha256, final_url, approved_by, approved_at').eq('code', 'gjk-h01').single(), 'ep start');
 try {
   const ep = must(await db.from('studio_episodes').select('id, production').eq('code', 'gjk-h01').single(), 'episode');
   const priorRun = ep.production;
@@ -340,6 +343,7 @@ try {
   const recPath = calls.slice(nFd).find((c) => c.path === '/character_performance') ? 'uploaded' : null;
   const recRow = must(await db.from('studio_takes').select('params').eq('shot_id', shotsAll.find((x) => x.n === 100).id).eq('model', 'runway:act_two').order('created_at', { ascending: false }).limit(1).maybeSingle(), 'act two row');
   check(Boolean(recPath) && /^studio\/uploads\/.+performance-.+\.(webm|mp4)$/.test(recRow?.params?.recording ?? ''), `the camera recorder records from the prompter, uploads, and starts Act-Two (${recRow?.params?.recording ?? 'no recording'})`);
+  await waitFor(async () => ev(`window.__hush[window.__hush.length - 1] === false`), 10000);
   check(await ev(`window.__hush[window.__hush.length - 1] === false`), 'Helix picks up again once the recorder closes');
   for (let i = 0; i < 30 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
   const act = calls.slice(nFd).find((c) => c.path === '/character_performance');
@@ -454,6 +458,56 @@ try {
   void rd; void adv;
   const run = must(await db.from('studio_episodes').select('production').eq('id', ep.id).single(), 'run').production;
   check(run.on === false && /ceiling/i.test(run.paused_reason ?? ''), `at the ceiling the run pauses itself (${run.paused_reason})`);
+
+  // 6. Auto-produce: inside the $5 line one tap starts the run with no approval, the episode finishes itself (final
+  //    cut + every Short, lips mixed in the edit), and one Publish tap approves the episode and its posts.
+  const priorEp = must(await db.from('studio_episodes').select('status, final_blob, final_sha256, final_url, approved_by, approved_at').eq('id', ep.id).single(), 'prior ep');
+  const priorPosts = must(await db.from('studio_posts').select('id, status, approved_by, approved_at').eq('episode_id', ep.id), 'prior posts');
+  try {
+    await db.from('studio_episodes').update({ production: {} }).eq('id', ep.id);
+    // Settle shots the earlier sections left mid-step (the ceiling test paused a redo), as a finished episode would be.
+    await db.from('studio_shots').update({ produce: { stage: 'review' } }).eq('episode_id', ep.id).in('produce->>stage', ['queued', 'reading', 'drawing', 'rendering', 'syncing']);
+    const cheap = shotsAll.findIndex((s) => s.tool === 'capture');
+    await db.from('studio_shots').update({ produce: {} }).eq('id', shotsAll[cheap].id);
+    const t0 = Date.now();
+    const ap = await api('plan', { shots: String(cheap + 1), pass: 'final', auto: true });
+    const runAuto = must(await db.from('studio_episodes').select('production').eq('id', ep.id).single(), 'auto run').production;
+    const dec = must(await db.from('studio_quotes').select('used_via').gte('created_at', startedAt).order('created_at', { ascending: false }).limit(1).maybeSingle(), 'q');
+    check(ap.ok && ap.started && ap.auto && runAuto.on && runAuto.auto_finish && dec?.used_via === 'auto', `inside the $5 line "Produce" starts with no approval tap, recorded as auto (${ap.total}, ceiling ${ap.ceiling}; ${ap.say?.slice(0, 90)})`);
+    check(/This month: \$[\d.]+ of \$150\.00/.test(ap.say ?? ''), `the start reports the month's Studio spend against the cap (${(ap.say ?? '').match(/This month[^.]*\.\d+[^.]*\.\d+/)?.[0] ?? 'none'})`);
+    // The open board advances the run and kicks the finish; nobody presses Render.
+    let fin = null;
+    for (let i = 0; i < 120 && !fin; i++) { await advance(); await sleep(3000); const p = must(await db.from('studio_episodes').select('production, final_blob, status').eq('id', ep.id).single(), 'p'); if (p.production?.finished_at || p.production?.finish_failed_at) fin = p; }
+    const secs = Math.round((Date.now() - t0) / 1000);
+    check(Boolean(fin?.production?.finished_at && fin.final_blob) && fin.status === 'review', `the episode finishes itself: the final cut renders with no Render tap (${secs} s from the tap; ${fin?.production?.finish_note ?? 'not finished'})`);
+    if (fin?.final_blob) renderedFiles.push(fin.final_blob);
+    const autoShorts = must(await db.from('studio_renders').select('id, short_code, format, blob_path').eq('episode_id', ep.id).eq('kind', 'short').gte('created_at', startedAt), 'auto shorts');
+    for (const r of autoShorts) renderedFiles.push(r.blob_path);
+    const expected = (JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'data', 'studio-season1.json'), 'utf8')).episodes ?? []).find((x) => x.code === 'gjk-h01')?.shorts?.length ?? 0;
+    check(autoShorts.length === expected && autoShorts.every((r) => r.format === 'vertical'), `and every Short renders 9:16 with it (${autoShorts.length} of ${expected})`);
+    await go('/console/studio/gjk-h01');
+    const bar = await ev(`document.querySelector('.pc-bar')?.innerText ?? ''`);
+    check(/Finished · ready to publish/.test(bar) && /Publish the episode/.test(bar), 'the board says it is finished and offers one Publish tap');
+    await click(`document.querySelector('.pc-bar')`, '/Publish the episode/');
+    await waitFor(async () => (must(await db.from('studio_episodes').select('status').eq('id', ep.id).single(), 's').status === 'approved'), 15000);
+    const pub = must(await db.from('studio_episodes').select('status').eq('id', ep.id).single(), 'pub');
+    const posts = must(await db.from('studio_posts').select('status').eq('episode_id', ep.id), 'posts');
+    check(pub.status === 'approved' && posts.every((p) => p.status === 'approved' || p.status === 'posted'), `one Publish tap approves the episode and all ${posts.length} posts`);
+    // Over the line: the same tap returns one quote to approve instead of starting (the line is lowered for the test,
+    // since most of the trailer is made and "all" prices under $5).
+    await db.from('studio_episodes').update({ production: {} }).eq('id', ep.id);
+    const line = must(await db.from('studio_budget').select('approval_over_cents').eq('id', true).single(), 'line').approval_over_cents;
+    await db.from('studio_budget').update({ approval_over_cents: 1 }).eq('id', true);
+    let big;
+    try { big = await api('plan', { shots: 'all', pass: 'final', auto: true }); } finally { await db.from('studio_budget').update({ approval_over_cents: line }).eq('id', true); }
+    const runBig = must(await db.from('studio_episodes').select('production').eq('id', ep.id).single(), 'big').production;
+    check(big.ok && !big.started && big.quote_id && /over the \$0\.01 line/.test(big.say ?? '') && !runBig.on, `over the line it asks once instead and nothing starts (${big.total}: ${big.say?.slice(0, 80)})`);
+  } finally {
+    await db.from('studio_episodes').update(priorEp).eq('id', ep.id);
+    for (const p of priorPosts) await db.from('studio_posts').update({ status: p.status, approved_by: p.approved_by, approved_at: p.approved_at }).eq('id', p.id);
+    await db.from('studio_qa').delete().eq('episode_id', ep.id).eq('note', 'Signed off with Publish');
+    await db.from('studio_renders').delete().eq('episode_id', ep.id).gte('created_at', startedAt);
+  }
   await db.from('studio_episodes').update({ production: priorRun ?? {} }).eq('id', ep.id);
   void dirOK;
 } finally {
@@ -473,6 +527,7 @@ try {
   await db.from('studio_quotes').delete().gte('created_at', startedAt);
   if (renderedFiles.length) await del(renderedFiles).catch(() => {});
   await db.from('studio_episodes').update({ draft_blob: null, draft_at: null, render_note: null }).eq('code', 'gjk-h01');
+  { const now = (await db.from('studio_episodes').select('final_blob').eq('code', 'gjk-h01').single()).data; if (now?.final_blob && now.final_blob !== epStart.final_blob) await del([now.final_blob]).catch(() => {}); await db.from('studio_episodes').update(epStart).eq('code', 'gjk-h01'); }
   { const h = (await db.from('studio_episodes').select('id').eq('code', 'gjk-h01').single()).data; if (h) await db.from('studio_renders').delete().eq('episode_id', h.id); }
   for (const s of priorShots) await db.from('studio_shots').update({ produce: s.produce ?? {}, status: s.status, log: s.log, screens: s.screens ?? [] }).eq('id', s.id);
   for (const c of cast) await db.from('studio_characters').update({ voice: priorVoice[c.id] }).eq('id', c.id);

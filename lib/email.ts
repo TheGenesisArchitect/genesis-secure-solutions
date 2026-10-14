@@ -85,6 +85,28 @@ export function inviteEmail(to: string, agency: string, inviter: string, link: s
 
 export function outboxEmail(template: string, to: string, data: Record<string, string>, origin: string): Mail | null {
   switch (template) {
+    case 'lead_new': {
+      // A new lead: who, how to reach them, what they want and where they found the agency. Call within minutes.
+      const how = data.channel === 'call' ? 'called the office' : data.channel === 'partner' ? 'came from a referral partner' : 'asked for a callback';
+      const team = data.team === 'true';
+      return {
+        to,
+        subject: `New lead for ${data.agency}: ${data.name}${data.topic ? ` (${data.topic})` : ''}`,
+        ...frame({
+          preheader: `${data.name} ${how}${data.phone ? `: ${data.phone}` : ''}. The sooner you call, the likelier they book.`,
+          heading: `${data.name} ${how}`,
+          body: [
+            ...(team ? [`${data.agency} has no owner signed in yet, so this alert came to the Genovus team. Pass it on.`] : []),
+            [data.phone && `Phone: ${data.phone}`, data.email && `Email: ${data.email}`].filter(Boolean).join(' · '),
+            ...(data.topic ? [`About: ${data.topic}`] : []),
+            ...(data.message ? [`“${data.message}”`] : []),
+            `Found you through: ${data.source}.`,
+            'The sooner you call, the likelier they are to book. It is waiting in your Leads with its consent on record.',
+          ],
+          button: { label: 'Open the lead', url: `${origin}/app/${data.slug}/leads` },
+        }, origin),
+      };
+    }
     case 'approval_waiting':
       return {
         to,

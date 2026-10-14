@@ -164,7 +164,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       identity,
       designs: new Map(castList.map((c) => [c.id, clips.filter((x) => x.kind === 'design' && x.character_id === c.id).map((x) => ({ id: x.id, status: x.status, approved: x.approved, error: x.error }))])),
       score: clips.filter((x) => x.kind === 'score').map((x) => ({ id: x.id, status: x.status, error: x.error })),
-      run: { on: false, spent: '$0.00', ceiling: '$0.00', paused_reason: null },
+      run: { on: false, spent: '$0.00', ceiling: '$0.00', paused_reason: null, finishing: false, finished: false, finish_note: null },
       monitor: new Map(),
       health: { elapsed: 0, left: null, credits: null, active: 0 },
       est: { draft: '$0.00', final: '$0.00', finalDrafts: '$0.00' },
@@ -177,7 +177,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
       draft: e.draft_blob ? { at: e.draft_at as string, note: (e.render_note as string | null) ?? null } : null,
       runCents: (shots ?? []).filter((s) => (s.produce as { stage?: string } | null)?.stage !== 'approved').reduce((a, s) => a + shotQuote(e.code, s as unknown as ProdShot, castList), 0),
     };
-    const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string };
+    const run = (e.production ?? {}) as { on?: boolean; at?: string; ceiling_cents?: number; paused_reason?: string; finishing?: string; finished_at?: string; finish_note?: string };
     const spentCents = v2.spent ? Number((await v2.spent).data ?? 0) : 0;
     // The Production Monitor: each shot's steps since its current pass started.
     const { data: frameJobs } = await v2.frameJobs;
@@ -244,7 +244,7 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         measured: [...byModel.entries()].map(([model, b]) => ({ model, renders: b.renders, avgSecs: b.secs.length ? b.secs.reduce((x, y) => x + y, 0) / b.secs.length : null, failRate: b.renders ? b.failed / b.renders : 0, avgCents: b.cents.length ? b.cents.reduce((x, y) => x + y, 0) / b.cents.length : null })),
       };
     }));
-    studio.run = { on: Boolean(run.on), spent: `$${(spentCents / 100).toFixed(2)}`, ceiling: `$${((run.ceiling_cents ?? 0) / 100).toFixed(2)}`, paused_reason: run.paused_reason ?? null };
+    studio.run = { on: Boolean(run.on), spent: `$${(spentCents / 100).toFixed(2)}`, ceiling: `$${((run.ceiling_cents ?? 0) / 100).toFixed(2)}`, paused_reason: run.paused_reason ?? null, finishing: Boolean(run.finishing), finished: Boolean(run.finished_at), finish_note: run.finish_note ?? null };
   }
   return (
     <ConsoleShell title={e.title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: e.title }]}>

@@ -11,22 +11,22 @@ const toast = (r: ActionResult) => { if (r) window.dispatchEvent(new CustomEvent
 const direct = async (episode: string, tool: string, args: Record<string, unknown> = {}) =>
   fetch('/api/studio/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ episode, tool, args }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The Studio didn’t answer.' }));
 
-export type RunState = { on: boolean; spent: string; ceiling: string; paused_reason: string | null };
+export type RunState = { on: boolean; spent: string; ceiling: string; paused_reason: string | null; finishing?: boolean; finished?: boolean; finish_note?: string | null };
 export type Counts = { review: number; approved: number; active: number; capture: number; blocked: number; total: number; draftOk?: number };
 export type Estimates = { draft: string; final: string; finalDrafts: string };
 
-export function ProductionBar({ episode, run, counts, estimate, needsLock, ready, blocked = [], health, est }: { episode: string; run: RunState; counts: Counts; estimate: string; needsLock: boolean; ready: boolean; blocked?: { board: number; note: string }[]; health?: RunHealth; est?: Estimates }) {
+export function ProductionBar({ episode, hasFinal = false, published = false, run, counts, estimate, needsLock, ready, blocked = [], health, est }: { episode: string; hasFinal?: boolean; published?: boolean; run: RunState; counts: Counts; estimate: string; needsLock: boolean; ready: boolean; blocked?: { board: number; note: string }[]; health?: RunHealth; est?: Estimates }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState<{ quote_id: string; total: string; ceiling: string; shots: number[]; pass?: string } | null>(null);
   // Live while a run is going: advance it and refresh the board.
   useEffect(() => {
-    if (!run.on) return;
+    if (!run.on && !run.finishing) return;
     let stop = false;
     const tick = async () => { await fetch(`/api/studio/direct?episode=${episode}`).catch(() => null); if (!stop) { router.refresh(); setTimeout(tick, 6000); } };
     const t = setTimeout(tick, 3000);
     return () => { stop = true; clearTimeout(t); };
-  }, [run.on, episode, router]);
+  }, [run.on, run.finishing, episode, router]);
   const go = async (tool: string, args: Record<string, unknown> = {}) => {
     setBusy(true);
     const r = await direct(episode, tool, args);
@@ -36,6 +36,10 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
     return r;
   };
   const plan = async (pass: 'draft' | 'final' = 'final', shots = 'all') => { const r = await go('plan', { shots, pass }); if (r.ok) setQ(r); };
+  // One tap: inside the $5 line it starts and finishes on its own; over it, the quote shows for one approval.
+  const produce = async () => { const r = await go('plan', { shots: 'all', pass: 'final', auto: true }); if (!r.ok) return; if (r.started) toast({ ok: r.say, at: Date.now() }); else { setQ(r); if (r.say) toast({ ok: r.say, at: Date.now() }); } };
+  const publish = async () => { const r = await go('publish'); if (r.ok) toast({ ok: r.say, at: Date.now() }); };
+  const finishNow = async () => { const r = await go('finish'); if (r.ok) toast({ ok: r.say, at: Date.now() }); };
   const raise = async () => { const r = await go('raise_ceiling'); if (r.ok) setQ(r); };
   const atCeiling = /ceiling/i.test(run.paused_reason ?? '');
   const approve = async () => { if (!q) return; const r = await go('approve', { quote_id: q.quote_id }); if (r.ok) { setQ(null); toast({ ok: r.say, at: Date.now() }); } };
@@ -46,9 +50,10 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
       <div className="pc-state">
         <span className={'pc-dot' + (run.on ? ' on' : '')} aria-hidden="true" />
         <span>
-          <b>{run.on ? (counts.active ? 'In production' : 'Waiting on review') : run.paused_reason ? 'Paused' : counts.approved || counts.review ? 'Run finished' : 'Ready to produce'}</b>
+          <b>{run.finishing ? 'Finishing: final cut and Shorts' : counts.active ? 'In production' : published && run.finished ? 'Published' : run.finished && hasFinal ? 'Finished · ready to publish' : run.paused_reason ? 'Paused' : run.on ? 'Landing the last shots' : counts.approved || counts.review ? 'Run finished' : 'Ready to produce'}</b>
           <small>{counts.approved} approved{counts.draftOk ? ` · ${counts.draftOk} drafts approved` : ''} · {counts.review} to review · {counts.active} in production{counts.capture ? ` · ${counts.capture} phone capture` : ''}{counts.blocked ? ` · ${counts.blocked} blocked` : ''}{run.on || run.paused_reason ? ` · ${run.spent} of ${run.ceiling}` : ''}</small>
           {run.paused_reason ? <small className="pc-warn">{run.paused_reason}</small> : null}
+          {run.finish_note && !run.finishing ? <small className={/^Couldn|failed/.test(run.finish_note) ? 'pc-warn' : 'pc-ok'}>{run.finish_note}</small> : null}
           {health && (run.on || health.active) ? <RunHealthLine h={health} /> : null}
         </span>
         <span className="pc-progress" aria-hidden="true"><i style={{ width: `${pct}%` }} /></span>
@@ -62,13 +67,16 @@ export function ProductionBar({ episode, run, counts, estimate, needsLock, ready
             <button className="btn small primary" type="button" disabled={busy} onClick={approve}>Approve {q.total}</button>
             <button className="btn small ghost" type="button" onClick={() => setQ(null)}>Cancel</button>
           </span>
-        ) : atCeiling ? <button className="btn small primary" type="button" disabled={busy} onClick={raise}>Approve more to finish</button>
+        ) : run.finishing ? <span className="muted"><span className="take-spin" /> Rendering the final cut and Shorts…</span>
+          : hasFinal && run.finished && !published && !counts.active && !counts.draftOk ? <><button className="btn small primary" type="button" disabled={busy} onClick={publish}>Publish the episode</button><button className="btn small ghost" type="button" disabled={busy || !ready} onClick={produce}>Produce again · ~{est?.final ?? estimate}</button></>
+          : atCeiling ? <button className="btn small primary" type="button" disabled={busy} onClick={raise}>Approve more to finish</button>
           : run.on && !counts.draftOk ? <button className="btn small ghost" type="button" disabled={busy} onClick={() => go('pause')}>Pause</button>
           : counts.draftOk ? <><button className="btn small primary" type="button" disabled={busy || !ready} onClick={() => plan('final', 'drafts')}>Render final · {counts.draftOk} approved draft{counts.draftOk === 1 ? '' : 's'} · ~{est?.finalDrafts ?? estimate}</button><button className="btn small ghost" type="button" disabled={busy || !ready} onClick={() => plan('draft')}>Draft the rest</button></>
-          : <><button className="btn small primary" type="button" disabled={busy || !ready} onClick={() => plan('draft')}>Quick draft the episode · ~{est?.draft ?? estimate}</button><button className="btn small ghost" type="button" disabled={busy || !ready} onClick={() => plan('final')}>Final quality · ~{est?.final ?? estimate}</button></>}
+          : run.finish_note && /^Couldn|failed/.test(run.finish_note) ? <button className="btn small primary" type="button" disabled={busy} onClick={finishNow}>Finish now</button>
+          : <><button className="btn small primary" type="button" disabled={busy || !ready} onClick={produce}>Produce the episode · ~{est?.final ?? estimate}</button><button className="btn small ghost" type="button" disabled={busy || !ready} onClick={() => plan('draft')}>Quick draft first · ~{est?.draft ?? estimate}</button></>}
       </div>
       {blocked.length ? <p className="pc-blocked">⚠ {blocked.map((b) => `Shot ${b.board}: ${b.note}`).join(' · ')}</p> : null}
-      <p className="pc-voice">🎙 Hands-free: open <b>Ask Helix</b> and say <i>“Produce the trailer”</i>, <i>“Approve shot 4”</i> or <i>“Redo shot 11, slower turn”</i>. Helix prices it, asks once, and does the rest.</p>
+      <p className="pc-voice">🎙 Hands-free: open <b>Ask Helix</b> and say <i>“Produce the trailer”</i>, <i>“Approve shot 4”</i> or <i>“Redo shot 11, slower turn”</i>. Inside the $5 line it starts on its own and finishes itself (final cut and Shorts); you tap Publish. Over $5, Helix asks once.</p>
     </div>
   );
 }

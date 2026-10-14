@@ -28,6 +28,7 @@ let user = (await db.auth.admin.listUsers({ perPage: 1000 })).data.users.find((u
 if (!user) user = must(await db.auth.admin.createUser({ email, email_confirm: true }), 'user').user;
 must(await db.from('memberships').upsert({ tenant_id: t.id, user_id: user.id, role: 'owner' }, { onConflict: 'tenant_id,user_id' }), 'membership');
 must(await db.from('leads').delete().eq('tenant_id', t.id), 'clear leads');
+must(await db.from('outbox').delete().eq('tenant_id', t.id), 'clear alerts');
 const key = `gnv_lk_${randomBytes(32).toString('base64url')}`;
 must(await db.from('lead_keys').insert({ tenant_id: t.id, key_hash: createHash('sha256').update(key).digest('hex'), label: 'Verify' }), 'key');
 
@@ -47,6 +48,21 @@ const results = [
   await send({ id: 'v9', name: 'Bad Key', email: 'x@example.com', consent }, 'gnv_lk_' + 'x'.repeat(43)),
 ];
 console.log('ingest results (expect 3 ok, 1 duplicate, 1 unknown key):', JSON.stringify(results));
+let failed = 0;
+const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); if (!ok) failed++; };
+// New-lead alerts: each new lead queues one email to the owner (a retry of the same lead doesn't), never sent from
+// here (no outbox sender runs locally) and removed at the end.
+must(await send({ id: 'v4', name: 'Jordan Fields', phone: '(706) 555-0111', topic: 'Motorcycle', consent, attribution: { utm_source: 'google' } }), 'v4');
+const alerts = must(await db.from('outbox').select('to_email, data').eq('tenant_id', t.id).eq('template', 'lead_new'), 'alerts');
+check(alerts.length === 4 && alerts.every((a) => a.to_email === email) && new Set(alerts.map((a) => a.data.lead)).size === 4, `every new lead queues one alert to the owner (${alerts.length} for 4 leads; the duplicate didn't add one)`);
+check(alerts.some((a) => a.data.name === 'Jordan Fields' && a.data.phone === '(706) 555-0111' && a.data.slug === SLUG), 'the alert carries who, how to call and where to open it');
+// No owner yet: the alert goes to the Genovus team instead, so no lead goes unseen.
+must(await db.from('memberships').delete().eq('tenant_id', t.id).eq('user_id', user.id), 'drop owner');
+must(await send({ id: 'v5', name: 'Team Fallback', phone: '(706) 555-0177', topic: 'Auto', consent }), 'v5');
+must(await db.from('memberships').upsert({ tenant_id: t.id, user_id: user.id, role: 'owner' }, { onConflict: 'tenant_id,user_id' }), 'restore owner');
+const teamAlerts = must(await db.from('outbox').select('to_email, data').eq('tenant_id', t.id).eq('template', 'lead_new').eq('data->>name', 'Team Fallback'), 'team');
+check(teamAlerts.length > 0 && teamAlerts.every((a) => a.data.team === 'true' && a.to_email !== email), `with no owner signed up, the alert goes to the Genovus team (${teamAlerts.length})`);
+must(await db.from('leads').delete().eq('tenant_id', t.id).eq('ext_id', 'v5'), 'drop v5');
 
 // 3b. Growth trial on a Launch agency (the Enterprise toggle), one booked consult, two follow-ups.
 const GRANT = process.argv[4] === 'growth-trial';
@@ -90,7 +106,19 @@ console.log('signed in at', await ev('location.pathname'));
 const tag = GRANT ? `${PLAN}-trial` : PLAN;
 for (const [name, p] of [['home', ''], ['leads', '/leads'], ['pipeline', '/pipeline'], ['calendar', '/calendar'], ['helix', '/helix'], ['program', '/program'], ['performance', '/performance']]) { await go(`/app/${SLUG}${p}`); await shot(`${tag}-${name}`, 1440, 900, false); }
 await go(`/app/${SLUG}/pipeline`); await shot(`${tag}-pipeline-phone`, 430, 932, true);
+// Today: the leads nobody has called yet are at the top with one tap to call; "Called" takes one off.
+await send2('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+await go(`/app/${SLUG}/today`);
+const now = await ev(`(() => { const c = document.querySelector('.today-now'); if (!c) return null; return { rows: [...c.querySelectorAll('li')].map((li) => ({ name: li.querySelector('.today-lead b')?.textContent, tel: li.querySelector('a[href^="tel:"]')?.getAttribute('href') ?? null })), head: document.querySelector('.today-head h2')?.textContent, top: c === document.querySelector('.today-card') }; })()`);
+check(now && now.top && now.rows.length === 2 && now.rows[0].name === 'Jordan Fields' && now.rows[0].tel === 'tel:7065550111' && now.rows.some((r) => r.name === 'Priya Shah') && /2 new leads to call/.test(now.head ?? ''), `Today opens with "Call now": the 2 uncalled leads, newest first, one tap to call (${JSON.stringify(now)})`);
+await shot(`${tag}-today-phone`, 390, 844, true);
+await ev(`(() => { const li = [...document.querySelectorAll('.today-now li')].find((x) => /Jordan Fields/.test(x.textContent)); li?.querySelector('button')?.click(); return !!li; })()`);
+let j = null; for (let i = 0; i < 20 && j?.status !== 'contacted'; i++) { await sleep(500); j = must(await db.from('leads').select('status, first_contact_at').eq('tenant_id', t.id).eq('ext_id', 'v4').single(), 'v4'); }
+await go(`/app/${SLUG}/today`);
+const after = await ev(`[...document.querySelectorAll('.today-now li')].map((li) => li.querySelector('.today-lead b')?.textContent)`);
+check(j?.status === 'contacted' && Boolean(j.first_contact_at) && after.length === 1 && after[0] === 'Priya Shah', `"Called" marks the lead contacted and takes it off the list (${j?.status}; left: ${after.join(', ')})`);
+must(await db.from('outbox').delete().eq('tenant_id', t.id), 'clear alerts');
 console.log('screenshots in', OUT);
 try { await send2('Browser.close'); } catch {}
 ws.close(); chrome.kill(); dev?.kill();
-process.exit(0);
+process.exit(failed ? 1 : 0);
