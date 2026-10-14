@@ -11,6 +11,8 @@ const BASE = () => (process.env.PLACES_API_BASE || 'https://places.googleapis.co
 export const placesConfigured = () => Boolean(KEY());
 // Sample agencies' fictional partners carry "demo:<name>" place IDs (never Google's): shown by name, no lookup.
 const demoName = (placeId: string) => (placeId.startsWith('demo:') ? placeId.slice(5) : null);
+// A reserved fictional number (555-01xx) per sample office, stable by name.
+const demoPhone = (name: string) => `(706) 555-01${String([...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 90, 7) + 10).padStart(2, '0')}`;
 
 // Cost estimates (USD cents per call) for the budget cap, from Google's list prices: Text Search with name and
 // types bills as Text Search Pro; details with phone and website as Place Details Enterprise; name+address as
@@ -81,7 +83,7 @@ export type PlaceDetails = { name: string; address: string; phone: string | null
 /** Live details for display only; one fetch per place per page render; paused when the budget is spent. */
 export const getDetails = cache(async (placeId: string): Promise<PlaceDetails | null> => {
   const demo = demoName(placeId);
-  if (demo) return { name: demo, address: 'Riverside, GA', phone: null, website: null, mapsUrl: null, status: 'OPERATIONAL' };
+  if (demo) return { name: demo, address: '', phone: demoPhone(demo), website: null, mapsUrl: null, status: 'OPERATIONAL' };
   if (!placesConfigured()) return null;
   const b = await placesBudget();
   if (b.spent >= b.budget) return null;
@@ -97,7 +99,7 @@ export const getDetails = cache(async (placeId: string): Promise<PlaceDetails | 
 /** Name and address only (cheaper tier) for list rows; fetched live, never stored. */
 export const getSummary = cache(async (placeId: string): Promise<{ name: string; address: string } | null> => {
   const demo = demoName(placeId);
-  if (demo) return { name: demo, address: 'Riverside, GA' };
+  if (demo) return { name: demo, address: '' };
   if (!placesConfigured()) return null;
   const b = await placesBudget();
   if (b.spent >= b.budget) return null;

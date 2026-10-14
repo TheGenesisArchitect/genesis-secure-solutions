@@ -520,7 +520,7 @@
       "title": "Care desk: every agency request, handled",
       "side": "enterprise",
       "chapter": "care",
-      "route": "/console/care",
+      "route": "/console/care?samples=1",
       "devices": [
         "desktop"
       ],
@@ -643,8 +643,7 @@
       "route": "/console/prospects",
       "devices": [
         "desktop"
-      ],
-      "pending": "Office names load live from Google Places; preview has no Places key, so this list would show codes instead of names."
+      ]
     },
     {
       "code": "ent-ask-helix-answer",

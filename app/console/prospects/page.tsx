@@ -30,7 +30,8 @@ export default async function Prospects({ searchParams }: { searchParams: Promis
   else q = q.in('status', OPEN_STATUSES);
   const { data: rows, count } = await q.order('fit_score', { ascending: false }).order('first_seen').range((page - 1) * PAGE, page * PAGE - 1);
   const live = placesConfigured();
-  const names = live ? await Promise.all((rows ?? []).map((r) => getSummary(r.place_id))) : [];
+  // Live names come from Google; sample offices ("demo:" place IDs) resolve without a lookup.
+  const names = await Promise.all((rows ?? []).map((r) => (live || r.place_id.startsWith('demo:') ? getSummary(r.place_id) : null)));
   const cname = new Map((carriers ?? []).map((c) => [c.id, c.name]));
   const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE));
   const link = (patch: Partial<SP>) => {

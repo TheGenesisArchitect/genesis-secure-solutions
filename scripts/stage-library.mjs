@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { stage as stageAgency } from './stage-intro-ep1.mjs';
 import { stageGrowth } from './stage-growth.mjs';
+import { stageEnterprise } from './stage-enterprise.mjs';
 
 const must = (r, what) => { if (r.error) throw new Error(`${what}: ${r.error.message}`); return r.data; };
 export const FILMING_STAFF = { email: 'tasha@genovus-studio.example', name: 'Tasha (Genovus)', role: 'account_lead' };
@@ -63,6 +64,10 @@ export async function stageLibrary(origin = 'http://localhost:3911') {
   console.log(`staged growth: ${growth.leads} leads, ${growth.calls} calls, ${growth.partners} partners`);
   const hour = 3_600_000;
   must(await db.from('helix_notes').insert(AGENCY_NOTES.map((n, i) => ({ chapter: 'agency', ...n, tenant_id: brooks.id, work: { demo: true }, created_at: new Date(now - (i + 1) * 5 * hour).toISOString(), updated_at: new Date(now - (i + 1) * 4 * hour).toISOString() }))), 'demo agency notes');
+
+  // The Enterprise screens: inquiries, sample care plans, what Helix knows, the prospect call list.
+  const ent = await stageEnterprise(db);
+  console.log(`staged enterprise: ${ent.inquiries} inquiries, ${ent.care} sample care plans, ${ent.memory} Helix memories, ${ent.prospects} prospects`);
 
   // Preview test leftovers never belong on camera: a stand-in morning brief, and a note's "no AI provider" error.
   const { data: briefs } = await db.from('helix_briefs').select('tenant_id, day, body').eq('tenant_id', house.id);
