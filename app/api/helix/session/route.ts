@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { studioSystem, BIBLE_TOOLS, BOARD_TOOLS, type StudioFocus } from '@/lib/helix-bible';
+import { studioSystem, BIBLE_TOOLS, BOARD_TOOLS, STUDIO_HOME_TOOLS, type StudioFocus } from '@/lib/helix-bible';
 import { packageTour, packageTourVoice, PACKAGE_TOOLS } from '@/lib/package-tour';
 import { worldStats, statsLine } from '@/lib/world-stats';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
@@ -59,7 +59,9 @@ export async function POST(req: Request) {
   // Local testing only: no key, a stand-in token; the test page supplies its own voice socket.
   if (!KEY() && process.env.NODE_ENV !== 'production' && process.env.HELIX_STANDIN === '1') {
     const { data: s } = await adminDb().from('helix_tour_sessions').insert({ ip_hash: 'standin', is_staff: true, model: 'standin' }).select('id').single();
-    return Response.json({ sessionId: s!.id, token: 'standin', wsUrl: 'wss://standin.invalid/live', setup: liveSetup(voice), locked: true, staff: Boolean((await getViewer().catch(() => null))?.staff), maxSeconds: SESSION_SECONDS });
+    // The Studio's real setup (instructions and tools), so tests see exactly what Helix gets on each Studio page.
+    const standinSetup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice);
+    return Response.json({ sessionId: s!.id, token: 'standin', wsUrl: 'wss://standin.invalid/live', setup: standinSetup, locked: true, staff: Boolean((await getViewer().catch(() => null))?.staff), maxSeconds: SESSION_SECONDS });
   }
   if (!KEY()) return Response.json({ error: 'Helix voice is not connected yet.' }, { status: 503 });
   const h = await headers();
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
     const plan = ['launch', 'growth', 'premium'].includes(String(body.focus?.code)) ? (body.focus!.code as 'launch' | 'growth' | 'premium') : 'growth';
     setup = liveSetupWith(packageTourVoice(packageTour(plan)), PACKAGE_TOOLS, voice);
   } else {
-    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
+    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
   }
   if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 

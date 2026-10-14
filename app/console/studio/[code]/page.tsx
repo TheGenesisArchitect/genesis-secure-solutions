@@ -445,11 +445,12 @@ export default async function Episode({ params }: { params: Promise<{ code: stri
         </Panel>
       ) : null}
 
-      <Panel title="Posting kit" sub={approved ? 'Approve each post, publish it by hand on the platform with its AI label on, then paste the live link.' : 'Posts can be approved once the episode’s final render is approved.'}>
+      <Panel title="Posting kit" sub={approved ? 'Publish sends the approved Instagram and Facebook posts through Metricool with the AI label on; the rest go out by hand, then paste the live link.' : 'Posts can be approved once the episode’s final render is approved.'}>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,340px),1fr))', alignItems: 'start' }}>
           {(posts ?? []).map((p) => (
             <div key={p.id} className="tile" style={{ gap: 10 }}>
               <div className="spread"><b style={{ font: '800 16px var(--display)' }}>{PLATFORM[p.platform]}{p.method !== 'upload' ? <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}> · {p.method === 'stitch' ? 'Stitch' : 'Remix'}</span> : null}</b>{p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer"><Chip kind="done">live ↗</Chip></a> : <Chip kind={p.status === 'approved' ? 'info' : 'pending'}>{p.status}</Chip>}</div>
+              {p.mc_status ? <p className={p.mc_status === 'ERROR' || p.mc_status === 'SKIPPED' ? 'pc-warn' : 'muted'} style={{ margin: 0, fontSize: 12 }}>Metricool: {({ DRAFT: 'draft, waiting for a check in Metricool', SCHEDULED: 'scheduled', PENDING: 'scheduled', PUBLISHED: 'published', ERROR: 'not sent', SKIPPED: 'not sent' } as Record<string, string>)[p.mc_status] ?? p.mc_status.toLowerCase()}{p.mc_error ? ` · ${p.mc_error}` : ''}</p> : null}
               {(() => {
                 const opts = remixable.filter((s) => (p.platform === 'tiktok' ? s.platform === 'tiktok' : (p.platform === 'instagram' || p.platform === 'facebook') && s.platform === 'instagram'));
                 const verb = p.platform === 'tiktok' ? 'stitch' : 'remix';

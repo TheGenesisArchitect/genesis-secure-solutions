@@ -9,7 +9,7 @@ import os from 'node:os';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
-import { del, put } from '@vercel/blob';
+import { del, get, put } from '@vercel/blob';
 
 const OUT = process.argv[2] || path.join(os.tmpdir(), 'genovus-verify');
 const PORT = 3911, ORIGIN = `http://localhost:${PORT}`, MOCK = 3917;
@@ -25,6 +25,7 @@ if (await up()) throw new Error(`port ${PORT} is busy`);
 
 // ---- Stand-in Runway: every task succeeds on its second check and reports a final cost. ----
 const calls = []; let n = 0; const seen = new Map(); let balance = 100000;
+const mcPosts = []; const mcPublished = new Set();
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const mediaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'genovus-media-'));
 const FF = (await import('ffmpeg-static')).default;
@@ -38,6 +39,15 @@ const ctl = { heroNoAudio: false, heroNone: false, failTakes: 0, hang: false, ca
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
     const send = (o, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    // Stand-in Metricool (METRICOOL_API_BASE=/mc): schedule a post, read its status (published once told to).
+    if (req.url.startsWith('/mc/')) {
+      const [p, qs] = req.url.slice(3).split('?');
+      if (req.method === 'POST' && p === '/v2/scheduler/posts') { const b = JSON.parse(body || '{}'); const id = 900000 + mcPosts.length; mcPosts.push({ id, body: b, auth: req.headers['x-mc-auth'], qs }); return send({ data: { id, ...b, providers: b.providers.map((x) => ({ ...x, status: 'PENDING' })) } }); }
+      if (req.method === 'GET' && p === '/admin/simpleProfiles') return send([{ id: 7426930, label: 'Genovus Intelliware', facebook: 'genovus', instagram: 'genovus', youtube: 'genovus' }]);
+      const m = p.match(/^\/v2\/scheduler\/posts\/(\d+)$/);
+      if (req.method === 'GET' && m) { const post = mcPosts.find((x) => x.id === Number(m[1])); if (!post) return send({ detail: 'not found' }, 404); return send({ data: { id: post.id, providers: post.body.providers.map((x) => (mcPublished.has(post.id) ? { ...x, status: 'PUBLISHED', publicUrl: `https://www.${x.network}.com/p/${post.id}` } : { ...x, status: 'PENDING' })) } }); }
+      return send({ detail: 'unknown' }, 404);
+    }
     const u = req.url.replace(/^\/v1/, '');
     if (u.startsWith('/files/')) { const ext = u.split('.').pop(); res.writeHead(200); return res.end(FILES[ext] ?? PNG); }
     if (req.method === 'POST' && u === '/upload-target') { calls.push({ path: u, body: {} }); res.writeHead(204); return res.end(); }
@@ -76,7 +86,7 @@ const cast = must(await db.from('studio_characters').select('id, code, name, voi
 const tasha = cast.find((c) => c.code === 'TASHA01');
 const priorVoice = Object.fromEntries(cast.map((c) => [c.id, c.voice]));
 // CRON_SECRET lets the board's live advance kick the finisher (as the Studio cron does in production).
-const env = { ...process.env, Genovus_Runway_API_Key: 'stand-in', RUNWAY_API_BASE: `http://localhost:${MOCK}/v1`, CRON_SECRET: process.env.CRON_SECRET || 'verify-studio-local' };
+const env = { ...process.env, Genovus_Runway_API_Key: 'stand-in', RUNWAY_API_BASE: `http://localhost:${MOCK}/v1`, CRON_SECRET: process.env.CRON_SECRET || 'verify-studio-local', METRICOOL_API_BASE: `http://localhost:${MOCK}/mc`, METRICOOL_GENOVUS_API_KEY: 'stand-in-metricool', METRICOOL_MODE: '', HELIX_STANDIN: '1' };
 const devLog = process.env.DEV_LOG ? fs.openSync(process.env.DEV_LOG, 'w') : 'ignore';
 const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: ['ignore', devLog, devLog], shell: true, env });
 for (let i = 0; i < 150 && !(await up()); i++) await sleep(1000);
@@ -321,6 +331,7 @@ try {
   const nFd = calls.length;
   const liveOk = `(() => { const v = document.querySelector('#shot-100 .fd-cam video'); return !!v && !!v.srcObject && v.srcObject.active && !v.paused && v.videoWidth > 0 && getComputedStyle(v).display !== 'none'; })()`;
   const recordOnce = async () => {
+    await waitFor(async () => ev(`[...document.querySelectorAll('#shot-100 .fd button')].some((b) => /^Record$/.test(b.textContent))`), 15000);
     await click(`document.querySelector('#shot-100 .fd')`, '/^Record$/');
     await waitFor(async () => ev(`!!document.querySelector('#shot-100 .fd-pace')`), 8000);
     const during = await ev(`({ pace: !!document.querySelector('#shot-100 .fd-pace'), on: document.querySelector('#shot-100 .fd-prompt p.on > span')?.textContent ?? '', rec: document.querySelector('#shot-100 .fd-rec')?.textContent ?? '' })`);
@@ -328,13 +339,13 @@ try {
     const review = await ev(`(async () => { const vs = [...document.querySelectorAll('#shot-100 .fd-cam video')]; const r = vs.find((v) => v.src.startsWith('blob:')); if (!r) return { found: false }; if (r.readyState < 1) await new Promise((d) => { r.onloadedmetadata = d; setTimeout(d, 5000); }); return { found: true, w: r.videoWidth, h: r.videoHeight, srcObject: !!r.srcObject, liveHidden: vs.filter((v) => v !== r).every((v) => getComputedStyle(v).display === 'none') }; })()`);
     return { during, review };
   };
-  await click(`document.querySelector('#shot-100 .fd')`, '/Open the camera/'); await sleep(1500);
+  await click(`document.querySelector('#shot-100 .fd')`, '/Open the camera/'); await waitFor(async () => ev(liveOk), 15000);
   check(await ev(liveOk), 'the camera opens with a live feed');
   const t1 = await recordOnce();
   check(t1.during.pace && t1.during.on && /line 1 of/.test(t1.during.rec), `while recording, the prompter holds the current line with a pace bar (“${t1.during.on.slice(0, 40)}”, ${t1.during.rec})`);
   check(await ev(`window.__plays === 0`), 'no read plays out loud while recording (earphones option off)');
   check(t1.review.found && t1.review.w > 0 && !t1.review.srcObject && t1.review.liveHidden, `the review plays the recorded take itself, not the camera (${t1.review.w}×${t1.review.h})`);
-  await click(`document.querySelector('#shot-100 .fd')`, '/Record again/'); await sleep(800);
+  await click(`document.querySelector('#shot-100 .fd')`, '/Record again/'); await waitFor(async () => ev(liveOk), 15000);
   check(await ev(liveOk), 'Record again brings the live camera feed back');
   const t2 = await recordOnce();
   check(t2.review.found && t2.review.w > 0, `the retake records and plays back too (${t2.review.w}×${t2.review.h})`);
@@ -488,11 +499,56 @@ try {
     await go('/console/studio/gjk-h01');
     const bar = await ev(`document.querySelector('.pc-bar')?.innerText ?? ''`);
     check(/Finished · ready to publish/.test(bar) && /Publish the episode/.test(bar), 'the board says it is finished and offers one Publish tap');
+    // Two posts for the trailer (Instagram + Facebook) and a 9:16 Short to go with them, so Publish has something to send.
+    const finalBlob = must(await db.from('studio_episodes').select('final_blob').eq('id', ep.id).single(), 'fb').final_blob;
+    const finFile = await get(finalBlob, { access: 'private', useCache: false });
+    const copy = await put(`studio/renders/verify/short-${Date.now()}.mp4`, Buffer.from(await new Response(finFile.stream).arrayBuffer()), { access: 'private', contentType: 'video/mp4' });
+    renderedFiles.push(copy.pathname);
+    const testShort = must(await db.from('studio_renders').insert({ episode_id: ep.id, kind: 'short', format: 'vertical', short_code: 'verify', title: 'Verify Short', blob_path: copy.pathname, secs: 62 }).select('id').single(), 'short');
+    must(await db.from('studio_posts').delete().eq('episode_id', ep.id).in('platform', ['instagram', 'facebook']), 'clear posts');
+    const testPosts = must(await db.from('studio_posts').insert([
+      { episode_id: ep.id, platform: 'instagram', caption: 'Verify reel. {link}', link: 'https://genovus.io/tour', status: 'draft' },
+      { episode_id: ep.id, platform: 'facebook', caption: 'Verify post. {link}', link: 'https://genovus.io/tour', status: 'draft' },
+    ]).select('id, platform'), 'posts');
+    await go('/console/studio/gjk-h01');
     await click(`document.querySelector('.pc-bar')`, '/Publish the episode/');
     await waitFor(async () => (must(await db.from('studio_episodes').select('status').eq('id', ep.id).single(), 's').status === 'approved'), 15000);
+    await waitFor(async () => mcPosts.length >= 2, 15000);
     const pub = must(await db.from('studio_episodes').select('status').eq('id', ep.id).single(), 'pub');
-    const posts = must(await db.from('studio_posts').select('status').eq('episode_id', ep.id), 'posts');
+    const posts = must(await db.from('studio_posts').select('id, platform, status, mc_post_id, mc_status, mc_error').eq('episode_id', ep.id), 'posts');
     check(pub.status === 'approved' && posts.every((p) => p.status === 'approved' || p.status === 'posted'), `one Publish tap approves the episode and all ${posts.length} posts`);
+    // ... and sends them through Metricool: drafts by default, the AI label on, the right format per network.
+    const ig = mcPosts.find((x) => x.body.providers[0].network === 'instagram'), fbp = mcPosts.find((x) => x.body.providers[0].network === 'facebook');
+    check(mcPosts.length === 2 && ig?.auth === 'stand-in-metricool' && /userId=\d+&blogId=7426930/.test(ig?.qs ?? '') && ig.body.draft === true && ig.body.autoPublish === false && ig.body.instagramData?.type === 'REEL' && ig.body.instagramData?.isAiGenerated === true && ig.body.text === 'Verify reel. https://genovus.io/tour' && fbp?.body.facebookData?.type === 'POST' && fbp.body.saveExternalMediaFiles === true,
+      `Publish sends Instagram as a Reel with the AI label and Facebook as a post, as drafts on the Genovus brand (${mcPosts.length} sent)`);
+    check(posts.filter((p) => ['instagram', 'facebook'].includes(p.platform)).every((p) => p.mc_post_id && p.mc_status === 'DRAFT'), 'the Posting kit records each Metricool post (draft)');
+    // The video link Metricool fetches: signed and expiring; a tampered link gets nothing.
+    const igMedia = ig?.body.media?.[0] ?? '', fbMedia = fbp?.body.media?.[0] ?? '';
+    const local = (u) => u.replace(/^https?:\/\/[^/]+/, ORIGIN);
+    const got = await fetch(local(igMedia)); const gotBytes = (await got.arrayBuffer()).byteLength;
+    const fbGot = await fetch(local(fbMedia)); await fbGot.arrayBuffer();
+    const tampered = await fetch(local(igMedia).replace(/sig=[^&]+/, 'sig=AAAA'));
+    check(/\/api\/media\/signed\/render\/[0-9a-f-]{36}\.mp4\?exp=\d+&sig=/.test(igMedia) && got.status === 200 && got.headers.get('content-type') === 'video/mp4' && gotBytes > 100000 && fbGot.status === 200 && tampered.status === 404,
+      `Metricool fetches the video from a signed link (${got.status}, ${Math.round(gotBytes / 1024)} KB; a tampered link gets ${tampered.status})`);
+    // Live mode: once Metricool publishes, the minute's sync marks the post posted with its live link.
+    must(await db.from('studio_posts').update({ mc_status: 'SCHEDULED' }).eq('id', testPosts.find((p) => p.platform === 'facebook').id), 'sched');
+    mcPublished.add(fbp?.id);
+    await fetch(`${ORIGIN}/api/cron/studio`, { headers: { authorization: `Bearer ${env.CRON_SECRET}` } }).then((r) => r.text()).catch(() => '');
+    const fbRow = must(await db.from('studio_posts').select('status, posted_url, ai_label').eq('id', testPosts.find((p) => p.platform === 'facebook').id).single(), 'fbrow');
+    check(fbRow.status === 'posted' && fbRow.posted_url === `https://www.facebook.com/p/${fbp?.id}` && fbRow.ai_label === true, `when Metricool publishes, the sync marks the post posted with its live link (${fbRow.status}, ${fbRow.posted_url})`);
+    // The Studio home shows where Publish sends (brand, networks, drafts vs live) and each post's Metricool status.
+    await go('/console/studio');
+    const homeText = await ev(`document.body.textContent`); // textContent: tile labels are styled uppercase
+    check(/Distribution · Metricool/.test(homeText) && /Drafts/.test(homeText) && /Genovus Intelliware: facebook, instagram, youtube/.test(homeText) && /Metricool: draft/.test(homeText), 'the Studio home shows Distribution · Metricool (Genovus Intelliware, its networks, Drafts) and each post\'s Metricool status');
+    // Helix on the Studio home has the production tools, each naming its episode, and knows the episodes.
+    const hs = await ev(`fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ context: 'studio', focus: { kind: 'home' } }) }).then((r) => r.json())`);
+    const setupText = JSON.stringify(hs?.setup ?? {});
+    const decls = (JSON.parse(setupText).tools ?? []).flatMap((t) => t.functionDeclarations ?? []);
+    const planDecl = decls.find((d) => d.name === 'plan_production');
+    check(planDecl?.parameters?.properties?.episode && planDecl.parameters.required?.includes('episode') && decls.some((d) => d.name === 'publish_episode') && decls.some((d) => d.name === 'finish_episode') && /EPISODES:/.test(setupText) && /gjk-h01/.test(setupText),
+      `Helix on the Studio home can produce, finish and publish any episode by its code (${decls.length} tools)`);
+    await db.from('studio_posts').delete().in('id', testPosts.map((p) => p.id));
+    await db.from('studio_renders').delete().eq('id', testShort.id);
     // Over the line: the same tap returns one quote to approve instead of starting (the line is lowered for the test,
     // since most of the trailer is made and "all" prices under $5).
     await db.from('studio_episodes').update({ production: {} }).eq('id', ep.id);

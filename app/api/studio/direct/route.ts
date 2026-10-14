@@ -13,6 +13,7 @@ import { advanceProduction, cancelShotJobs, episodeShots, quote, type ProdShot }
 import { castSheetBytes, identityLocked, startFinishDialogue } from '@/lib/studio-runway';
 import { dialogueOpen, readiness } from '@/lib/studio-monitor';
 import { kickFinish } from '@/lib/studio-finish';
+import { distributeEpisode } from '@/lib/studio-distribute';
 import { parseRead } from '@/lib/studio-read';
 import { defaultDirection } from '@/lib/studio-board';
 
@@ -275,7 +276,11 @@ export async function POST(req: Request) {
         const { data, error } = await supabase.rpc('studio_publish_episode', { p_episode: e.id });
         if (error) return fail(error.message);
         const r = (data ?? {}) as { checks_signed?: number; posts?: number };
-        return Response.json({ ok: true, ...r, say: `Published: the episode is approved${r.posts ? ` and ${r.posts} post${r.posts === 1 ? '' : 's'} are ready to go out` : ''}.` });
+        // The approved posts go out through Metricool (drafts until METRICOOL_MODE=publish).
+        const d = await distributeEpisode(e.id, new URL(req.url).origin);
+        const sent = d.sent ? ` ${d.sent} post${d.sent === 1 ? '' : 's'} sent to Metricool${d.live ? ', scheduled to go out' : ' as drafts to check'}.` : '';
+        const held = [...d.skipped, ...d.failed].length ? ` Not sent: ${[...d.skipped, ...d.failed].join('; ')}.` : '';
+        return Response.json({ ok: true, ...r, distributed: d, say: `Published: the episode is approved.${sent}${held}` });
       }
       case 'pause': {
         const { error } = await supabase.rpc('studio_pause_production', { p_episode: e.id });

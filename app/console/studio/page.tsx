@@ -13,6 +13,7 @@ import { IMAGE_CENTS, generationConfigured, veoRoom, HERO_VIDEO_MODEL } from '@/
 import { StudioHome, type HomeEpisode } from '@/components/studio/StudioHome';
 import { V2_EPISODES } from '@/lib/studio-board';
 import { runwayConfigured, runwayOrganization, CREDIT_CENTS } from '@/lib/runway';
+import { metricoolBrands, metricoolConfigured, metricoolLive, GENOVUS_BLOG_ID } from '@/lib/metricool';
 
 export const metadata = { title: 'Studio' };
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,7 @@ export default async function Studio() {
     supabase.from('studio_series').select('*').order('created_at').limit(1).maybeSingle(),
     supabase.from('studio_episodes').select('id, code, kind, title, runtime_s, logline, status, sort, final_blob').order('sort'),
     supabase.from('studio_shots').select('episode_id, status'),
-    supabase.from('studio_posts').select('id, episode_id, platform, scheduled_for, status, posted_url').order('scheduled_for'),
+    supabase.from('studio_posts').select('id, episode_id, platform, scheduled_for, status, posted_url, mc_status, mc_error').order('scheduled_for'),
     supabase.from('helix_tour_sessions').select('src, seconds').eq('campaign', 'gjk-soft-launch'),
     supabase.from('inquiries').select('source, campaigns!inner(slug)').eq('campaigns.slug', 'gjk-soft-launch'),
   ]);
@@ -54,6 +55,9 @@ export default async function Studio() {
   const veoStd = generationConfigured() ? await veoRoom(HERO_VIDEO_MODEL()) : null;
   const used = Number(spent ?? 0);
   // Runway, the StudioNext engine hub: connected, and how many credits are left (a free call).
+  // Distribution: the Metricool brand Publish sends to, its connected networks, and drafts vs live.
+  const mcBrands = metricoolConfigured() ? await metricoolBrands() : null;
+  const mcBrand = mcBrands?.ok ? mcBrands.data.find((b) => b.id === GENOVUS_BLOG_ID()) ?? null : null;
   const runway = runwayConfigured() ? await runwayOrganization().then((o) => ({ ok: true as const, credits: o.creditBalance }), (e: Error) => ({ ok: false as const, error: e.message })) : null;
   const bible = (series?.bible ?? {}) as Bible;
   const epTitle = new Map((eps ?? []).map((e) => [e.id, e]));
@@ -72,6 +76,7 @@ export default async function Studio() {
             <Tile label="Helix tours from the campaign" value={<span className="num">{tours?.length ?? 0}</span>} hint={`${inq?.length ?? 0} inquiries credited`} />
           </div>
           <div className="grid g4">
+            <Tile label="Distribution · Metricool" value={!mcBrands ? 'Not connected' : !mcBrands.ok ? 'Key refused' : mcBrand ? (metricoolLive() ? 'Live' : 'Drafts') : 'Brand missing'} hint={!mcBrands ? 'Add METRICOOL_GENOVUS_API_KEY in Vercel' : !mcBrands.ok ? mcBrands.error : mcBrand ? `${mcBrand.label}: ${mcBrand.networks.join(', ') || 'no networks connected'}. Publish sends Instagram and Facebook posts${metricoolLive() ? ' to go out at their time' : ' as drafts to check in Metricool (METRICOOL_MODE=publish to go live)'}.` : `Brand ${GENOVUS_BLOG_ID()} isn't on this Metricool account`} />
             <Tile label="Runway engine" value={!runway ? 'Not connected' : runway.ok ? <span className="num">{runway.credits.toLocaleString('en-US')}</span> : 'Key refused'} hint={!runway ? 'Add Genovus_Runway_API_Key in Vercel' : runway.ok ? `credits left · about ${money(runway.credits * CREDIT_CENTS)} · Seedance 2.5, Gen-4.5, Act-Two, ElevenLabs v4` : runway.error} />
           </div>
 
@@ -186,7 +191,7 @@ export default async function Studio() {
                         <td style={{ whiteSpace: 'nowrap' }}>{when(p.scheduled_for)}</td>
                         <td><Link href={`/console/studio/${epTitle.get(p.episode_id)?.code}`}>{epTitle.get(p.episode_id)?.title}</Link></td>
                         <td>{PLATFORM[p.platform]}</td>
-                        <td>{p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer"><Chip kind="done">live ↗</Chip></a> : <Chip kind={p.status === 'approved' ? 'info' : 'pending'}>{p.status}</Chip>}</td>
+                        <td>{p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer"><Chip kind="done">live ↗</Chip></a> : <Chip kind={p.status === 'approved' ? 'info' : 'pending'}>{p.status}</Chip>}{p.mc_status && !p.posted_url ? <small className={p.mc_status === 'ERROR' || p.mc_status === 'SKIPPED' ? 'pc-warn' : 'muted'} style={{ display: 'block', fontSize: 11 }} title={p.mc_error ?? undefined}>Metricool: {p.mc_status === 'DRAFT' ? 'draft' : p.mc_status === 'SCHEDULED' || p.mc_status === 'PENDING' ? 'scheduled' : p.mc_status === 'SKIPPED' || p.mc_status === 'ERROR' ? 'not sent' : p.mc_status.toLowerCase()}</small> : null}</td>
                       </tr>
                     ))}
                   </tbody>

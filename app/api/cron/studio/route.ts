@@ -8,6 +8,7 @@ import { syncStudioIfChanged } from '@/lib/studio-sync';
 import { pollRunwayJobs } from '@/lib/studio-runway';
 import { advanceAllProductions } from '@/lib/studio-production';
 import { kickFinish } from '@/lib/studio-finish';
+import { syncPosted } from '@/lib/studio-distribute';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
 import libraryCatalog from '@/data/screen-library.json';
@@ -44,7 +45,9 @@ export async function GET(req: Request) {
     for (const s of stuck ?? []) { const { data: errs } = await db.from('studio_takes').select('error, created_at, params').eq('shot_id', (s as unknown as { id: string }).id).eq('status', 'failed').order('created_at', { ascending: false }).limit(2); for (const t of errs ?? []) console.info(`[production] take error shot ${s.n}: ${t.error} · ${JSON.stringify(t.params).slice(0, 200)}`); }
     for (const s of stuck ?? []) console.info(`[production] blocked ${(s.studio_episodes as unknown as { code: string }).code} shot ${s.n}: ${(s.produce as { note?: string; last_error?: string })?.note ?? (s.produce as { last_error?: string })?.last_error ?? ''}`);
   } catch (e) { production = { error: e instanceof Error ? e.message : 'production failed' }; }
-  if (!generationConfigured()) return Response.json({ sync, runway, production, skipped: 'no Gemini key' });
+  // Posts sent through Metricool: mark the published ones posted with their live link, record failures.
+  const posted = await syncPosted().catch((e) => ({ error: e instanceof Error ? e.message : 'metricool sync failed' }));
+  if (!generationConfigured()) return Response.json({ sync, runway, production, posted, skipped: 'no Gemini key' });
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.
   const { data: running } = await db.from('studio_takes').select('id').not('model', 'like', 'runway:%').or('status.eq.running,and(status.eq.queued,params->>waiting_since.is.null)').order('created_at').limit(10);
   const results: Record<string, number> = {};
@@ -54,5 +57,5 @@ export async function GET(req: Request) {
   }
   // Start queued takes as the Veo rate limits allow (and quota backstop retries when due).
   const queue = await drainVeoQueue();
-  return Response.json({ sync, runway, production, checked: running?.length ?? 0, results, queue });
+  return Response.json({ sync, runway, production, posted, checked: running?.length ?? 0, results, queue });
 }

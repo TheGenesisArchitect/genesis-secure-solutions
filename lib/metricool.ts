@@ -4,7 +4,8 @@
 // API: https://app.metricool.com/api, header X-Mc-Auth, userId + blogId on every call (Advanced plan).
 import 'server-only';
 
-const BASE = 'https://app.metricool.com/api';
+// METRICOOL_API_BASE points the tests at a stand-in Metricool.
+const BASE = () => (process.env.METRICOOL_API_BASE || 'https://app.metricool.com/api').replace(/\/$/, '');
 const TOKEN = () => (process.env.METRICOOL_GENOVUS_API_KEY || process.env.METRICOOL_USER_TOKEN || '').trim();
 export const METRICOOL_USER_ID = () => (process.env.METRICOOL_USER_ID || '5772039').trim();
 /** The Genovus brand (our own channels). Agencies' brands are linked per agency. */
@@ -18,7 +19,7 @@ export async function mc<T = unknown>(path: string, opts: { blogId?: string; met
   if (!metricoolConfigured()) return { ok: false, status: 0, error: 'METRICOOL_GENOVUS_API_KEY is not set on this deployment.' };
   const q = new URLSearchParams({ userId: METRICOOL_USER_ID(), blogId: opts.blogId ?? GENOVUS_BLOG_ID(), ...(opts.query ?? {}) });
   try {
-    const r = await fetch(`${BASE}${path}?${q}`, {
+    const r = await fetch(`${BASE()}${path}?${q}`, {
       method: opts.method ?? 'GET',
       headers: { 'X-Mc-Auth': TOKEN(), ...(opts.body ? { 'content-type': 'application/json' } : {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -50,4 +51,40 @@ export async function metricoolBrands(): Promise<McResult<McBrand[]>> {
     label: String(b.label ?? b.title ?? b.name ?? ''),
     networks: NETWORKS.filter((n) => Object.keys(b).some((k) => k.toLowerCase().startsWith(n) && b[k] != null && b[k] !== '' && b[k] !== false)),
   })) };
+}
+
+/** Draft until the team has checked a first post in Metricool, then METRICOOL_MODE=publish posts at the set time. */
+export const metricoolLive = () => (process.env.METRICOOL_MODE ?? '').trim() === 'publish';
+
+export type McPostIn = { blogId: string; network: 'instagram' | 'facebook'; text: string; mediaUrl: string; when: Date; vertical: boolean; aiGenerated: boolean };
+const NY = (d: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(' ', 'T');
+
+/** Schedule one post on one network (the format read back from Metricool itself: instagramData.isAiGenerated etc.). */
+export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; status: string }>> {
+  const live = metricoolLive();
+  const body = {
+    text: p.text,
+    publicationDate: { dateTime: NY(p.when), timezone: 'America/New_York' },
+    providers: [{ network: p.network }],
+    autoPublish: live, draft: !live,
+    media: [p.mediaUrl], saveExternalMediaFiles: true, shortener: false,
+    ...(p.network === 'instagram' ? { instagramData: { type: 'REEL', autoPublish: live, showReelOnFeed: true, isAiGenerated: p.aiGenerated } } : {}),
+    ...(p.network === 'facebook' ? { facebookData: { type: p.vertical ? 'REEL' : 'POST' } } : {}),
+  };
+  const r = await mc<Record<string, unknown>>('/v2/scheduler/posts', { blogId: p.blogId, method: 'POST', body });
+  if (!r.ok) return r;
+  const post = ((r.data as { data?: Record<string, unknown> })?.data ?? r.data) as Record<string, unknown>;
+  const id = Number(post.id);
+  if (!Number.isFinite(id)) return { ok: false, status: r.status, error: 'Metricool did not return a post id.' };
+  return { ok: true, status: r.status, data: { id, status: live ? 'SCHEDULED' : 'DRAFT' } };
+}
+
+/** Where a post stands on its network: PENDING, PUBLISHED (with the live link when Metricool reports one) or ERROR. */
+export async function postStatus(blogId: string, id: number): Promise<McResult<{ status: string; url: string | null; detail: string | null }>> {
+  const r = await mc<Record<string, unknown>>(`/v2/scheduler/posts/${id}`, { blogId });
+  if (!r.ok) return r;
+  const post = ((r.data as { data?: Record<string, unknown> })?.data ?? r.data) as Record<string, unknown>;
+  const pr = ((post.providers as Record<string, unknown>[] | undefined) ?? [])[0] ?? {};
+  const url = Object.entries(pr).find(([k, v]) => /url|link/i.test(k) && typeof v === 'string' && /^https:\/\//.test(v))?.[1] as string | undefined;
+  return { ok: true, status: r.status, data: { status: String(pr.status ?? 'PENDING'), url: url ?? null, detail: (pr.detailedStatus as string | undefined) ?? null } };
 }

@@ -49,6 +49,14 @@ export const BOARD_TOOLS = [{
   ],
 }];
 
+/** On the Studio home: the same production tools, each naming the episode it acts on (its code, e.g. gjk-pbp1). */
+type Decl = { name: string; description: string; parameters: { type: string; properties: Record<string, unknown>; required?: string[] } };
+const EPISODE_ARG = { type: 'STRING', description: 'The episode code from the EPISODES list (e.g. gjk-pbp1).' };
+export const STUDIO_HOME_TOOLS = [{
+  functionDeclarations: (BOARD_TOOLS[0].functionDeclarations as Decl[]).map((d) => BIBLE_TOOLS[0].functionDeclarations.some((b) => b.name === d.name) ? d
+    : { ...d, parameters: { ...d.parameters, properties: { ...d.parameters.properties, episode: EPISODE_ARG }, required: [...(d.parameters.required ?? []), 'episode'] } }),
+}];
+
 export async function bibleSystem(): Promise<string> {
   const db = adminDb();
   const [{ data: series }, { data: chars }, { data: approved }, { data: eps }, { data: looks }] = await Promise.all([
@@ -105,6 +113,20 @@ async function focusBlock(focus: StudioFocus): Promise<string> {
     const board = (shots ?? []).map((s, i) => `Board shot ${i + 1} = ${s.shot_code ?? `shot ${s.n}`}`).join('; ');
     return `PRODUCTION BOARD (you can direct and produce by voice): the team is often on the move, so do the work for them with your tools and keep confirmations short. Shots are referred to by BOARD number: ${board}. To produce the episode: call plan_production with shots "all", pass "final", auto true. If the result says started, tell them the cost in one sentence and that it finishes itself (final cut and Shorts) and waits for Publish; don't ask anything. If it returns a quote instead (over the $5 line), read the total aloud and ask "Shall I go ahead?"; only after a clear yes call approve_production with that quote_id. Shots land on their own; reviewing them is optional (they can still redo any shot by voice). When it's finished, offer to publish; call publish_episode only after a clear yes. Never claim something was generated, approved or spent unless a tool result says so.\n\nON SCREEN NOW: the episode ${e.code} "${e.title}" (${e.kind}, status ${e.status}${e.format === 'viral_fork' ? `, ${e.fork_mode} Viral Fork, target ${e.target_s}s, ${e.cut_family ?? ''} cut` : ''}${e.final_url ? ', final cut uploaded' : ', no final cut yet'}).\nLogline: ${e.logline}\nScript:\n${e.script}\nMusic/sound: ${e.music}\nShots:\n${shotLines}\nPosts: ${(posts ?? []).map((p) => `${p.platform} ${p.status}${p.method !== 'upload' ? ` (${p.method})` : ''}`).join(', ') || 'none'}.\nAcceptance checks recorded: ${(qa ?? []).length ? (qa ?? []).map((q) => `${q.check_key} ${q.pass ? 'pass' : `FAIL (${q.note})`}`).join('; ') : 'none yet'}.\nHelp them finish this episode: what is left, what to shoot next, whether lines fit the characters, and anything that would fail a check.`;
   }
+  if (focus.kind === 'home') {
+    // The Studio home: every episode by code, where it stands, so Helix can produce, finish or publish any of them.
+    const { data: eps } = await db.from('studio_episodes').select('id, code, title, kind, status, production, final_url').neq('status', 'archived').order('sort');
+    const { data: posts } = await db.from('studio_posts').select('episode_id, platform, status, mc_status');
+    const line = (e: { id: string; code: string; title: string; kind: string; status: string; production: Record<string, unknown> | null; final_url: string | null }) => {
+      const run = (e.production ?? {}) as { on?: boolean; finishing?: string; finished_at?: string; paused_reason?: string };
+      const ps = (posts ?? []).filter((p) => p.episode_id === e.id);
+      const state = run.finishing ? 'finishing (rendering final + Shorts)' : run.finished_at ? 'finished, waiting for Publish' : run.on ? 'in production' : run.paused_reason ? `paused: ${run.paused_reason}` : 'not in production';
+      return `- ${e.code}: "${e.title}" (${e.kind}, status ${e.status}, ${state}${e.final_url ? ', final cut rendered' : ''}; posts: ${ps.map((p) => `${p.platform} ${p.status}${p.mc_status ? `/Metricool ${p.mc_status.toLowerCase()}` : ''}`).join(', ') || 'none'})`;
+    };
+    return `ON SCREEN NOW: the Studio home: the season gallery, the trend board of viral moments (Remix / licensed / inspired), fresh takes, the cast and the posting schedule. Help them decide what to make next and keep the season on track.
+
+STUDIO HOME (you can produce by voice from here): name the episode by its code in every production tool (the episode argument). "Produce <episode>": plan_production with episode, shots "all", pass "final", auto true; inside the $5 line it starts and finishes itself (final cut and Shorts), over it read the quote and ask once. "Publish <episode>" only after a clear yes: publish_episode with episode; it approves the episode and its posts and sends the Instagram and Facebook posts through Metricool (drafts until live mode is on). Never claim something was produced, spent, published or posted unless a tool result says so.\nEPISODES:\n${(eps ?? []).map((e) => line(e as never)).join('\n')}`;
+  }
   if (focus.kind === 'character' && focus.code) {
     const { data: c } = await db.from('studio_characters').select('id, code, name').eq('code', focus.code).maybeSingle();
     if (!c) return '';
@@ -114,7 +136,6 @@ async function focusBlock(focus: StudioFocus): Promise<string> {
     return `ON SCREEN NOW: ${c.name} (${c.code})'s character page: their bible profile, voice, and identity package. Approved: ${approved.join(', ') || 'nothing yet'}. Slots generated so far: ${slots.join(', ') || 'none'}. The production order is casting sheet, then the front portrait from it, then every other view derived from the approved front. Help them with this character: who they are, how they'd react or speak, and what to generate or approve next.`;
   }
   if (focus.kind === 'cast') return 'ON SCREEN NOW: the cast page with Marcus, Tasha and Julian and the ensemble set. Help with the ensemble: chemistry, seat order, relative scale, and what each character still needs.';
-  if (focus.kind === 'home') return 'ON SCREEN NOW: the Studio home: the season gallery, the trend board of viral moments (Remix / licensed / inspired), fresh takes, the cast and the posting schedule. Help them decide what to make next and keep the season on track.';
   return '';
 }
 
