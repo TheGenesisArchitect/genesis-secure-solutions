@@ -194,7 +194,7 @@ details>summary{cursor:pointer;color:var(--soft)}
 .price .amt small{font:500 14px var(--body);color:var(--muted);letter-spacing:0}
 .price ul{margin:0;padding-left:18px;color:var(--soft);display:grid;gap:5px;font-size:14px}
 .shot{border-radius:14px;border:1px solid var(--line);overflow:hidden;background:var(--surface);display:grid}
-.shot img{width:100%;display:block}
+.shot img{width:100%;height:auto;display:block}
 .shot figcaption{padding:12px 14px;font-size:14px;color:var(--soft);border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .lifecycle{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:8px;counter-reset:l}
 .lifecycle li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:4px;counter-increment:l}
@@ -390,8 +390,6 @@ figure svg g:nth-child(2) rect{animation-delay:.05s}figure svg g:nth-child(3) re
 .layer-names{position:absolute;bottom:2%;display:flex;gap:120px;font:500 11px var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--link)}
 /* scene 5 */
 .usmap{width:100%;max-width:640px;height:auto;overflow:visible}
-.map-land{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.12)}
-.map-borders{fill:none;stroke:rgba(255,255,255,.07)}
 .dot{fill:rgba(255,190,140,.35)}
 .dot.live{fill:#ff8a3c;filter:drop-shadow(0 0 5px rgba(255,120,50,.9))}
 .map-live{position:absolute;bottom:4%;display:flex;gap:12px;align-items:center}

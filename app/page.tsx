@@ -65,7 +65,7 @@ export default async function Home() {
               ['network', 'Network view', 'For carriers and agency networks: which offices are live, what is approved, approval turnaround and leads, in aggregate.'],
             ].map(([k, t, d]) => (
               <figure className="shot" key={k} style={{ margin: 0 }}>
-                <img src={`/site/screens/${k}.png`} alt={`${t}, with sample data`} loading="lazy" />
+                <img src={`/site/screens/${k}.webp`} width={1440} height={k === 'agency' ? 810 : 900} alt={`${t}, with sample data`} loading="lazy" />
                 <figcaption><span><b style={{ color: 'var(--ink)' }}>{t}.</b> {d}</span><Chip kind="sample">Sample data</Chip></figcaption>
               </figure>
             ))}

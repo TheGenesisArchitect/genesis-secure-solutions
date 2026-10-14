@@ -8,7 +8,8 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 
-export type MapData = { land: string; borders: string; dots: { x: number; y: number; live: boolean }[] };
+// The outline is a static, cached file (scripts/build-usmap.mjs); only the office dots travel with the page.
+export type MapData = { dots: { x: number; y: number; live: boolean }[] };
 
 const SCENES = [
   { eyebrow: '01 · One record', title: 'One record becomes everything.', text: 'Who the agent is, where they serve, what they offer and what their carrier allows. Genovus turns it into the website, the profiles, the copy kit and a personal welcome film.' },
@@ -193,17 +194,16 @@ export function StoryClient({ map }: { map: MapData }) {
             {/* 4: three dashboards */}
             <div className="stage scene" style={{ order: 7 }}>
               <div className="layers">
-                <img className="layer" src="/site/screens/console.png" alt="Enterprise console, sample data" loading="lazy" />
-                <img className="layer" src="/site/screens/agency.png" alt="Agency dashboard, sample data" loading="lazy" />
-                <img className="layer" src="/site/screens/network.png" alt="Network view, sample data" loading="lazy" />
+                <img className="layer" src="/site/screens/console.webp" width={1440} height={900} alt="Enterprise console, sample data" loading="lazy" />
+                <img className="layer" src="/site/screens/agency.webp" width={1440} height={810} alt="Agency dashboard, sample data" loading="lazy" />
+                <img className="layer" src="/site/screens/network.webp" width={1440} height={900} alt="Network view, sample data" loading="lazy" />
               </div>
               <div className="layer-names"><span>Enterprise</span><span>Agency</span><span>Network</span></div>
             </div>
             {/* 5: the network */}
             <div className="stage scene" style={{ order: 9 }}>
               <svg className="usmap" viewBox="0 0 975 610" role="img" aria-label="Illustrative map of agency offices across the United States">
-                <path d={map.land} className="map-land" />
-                <path d={map.borders} className="map-borders" />
+                <image href="/site/usmap.svg" width="975" height="610" />
                 <g className="map-dots">
                   {map.dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={d.live ? 4.2 : 2.6} className={d.live ? 'dot live' : 'dot'} />)}
                 </g>

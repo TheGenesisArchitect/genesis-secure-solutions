@@ -4,7 +4,7 @@
 // people who prefer reduced motion (they can still press play).
 import { useEffect, useRef, useState } from 'react';
 
-const SRC = { full: '/site/genovus-trailer.mp4', phone: '/site/genovus-trailer-720.mp4', poster: '/site/genovus-trailer-poster.jpg' };
+const SRC = { full: '/site/genovus-trailer.mp4', phone: '/site/genovus-trailer-720.mp4', poster: '/site/genovus-trailer-poster.webp' };
 
 export function HeroTrailer() {
   const ref = useRef<HTMLVideoElement>(null);

@@ -61,6 +61,13 @@ const nextConfig: NextConfig = {
         ],
       },
       { source: '/w/:path*', headers: [{ key: 'Cache-Control', value: 'private, max-age=3600' }] },
+      // Site media (films, posters, screens, tour stills, brand, fonts): browsers keep them an hour and then
+      // show the cached copy while checking for a newer one, instead of re-asking on every visit. These names
+      // aren't hashed, so a replaced file reaches returning visitors within the hour.
+      ...['/site/:path*', '/tour/:file(.+\\.(?:jpg|png|webp))', '/brand/:path*', '/fonts/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' }],
+      })),
     ];
   },
 };

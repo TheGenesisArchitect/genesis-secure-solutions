@@ -1,7 +1,7 @@
 // The scroll story on genovus.io: five pinned scenes, from one record to the whole network.
-// Server part: draws the US map (pre-projected us-atlas states) and the illustrative office dots, so the
-// browser receives finished SVG paths instead of map data. Animation lives in StoryClient.
-import { feature, mesh } from 'topojson-client';
+// Server part: places the illustrative office dots on the pre-projected us-atlas states; the outline itself is the
+// static public/site/usmap.svg (scripts/build-usmap.mjs). Animation lives in StoryClient.
+import { feature } from 'topojson-client';
 import { geoPath } from 'd3-geo';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import states from 'us-atlas/states-albers-10m.json';
@@ -11,8 +11,6 @@ function buildMap(): MapData {
   const topo = states as unknown as Topology<{ states: GeometryCollection; nation: GeometryCollection }>;
   const path = geoPath();
   const fc = feature(topo, topo.objects.states) as unknown as GeoJSON.FeatureCollection;
-  const land = path(feature(topo, topo.objects.nation) as unknown as GeoJSON.FeatureCollection) ?? '';
-  const borders = path(mesh(topo, topo.objects.states, (a, b) => a !== b)) ?? '';
   // Illustrative offices: a few per state around its centroid, deterministic so the picture never changes.
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -28,7 +26,7 @@ function buildMap(): MapData {
       dots.push({ x: +(cx + Math.cos(a) * r).toFixed(1), y: +(cy + Math.sin(a) * r).toFixed(1), live: rnd() < 0.24 });
     }
   }
-  return { land, borders, dots };
+  return { dots };
 }
 
 export function Story() {
