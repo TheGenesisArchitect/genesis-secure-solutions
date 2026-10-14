@@ -195,7 +195,7 @@ export function ProductionBoard({ episode, shots, cast, takes, lockedRefs, studi
                     <div className="pb-foot">
                       <span className="pb-eng2">{eng?.label ?? (s.tool === 'capture' ? 'Phone capture' : s.tool === 'edit' ? 'Code card' : s.tool)} · {money(costs[i].total)}</span>
                       <ShotReview episode={episode.code} board={i + 1} stage={stage} draft={isDraft} pictureOnly={dialogueOpen(ready)} />
-                      {stage === 'review' && (ready.lipsync === 'edit' || ready.lipsync === 'audio_guided') && take ? <FinishDialogue episode={episode.code} board={i + 1} shotId={s.id} reads={shotLines.map((l) => ({ id: (l.reads.find((r) => r.approved && r.status === 'ready') ?? l.reads.find((r) => r.status === 'ready'))?.id ?? '', label: l.speaker })).filter((r) => r.id)} /> : null}
+                      {stage === 'review' && (ready.lipsync === 'edit' || ready.lipsync === 'audio_guided') && take ? <FinishDialogue episode={episode.code} board={i + 1} shotId={s.id} reads={shotLines.map((l) => ({ id: (l.reads.find((r) => r.approved && r.status === 'ready') ?? l.reads.find((r) => r.status === 'ready'))?.id ?? '', label: l.speaker, text: l.text })).filter((r) => r.id)} /> : null}
                     </div>
                     <details className="pb-more">
                       <summary>{s.tool === 'capture' ? 'Capture steps, voice-over & direction' : 'Fine-tune: steps & direction'}</summary>

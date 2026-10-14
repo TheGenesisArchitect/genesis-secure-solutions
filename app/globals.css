@@ -1205,3 +1205,18 @@ button.chip{cursor:pointer}
 .film-end-pk b{font:800 clamp(13px,2vw,20px)/1.05 var(--display)}.film-end-pk small{font-size:clamp(10px,1.3vw,13px);color:var(--soft)}
 .film-end-pk i{font:500 clamp(9px,1.1vw,11px)/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-style:normal}
 @media (max-width:520px){.film-end-card>b{font-size:14px}.film-end-pk small{display:none}}
+/* Finish dialogue teleprompter: the lines sit right above the camera; the line to say is large and bright, and a
+   bar fills for exactly as long as its read lasts, so the performance lands on the read's timing. */
+.fd-prompt{display:grid;gap:6px;max-width:520px;max-height:210px;overflow:auto;padding:10px 12px;border-radius:10px;background:#07080b;border:1px solid var(--line)}
+.fd-prompt p{margin:0;display:grid;gap:2px;opacity:.5;transition:opacity .25s,transform .25s}
+.fd-prompt p small{font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.fd-prompt p span{font:600 16px/1.35 var(--display);color:var(--ink)}
+.fd-prompt p span i{font-style:italic;font-weight:400;font-size:.8em;color:var(--muted);margin:0 .25em}
+.fd-prompt p.on{opacity:1}
+.fd-prompt p.on span{font-size:22px;color:#fff}
+.fd-prompt.rolling p:not(.on){opacity:.28}
+.fd-prompt p.done{opacity:.18}
+.fd-pace{display:block;height:3px;border-radius:2px;background:linear-gradient(90deg,#ff6a2b,#ffa31a);transform-origin:left;animation:fd-pace linear forwards}
+@keyframes fd-pace{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.fd-hear{font-size:12px;display:inline-flex;gap:6px;align-items:center}
+@media (max-width:760px){.fd-prompt p.on span{font-size:19px}}

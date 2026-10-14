@@ -36,6 +36,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const [phase, setPhase] = useState<Phase>('idle');
   const [err, setErr] = useState('');
   const [speaking, setSpeaking] = useState(false);
+  const [hush, setHush] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [level, setLevel] = useState(0);
   const [caption, setCaption] = useState('');
@@ -73,15 +74,23 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const heardText = useRef('');
   const wrapSent = useRef(false);
   const speakingRef = useRef(false);
+  // Hushed while the Studio's Finish dialogue recorder is open: Helix neither hears the person reading their line
+  // nor talks over the take. The session stays connected and picks up again when the recorder closes.
+  const hushRef = useRef(false);
   const loud = useRef(0);
   const tokens = useRef(0);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+  useEffect(() => {
+    const onHush = (e: Event) => { const on = Boolean((e as CustomEvent).detail?.on); hushRef.current = on; setHush(on); if (on) stopPlayback(); };
+    window.addEventListener('genovus:helix-hush', onHush);
+    return () => window.removeEventListener('genovus:helix-hush', onHush);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = (msg: unknown) => { if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(msg)); };
 
   // ---------- audio out ----------
   const play = (data: string, mime: string) => {
-    const ctx = outCtx.current; if (!ctx) return;
+    const ctx = outCtx.current; if (!ctx || hushRef.current) return;
     const rate = Number(/rate=(\d+)/.exec(mime)?.[1] ?? 24000);
     const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
     const pcm = new Int16Array(bytes.buffer, 0, bytes.byteLength >> 1);
@@ -209,7 +218,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
         micCtx.current!.createMediaStreamSource(micStream.current).connect(node);
         node.port.onmessage = (e) => {
           setLevel(e.data.level);
-          if (!micOnRef.current) return;
+          if (!micOnRef.current || hushRef.current) return;
           // The mic always streams (the browser's echo cancellation removes Helix's own voice), so the Live API
           // hears an interruption from its first syllable. Locally, sustained speech while Helix talks (~120 ms)
           // silences the queued audio at once instead of waiting for the server to notice.
@@ -336,8 +345,8 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
         <div className="hx-bar-row">
           <span className={'hx-orb' + (speaking || phase === 'connecting' ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
           <span className="hx-bar-status">
-            <b>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Helix is speaking' : micOn ? 'Listening' : 'Muted') : 'Voice is off'}</b>
-            <small>{phase === 'live' ? (speaking ? 'Interrupt any time, or type below' : micOn ? 'Speak, or type below' : 'Type below, or unmute') : phase === 'connecting' ? 'Allow the microphone if your browser asks' : 'Type below, or tap Talk'}</small>
+            <b>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (hush ? 'Quiet while you record' : speaking ? 'Helix is speaking' : micOn ? 'Listening' : 'Muted') : 'Voice is off'}</b>
+            <small>{phase === 'live' ? (hush ? 'Helix picks up again when the recorder closes' : speaking ? 'Interrupt any time, or type below' : micOn ? 'Speak, or type below' : 'Type below, or unmute') : phase === 'connecting' ? 'Allow the microphone if your browser asks' : 'Type below, or tap Talk'}</small>
           </span>
           {phase === 'live' ? <span className="hx-timer" title="Session time left">{mm}</span> : null}
           {phase === 'live' ? <button type="button" className={'hx-ic' + (micOn ? '' : ' off')} onClick={toggleMic} aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}><span className="hx-level" style={{ transform: `scaleY(${micOn ? Math.min(1, 0.15 + level * 3) : 0.1})` }} />{micOn ? 'Mute' : 'Unmute'}</button> : null}
@@ -377,7 +386,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
             <span className={'hx-orb' + (speaking ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
             <span style={{ minWidth: 0, flex: 1, cursor: mini ? 'pointer' : undefined }} onClick={mini ? () => setMiniPref(false) : undefined}>
               <b>Helix Live{voice ? <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}> · {voice}</span> : null}</b>
-              <small>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (speaking ? 'Speaking · interrupt any time' : micOn ? 'Listening' : 'Mic off · type below') : phase === 'ended' ? (convo ? 'Conversation ended' : 'Tour ended') : 'Not connected'}</small>
+              <small>{phase === 'connecting' ? 'Connecting…' : phase === 'live' ? (hush ? 'Quiet while you record' : speaking ? 'Speaking · interrupt any time' : micOn ? 'Listening' : 'Mic off · type below') : phase === 'ended' ? (convo ? 'Conversation ended' : 'Tour ended') : 'Not connected'}</small>
             </span>
             {phase === 'live' ? <span className="hx-timer" title="Session time left">{mm}</span> : null}
             {phase === 'live' ? <button className={'hx-ic' + (micOn ? '' : ' off')} onClick={toggleMic} aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'} title={micOn ? 'Mute' : 'Unmute'}><span className="hx-level" style={{ transform: `scaleY(${micOn ? Math.min(1, 0.15 + level * 3) : 0.1})` }} />{micOn ? 'Mic' : 'Muted'}</button> : null}

@@ -307,18 +307,40 @@ try {
   await go('/console/studio/gjk-h01');
   check(await ev(`[...document.querySelectorAll('#shot-100 button')].some((b) => /Finish dialogue/.test(b.textContent))`), 'a reopened scene that isn’t lip-synced offers Finish dialogue');
   const fh = await api('finish_dialogue', { shot: 10 });
+  // Watch Helix's hush signal and any audio the page plays while recording.
+  await ev(`window.__hush = []; window.addEventListener('genovus:helix-hush', (e) => window.__hush.push(e.detail.on)); window.__plays = 0; const p0 = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { if (this instanceof HTMLAudioElement) window.__plays++; return p0.call(this); }; true`);
   await ev(`window.dispatchEvent(new CustomEvent('genovus:finish-dialogue', { detail: { shot: 10 } }))`); await sleep(400);
   check(fh.ok && fh.needs_recording && await ev(`!!document.querySelector('#shot-100 .fd')`), '“Finish the dialogue on shot 10” opens the recorder on that scene');
-  // The real recorder (Chrome's simulated camera): open the camera, record along with the read, use the take.
+  check(await ev(`window.__hush[window.__hush.length - 1] === true`), 'opening the recorder hushes Helix (it neither listens nor talks over the take)');
+  const prompt = await ev(`[...document.querySelectorAll('#shot-100 .fd-prompt p > span')].map((s) => s.textContent.trim()).filter(Boolean)`);
+  check(prompt?.length > 0, `the teleprompter shows the scene's lines above the camera (${prompt?.length ?? 0}: “${(prompt?.[0] ?? '').slice(0, 50)}”)`);
+  // The real recorder (Chrome's simulated camera): open the camera, record from the prompter, review, retake, use.
   const nFd = calls.length;
+  const liveOk = `(() => { const v = document.querySelector('#shot-100 .fd-cam video'); return !!v && !!v.srcObject && v.srcObject.active && !v.paused && v.videoWidth > 0 && getComputedStyle(v).display !== 'none'; })()`;
+  const recordOnce = async () => {
+    await click(`document.querySelector('#shot-100 .fd')`, '/^Record$/');
+    await waitFor(async () => ev(`!!document.querySelector('#shot-100 .fd-pace')`), 8000);
+    const during = await ev(`({ pace: !!document.querySelector('#shot-100 .fd-pace'), on: document.querySelector('#shot-100 .fd-prompt p.on > span')?.textContent ?? '', rec: document.querySelector('#shot-100 .fd-rec')?.textContent ?? '' })`);
+    await waitFor(async () => ev(`[...document.querySelectorAll('#shot-100 .fd button')].some((b) => /Use this take/.test(b.textContent))`), 30000);
+    const review = await ev(`(async () => { const vs = [...document.querySelectorAll('#shot-100 .fd-cam video')]; const r = vs.find((v) => v.src.startsWith('blob:')); if (!r) return { found: false }; if (r.readyState < 1) await new Promise((d) => { r.onloadedmetadata = d; setTimeout(d, 5000); }); return { found: true, w: r.videoWidth, h: r.videoHeight, srcObject: !!r.srcObject, liveHidden: vs.filter((v) => v !== r).every((v) => getComputedStyle(v).display === 'none') }; })()`);
+    return { during, review };
+  };
   await click(`document.querySelector('#shot-100 .fd')`, '/Open the camera/'); await sleep(1500);
-  await click(`document.querySelector('#shot-100 .fd')`, '/Record along with the read/');
-  await waitFor(async () => ev(`[...document.querySelectorAll('#shot-100 .fd button')].some((b) => /Use this take/.test(b.textContent))`), 20000);
+  check(await ev(liveOk), 'the camera opens with a live feed');
+  const t1 = await recordOnce();
+  check(t1.during.pace && t1.during.on && /line 1 of/.test(t1.during.rec), `while recording, the prompter holds the current line with a pace bar (“${t1.during.on.slice(0, 40)}”, ${t1.during.rec})`);
+  check(await ev(`window.__plays === 0`), 'no read plays out loud while recording (earphones option off)');
+  check(t1.review.found && t1.review.w > 0 && !t1.review.srcObject && t1.review.liveHidden, `the review plays the recorded take itself, not the camera (${t1.review.w}×${t1.review.h})`);
+  await click(`document.querySelector('#shot-100 .fd')`, '/Record again/'); await sleep(800);
+  check(await ev(liveOk), 'Record again brings the live camera feed back');
+  const t2 = await recordOnce();
+  check(t2.review.found && t2.review.w > 0, `the retake records and plays back too (${t2.review.w}×${t2.review.h})`);
   await click(`document.querySelector('#shot-100 .fd')`, '/Use this take/');
   await waitFor(async () => (await stages())[10] === 'syncing' || (await stages())[10] === 'review' && calls.slice(nFd).some((c) => c.path === '/character_performance'), 30000);
   const recPath = calls.slice(nFd).find((c) => c.path === '/character_performance') ? 'uploaded' : null;
   const recRow = must(await db.from('studio_takes').select('params').eq('shot_id', shotsAll.find((x) => x.n === 100).id).eq('model', 'runway:act_two').order('created_at', { ascending: false }).limit(1).maybeSingle(), 'act two row');
-  check(Boolean(recPath) && /^studio\/uploads\/.+performance-.+\.(webm|mp4)$/.test(recRow?.params?.recording ?? ''), `the camera recorder records along with the read, uploads, and starts Act-Two (${recRow?.params?.recording ?? 'no recording'})`);
+  check(Boolean(recPath) && /^studio\/uploads\/.+performance-.+\.(webm|mp4)$/.test(recRow?.params?.recording ?? ''), `the camera recorder records from the prompter, uploads, and starts Act-Two (${recRow?.params?.recording ?? 'no recording'})`);
+  check(await ev(`window.__hush[window.__hush.length - 1] === false`), 'Helix picks up again once the recorder closes');
   for (let i = 0; i < 30 && (await stages())[10] !== 'review'; i++) { await advance(); await sleep(500); }
   const act = calls.slice(nFd).find((c) => c.path === '/character_performance');
   const ups = calls.slice(nFd).filter((c) => c.path === '/uploads').length;

@@ -21,6 +21,11 @@ jobs:
   isolation:
     runs-on: ubuntu-latest
     needs: build
+    # One run at a time against the shared preview database: a commit pushed to platform and main together would
+    # otherwise run these checks side by side and each would count the other's test emails. The second one waits.
+    concurrency:
+      group: preview-database
+      cancel-in-progress: false
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.PREVIEW_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PREVIEW_SUPABASE_PUBLISHABLE_KEY }}

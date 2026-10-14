@@ -2,7 +2,7 @@
 // StudioNext production controls: one approval produces the shots, then each finished shot asks only for a review.
 // The same actions are Helix's voice tools (open Ask Helix on the board and say "produce the trailer"); these taps
 // are the fallback. The bar keeps the board live while a run is going.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
 import type { ActionResult } from '@/lib/actions';
@@ -159,54 +159,105 @@ export function RunHealthLine({ h }: { h: RunHealth }) {
 }
 
 /**
- * Finish dialogue (Act-Two): the front camera opens, the character's line read plays, and the person says or
- * mouths the line along with it. The recording drives the character's face in the take, so the lips land on the
- * read's timing; the voice stays the read. Opens from the card, or from Helix ("finish the dialogue on shot 4").
+ * Finish dialogue (Act-Two): the front camera opens and a teleprompter above it feeds the lines one at a time, each
+ * held for as long as the character's read lasts, so the person performs in the read's timing without hearing it
+ * (or, with earphones, along with it). The recording drives the character's face in the take, so the lips land on
+ * the read's timing; the voice stays the read. Helix's voice session is hushed while the recorder is open, so it
+ * neither hears the lines nor talks over the take. Opens from the card, or from Helix ("finish the dialogue on shot 4").
  */
-export function FinishDialogue({ episode, board, shotId, reads }: { episode: string; board: number; shotId: string; reads: { id: string; label: string }[] }) {
+export type PromptLine = { id: string; label: string; text: string };
+// A read's length when its audio can't be measured: the cast's delivery is about 2.4 words a second.
+const guessSecs = (text: string) => Math.max(1.6, text.replace(/\[[^\]]*\]/g, ' ').trim().split(/\s+/).length / 2.4);
+// H.264 first: Runway takes it everywhere; some Chrome builds otherwise put VP9 inside the MP4.
+const REC_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,opus', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
+// Direction tags ([warmly]) show as quiet italics, not words to say.
+const Prompt = ({ text }: { text: string }) => <>{text.split(/(\[[^\]]+\])/g).map((part, i) => (/^\[.*\]$/.test(part) ? <i key={i}>{part.slice(1, -1)}</i> : <span key={i}>{part}</span>))}</>;
+
+export function FinishDialogue({ episode, board, shotId, reads }: { episode: string; board: number; shotId: string; reads: PromptLine[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'ready' | 'count' | 'rec' | 'review' | 'sending'>('idle');
   const [count, setCount] = useState(3);
   const [clip, setClip] = useState<Blob | null>(null);
   const [err, setErr] = useState('');
-  const live = useRef<HTMLVideoElement>(null);
+  const [secs, setSecs] = useState<number[]>([]);
+  const [cur, setCur] = useState(0);
+  const [hear, setHear] = useState(false);
+  const live = useRef<HTMLVideoElement | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  const prompter = useRef<HTMLDivElement>(null);
+  useEffect(() => { prompter.current?.querySelector('p.on')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [cur]);
+  const clipUrl = useMemo(() => (clip ? URL.createObjectURL(clip) : ''), [clip]);
+  useEffect(() => () => { if (clipUrl) URL.revokeObjectURL(clipUrl); }, [clipUrl]);
   useEffect(() => {
     const onAsk = (e: Event) => { if ((e as CustomEvent).detail?.shot === board) setOpen(true); };
     window.addEventListener('genovus:finish-dialogue', onAsk);
     return () => window.removeEventListener('genovus:finish-dialogue', onAsk);
   }, [board]);
+  // Helix stays quiet (and stops listening) while the recorder is open.
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new CustomEvent('genovus:helix-hush', { detail: { on: true } }));
+    return () => { window.dispatchEvent(new CustomEvent('genovus:helix-hush', { detail: { on: false } })); };
+  }, [open]);
+  // How long each read lasts, so the teleprompter holds each line for exactly that long.
+  const readKey = reads.map((r) => r.id).join(',');
+  useEffect(() => {
+    if (!open) return;
+    let gone = false;
+    Promise.all(reads.map((r) => new Promise<number>((done) => {
+      const a = new Audio(); a.preload = 'metadata';
+      const t = setTimeout(() => done(guessSecs(r.text)), 5000);
+      a.onloadedmetadata = () => { clearTimeout(t); done(isFinite(a.duration) && a.duration > 0 ? a.duration : guessSecs(r.text)); };
+      a.onerror = () => { clearTimeout(t); done(guessSecs(r.text)); };
+      a.src = `/api/studio/media/voice/${r.id}`;
+    }))).then((d) => { if (!gone) setSecs(d); });
+    return () => { gone = true; };
+  }, [open, readKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => stream.current?.getTracks().forEach((t) => t.stop()), []);
-  const stop = () => { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; };
+  // The live view has its own element (the review plays in another), and the camera re-attaches whenever it
+  // mounts, so a retake always shows the live feed.
+  const attach = (el: HTMLVideoElement | null) => {
+    live.current = el;
+    if (el && stream.current && el.srcObject !== stream.current) { el.srcObject = stream.current; el.play().catch(() => {}); }
+  };
+  const stop = () => { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; if (live.current) live.current.srcObject = null; };
   const camera = async () => {
     setErr('');
     try {
       stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true });
-      if (live.current) { live.current.srcObject = stream.current; await live.current.play().catch(() => {}); }
+      attach(live.current);
       setPhase('ready');
     } catch { setErr('The camera didn’t open. Allow camera and microphone, or upload a video instead.'); }
   };
   const record = async () => {
     if (!stream.current) return;
-    setPhase('count');
+    attach(live.current);
+    setClip(null); setCur(0); setErr(''); setPhase('count');
     for (let i = 3; i > 0; i--) { setCount(i); await new Promise((r) => setTimeout(r, 800)); }
-    const type = ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
+    const type = REC_TYPES.find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
     const rec = new MediaRecorder(stream.current, type ? { mimeType: type } : undefined);
     const parts: Blob[] = [];
     rec.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
     const stopped = new Promise<void>((r) => { rec.onstop = () => r(); });
     rec.start(250); setPhase('rec');
     const started = Date.now();
-    // The reads play in order while the person performs along. At least 3.2 s (Act-Two's minimum is 3 s).
-    for (const r of reads) {
-      const a = new Audio(`/api/studio/media/voice/${r.id}`);
-      await new Promise<void>((done) => { a.onended = () => done(); a.onerror = () => done(); a.play().catch(() => done()); });
+    // One line at a time on the prompter, each held for its read's length (with earphones on, the read plays too).
+    for (let i = 0; i < reads.length; i++) {
+      setCur(i);
+      if (hear) {
+        const a = new Audio(`/api/studio/media/voice/${reads[i].id}`);
+        await new Promise<void>((done) => { a.onended = () => done(); a.onerror = () => done(); a.play().catch(() => done()); });
+      } else await new Promise((r) => setTimeout(r, (secs[i] ?? guessSecs(reads[i].text)) * 1000));
+      if (i < reads.length - 1) await new Promise((r) => setTimeout(r, 350));
     }
+    // At least 3.2 s in all (Act-Two's minimum is 3 s), and a beat after the last line.
     await new Promise((r) => setTimeout(r, Math.max(600, 3200 - (Date.now() - started))));
     rec.stop(); await stopped;
-    setClip(new Blob(parts, { type: rec.mimeType || 'video/webm' }));
+    const blob = new Blob(parts, { type: rec.mimeType || type || 'video/webm' });
+    if (!blob.size) { setErr('Nothing was recorded. Check that no other app is using the camera, then record again.'); setPhase('ready'); return; }
+    setClip(blob);
     setPhase('review');
   };
   const send = async (blob: Blob, name?: string) => {
@@ -224,23 +275,37 @@ export function FinishDialogue({ episode, board, shotId, reads }: { episode: str
   };
   if (!reads.length) return null;
   if (!open) return <button className="btn small" type="button" onClick={() => setOpen(true)}>🎙 Finish dialogue</button>;
+  const rolling = phase === 'rec';
+  const lineSecs = (i: number) => secs[i] ?? guessSecs(reads[i].text);
+  const total = reads.reduce((t, _, i) => t + lineSecs(i), 0);
   return (
     <div className="fd">
       <b>Finish dialogue · Act-Two</b>
-      <small className="muted">The read plays: say or mouth {reads.length === 1 ? 'the line' : 'the lines'} along with it, face to the camera, in good light. Your mouth and expression drive {reads.map((r) => r.label).join(' and ')}; the voice stays the read.</small>
-      <div className="fd-cam">
-        {phase === 'review' && clip ? <video src={URL.createObjectURL(clip)} controls playsInline /> : <video ref={live} muted playsInline />}
-        {phase === 'count' ? <span className="fd-count">{count}</span> : null}
-        {phase === 'rec' ? <span className="fd-rec">● Recording</span> : null}
+      <small className="muted">Read {reads.length === 1 ? 'the line' : 'the lines'} from the prompter, face to the camera, in good light. Each line stays up as long as its read lasts ({total.toFixed(1)} s in all): finish it as the bar fills. Your mouth and expression drive {[...new Set(reads.map((r) => r.label))].join(' and ')}; the voice stays the read. Helix is quiet while this is open.</small>
+      <div ref={prompter} className={'fd-prompt' + (rolling ? ' rolling' : '')} aria-live="polite">
+        {reads.map((r, i) => (
+          <p key={r.id + i} className={i === cur ? 'on' : i < cur && rolling ? 'done' : ''}>
+            <small>{r.label} · {lineSecs(i).toFixed(1)} s</small>
+            <span><Prompt text={r.text} /></span>
+            {i === cur && rolling ? <em className="fd-pace" style={{ animationDuration: `${lineSecs(i)}s` }} /> : null}
+          </p>
+        ))}
       </div>
-      <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+      <div className="fd-cam">
+        <video ref={attach} muted playsInline autoPlay style={phase === 'review' && clip ? { display: 'none' } : undefined} />
+        {phase === 'review' && clip ? <video key={clipUrl} src={clipUrl} controls playsInline /> : null}
+        {phase === 'count' ? <span className="fd-count">{count}</span> : null}
+        {rolling ? <span className="fd-rec">● Recording · line {cur + 1} of {reads.length}</span> : null}
+      </div>
+      <span className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {phase === 'idle' ? <button className="btn small primary" type="button" onClick={camera}>Open the camera</button> : null}
-        {phase === 'ready' ? <button className="btn small primary" type="button" onClick={record}>Record along with the read</button> : null}
-        {phase === 'review' && clip ? <><button className="btn small primary" type="button" onClick={() => send(clip)}>Use this take</button><button className="btn small ghost" type="button" onClick={() => { setClip(null); setPhase('ready'); }}>Record again</button></> : null}
+        {phase === 'ready' ? <button className="btn small primary" type="button" onClick={record}>Record</button> : null}
+        {phase === 'review' && clip ? <><button className="btn small primary" type="button" onClick={() => send(clip)}>Use this take</button><button className="btn small ghost" type="button" onClick={() => { setClip(null); setCur(0); setPhase('ready'); }}>Record again</button></> : null}
         {phase === 'sending' ? <span className="muted"><span className="take-spin" /> Sending to Act-Two…</span> : null}
+        {phase === 'idle' || phase === 'ready' ? <label className="muted fd-hear"><input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Play the read while I record (earphones)</label> : null}
         <input ref={file} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f, f.name); }} />
-        {phase !== 'sending' ? <button className="btn small ghost" type="button" onClick={() => file.current?.click()}>Upload a video instead</button> : null}
-        <button className="btn small ghost" type="button" onClick={() => { stop(); setOpen(false); setPhase('idle'); setClip(null); }}>Close</button>
+        {phase !== 'sending' && !rolling ? <button className="btn small ghost" type="button" onClick={() => file.current?.click()}>Upload a video instead</button> : null}
+        {!rolling ? <button className="btn small ghost" type="button" onClick={() => { stop(); setOpen(false); setPhase('idle'); setClip(null); setCur(0); }}>Close</button> : null}
       </span>
       {err ? <p className="pm-msg err">{err}</p> : null}
     </div>
