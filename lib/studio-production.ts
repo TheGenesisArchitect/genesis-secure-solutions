@@ -168,6 +168,9 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
   // Has a provider's safety filter ever blocked this shot? Then go straight to Runway's first-party model.
   const { count: modCount } = await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('status', 'failed').or('error.ilike.%SAFETY.THIRD_PARTY%,error.ilike.%content moderation%');
   const moderated = (modCount ?? 0) > 0;
+  // A routed model returned bad output for this shot before (Runway INTERNAL.BAD_OUTPUT): skip the router, use Gen-4.5.
+  const { count: badCount } = await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('status', 'failed').ilike('error', '%BAD_OUTPUT%');
+  const direct = (badCount ?? 0) > 0;
   // A speaking shot (someone on camera says a line) doesn't switch models on its own: Gen-4.5 can't perform to the
   // read, so the switch changes what the shot is. The person decides; silent and voice-over shots switch.
   const speaking = lines.some((l) => !l.vo && (s.cast_codes ?? []).includes(l.code));
@@ -175,7 +178,7 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
     await setProduce(db, s, { stage: 'blocked', decision: 'first_party', note: 'Seedance won’t render this face (the provider’s filter). Use Gen-4.5 (the dialogue is mixed in the edit or finished with Act-Two), or retry.' });
     return 'blocked';
   }
-  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt, pass, moderated }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
+  await once(db, s.id, 'take', () => startRunwayTake(reserve, s.id, { attempt, pass, moderated, direct }), async () => !((await db.from('studio_takes').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).like('model', 'runway:%').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   await setProduce(db, s, { stage: 'rendering' });
   return 'rendering';
 }

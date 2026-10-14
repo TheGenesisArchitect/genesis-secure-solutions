@@ -207,12 +207,14 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
  */
 /** A take blocked by a model provider's own safety filter (e.g. Seedance on photoreal faces), not by Runway. */
 export const MODERATED = /SAFETY\.THIRD_PARTY|provider's content moderation/i;
-export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number; pass?: Pass; moderated?: boolean } = {}): Promise<Started> {
+export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { attempt?: number; pass?: Pass; moderated?: boolean; direct?: boolean } = {}): Promise<Started> {
   const attempt = opts.attempt ?? 1;
   const pass = opts.pass ?? 'final';
   // Once a provider's safety filter has blocked this shot's cast, render on Runway's own Gen-4.5 (first-party,
   // no third-party filter) from the keyframe; the line read is mixed in the edit instead of lip-synced.
   const firstParty = Boolean(opts.moderated);
+  // A routed model that keeps returning bad output (INTERNAL.BAD_OUTPUT) is skipped: the shot goes straight to Gen-4.5.
+  const skipRouter = firstParty || Boolean(opts.direct);
   const db = adminDb();
   const s = await loadShot(db, shotId);
   const eng = engineFor(s.tool, s.tier);
@@ -233,7 +235,7 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
   const bySlot = new Map<string, { id: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }>();
   for (const c of (clips ?? []) as { id: string; slot: string; blob_path: string; approved: boolean; source_url?: string | null; source_at?: string | null }[]) { const cur = bySlot.get(c.slot); if (!cur || (c.approved && !cur.approved)) bySlot.set(c.slot, c); }
   const audio: string[] = [];
-  if (eng.model === 'seedance2_5' && attempt < 2 && !firstParty) for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
+  if (eng.model === 'seedance2_5' && attempt < 2 && !skipRouter) for (const slot of [...bySlot.keys()].sort()) { const c = bySlot.get(slot)!; const u = fresh(c.source_at) && c.source_url ? c.source_url : await blobDataUri(c.blob_path); if (u) audio.push(u); }
   const seconds = firstParty ? Math.min(10, Math.max(2, takeSeconds(s.tool, s.tier, s.timing))) : takeSeconds(s.tool, s.tier, s.timing);
   // Seedance can't combine audio references with a positioned keyframe: with audio, every image (the keyframe and
   // the cast's identity references) goes in as an unpositioned reference. Without audio, the keyframe opens the shot.
@@ -242,10 +244,10 @@ export async function startRunwayTake(reserve: Reserve, shotId: string, opts: { 
     : frameUri ? [{ uri: frameUri, role: 'first' }] : refs.map((x) => ({ uri: x.uri, role: 'reference' as const }));
   const prompt = `${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''}${audio.length ? ` The characters speak the attached dialogue on camera with natural, accurate lip movement and the delivery of the read.` : ''} ${LOOK} Keep every person exactly as in the references.`;
   const routers = await getRouters(db);
-  const router = firstParty ? '' : pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
+  const router = skipRouter ? '' : pass === 'draft' ? routers.draft : s.tier === 'hero' ? routers.hero : routers.production;
   // With routers in use, the direct fallback is Runway's own Gen-4.5 (the routers decide which outside models are
   // allowed; Seedance was removed from the hero router because its filter blocks our photoreal cast).
-  const direct = firstParty || router ? 'gen4.5' : eng.model;
+  const direct = skipRouter || router ? 'gen4.5' : eng.model;
   let routedReq = { router, prompt, images, audioRefs: audio, duration: seconds, audio: audio.length > 0, resolution: (pass === 'draft' ? '720p' : '1080p') as '720p' | '1080p' };
   let audioDropped = false;
   const directCents = seconds * (firstParty ? PRICE.gen45PerSec : direct === 'seedance2_5' ? PRICE.seedancePerSec : PRICE.gen45PerSec);
