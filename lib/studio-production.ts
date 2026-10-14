@@ -139,7 +139,8 @@ async function advanceShot(db: Db, code: string, s: ProdShot, cast: { id: string
     if (ready) { await db.rpc('studio_auto_choose_frame', { p_id: ready.id }); frameReady = true; return; }
     if (frames.some((f) => busy(f.status))) return;
     if (frames.filter((f) => f.status === 'failed').length >= 2) throw new Error('BLOCK:The keyframe keeps failing.');
-    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1, { pass }), async () => !((await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
+    const { count: badFrames } = await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'frame').eq('status', 'failed').ilike('error', '%BAD_OUTPUT%');
+    await once(db, s.id, 'keyframe', () => startKeyframes(reserve, s.id, 1, { pass, direct: (badFrames ?? 0) > 0 }), async () => !((await db.from('studio_art').select('id', { count: 'exact', head: true }).eq('shot_id', s.id).eq('kind', 'frame').eq('role', 'start').gte('created_at', runStart).neq('status', 'failed')).count ?? 0));
   };
   try { await Promise.all([lineStep(), frameStep()]); } catch (e) {
     const msg = e instanceof Error ? e.message : '';

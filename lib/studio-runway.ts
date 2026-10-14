@@ -155,7 +155,7 @@ export async function startLines(reserve: Reserve, shotId: string): Promise<Star
 }
 
 /** Two keyframe candidates for a shot, with the cast's identity references tagged in. */
-export async function startKeyframes(reserve: Reserve, shotId: string, count = 2, opts: { pass?: Pass } = {}): Promise<Started> {
+export async function startKeyframes(reserve: Reserve, shotId: string, count = 2, opts: { pass?: Pass; direct?: boolean } = {}): Promise<Started> {
   const pass = opts.pass ?? 'final';
   const db = adminDb();
   const s = await loadShot(db, shotId);
@@ -172,7 +172,8 @@ export async function startKeyframes(reserve: Reserve, shotId: string, count = 2
   const prompt = `${who ? who + '. ' : ''}${s.description.replace(/\b(Marcus|Tasha|Julian)\b/g, (n) => `@${n.toLowerCase()}`)}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''} ${LOOK} Keep every person exactly as in their reference: face, skin tone, hair, beard, glasses, build and accessories.`;
   // Routed image requests don't take @tags, so the routed prompt names each reference image in order.
   const routedPrompt = `${refs.map((r, i) => `Reference image ${i + 1} is ${r.name}`).join('; ')}${refs.length ? '. ' : ''}${s.description}${d.acting ? ` Performance: ${d.acting}.` : ''}${d.camera ? ` Camera: ${d.camera}.` : ''} ${LOOK} Keep every person exactly as in their reference image: face, skin tone, hair, beard, glasses, build and accessories.`;
-  const router = (await getRouters(db))[pass === 'draft' ? 'image_fast' : 'keyframe'];
+  // A routed model that returned bad output for this shot (INTERNAL.BAD_OUTPUT) is skipped: Gen-4 Image directly.
+  const router = opts.direct ? '' : (await getRouters(db))[pass === 'draft' ? 'image_fast' : 'keyframe'];
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
     // Quote the exact request with Runway's free dry run; reserve that. No eligible model → the direct engine.
