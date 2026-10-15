@@ -821,6 +821,11 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .helix-pill-text span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 .helix-pill-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--accent)}
 .helix-moved{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+/* Helix's confirm lane: a change waiting for a yes, and Done · Undo for ten seconds after. */
+.helix-card.act{border-color:color-mix(in srgb,var(--accent) 60%,var(--line));grid-template-columns:1fr;gap:10px}
+.helix-lane{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--link)}
+.helix-undo{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:8px 8px 8px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:14px}
+@media (max-width:760px){.helix-undo{bottom:140px}}
 .helix-saved{margin:0;font-size:11px;line-height:1.4}
 .helix-spoken{display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px;background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink)}
 .helix-moved::before,.helix-moved::after{content:"";flex:1;height:1px;background:var(--line)}

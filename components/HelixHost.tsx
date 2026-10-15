@@ -4,6 +4,7 @@
 // Helix's last line), one voice session. Pages and "Ask Helix" buttons add to the thread instead of resetting it.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 const HELIX_EVT = 'genovus:helix'; // the event helixAsk() sends (components/HelixDrawer.tsx)
 
@@ -34,6 +35,18 @@ type Thread = {
   disclosure?: string;
   /** Save a spoken exchange (voice Ask Helix) to the thread and show it in the chat. */
   saveVoice?: (turns: { role: 'user' | 'helix'; text: string }[], page?: string) => void;
+  /** The confirm lane (agency): one change waiting for a yes, and the last change, undoable for a short while. */
+  act?: HelixAct;
+};
+export type HelixProposal = { ok: true; summary: string; token: string } | { ok: false; error: string; choices?: string[] };
+export type HelixAct = {
+  pending: HelixProposal | null;
+  last: { done: string; undo?: string; at: number } | null;
+  propose: (action: string, args: Record<string, unknown>) => Promise<HelixProposal>;
+  confirm: (page?: string) => Promise<{ ok: boolean; done?: string; error?: string }>;
+  dismiss: () => void;
+  undo: (page?: string) => Promise<{ ok: boolean; done?: string; error?: string }>;
+  show: (p: HelixProposal) => void;
 };
 const ThreadCtx = createContext<Thread | null>(null);
 
@@ -48,6 +61,40 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
   const [turns, setTurns] = useState<HelixTurn[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
+  const router = useRouter();
+  // The confirm lane: a proposal waits for a yes (spoken or tapped); a done change can be undone for ten seconds here.
+  const [pending, setPending] = useState<HelixProposal | null>(null);
+  const [last, setLast] = useState<HelixAct['last']>(null);
+  const pendingRef = useRef<HelixProposal | null>(null);
+  const lastRef = useRef<HelixAct['last']>(null);
+  useEffect(() => { pendingRef.current = pending; }, [pending]);
+  useEffect(() => { lastRef.current = last; }, [last]);
+  const actCall = useCallback(async (body: Record<string, unknown>) => fetch('/api/helix/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, ...body }) })
+    .then((r) => r.json()).catch(() => ({ ok: false, error: 'Helix couldn’t reach Genovus.' })), [slug]);
+  const act: HelixAct | undefined = surface === 'agency' ? {
+    pending, last,
+    show: (p) => setPending(p),
+    dismiss: () => setPending(null),
+    propose: async (action, args) => { const p = (await actCall({ step: 'propose', action, args })) as HelixProposal; setPending(p); return p; },
+    confirm: async (page) => {
+      const p = pendingRef.current;
+      if (!p || !p.ok) return { ok: false, error: 'Nothing is waiting for a yes.' };
+      setPending(null);
+      const r = await actCall({ step: 'confirm', token: p.token, threadId: idRefAct.current, page });
+      if (r.ok) { setLast({ done: r.done, undo: r.undo, at: Date.now() }); setTurns((t) => [...t, { role: 'helix', text: `Done: ${r.done}`, page }]); router.refresh(); }
+      return r;
+    },
+    undo: async (page) => {
+      const l = lastRef.current;
+      if (!l?.undo) return { ok: false, error: 'Nothing to undo.' };
+      setLast(null);
+      const r = await actCall({ step: 'undo', token: l.undo, threadId: idRefAct.current, page });
+      if (r.ok) { setTurns((t) => [...t, { role: 'helix', text: r.done, page }]); router.refresh(); }
+      return r;
+    },
+  } : undefined;
+  const idRefAct = useRef<string | null>(null);
+  useEffect(() => { idRefAct.current = threadId; }, [threadId]);
   const asked = useRef(0);
   // Spoken exchanges save one at a time, each continuing the thread the last one (or a typed answer) landed in.
   const idRef = useRef<string | null>(null);
@@ -73,7 +120,7 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
       });
     }).catch(() => {});
   }, [surface, slug]);
-  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined, saveVoice }}>{children}</ThreadCtx.Provider>;
+  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined, saveVoice, act }}>{children}</ThreadCtx.Provider>;
 }
 
 /** The shared thread, or a private one where no host is mounted. */
@@ -123,7 +170,7 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
       if (e.key === 'Escape') setDock((s) => (s === 'open' ? 'min' : s));
     };
     // Helix pointing at something on the page minimizes itself so the page shows (voice keeps going).
-    const onDock = (e: Event) => { if ((e as CustomEvent<{ state?: Dock }>).detail?.state === 'min') setDock((s) => (s === 'open' ? 'min' : s)); };
+    const onDock = (e: Event) => { const st = (e as CustomEvent<{ state?: Dock }>).detail?.state; if (st === 'min') setDock((s) => (s === 'open' ? 'min' : s)); if (st === 'open') setDock((s) => (s === 'min' ? 'open' : s)); };
     window.addEventListener(HELIX_EVT, onAsk);
     window.addEventListener('keydown', onKey);
     window.addEventListener('genovus:helix-dock', onDock);
@@ -148,6 +195,7 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
           {unread ? <span className="helix-pill-dot" aria-label="New reply" /> : null}
         </button>
       ) : null}
+      <HelixUndoBar page={pageName} />
       {dock !== 'closed' ? (
         <aside className="helix-drawer" aria-label="Ask Helix" hidden={dock !== 'open'}>
           <header className="row" style={{ justifyContent: 'space-between' }}>
@@ -162,5 +210,46 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
         </aside>
       ) : null}
     </>
+  );
+}
+
+/** Tell a live voice session what just happened on screen, so Helix can say it (a tap on Yes or Undo). */
+export const tellVoice = (text: string) => window.dispatchEvent(new CustomEvent('genovus:helix-said', { detail: { text } }));
+
+/** A change Helix proposed, waiting for a yes: one tap to do it, or not now. Spoken "yes" does the same. */
+export function HelixActCard({ page }: { page?: string }) {
+  const { act } = useHelixThread();
+  const [busy, setBusy] = useState(false);
+  const p = act?.pending;
+  if (!act || !p) return null;
+  if (!p.ok) return (
+    <div className="helix-card act" role="status">
+      <span><b>Helix needs a detail</b><br />{p.error}{p.choices?.length ? ` ${p.choices.join(' · ')}` : ''}</span>
+      <button className="btn small ghost" type="button" onClick={act.dismiss}>OK</button>
+    </div>
+  );
+  return (
+    <div className="helix-card act" role="group" aria-label="Confirm Helix’s change">
+      <span><span className="helix-lane">Changes your data · needs your yes</span><br /><b>{p.summary}?</b></span>
+      <span className="row" style={{ gap: 6 }}>
+        <button className="btn small primary" type="button" disabled={busy} onClick={async () => { setBusy(true); const r = await act.confirm(page); setBusy(false); tellVoice(r.ok ? `(The person tapped Yes. ${r.done})` : `(It didn't go through: ${r.error})`); }}>Yes, do it</button>
+        <button className="btn small ghost" type="button" disabled={busy} onClick={() => { act.dismiss(); tellVoice('(The person tapped Not now. Nothing changed.)'); }}>Not now</button>
+      </span>
+    </div>
+  );
+}
+
+/** "Done · Undo" for ten seconds after Helix changes something, on any page, open or minimized. */
+export function HelixUndoBar({ page }: { page?: string }) {
+  const { act } = useHelixThread();
+  const [, tick] = useState(0);
+  const last = act?.last;
+  useEffect(() => { if (!last) return; const t = setTimeout(() => tick((n) => n + 1), 10_200 - (Date.now() - last.at)); return () => clearTimeout(t); }, [last]);
+  if (!act || !last || Date.now() - last.at > 10_000) return null;
+  return (
+    <div className="helix-undo" role="status">
+      <span>{last.done}</span>
+      {last.undo ? <button className="btn small" type="button" onClick={async () => { const r = await act.undo(page); tellVoice(r.ok ? `(The person tapped Undo. ${r.done})` : `(Undo didn't go through: ${r.error})`); }}>Undo</button> : null}
+    </div>
   );
 }

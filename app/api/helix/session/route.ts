@@ -15,7 +15,8 @@ import { accessFor } from '@/lib/access';
 import { agencyBrief } from '@/lib/helix-agency';
 import { canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
 import { agencyVoice, enterpriseVoice, threadSeed, voiceTools } from '@/lib/helix-voice';
-import { helixPagesFor, navTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
+import { actTools, helixPagesFor, navTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
+import { actRules } from '@/lib/helix-act';
 import { helixScope, openThread, threadTurns } from '@/lib/helix-thread';
 import { PROGRAM_NAME } from '@/lib/programs';
 
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
     if (!access.has('helix')) return Response.json({ error: 'Ask Helix is part of Growth.' }, { status: 403 });
     tenantId = t.id;
     pages = await helixPagesFor(viewer, 'agency', { id: t.id, slug: String(body.slug), plan: t.plan });
-    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])) + voiceNavRules(pages, true) + (await seed('agency', String(body.slug))), voiceTools(navTools(pages, true)), voice);
+    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])) + voiceNavRules(pages, true) + actRules(true) + (await seed('agency', String(body.slug))), voiceTools([...navTools(pages, true), ...actTools]), voice);
   } else if (context === 'packages') {
     // The public package tour: facts only from that package's steps (no prices), driving the page with show_step.
     const plan = ['launch', 'growth', 'premium'].includes(String(body.focus?.code)) ? (body.focus!.code as 'launch' | 'growth' | 'premium') : 'growth';

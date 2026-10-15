@@ -86,6 +86,12 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const loud = useRef(0);
   const tokens = useRef(0);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+  // A tap on the confirmation card or Undo while voice is live: tell Helix, so it says what happened.
+  useEffect(() => {
+    const onSaid = (e: Event) => { const t = String((e as CustomEvent).detail?.text ?? ''); if (t && ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify({ realtimeInput: { text: t } })); };
+    window.addEventListener('genovus:helix-said', onSaid);
+    return () => window.removeEventListener('genovus:helix-said', onSaid);
+  }, []);
   useEffect(() => {
     const onHush = (e: Event) => { const on = Boolean((e as CustomEvent).detail?.on); hushRef.current = on; setHush(on); if (on) stopPlayback(); };
     window.addEventListener('genovus:helix-hush', onHush);
@@ -183,6 +189,14 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       point(el.closest('.lead, .board-card, li, section, tr') ?? el);
       return { ok: true, page: pageRef.current };
     }
+    // The confirm lane (agency): a card on screen waits for the person's yes; Helix confirms only after hearing it.
+    if (ask && thread.act && name === 'propose_action') {
+      const p = await thread.act.propose(String(args.action ?? ''), args);
+      window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'open' } }));
+      return p.ok ? { ok: true, summary: p.summary, next: 'Read the summary out and ask “Shall I?”. Call confirm_action only after a clear yes.' } : { ok: false, error: p.error, choices: p.choices };
+    }
+    if (ask && thread.act && name === 'confirm_action') return thread.act.confirm(pageRef.current);
+    if (ask && thread.act && name === 'undo_last') return thread.act.undo(pageRef.current);
     if (name === 'take_note') {
       const r = await saveNote(args.kind ?? 'idea', args.text ?? '', args.chapter ?? toSlug(pathRef.current), 'helix');
       if (r.ok) setTab((t) => t);

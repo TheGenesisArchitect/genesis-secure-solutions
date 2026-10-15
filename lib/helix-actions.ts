@@ -31,6 +31,13 @@ MOVING AROUND THE SCREEN: you can open pages for the person and point at things.
 - "Point to / where is <something on this page>": call highlight with the words on screen.
 - Opening and pointing never change anything. You still never mark, book, send or delete anything yourself.` : '';
 
+/** Voice tools for the confirm lane (agency): propose, then confirm only after a spoken yes; undo the last change. */
+export const actTools = [
+  { name: 'propose_action', description: 'Propose a change and put a confirmation card on screen. action: mark_lead (lead, status), book_lead (lead, day, time) or add_follow_up (who, day, time, reason). day YYYY-MM-DD, time HH:MM office time. Returns the summary to read out, or what is missing.', parameters: { type: 'OBJECT', properties: { action: { type: 'STRING', enum: ['mark_lead', 'book_lead', 'add_follow_up'] }, lead: { type: 'STRING' }, status: { type: 'STRING', enum: ['contacted', 'won', 'lost', 'new'] }, day: { type: 'STRING' }, time: { type: 'STRING' }, who: { type: 'STRING' }, reason: { type: 'STRING' } }, required: ['action'] } },
+  { name: 'confirm_action', description: 'Do the change on the confirmation card. ONLY right after the person clearly said yes to the summary you read out in this conversation.', parameters: { type: 'OBJECT', properties: {} } },
+  { name: 'undo_last', description: 'Undo the change Helix just made (within ten minutes), when the person asks to undo it.', parameters: { type: 'OBJECT', properties: {} } },
+];
+
 /** Voice tool declarations for moving around the screen. */
 export const navTools = (pages: HelixPage[], leads: boolean) => pages.length ? [
   { name: 'go_to', description: 'Open one of the person’s pages. page: an exact page name from PAGES.', parameters: { type: 'OBJECT', properties: { page: { type: 'STRING', enum: pages.map((p) => p.label) } }, required: ['page'] } },

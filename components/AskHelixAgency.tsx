@@ -7,14 +7,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addFollowUp } from '@/lib/actions';
-import { useHelixThread } from './HelixHost';
+import { HelixActCard, useHelixThread } from './HelixHost';
 
 const SUGGEST = ['Who needs a call today?', 'Where did my leads come from this month?', 'Draft a text to my newest lead', 'What’s on my calendar this week?', 'Which leads are going cold?'];
 const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } })); };
 
 export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, start, startN = 0, page, compact }: { slug: string; tenantId: string; context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
   const router = useRouter();
-  const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure } = useHelixThread();
+  const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure, act } = useHelixThread();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -30,6 +30,8 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     if (r.j.threadId) setThreadId(r.j.threadId);
     // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
     if (r.okay && r.j.go?.href) router.push(r.j.go.href);
+    // Helix proposed a change: show it for a yes (one tap); nothing happens until then.
+    if (r.okay && r.j.proposal) act?.show(r.j.proposal);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
@@ -68,6 +70,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
         {busy ? <div className="helix-turn helix"><p className="muted">Helix is looking…</p></div> : null}
         <div ref={end} />
       </div>
+      {act?.pending ? <HelixActCard page={page} /> : null}
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{suggest.map((s) => <button key={s} className="btn small ghost" type="button" disabled={busy} onClick={() => ask(s)}>{s}</button>)}</div>
       <form className="row" style={{ gap: 8 }} onSubmit={(e) => { e.preventDefault(); void ask(q); }}>
         <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about your leads, calendar or results" aria-label="Ask Helix" style={{ flex: 1, minWidth: 0 }} maxLength={1000} />

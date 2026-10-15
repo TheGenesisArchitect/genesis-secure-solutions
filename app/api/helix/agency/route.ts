@@ -9,6 +9,7 @@ import { PROGRAM_NAME, type ProgramId } from '@/lib/programs';
 import { fileGap } from '@/lib/helix-gaps';
 import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurns } from '@/lib/helix-thread';
 import { helixPagesFor, textNavRules } from '@/lib/helix-actions';
+import { actRules, propose } from '@/lib/helix-act';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     const thread = await openThread(supabase, viewer, scope, 'agency', b.threadId);
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
     const pages = await helixPagesFor(viewer, 'agency', { id: scope.tenantId, slug: String(b.slug), plan: scope.plan });
-    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages);
+    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages) + actRules(false);
     // Something Helix doesn't know yet becomes a Helix note for the Genovus team.
     const reply = await fileGap(await askHelix(brief, history, question, context), { question, tenantId: scope.tenantId, where: scope.name, askedBy: viewer.userId });
     const threadId = await saveTurns(supabase, scope, 'agency', thread?.id, page, [
@@ -37,7 +38,9 @@ export async function POST(req: Request) {
     ]);
     // A page Helix was asked to open: only one of this person's own pages, and never saved (a reload mustn't replay it).
     const go = pages.find((p) => p.label.toLowerCase() === reply.go?.toLowerCase());
-    return Response.json({ ...reply, go, threadId });
+    // A change Helix proposed: resolved and signed here, shown for one tap; it runs only after the yes (/api/helix/act).
+    const proposal = reply.propose?.action ? await propose(supabase, viewer.userId, scope.tenantId, reply.propose.action, reply.propose) : undefined;
+    return Response.json({ ...reply, propose: undefined, go, proposal, threadId });
   } catch (e) {
     console.error(`[helix-agency] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });
