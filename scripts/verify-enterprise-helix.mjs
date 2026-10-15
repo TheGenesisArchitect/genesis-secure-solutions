@@ -35,6 +35,9 @@ const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_Yo
 const MEMO = 'Verify: Georgia captive agents reply best before 10 a.m.';
 const clean = async () => {
   must(await db.from('expenses').delete().eq('vendor', 'Verify AI'), 'clear expense');
+  // Ask Helix restores the person's saved Enterprise thread (0066): start each run with none, so old answers can't pass
+  // a check for a new one.
+  must(await db.from('helix_threads').delete().eq('tenant_id', house.id).eq('user_id', admin.user_id), 'clear admin threads');
   must(await db.from('helix_memory').delete().eq('tenant_id', house.id).like('text', 'Verify:%'), 'clear memories');
   must(await db.from('helix_briefs').delete().eq('tenant_id', house.id).eq('day', today), 'clear brief');
   must(await db.from('helix_notes').delete().eq('chapter', 'ask-helix').like('text', '%Verify NPS%'), 'clear gap notes');
