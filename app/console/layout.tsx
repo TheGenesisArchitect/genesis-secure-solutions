@@ -7,7 +7,7 @@ import { EnterpriseHelixDrawer } from '@/components/EnterpriseHelix';
 export default async function ConsoleLayout({ children }: LayoutProps<'/console'>) {
   const v = await getViewer();
   return (
-    <HelixThreadProvider>
+    <HelixThreadProvider surface={v?.staff ? 'enterprise' : undefined}>
       {children}
       {v?.staff ? <EnterpriseHelixDrawer /> : null}
     </HelixThreadProvider>

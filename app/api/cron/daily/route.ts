@@ -74,7 +74,10 @@ async function growthEngineDaily(db: ReturnType<typeof adminDb>) {
   const old = new Date(Date.now() - 90 * 86_400_000).toISOString();
   const { data: recs } = await db.from('calls').select('id, recording_sid').not('recording_sid', 'is', null).lt('started_at', old).limit(200);
   for (const r of recs ?? []) { await deleteRecording(r.recording_sid!); await db.from('calls').update({ recording_sid: null }).eq('id', r.id); }
-  return { briefs, recordingsDeleted: recs?.length ?? 0 };
+  // Ask Helix conversations are kept 12 months from their last turn, then deleted with their messages.
+  const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString();
+  const { count: threadsDeleted } = await db.from('helix_threads').delete({ count: 'exact' }).lt('last_at', yearAgo);
+  return { briefs, recordingsDeleted: recs?.length ?? 0, helixThreadsDeleted: threadsDeleted ?? 0 };
 }
 
 async function snapshotHouseKpis(db: ReturnType<typeof adminDb>, period: string) {

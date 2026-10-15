@@ -14,19 +14,20 @@ const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispa
 
 export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, start, startN = 0, page, compact }: { slug: string; tenantId: string; context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
   const router = useRouter();
-  const { turns, setTurns, asked } = useHelixThread();
+  const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure } = useHelixThread();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const ask = async (question: string) => {
     const text = question.trim();
     if (!text || busy) return;
-    const history = turns.map((t) => ({ role: t.role, text: t.text }));
     setTurns((t) => [...t, { role: 'user', text, page }]);
     setQ(''); setBusy(true);
-    const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, history, question: text, context }) })
+    // The server reads the saved thread (not history from the browser) and saves both turns to it.
+    const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, threadId, question: text, context, page }) })
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
+    if (r.j.threadId) setThreadId(r.j.threadId);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
@@ -48,6 +49,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
         </div>
       ) : null}
       <div className="helix-turns">
+        {restored ? <div className="helix-moved">Picked up where you left off</div> : null}
         {turns.map((t, i) => (<div key={i} style={{ display: 'contents' }}>
           {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
           <div className={`helix-turn ${t.role}`}>
@@ -69,6 +71,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
         <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about your leads, calendar or results" aria-label="Ask Helix" style={{ flex: 1, minWidth: 0 }} maxLength={1000} />
         <button className="btn primary" type="submit" disabled={busy || !q.trim()}>Ask</button>
       </form>
+      {disclosure ? <p className="muted helix-saved">{disclosure}</p> : null}
     </div>
   );
 }

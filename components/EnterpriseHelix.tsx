@@ -32,7 +32,7 @@ const DEPT: Record<string, string> = { sales: 'Sales', pipeline: 'Pipeline', cli
 
 /** The Enterprise Helix chat: in the drawer (compact) and on the full Ask page. */
 export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, startN = 0, page, compact }: { context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
-  const { turns, setTurns, asked } = useHelixThread();
+  const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure } = useHelixThread();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [kept, setKept] = useState<Set<string>>(new Set());
@@ -40,12 +40,13 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
   const ask = async (question: string) => {
     const text = question.trim();
     if (!text || busy) return;
-    const history = turns.map((t) => ({ role: t.role, text: t.text }));
     setTurns((t) => [...t, { role: 'user', text, page }]);
     setQ(''); setBusy(true);
-    const r = await fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ history, question: text, context }) })
+    // The server reads the saved thread (not history from the browser) and saves both turns to it.
+    const r = await fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ threadId, question: text, context, page }) })
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
+    if (r.j.threadId) setThreadId(r.j.threadId);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
@@ -62,6 +63,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
         </div>
       ) : null}
       <div className="helix-turns">
+        {restored ? <div className="helix-moved">Picked up where you left off</div> : null}
         {turns.map((t, i) => (<div key={i} style={{ display: 'contents' }}>
           {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
           <div className={`helix-turn ${t.role}`}>
@@ -84,6 +86,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
         <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about any part of the business" aria-label="Ask Helix" style={{ flex: 1, minWidth: 0 }} maxLength={1000} />
         <button className="btn primary" type="submit" disabled={busy || !q.trim()}>Ask</button>
       </form>
+      {disclosure ? <p className="muted helix-saved">{disclosure}</p> : null}
     </div>
   );
 }

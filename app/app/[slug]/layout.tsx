@@ -17,7 +17,7 @@ export default async function AgencyLayout({ children, params }: LayoutProps<'/a
   }
   const helix = tenant ? (await accessFor(tenant.tenantId, tenant.plan)).has('helix') : false;
   return (
-    <HelixThreadProvider>
+    <HelixThreadProvider surface={tenant && helix ? 'agency' : undefined} slug={slug}>
       {children}
       {tenant && helix ? <HelixDrawer slug={slug} tenantId={tenant.tenantId} /> : null}
     </HelixThreadProvider>

@@ -17,23 +17,58 @@ export type HelixTurn = {
   drafts?: { to: string; channel: string; body: string }[];
   remember?: { department: string; kind: string; text: string }[];
 };
-/** `asked`: the last "Ask Helix" button press already answered, so a chat that remounts never asks it twice. */
-type Thread = { turns: HelixTurn[]; setTurns: Dispatch<SetStateAction<HelixTurn[]>>; asked: MutableRefObject<number> };
+/**
+ * `asked`: the last "Ask Helix" button press already answered, so a chat that remounts never asks it twice.
+ * `threadId`: the saved thread (server), which every question continues; `restored`: turns came back from an earlier
+ * visit or another device; `disclosure`: who can read the saved conversation.
+ */
+type Thread = {
+  turns: HelixTurn[];
+  setTurns: Dispatch<SetStateAction<HelixTurn[]>>;
+  asked: MutableRefObject<number>;
+  threadId: string | null;
+  setThreadId: (id: string | null) => void;
+  restored: boolean;
+  disclosure?: string;
+};
 const ThreadCtx = createContext<Thread | null>(null);
 
-/** The thread every Helix chat on these pages shares (drawer and full page alike). */
-export function HelixThreadProvider({ children }: { children: ReactNode }) {
+type Saved = { role: 'user' | 'helix'; text: string; page?: string; meta?: Partial<HelixTurn> };
+const DISCLOSURE: Record<'agency' | 'enterprise', string> = {
+  agency: 'Saved to your agency’s Genovus account. Visible to you, your agency owner and the Genovus support team.',
+  enterprise: 'Saved to Genovus. Visible to you and the Genovus team.',
+};
+
+/** The thread every Helix chat on these pages shares (drawer and full page alike), restored from the account. */
+export function HelixThreadProvider({ children, surface, slug }: { children: ReactNode; surface?: 'agency' | 'enterprise'; slug?: string }) {
   const [turns, setTurns] = useState<HelixTurn[]>([]);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
   const asked = useRef(0);
-  return <ThreadCtx.Provider value={{ turns, setTurns, asked }}>{children}</ThreadCtx.Provider>;
+  useEffect(() => {
+    if (!surface) return;
+    const q = new URLSearchParams({ surface, ...(slug ? { slug } : {}) });
+    fetch(`/api/helix/thread?${q}`).then((r) => (r.ok ? r.json() : null)).then((j: { threadId: string | null; turns: Saved[] } | null) => {
+      if (!j?.threadId) return;
+      setThreadId((id) => id ?? j.threadId);
+      // A question asked before the thread arrived wins; otherwise pick up where they left off.
+      setTurns((t) => {
+        if (t.length || !j.turns.length) return t;
+        setRestored(true);
+        return j.turns.map((s) => ({ ...(s.meta ?? {}), role: s.role, text: s.text, page: s.page }));
+      });
+    }).catch(() => {});
+  }, [surface, slug]);
+  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined }}>{children}</ThreadCtx.Provider>;
 }
 
 /** The shared thread, or a private one where no host is mounted. */
 export function useHelixThread(): Thread {
   const shared = useContext(ThreadCtx);
   const [turns, setTurns] = useState<HelixTurn[]>([]);
+  const [threadId, setThreadId] = useState<string | null>(null);
   const asked = useRef(0);
-  return shared ?? { turns, setTurns, asked };
+  return shared ?? { turns, setTurns, asked, threadId, setThreadId, restored: false };
 }
 
 /** An item to ask about; `n` counts asks so the same question can be asked twice. */

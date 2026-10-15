@@ -4,6 +4,10 @@
 //  3. minimize to the pill (Helix's last line), keep working on Calendar, reopen: nothing lost
 //  4. an "Ask Helix" button on a page adds to the thread instead of resetting it; Esc minimizes
 //  5. the full Ask Helix page shows the same thread
+//  6. saved to the account (0066): a reload picks up where they left off, Helix reads the saved turns (not the
+//     browser's), and the saved-conversation notice shows
+//  7. who can read it: the person and their agency owner can, another office member can't, and a member can't add
+//     to someone else's thread
 // Uses the "test-launch" agency from verify-agency-dashboard.mjs (run that first); adds Helix for the run, then removes it.
 //   node --env-file=.env.local scripts/verify-helix-threads.mjs [outDir]
 import fs from 'node:fs';
@@ -29,6 +33,20 @@ const email = `owner@${SLUG}.example`;
 const REASON = 'Verify Helix threads';
 must(await db.from('module_grants').delete().eq('tenant_id', t.id).eq('reason', REASON), 'clear grants');
 must(await db.from('module_grants').insert(['helix', 'pipeline', 'calendar'].map((k) => ({ tenant_id: t.id, module_key: k, until: new Date(Date.now() + 86_400_000).toISOString(), reason: REASON }))), 'grants');
+must(await db.from('helix_threads').delete().eq('tenant_id', t.id), 'clear threads');
+const owner = (await db.auth.admin.listUsers({ perPage: 1000 })).data.users.find((u) => u.email === email);
+// A second person in the office (not the owner), for who-can-read checks.
+const MEMBER = `member@${SLUG}.example`;
+let member = (await db.auth.admin.listUsers({ perPage: 1000 })).data.users.find((u) => u.email === MEMBER);
+if (!member) member = must(await db.auth.admin.createUser({ email: MEMBER, email_confirm: true }), 'member').user;
+must(await db.from('memberships').upsert({ tenant_id: t.id, user_id: member.id, role: 'staff' }, { onConflict: 'tenant_id,user_id' }), 'member membership');
+/** A database client signed in as this person (their own session, so row-level security applies). */
+const as = async (who) => {
+  const c = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  const l = must(await db.auth.admin.generateLink({ type: 'magiclink', email: who }), 'link');
+  must(await c.auth.verifyOtp({ token_hash: l.properties.hashed_token, type: 'magiclink' }), 'session');
+  return c;
+};
 
 // Gemini stand-in: numbers its replies and says how many earlier turns it was given.
 const asks = [];
@@ -131,8 +149,41 @@ try {
   await ev(`document.querySelector('.helix-pill, .helix-fab')?.click()`); await sleep(500);
   await shot('threads-drawer-phone', 390, 844, true);
   check(/Verify reply 3/.test((await drawer()) ?? ''), 'on a phone-sized screen the drawer still has the thread');
+  check(/Visible to you, your agency owner and the Genovus support team/.test((await drawer()) ?? ''), 'the drawer says the conversation is saved and who can see it');
+
+  // 6. Saved to the account: a reload (new page, nothing in memory) picks up where they left off.
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  const threads = must(await db.from('helix_threads').select('id, user_id, surface, title, last_page').eq('tenant_id', t.id), 'threads');
+  const msgs = threads[0] ? must(await db.from('helix_messages').select('role, page, context').eq('thread_id', threads[0].id).order('id'), 'messages') : [];
+  check(threads.length === 1 && threads[0].user_id === owner.id && threads[0].surface === 'agency' && /Who should I call first/.test(threads[0].title ?? ''), 'one saved thread for the owner, titled by the first question');
+  check(msgs.length === 6 && msgs.filter((m) => m.role === 'user').map((m) => m.page).join(',') === 'Leads,Pipeline,Calendar' && msgs.some((m) => m.context === 'lead Dana Ruiz'), `six turns saved with the page each was asked on and the button's item (${msgs.length})`);
+  await go(`${BASE}/pipeline`);
+  await ev(`document.querySelector('.helix-fab')?.click()`);
+  check(await waitFor(async () => /Verify reply 3/.test((await drawer()) ?? '')), 'after a reload the drawer restores the conversation');
+  check(/Picked up where you left off/.test((await drawer()) ?? ''), 'and says it picked up where they left off');
+  await click('.helix-drawer button', /Who’s stalling/);
+  check(await waitFor(async () => /Verify reply 4/.test((await drawer()) ?? '')), 'Helix answers after the reload');
+  check((asks.at(-1) ?? []).length - 1 >= 6, `Helix read the saved turns from the server (${(asks.at(-1) ?? []).length - 1} earlier turns)`);
+  check((await db.from('helix_threads').select('id').eq('tenant_id', t.id)).data?.length === 1, 'the reload continued the same thread (no second one)');
+  await shot('threads-restored', 1440, 900, false);
+
+  // 7. Who can read it.
+  const ownerDb = await as(email), memberDb = await as(MEMBER);
+  check(((await ownerDb.from('helix_threads').select('id').eq('tenant_id', t.id)).data ?? []).length === 1, 'the owner reads their own thread');
+  check(((await memberDb.from('helix_threads').select('id').eq('tenant_id', t.id)).data ?? []).length === 0 && ((await memberDb.from('helix_messages').select('id').eq('thread_id', threads[0].id)).data ?? []).length === 0, 'another office member can’t read the owner’s thread or its messages');
+  const theirs = await memberDb.rpc('helix_append', { p_thread: threads[0].id, p_tenant: t.id, p_surface: 'agency', p_page: 'Leads', p_turns: [{ role: 'user', text: 'Verify member question' }] });
+  check(!theirs.error && theirs.data !== threads[0].id, 'a member naming the owner’s thread gets their own thread instead');
+  check(((await ownerDb.from('helix_threads').select('id, user_id').eq('tenant_id', t.id)).data ?? []).length === 2, 'the owner can read the member’s thread too (owner oversight)');
+  const outsider = await memberDb.rpc('helix_append', { p_thread: null, p_tenant: owner.id, p_surface: 'agency', p_page: '', p_turns: [{ role: 'user', text: 'x' }] });
+  check(!!outsider.error, 'nobody can save into an agency they don’t belong to');
+  const ent = await memberDb.rpc('helix_append', { p_thread: null, p_tenant: t.id, p_surface: 'enterprise', p_page: '', p_turns: [{ role: 'user', text: 'x' }] });
+  check(!!ent.error, 'an agency member can’t save an Enterprise thread');
+  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  check(((await anon.from('helix_messages').select('id').limit(1)).data ?? []).length === 0, 'signed out, nothing is readable');
 } finally {
   must(await db.from('module_grants').delete().eq('tenant_id', t.id).eq('reason', REASON), 'remove grants');
+  must(await db.from('helix_threads').delete().eq('tenant_id', t.id), 'remove threads');
+  must(await db.from('memberships').delete().eq('tenant_id', t.id).eq('user_id', member.id), 'remove member');
   ws.close(); chrome.kill(); mock.close();
   // The dev server runs under a shell: end the whole tree so it doesn't hold the port after the run.
   try { execSync(process.platform === 'win32' ? `taskkill /PID ${dev.pid} /T /F` : `kill ${dev.pid}`, { stdio: 'ignore' }); } catch {}

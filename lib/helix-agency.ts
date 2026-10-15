@@ -113,7 +113,7 @@ function parse(raw: string, model: string): HelixReply {
 export async function askHelix(brief: string, history: HelixTurn[], question: string, context?: string, system: (brief: string) => string = SYSTEM): Promise<HelixReply> {
   const q = context ? `[Looking at: ${context.slice(0, 600)}]
 ${question}` : question;
-  const turns = [...history.slice(-8), { role: 'user' as const, text: q.slice(0, 1600) }];
+  const turns = [...history.slice(-16), { role: 'user' as const, text: q.slice(0, 1600) }];
   const anthropic = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (anthropic) {
     const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim();
