@@ -14,7 +14,9 @@ import { db as userDb } from '@/lib/supabase/server';
 import { accessFor } from '@/lib/access';
 import { agencyBrief } from '@/lib/helix-agency';
 import { canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
-import { VOICE_TOOLS, agencyVoice, enterpriseVoice } from '@/lib/helix-voice';
+import { agencyVoice, enterpriseVoice, threadSeed, voiceTools } from '@/lib/helix-voice';
+import { helixPagesFor, navTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
+import { helixScope, openThread, threadTurns } from '@/lib/helix-thread';
 import { PROGRAM_NAME } from '@/lib/programs';
 
 export const dynamic = 'force-dynamic';
@@ -50,7 +52,7 @@ function campaignRef(raw?: string): { c: string | null; src: string | null } {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string; slug?: string; focus?: { kind?: string; code?: string } };
+  const body = (await req.json().catch(() => ({}))) as { voice?: string; context?: string; slug?: string; threadId?: string; focus?: { kind?: string; code?: string } };
   const voice = pickVoice(body.voice);
   const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : body.context === 'enterprise' ? 'enterprise' : body.context === 'agency' ? 'agency' : body.context === 'packages' ? 'packages' : 'tour';
   // What the person is looking at in the Studio (validated: a known kind and a simple code).
@@ -80,11 +82,21 @@ export async function POST(req: Request) {
   // Voice Ask Helix: the same brief and hard lines as typed Ask Helix, read with the viewer's own session.
   let tenantId: string | null = null;
   let setup: unknown;
+  // Voice Ask Helix also gets the person's pages (to open them by voice) and the last few turns of their thread.
+  let pages: HelixPage[] = [];
+  const seed = async (surface: 'agency' | 'enterprise', slug?: string) => {
+    const sdb = await userDb();
+    const scope = await helixScope(sdb, viewer!, surface, slug);
+    if ('error' in scope) return '';
+    const th = await openThread(sdb, viewer!, scope, surface, body.threadId);
+    return th ? threadSeed(await threadTurns(sdb, th.id, 6)) : '';
+  };
   if (context === 'enterprise') {
     if (!viewer?.staff) return Response.json({ error: 'Enterprise Helix is for the Genovus team.' }, { status: 403 });
     const brief = await enterpriseBrief(await userDb(), { money: canSeeMoney(viewer.staff.role) });
     tenantId = brief.houseId;
-    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name), VOICE_TOOLS, voice);
+    pages = await helixPagesFor(viewer, 'enterprise');
+    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + (await seed('enterprise')), voiceTools(navTools(pages, false)), voice);
   } else if (context === 'agency') {
     if (!viewer) return Response.json({ error: 'Sign in first.' }, { status: 401 });
     const m = viewer.memberships.find((x) => x.slug === body.slug);
@@ -93,7 +105,8 @@ export async function POST(req: Request) {
     const access = await accessFor(t.id, t.plan);
     if (!access.has('helix')) return Response.json({ error: 'Ask Helix is part of Growth.' }, { status: 403 });
     tenantId = t.id;
-    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])), VOICE_TOOLS, voice);
+    pages = await helixPagesFor(viewer, 'agency', { id: t.id, slug: String(body.slug), plan: t.plan });
+    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])) + voiceNavRules(pages, true) + (await seed('agency', String(body.slug))), voiceTools(navTools(pages, true)), voice);
   } else if (context === 'packages') {
     // The public package tour: facts only from that package's steps (no prices), driving the page with show_step.
     const plan = ['launch', 'growth', 'premium'].includes(String(body.focus?.code)) ? (body.focus!.code as 'launch' | 'growth' | 'premium') : 'growth';
@@ -119,7 +132,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Helix couldn’t start a voice session right now.' }, { status: 502 });
   }
   const { data: s } = await db.from('helix_tour_sessions').insert({ ip_hash: ipHash, viewer_id: viewer?.userId ?? null, is_staff: staff, model: `${LIVE_MODEL()} · ${voice}${context === 'studio' ? ` · studio:${focus.kind}${focus.code ? `:${focus.code}` : ''}` : context !== 'tour' ? ` · ${context}` : ''}`, campaign: ref.c, src: ref.src, context, tenant_id: tenantId }).select('id').single();
-  return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup, voice, context, locked, staff, maxSeconds: SESSION_SECONDS });
+  return Response.json({ sessionId: s!.id, token: minted.token, wsUrl: LIVE_WS, setup, voice, context, locked, staff, maxSeconds: SESSION_SECONDS, pages });
 }
 
 export async function PATCH(req: Request) {

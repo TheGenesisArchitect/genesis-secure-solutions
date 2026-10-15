@@ -8,6 +8,7 @@ import { askHelix } from '@/lib/helix-agency';
 import { ENTERPRISE_SYSTEM, canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
 import { fileGap } from '@/lib/helix-gaps';
 import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurns } from '@/lib/helix-thread';
+import { helixPagesFor, textNavRules } from '@/lib/helix-actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,7 +28,8 @@ export async function POST(req: Request) {
     const thread = await openThread(supabase, viewer, scope, 'enterprise', b.threadId);
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
     const brief = await enterpriseBrief(supabase, { money: canSeeMoney(viewer.staff.role) });
-    const asked = await askHelix(brief.text, history, question, context, ENTERPRISE_SYSTEM);
+    const pages = await helixPagesFor(viewer, 'enterprise');
+    const asked = await askHelix(brief.text + textNavRules(pages), history, question, context, ENTERPRISE_SYSTEM);
     if (brief.memoryIds.length) await adminDb().rpc('touch_memories', { p_ids: brief.memoryIds });
     // Something Helix doesn't know yet becomes a Helix note for the team.
     const reply = await fileGap(asked, { question, tenantId: brief.houseId, where: `${viewer.staff.name} (Enterprise)`, askedBy: viewer.userId });
@@ -35,7 +37,9 @@ export async function POST(req: Request) {
       { role: 'user', text: question, context },
       { role: 'helix', text: reply.answer, meta: { drafts: reply.drafts, remember: reply.remember, noted: reply.noted || undefined } },
     ]);
-    return Response.json({ ...reply, threadId });
+    // A page Helix was asked to open: only one of this person's own pages, and never saved (a reload mustn't replay it).
+    const go = pages.find((p) => p.label.toLowerCase() === reply.go?.toLowerCase());
+    return Response.json({ ...reply, go, threadId });
   } catch (e) {
     console.error(`[helix-enterprise] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });

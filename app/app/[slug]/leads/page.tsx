@@ -74,7 +74,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
         {leads.length ? (
           <ul className="lead-list">
             {leads.map((l) => (
-              <li key={l.id} className="lead" data-status={l.status}>
+              <li key={l.id} className="lead" data-status={l.status} data-helix-item={l.name}>
                 <div className="spread" style={{ flexWrap: 'wrap', gap: 6 }}>
                   <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <b style={{ fontSize: 16 }}>{l.name}</b>

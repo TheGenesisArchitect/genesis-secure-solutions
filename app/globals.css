@@ -822,6 +822,7 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .helix-pill-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--accent)}
 .helix-moved{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .helix-saved{margin:0;font-size:11px;line-height:1.4}
+.helix-spoken{display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px;background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink)}
 .helix-moved::before,.helix-moved::after{content:"";flex:1;height:1px;background:var(--line)}
 .helix-chat.compact{max-width:none;align-content:start}
 .helix-chat.compact .helix-turn{max-width:100%}

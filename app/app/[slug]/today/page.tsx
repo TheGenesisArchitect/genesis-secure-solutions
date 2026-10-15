@@ -65,7 +65,7 @@ export default async function Today({ params, searchParams }: { params: Promise<
           {fresh.length ? (
             <ul className="today-list leads">
               {fresh.map((l) => (
-                <li key={l.id}>
+                <li key={l.id} data-helix-item={l.name}>
                   <span className="today-time">{ago(l.created_at)}</span>
                   <span className="today-lead"><b>{l.name}</b><small>{[l.topic, l.channel === 'call' ? 'called the office' : l.channel === 'partner' ? 'referral partner' : `via ${l.source}`].filter(Boolean).join(' · ')}</small></span>
                   <span className="row" style={{ gap: 6 }}>

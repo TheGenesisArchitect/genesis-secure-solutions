@@ -45,7 +45,7 @@ export default async function Pipeline({ params }: { params: Promise<{ slug: str
               <header><b>{label}</b><span className="num muted">{col.length}</span></header>
               <span className="muted" style={{ fontSize: 12 }}>{hint}</span>
               {col.map((l) => (
-                <article key={l.id} className="board-card">
+                <article key={l.id} className="board-card" data-helix-item={l.name}>
                   <div className="spread" style={{ gap: 6 }}><b>{l.name}</b><span className="muted" style={{ fontSize: 12 }}>{age(l.created_at)}</span></div>
                   <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Chip kind="info">{SOURCE[l.source] ?? l.source}</Chip>{l.topic ? <span style={{ fontSize: 13 }}>{l.topic}</span> : null}</span>
                   {l.booked_for ? <span style={{ fontSize: 13 }}><b>Consult:</b> {when(l.booked_for)}</span> : null}

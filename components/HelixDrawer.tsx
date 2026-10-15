@@ -36,7 +36,7 @@ export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string
       pageName={page.name}
       fullHref={`/app/${slug}/helix`}
       hidden={/\/helix$/.test(path)}
-      voice={(autoStart) => <HelixTour embedded autoStart={autoStart} context="agency" slug={slug} where={`the ${page.name} page`} />}
+      voice={(autoStart) => <HelixTour embedded autoStart={autoStart} context="agency" slug={slug} where={`the ${page.name} page`} page={page.name} />}
       chat={(ask) => <AskHelixAgency slug={slug} tenantId={tenantId} compact page={page.name} context={ask.context ?? `the ${page.name} page`} suggest={page.suggest} start={ask.question} startN={ask.n} />}
     />
   );

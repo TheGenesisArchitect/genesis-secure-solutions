@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
+import { useHelixThread } from '../HelixHost';
 
 type Note = { id: string; kind: string; text: string; chapter: string | null; status: string; work?: { title?: string; summary?: string; steps?: string[]; acceptance?: string[]; effort?: string; area?: string; error?: string } | null };
 type Phase = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
@@ -22,8 +23,13 @@ const b64 = (buf: ArrayBuffer) => { let s = ''; const b = new Uint8Array(buf); f
  *  (`slug`). `floating`: show the tour's launch pill (otherwise open it with `openEvent`). `embedded`: the voice bar
  *  inside Ask Helix (one Ask Helix: voice and typing in the same panel); `autoStart` begins listening when it opens
  *  unless the person turned voice off on this device. */
-export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where, embedded, autoStart }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency' | 'packages'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string; embedded?: boolean; autoStart?: boolean } = {}) {
+export function HelixTour({ context = 'tour', floating = true, focus, slug, openEvent = 'genovus:helix-open', where, page, embedded, autoStart }: { context?: 'tour' | 'bible' | 'studio' | 'enterprise' | 'agency' | 'packages'; floating?: boolean; focus?: { kind: string; code?: string; label?: string }; slug?: string; openEvent?: string; where?: string; page?: string; embedded?: boolean; autoStart?: boolean } = {}) {
   const ask = context === 'enterprise' || context === 'agency';
+  // Ask Helix: what the person says by voice joins their typed thread, and Helix can move around their pages.
+  const thread = useHelixThread();
+  const pageRef = useRef(page);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  const pages = useRef<{ label: string; href: string }[]>([]);
   const convo = context !== 'tour'; // Studio and Ask Helix: a conversation, not the guided tour
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -46,7 +52,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const [notes, setNotes] = useState<Note[]>([]);
   const [staff, setStaff] = useState(false);
   const [left, setLeft] = useState(0);
-  const [spot, setSpot] = useState<{ target: string; caption?: string } | null>(null);
+  const [spot, setSpot] = useState<{ target?: string; el?: Element; caption?: string } | null>(null);
   const [typed, setTyped] = useState('');
   const [voice, setVoice] = useState('');
   const [cta, setCta] = useState(false);
@@ -118,6 +124,11 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     return { ok: false, error: j.error ?? 'not saved' };
   }, []);
 
+  // Point at something for the person: minimize Ask Helix so the page is visible (it keeps listening), then spotlight.
+  const point = (el: Element, caption?: string) => {
+    window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'min' } }));
+    setSpot({ el, caption });
+  };
   const runTool = async (name: string, args: Record<string, string>): Promise<Record<string, unknown>> => {
     if (name === 'go_to_chapter') {
       const path = toPath(args.chapter);
@@ -127,7 +138,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       await new Promise((r) => setTimeout(r, 120));
       return { ok: true, chapter: args.chapter, title: document.querySelector('.topbar h1')?.textContent ?? '', targets: targetsHere() };
     }
-    if (name === 'highlight') {
+    if (!ask && name === 'highlight') { // the vision tour's chapters (Ask Helix points with its own highlight below)
       const el = document.querySelector(`[data-tour="${CSS.escape(args.target)}"]`);
       if (!el) return { ok: false, error: 'not on this chapter', targets: targetsHere() };
       setSpot({ target: args.target, caption: args.caption });
@@ -139,6 +150,38 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       return { ok: true };
+    }
+    // Ask Helix moving around the screen (the "auto" lane: opening and pointing, never changing anything).
+    if (ask && name === 'go_to') {
+      const p = pages.current.find((x) => x.label.toLowerCase() === String(args.page ?? '').toLowerCase());
+      if (!p) return { ok: false, error: 'not one of this person’s pages', pages: pages.current.map((x) => x.label) };
+      setSpot(null);
+      if (pathRef.current !== p.href) router.push(p.href);
+      const landed = await waitFor(() => pathRef.current === p.href, 8000);
+      return landed ? { ok: true, page: p.label } : { ok: false, error: 'the page is still loading' };
+    }
+    if (ask && name === 'open_lead') {
+      const want = String(args.name ?? '').trim().toLowerCase();
+      if (want.length < 2) return { ok: false, error: 'say the lead’s name' };
+      const matches = () => [...document.querySelectorAll<HTMLElement>('[data-helix-item]')].filter((e) => e.dataset.helixItem!.toLowerCase().includes(want));
+      if (!matches().length) {
+        const leads = pages.current.find((x) => /\/leads$/.test(x.href));
+        if (leads && pathRef.current !== leads.href) { router.push(leads.href); await waitFor(() => pathRef.current === leads.href && matches().length > 0, 8000); }
+      }
+      const found = matches();
+      if (!found.length) return { ok: false, error: `no lead named ${args.name} on ${pageRef.current ?? 'this page'}` };
+      point(found[0], found[0].dataset.helixItem);
+      return { ok: true, matches: found.length, names: [...new Set(found.map((e) => e.dataset.helixItem))].slice(0, 5), page: pageRef.current };
+    }
+    if (ask && name === 'highlight') {
+      const want = String(args.text ?? '').trim().toLowerCase();
+      if (want.length < 2) return { ok: false, error: 'say what to point at' };
+      const items = [...document.querySelectorAll<HTMLElement>('[data-helix-item]')].filter((e) => e.dataset.helixItem!.toLowerCase().includes(want));
+      const labels = [...document.querySelectorAll<HTMLElement>('main h1, main h2, main h3, main header b, main th, main button, main a, main label, main b')].filter((e) => !e.closest('.helix-drawer') && (e.textContent ?? '').trim().toLowerCase().includes(want));
+      const el = items[0] ?? labels[0];
+      if (!el) return { ok: false, error: `nothing called “${args.text}” on ${pageRef.current ?? 'this page'}` };
+      point(el.closest('.lead, .board-card, li, section, tr') ?? el);
+      return { ok: true, page: pageRef.current };
     }
     if (name === 'take_note') {
       const r = await saveNote(args.kind ?? 'idea', args.text ?? '', args.chapter ?? toSlug(pathRef.current), 'helix');
@@ -189,6 +232,8 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (sc.turnComplete) {
         const said = turnText.current.trim(), you = heardText.current.trim();
         setLines((l) => [...l, ...(you ? [{ who: 'you' as const, text: you }] : []), ...(said ? [{ who: 'helix' as const, text: said }] : [])].slice(-40));
+        // Ask Helix: a spoken exchange joins the person's thread (only when they actually spoke, never the greeting).
+        if (ask && you) thread.saveVoice?.([{ role: 'user', text: you }, ...(said ? [{ role: 'helix' as const, text: said }] : [])], pageRef.current);
         turnText.current = ''; heardText.current = ''; setHeard('');
       }
     }
@@ -232,7 +277,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
         setMicOn(false); micOnRef.current = false;
         setErr('Microphone is off: type your questions below.');
       }
-      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined, context, focus, slug }) });
+      const r = await fetch('/api/helix/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voice: new URLSearchParams(location.search).get('voice') ?? undefined, context, focus, slug, threadId: ask ? thread.threadId : undefined }) });
       const s = await r.json();
       if (!r.ok) throw new Error(s.error ?? 'Helix could not start.');
       session.current = { id: s.sessionId, started: Date.now(), max: s.maxSeconds };
@@ -240,6 +285,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       tokens.current = 0;
       setStaff(Boolean(s.staff));
       setVoice(s.voice ?? '');
+      pages.current = Array.isArray(s.pages) ? s.pages : [];
       const sock = new WebSocket(`${s.wsUrl}?access_token=${encodeURIComponent(s.token)}`);
       ws.current = sock;
       sock.onopen = () => send({ setup: s.setup });
@@ -314,8 +360,8 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const [box, setBox] = useState<DOMRect | null>(null);
   useEffect(() => {
     if (!spot) { setBox(null); return; }
-    const el = document.querySelector(`[data-tour="${CSS.escape(spot.target)}"]`);
-    if (!el) { setBox(null); return; }
+    const el = spot.el ?? (spot.target ? document.querySelector(`[data-tour="${CSS.escape(spot.target)}"]`) : null);
+    if (!el || !el.isConnected) { setBox(null); return; }
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     let raf = 0; const loop = () => { setBox(el.getBoundingClientRect()); raf = requestAnimationFrame(loop); }; loop();
     const t = setTimeout(() => setSpot(null), 12000);
@@ -340,7 +386,13 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   if (embedded) {
     const heardLine = heard || [...lines].reverse().find((l) => l.who === 'you')?.text || '';
     const saidLine = caption || [...lines].reverse().find((l) => l.who === 'helix')?.text || '';
+    // Pointing at something on the page (Ask Helix's highlight / open_lead): drawn over the page, outside the drawer.
+    const spotlight = box && mounted ? createPortal(
+      <div className="hx-spot" style={{ top: box.top - 8, left: box.left - 8, width: box.width + 16, height: box.height + 16 }} aria-hidden="true">
+        {spot?.caption ? <span className="hx-spot-cap">{spot.caption}</span> : null}
+      </div>, document.body) : null;
     return (
+      <>{spotlight}
       <div className={'hx-bar' + (live ? ' live' : '') + (speaking ? ' speaking' : '')} aria-live="polite">
         <div className="hx-bar-row">
           <span className={'hx-orb' + (speaking || phase === 'connecting' ? ' on' : '')} aria-hidden="true"><i /><i /><i /></span>
@@ -363,6 +415,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
         {notes.length ? <p className="hx-bar-note">{notes.length === 1 ? 'Sent 1 note' : `Sent ${notes.length} notes`} to the team (Helix notes).</p> : null}
         {err && (phase !== 'ended' || !/^(Conversation|Tour) ended\.$/.test(err)) ? <p className="hx-err">{err}</p> : null}
       </div>
+      </>
     );
   }
   // Rendered on <body>, above everything: a header or panel with a blur or transform would otherwise trap the

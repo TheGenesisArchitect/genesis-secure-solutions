@@ -20,6 +20,8 @@ export type HelixReply = {
   /** Helix doesn't know or isn't set up for this: it becomes a Helix note for the team (lib/helix-gaps.ts). */
   unknown: boolean;
   gap: string;
+  /** A page Helix was asked to open (an exact name from PAGES); the route turns it into a link. Never saved. */
+  go?: string;
   /** Set by the server once the gap is filed as a Helix note. */
   noted?: boolean;
   model: string;
@@ -104,6 +106,7 @@ function parse(raw: string, model: string): HelixReply {
     remember: (Array.isArray(j.remember) ? j.remember : []).slice(0, 3).map((r) => ({ department: s(r.department, 20), kind: s(r.kind, 20), text: s(r.text, 400) })).filter((r) => r.text.length >= 3),
     unknown: j.unknown === true,
     gap: s(j.gap, 200),
+    go: s((j as { go?: unknown }).go, 60) || undefined,
     model,
   };
 }

@@ -5,7 +5,7 @@
 // which a person keeps with one tap (nothing is remembered silently). Shares the agency drawer's look.
 // The console layout mounts it once (HelixHost), so the conversation travels with you from page to page.
 import { useEffect, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { helixAsk } from './HelixDrawer';
 import { HelixTour } from './vision/HelixTour';
 import { HelixDock, useHelixThread } from './HelixHost';
@@ -32,6 +32,7 @@ const DEPT: Record<string, string> = { sales: 'Sales', pipeline: 'Pipeline', cli
 
 /** The Enterprise Helix chat: in the drawer (compact) and on the full Ask page. */
 export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, startN = 0, page, compact }: { context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
+  const router = useRouter();
   const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure } = useHelixThread();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,6 +48,8 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
     if (r.j.threadId) setThreadId(r.j.threadId);
+    // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
+    if (r.okay && r.j.go?.href) router.push(r.j.go.href);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
@@ -67,7 +70,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
         {turns.map((t, i) => (<div key={i} style={{ display: 'contents' }}>
           {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
           <div className={`helix-turn ${t.role}`}>
-            <p>{t.text}</p>
+            <p>{t.channel === 'voice' ? <span className="helix-spoken">Spoken</span> : null}{t.text}</p>
             {t.noted ? <a className="chip info" href="/console/helix" style={{ justifySelf: 'start' }}>Added to Helix notes</a> : null}
             {t.drafts?.map((d, j) => (
               <div key={j} className="helix-card draft"><span className="muted" style={{ fontSize: 12 }}>Draft {d.channel}{d.to ? ` to ${d.to}` : ''} · you send it</span><p style={{ margin: 0 }}>{d.body}</p><button className="btn small" type="button" onClick={() => navigator.clipboard.writeText(d.body).then(() => toast({ ok: 'Draft copied.' }), () => toast({ err: 'Copy failed: select the text instead.' }))}>Copy</button></div>
@@ -106,11 +109,11 @@ function studioFocus(path: string): { kind: 'home' | 'bible' | 'cast' | 'episode
 }
 
 /** The voice bar in Ask Helix: Studio voice on Studio pages, Enterprise voice everywhere else. */
-export function EnterpriseVoice({ path, autoStart, where }: { path: string; autoStart?: boolean; where?: string }) {
+export function EnterpriseVoice({ path, autoStart, where, page }: { path: string; autoStart?: boolean; where?: string; page?: string }) {
   const sf = studioFocus(path);
   return sf
     ? <HelixTour embedded autoStart={autoStart} context={sf.kind === 'bible' ? 'bible' : 'studio'} focus={sf} key={path} />
-    : <HelixTour embedded autoStart={autoStart} context="enterprise" where={where} key="enterprise" />;
+    : <HelixTour embedded autoStart={autoStart} context="enterprise" where={where} page={page} key="enterprise" />;
 }
 
 /** The drawer on every console page. */
@@ -123,7 +126,7 @@ export function EnterpriseHelixDrawer() {
       pageName={page.name}
       fullHref="/console/helix/ask"
       hidden={path === '/console/helix/ask'}
-      voice={(autoStart) => <EnterpriseVoice path={path} autoStart={autoStart} where={`the ${page.name} page`} />}
+      voice={(autoStart) => <EnterpriseVoice path={path} autoStart={autoStart} where={`the ${page.name} page`} page={page.name} />}
       chat={(ask) => <AskHelixEnterprise compact page={page.name} context={ask.context ?? `the ${page.name} page (${path})`} suggest={page.suggest} start={ask.question} startN={ask.n} />}
     />
   );

@@ -7,6 +7,7 @@ import { businessToday } from '@/lib/billing';
 import { AgencyTabBar } from './AgencyTabBar';
 import { PROGRAM_NAME } from '@/lib/programs';
 import { accessFor } from '@/lib/access';
+import { agencyNav } from '@/lib/agency-nav';
 
 export type AgencyCtx = { viewer: Viewer; tenant: Membership; asStaff: boolean; isOwner: boolean };
 
@@ -28,27 +29,10 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
   const open = n(supabase.from('care_requests').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).neq('status', 'done'));
   const due = n(supabase.from('follow_ups').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'open').lte('due_on', businessToday()));
   const fresh = n(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'new'));
-  // One shell: what shows is what this agency can open (its program plus any grant or trial from Genovus).
-  const has = (k: string) => access.has(k);
-  const work = [
-    { href: base, label: 'Home', exact: true },
-    { href: `${base}/leads`, label: 'Leads', icon: 'inbox', count: fresh },
-    ...(has('pipeline') ? [{ href: `${base}/pipeline`, label: 'Pipeline', icon: 'pipeline' }] : []),
-    ...(has('partners') ? [{ href: `${base}/partners`, label: 'Partners', icon: 'team' }] : []),
-    ...(has('calendar') ? [{ href: `${base}/calendar`, label: 'Calendar', icon: 'target' }] : []),
-    { href: `${base}/today`, label: 'Today', icon: 'home' },
-    { href: `${base}/follow-ups`, label: 'Follow-ups', count: due },
-  ];
-  const programItems = [
-    ...(has('helix') ? [{ href: `${base}/helix`, label: 'Ask Helix', icon: 'helix', exact: true }] : []),
-    ...(has('helix-notes') ? [{ href: `${base}/helix/notes`, label: 'Helix notes', icon: 'inbox' }] : []),
-    ...(has('market') ? [{ href: `${base}/market`, label: 'Market', icon: 'globe' }] : []),
-    { href: `${base}/setup`, label: 'Setup' },
-    { href: `${base}/approvals`, label: 'Approvals', count: pending },
-    { href: `${base}/care`, label: has('content') ? 'Care & content' : 'Monthly care', count: open },
-    { href: `${base}/performance`, label: has('kpis') ? 'Performance & KPIs' : 'Performance' },
-  ];
+  // One shell: what shows is what this agency can open (its program plus any grant or trial from Genovus). The same
+  // list feeds Ctrl+K and Helix's "go to" (lib/agency-nav.ts).
   const trialNote = access.trial ? ` · trial ${access.trial.days} day${access.trial.days === 1 ? '' : 's'} left` : '';
+  const nav = agencyNav(base, (k) => access.has(k), { isOwner, programTitle: `Your program · ${PROGRAM_NAME[program]}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open } });
   return (
     <Shell
       searchClients
@@ -60,20 +44,7 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
       switcher={<EcosystemSwitcher current="agency" slug={tenant.slug} />}
       back={viewer.staff ? { href: `/console/clients/${tenant.slug}`, label: 'Enterprise' } : undefined}
       who={{ name: film ? tenant.name : viewer.staff?.name ?? viewer.email, detail: asStaff ? 'Genovus team, viewing as the agency' : tenant.role === 'owner' ? 'Agency owner' : 'Office staff' }}
-      nav={[
-        { items: work },
-        { title: `Your program · ${PROGRAM_NAME[program]}${trialNote}`, items: programItems },
-        {
-          title: 'Your business',
-          items: [
-            { href: `${base}/assets`, label: 'Assets & documents' },
-            ...(isOwner ? [{ href: `${base}/billing`, label: 'Billing & maintenance' }] : []),
-            { href: `${base}/team`, label: 'Team' },
-            { href: `${base}/program`, label: 'Your program', icon: 'overview' },
-          ],
-        },
-        ...(asStaff ? [{ title: 'Genovus team', items: [{ href: `/console/clients/${tenant.slug}`, label: 'This client in the console' }] }] : []),
-      ]}
+      nav={nav}
     >
       {asStaff && !film ? <div className="notice">You are viewing {tenant.name}’s dashboard as the Genovus team. Client approvals can only be decided by the agency owner.</div> : null}
       {tenant.isSample && !film ? <div className="notice sample"><b>Sample agency.</b> {tenant.name} is fictional. Every number here is illustrative and marked Sample.</div> : null}

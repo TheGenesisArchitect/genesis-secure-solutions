@@ -28,6 +28,8 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
     if (r.j.threadId) setThreadId(r.j.threadId);
+    // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
+    if (r.okay && r.j.go?.href) router.push(r.j.go.href);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
@@ -53,7 +55,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
         {turns.map((t, i) => (<div key={i} style={{ display: 'contents' }}>
           {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
           <div className={`helix-turn ${t.role}`}>
-            <p>{t.text}</p>
+            <p>{t.channel === 'voice' ? <span className="helix-spoken">Spoken</span> : null}{t.text}</p>
             {t.noted ? <span className="chip info" style={{ justifySelf: 'start' }}>Sent to the Genovus team</span> : null}
             {t.followUps?.map((f, j) => (
               <div key={j} className="helix-card"><span><b>Follow-up:</b> {f.who} · {f.due} {f.at}{f.reason ? ` · ${f.reason}` : ''}</span><button className="btn small primary" type="button" onClick={() => addFu(f)}>Add</button></div>

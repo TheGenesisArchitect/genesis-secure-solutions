@@ -8,6 +8,7 @@ import { agencyBrief, askHelix } from '@/lib/helix-agency';
 import { PROGRAM_NAME, type ProgramId } from '@/lib/programs';
 import { fileGap } from '@/lib/helix-gaps';
 import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurns } from '@/lib/helix-thread';
+import { helixPagesFor, textNavRules } from '@/lib/helix-actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -26,14 +27,17 @@ export async function POST(req: Request) {
   try {
     const thread = await openThread(supabase, viewer, scope, 'agency', b.threadId);
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
-    const brief = await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId]);
+    const pages = await helixPagesFor(viewer, 'agency', { id: scope.tenantId, slug: String(b.slug), plan: scope.plan });
+    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages);
     // Something Helix doesn't know yet becomes a Helix note for the Genovus team.
     const reply = await fileGap(await askHelix(brief, history, question, context), { question, tenantId: scope.tenantId, where: scope.name, askedBy: viewer.userId });
     const threadId = await saveTurns(supabase, scope, 'agency', thread?.id, page, [
       { role: 'user', text: question, context },
       { role: 'helix', text: reply.answer, meta: { followUps: reply.followUps, drafts: reply.drafts, noted: reply.noted || undefined } },
     ]);
-    return Response.json({ ...reply, threadId });
+    // A page Helix was asked to open: only one of this person's own pages, and never saved (a reload mustn't replay it).
+    const go = pages.find((p) => p.label.toLowerCase() === reply.go?.toLowerCase());
+    return Response.json({ ...reply, go, threadId });
   } catch (e) {
     console.error(`[helix-agency] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });

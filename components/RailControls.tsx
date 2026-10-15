@@ -70,10 +70,17 @@ export function CommandBar({ items, searchClients }: { items: JumpItem[]; search
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     const local = s ? items.filter((i) => i.label.toLowerCase().includes(s) || i.group.toLowerCase().includes(s)) : items;
-    return [...local, ...found].slice(0, 12);
+    // Anything typed can also go to Ask Helix (where it's on this page): the same Helix, the same thread.
+    const helix = q.trim().length >= 3 && document.querySelector('.helix-fab, .helix-pill, .helix-drawer') ? [{ label: `Ask Helix: “${q.trim()}”`, href: `helix:${q.trim()}`, group: 'Ask Helix', icon: 'helix' }] : [];
+    return [...local, ...found].slice(0, 12 - helix.length).concat(helix);
   }, [q, items, found]);
 
-  const go = (i: JumpItem | undefined) => { if (!i) return; setOpen(false); router.push(i.href); };
+  const go = (i: JumpItem | undefined) => {
+    if (!i) return;
+    setOpen(false);
+    if (i.href.startsWith('helix:')) window.dispatchEvent(new CustomEvent('genovus:helix', { detail: { question: i.href.slice(6) } }));
+    else router.push(i.href);
+  };
 
   return (
     <>

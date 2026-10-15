@@ -2,7 +2,7 @@
 // Helix travels with you. The host is mounted once by the agency and console layouts, so it survives every page
 // change: one thread (the typed and spoken conversation so far), one dock (open, or minimized to a pill showing
 // Helix's last line), one voice session. Pages and "Ask Helix" buttons add to the thread instead of resetting it.
-import { createContext, useContext, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from 'react';
 import Link from 'next/link';
 
 const HELIX_EVT = 'genovus:helix'; // the event helixAsk() sends (components/HelixDrawer.tsx)
@@ -12,6 +12,8 @@ export type HelixTurn = {
   role: 'user' | 'helix';
   text: string;
   page?: string;
+  /** Spoken in voice Ask Helix (saved from the transcript) rather than typed. */
+  channel?: 'text' | 'voice';
   noted?: boolean;
   followUps?: { who: string; reason: string; due: string; at: string }[];
   drafts?: { to: string; channel: string; body: string }[];
@@ -30,10 +32,12 @@ type Thread = {
   setThreadId: (id: string | null) => void;
   restored: boolean;
   disclosure?: string;
+  /** Save a spoken exchange (voice Ask Helix) to the thread and show it in the chat. */
+  saveVoice?: (turns: { role: 'user' | 'helix'; text: string }[], page?: string) => void;
 };
 const ThreadCtx = createContext<Thread | null>(null);
 
-type Saved = { role: 'user' | 'helix'; text: string; page?: string; meta?: Partial<HelixTurn> };
+type Saved = { role: 'user' | 'helix'; text: string; page?: string; channel?: 'text' | 'voice'; meta?: Partial<HelixTurn> };
 const DISCLOSURE: Record<'agency' | 'enterprise', string> = {
   agency: 'Saved to your agency’s Genovus account. Visible to you, your agency owner and the Genovus support team.',
   enterprise: 'Saved to Genovus. Visible to you and the Genovus team.',
@@ -45,6 +49,16 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
   const [threadId, setThreadId] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const asked = useRef(0);
+  // Spoken exchanges save one at a time, each continuing the thread the last one (or a typed answer) landed in.
+  const idRef = useRef<string | null>(null);
+  useEffect(() => { idRef.current = threadId; }, [threadId]);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const saveVoice = useCallback((said: { role: 'user' | 'helix'; text: string }[], page?: string) => {
+    if (!surface || !said.some((t) => t.role === 'user')) return;
+    setTurns((t) => [...t, ...said.map((x) => ({ ...x, page, channel: 'voice' as const }))]);
+    queue.current = queue.current.then(() => fetch('/api/helix/thread', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface, slug, threadId: idRef.current, page, turns: said }) })
+      .then((r) => (r.ok ? r.json() : null)).then((j: { threadId?: string } | null) => { if (j?.threadId) { idRef.current = j.threadId; setThreadId(j.threadId); } }).catch(() => {}));
+  }, [surface, slug]);
   useEffect(() => {
     if (!surface) return;
     const q = new URLSearchParams({ surface, ...(slug ? { slug } : {}) });
@@ -55,11 +69,11 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
       setTurns((t) => {
         if (t.length || !j.turns.length) return t;
         setRestored(true);
-        return j.turns.map((s) => ({ ...(s.meta ?? {}), role: s.role, text: s.text, page: s.page }));
+        return j.turns.map((s) => ({ ...(s.meta ?? {}), role: s.role, text: s.text, page: s.page, channel: s.channel }));
       });
     }).catch(() => {});
   }, [surface, slug]);
-  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined }}>{children}</ThreadCtx.Provider>;
+  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined, saveVoice }}>{children}</ThreadCtx.Provider>;
 }
 
 /** The shared thread, or a private one where no host is mounted. */
@@ -108,9 +122,12 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); setDock((s) => (s === 'open' ? 'min' : 'open')); }
       if (e.key === 'Escape') setDock((s) => (s === 'open' ? 'min' : s));
     };
+    // Helix pointing at something on the page minimizes itself so the page shows (voice keeps going).
+    const onDock = (e: Event) => { if ((e as CustomEvent<{ state?: Dock }>).detail?.state === 'min') setDock((s) => (s === 'open' ? 'min' : s)); };
     window.addEventListener(HELIX_EVT, onAsk);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); };
+    window.addEventListener('genovus:helix-dock', onDock);
+    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); window.removeEventListener('genovus:helix-dock', onDock); };
   }, []);
   // What the drawer is about: the item a button asked about, until you move to another page; then the page.
   const askHere = ask.path === path ? ask : { ...ask, context: undefined };
