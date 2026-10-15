@@ -3,7 +3,6 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { Shell, type NavSection } from './Shell';
 import { EcosystemSwitcher } from './EcosystemSwitcher';
-import { EnterpriseHelixDrawer } from './EnterpriseHelix';
 
 const ROLE: Record<string, string> = { admin: 'Platform admin', account_lead: 'Account lead', operator: 'Content and ads operator', reviewer: 'Reviewer' };
 
@@ -31,7 +30,7 @@ export async function ConsoleShell(props: { title: string; crumbs?: { href?: str
       nav={consoleNav(v.staff.role, counts)}
     >
       {props.children}
-      <EnterpriseHelixDrawer />
+      {/* Ask Helix is mounted once by the console layout (app/console/layout.tsx), so it travels across pages. */}
     </Shell>
   );
 }

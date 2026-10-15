@@ -2,10 +2,11 @@
 // Ask Helix from anywhere in the agency dashboard: the egg button (or Ctrl+J) opens Helix beside the page, already
 // knowing which page you're on, and listening: talk, or type. One Ask Helix, voice and typing in the same panel. Any "Ask Helix" button on a lead, call or partner opens it with that item loaded and
 // the question asked (helixAsk below). One Helix, the same brief everywhere, so answers agree on every screen.
-import { useEffect, useState } from 'react';
+// The agency layout mounts it once (HelixHost), so the conversation travels with you from page to page.
 import { usePathname } from 'next/navigation';
 import { AskHelixAgency } from './AskHelixAgency';
 import { HelixTour } from './vision/HelixTour';
+import { HelixDock } from './HelixHost';
 
 type Ask = { question?: string; context?: string };
 const EVT = 'genovus:helix';
@@ -28,36 +29,16 @@ const HOME = { name: 'Home', suggest: ['What should I do first today?', 'Where d
 
 export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string }) {
   const path = usePathname();
-  const [open, setOpen] = useState(false);
-  const [ask, setAsk] = useState<Ask & { n: number }>({ n: 0 });
   const page = PAGE.find((p) => p.match.test(path)) ?? HOME;
-  useEffect(() => {
-    const onAsk = (e: Event) => { const d = (e as CustomEvent<Ask>).detail ?? {}; setAsk((a) => ({ ...d, n: a.n + 1 })); setOpen(true); };
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); setOpen((o) => !o); }
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener(EVT, onAsk);
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener(EVT, onAsk); window.removeEventListener('keydown', onKey); };
-  }, []);
-  if (/\/helix$/.test(path)) return null; // the full Ask Helix page is already open
   return (
-    <>
-      <button className="helix-fab" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Ask Helix (Ctrl+J)" title="Ask Helix (Ctrl+J)">
-        <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" /><span>Ask Helix</span>
-      </button>
-      {open ? (
-        <aside className="helix-drawer" aria-label="Ask Helix">
-          <header className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="row" style={{ gap: 8 }}><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" style={{ width: 20 }} /><b>Helix</b><span className="muted" style={{ fontSize: 12 }}>on {page.name}</span></span>
-            <span className="row" style={{ gap: 6 }}><a className="btn small ghost" href={`/app/${slug}/helix`}>Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
-          </header>
-          <HelixTour embedded autoStart={!ask.question} context="agency" slug={slug} where={`the ${page.name} page`} />
-          <AskHelixAgency key={`${path}:${ask.n}`} slug={slug} tenantId={tenantId} compact context={ask.context ?? `the ${page.name} page`} suggest={page.suggest} start={ask.question} />
-        </aside>
-      ) : null}
-    </>
+    <HelixDock
+      path={path}
+      pageName={page.name}
+      fullHref={`/app/${slug}/helix`}
+      hidden={/\/helix$/.test(path)}
+      voice={(autoStart) => <HelixTour embedded autoStart={autoStart} context="agency" slug={slug} where={`the ${page.name} page`} />}
+      chat={(ask) => <AskHelixAgency slug={slug} tenantId={tenantId} compact page={page.name} context={ask.context ?? `the ${page.name} page`} suggest={page.suggest} start={ask.question} startN={ask.n} />}
+    />
   );
 }
 

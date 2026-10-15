@@ -48,6 +48,8 @@ must(await db.from('staff').insert({ user_id: ops.id, role: 'operator', display_
 
 // Gemini stand-in: records each system prompt (the brief) and answers with a "Remember this?" suggestion.
 const prompts = [];
+// The last prompt Helix was given (other Gemini calls without a system prompt can land after it).
+const lastPrompt = () => prompts.filter(Boolean).at(-1) ?? '';
 const mock = http.createServer((req, res) => {
   let body = ''; req.on('data', (d) => (body += d)); req.on('end', () => {
     const j = JSON.parse(body || '{}');
@@ -105,7 +107,7 @@ check(/AI \$12/.test(t), 'the $12.34 AI expense now counts in spend');
 await go('/console');
 check(await waitFor(/Verify answer: margin is healthy/), 'overview opens with Helix’s morning brief');
 check(/MRR \$/.test(await text()), 'admin sees the CFO line on the brief');
-const briefPrompt = prompts.at(-1) ?? '';
+const briefPrompt = lastPrompt();
 check(/FINANCE: not available/.test(briefPrompt) && !/FINANCE \(last 6 months/.test(briefPrompt), 'the cached morning brief is written without Finance (safe for every role)');
 check(!!(await db.from('helix_briefs').select('day').eq('tenant_id', house.id).eq('day', today).maybeSingle()).data, 'the morning brief is cached for the day');
 await shot('helix-overview');
@@ -115,7 +117,7 @@ await ev(`document.querySelector('.helix-fab')?.click()`); await sleep(600);
 check(/on Growth & financials/.test(await text()) && /Where is margin leaking/.test(await text()), 'the drawer knows the page (Growth) and suggests a money question');
 await ev(`[...document.querySelectorAll('.helix-drawer button')].find((b) => /Where is margin leaking/.test(b.textContent))?.click()`);
 check(await waitFor(/Remember this\?/), 'Helix answers with a "Remember this?" suggestion');
-const adminPrompt = prompts.at(-1) ?? '';
+const adminPrompt = lastPrompt();
 check(/FINANCE \(last 6 months/.test(adminPrompt) && /AI & production \$12/.test(adminPrompt), 'an admin’s brief carries Finance, including AI spend');
 check(['SALES', 'PIPELINE', 'CLIENTS & DELIVERY', 'STUDIO', 'SPEND METERS', 'WHAT HELIX KNOWS'].every((h) => adminPrompt.includes(h)), 'the brief covers every department');
 await shot('helix-drawer', 1440, false);
@@ -126,7 +128,7 @@ const aud = must(await db.from('audit_events').select('action').eq('tenant_id', 
 check(aud.length === 1, 'keeping a memory is in the audit log');
 await ev(`[...document.querySelectorAll('.helix-drawer input')][0] && (() => { const i = document.querySelector('.helix-drawer input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'What do you know about us?'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); })()`);
 await sleep(3000);
-check((prompts.at(-1) ?? '').includes(MEMO), 'Helix reads the kept memory on the next question');
+check(lastPrompt().includes(MEMO), 'Helix reads the kept memory on the next question');
 
 await go('/console/helix/knows');
 check((await text()).includes(MEMO), '"What Helix knows" lists the memory');
@@ -174,7 +176,7 @@ await go('/console');
 await sleep(1500);
 check(!/MRR \$/.test(await text()), 'an operator sees the brief without the CFO line');
 const r = await ev(`fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: 'What is our margin?' }) }).then((x) => x.status)`);
-const opsPrompt = prompts.at(-1) ?? '';
+const opsPrompt = lastPrompt();
 check(r === 200 && /FINANCE: not available to this viewer/.test(opsPrompt) && !/FINANCE \(last 6 months/.test(opsPrompt), 'an operator’s brief has no Finance');
 
 await clean();

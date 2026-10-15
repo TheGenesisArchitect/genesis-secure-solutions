@@ -813,6 +813,15 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .helix-fab img{width:22px;transform:rotate(-8deg)}
 .helix-fab:hover{background:color-mix(in srgb,var(--accent) 24%,var(--surface))}
 .helix-drawer{position:fixed;top:0;right:0;bottom:0;z-index:70;width:min(440px,100vw);display:grid;grid-template-rows:auto auto minmax(0,1fr);align-content:start;gap:10px;padding:14px;background:var(--surface);border-left:1px solid var(--line);box-shadow:-20px 0 50px rgba(0,0,0,.4);overflow:auto}
+.helix-drawer[hidden]{display:none}
+/* Minimized Helix: a pill with Helix's last line; the drawer behind it keeps the conversation and voice going. */
+.helix-pill{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;align-items:center;gap:10px;max-width:min(380px,calc(100vw - 40px));min-height:48px;padding:8px 14px 8px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 50%,var(--line));background:var(--surface);color:var(--text);box-shadow:0 10px 30px rgba(0,0,0,.35);cursor:pointer;text-align:left}
+.helix-pill img{width:22px;flex:0 0 auto;transform:rotate(-8deg)}
+.helix-pill-text{display:grid;min-width:0;font-size:13px;line-height:1.3}
+.helix-pill-text span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.helix-pill-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--accent)}
+.helix-moved{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.helix-moved::before,.helix-moved::after{content:"";flex:1;height:1px;background:var(--line)}
 .helix-chat.compact{max-width:none;align-content:start}
 .helix-chat.compact .helix-turn{max-width:100%}
 .helix-ask{display:inline-flex;align-items:center;gap:6px}
@@ -824,7 +833,7 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .moment{display:grid;gap:6px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--raise)}
 .lead-call{display:grid;gap:6px;padding:8px 10px;border-left:3px solid color-mix(in srgb,var(--accent) 60%,var(--line));background:var(--raise);border-radius:8px}
 button.chip{cursor:pointer}
-@media (max-width:760px){.helix-fab{bottom:84px;right:14px;padding:10px}.helix-fab span{display:none}.helix-drawer{width:100vw}}
+@media (max-width:760px){.helix-fab{bottom:84px;right:14px;padding:10px}.helix-fab span{display:none}.helix-pill{bottom:84px;right:14px}.helix-drawer{width:100vw}}
 /* The Genovus line proof: each step of the call chain, checked when it has really happened. */
 .proof-steps{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
 .proof-steps li{display:flex;gap:10px;align-items:center;color:var(--muted)}

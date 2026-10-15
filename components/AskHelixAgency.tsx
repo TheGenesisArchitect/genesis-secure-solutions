@@ -2,18 +2,19 @@
 // Ask Helix for an agency: a chat grounded in the agency's live data. Suggested questions to start; Helix's
 // proposed follow-ups add to the calendar with one tap; drafts copy to send yourself (Helix never sends). The same
 // chat runs on the Ask Helix page and in the drawer every page opens, where `context` says what the agent is
-// looking at (a page, a lead, a partner) and `start` asks the first question straight away.
+// looking at (a page, a lead, a partner) and `start` asks a question straight away (`startN` counts the asks). The
+// drawer and the full page share one thread (HelixHost), so the conversation carries on as you move between pages.
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addFollowUp } from '@/lib/actions';
+import { useHelixThread } from './HelixHost';
 
-type Turn = { role: 'user' | 'helix'; text: string; noted?: boolean; followUps?: { who: string; reason: string; due: string; at: string }[]; drafts?: { to: string; channel: string; body: string }[] };
 const SUGGEST = ['Who needs a call today?', 'Where did my leads come from this month?', 'Draft a text to my newest lead', 'What’s on my calendar this week?', 'Which leads are going cold?'];
 const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } })); };
 
-export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, start, compact }: { slug: string; tenantId: string; context?: string; suggest?: string[]; start?: string; compact?: boolean }) {
+export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, start, startN = 0, page, compact }: { slug: string; tenantId: string; context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
   const router = useRouter();
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const { turns, setTurns, asked } = useHelixThread();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -21,15 +22,17 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     const text = question.trim();
     if (!text || busy) return;
     const history = turns.map((t) => ({ role: t.role, text: t.text }));
-    setTurns((t) => [...t, { role: 'user', text }]);
+    setTurns((t) => [...t, { role: 'user', text, page }]);
     setQ(''); setBusy(true);
-    const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, history, question: text, context }) }).then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }));
+    const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, history, question: text, context }) })
+      .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
-    setTurns((t) => [...t, r.okay ? { role: 'helix', text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
-  const started = useRef(false);
-  useEffect(() => { if (start && !started.current) { started.current = true; void ask(start); } }); // eslint-disable-line react-hooks/exhaustive-deps
+  // Each "Ask Helix" button press asks once, adding to the thread.
+  useEffect(() => { if (start && startN && asked.current !== startN) { asked.current = startN; void ask(start); } }); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, []);
   const addFu = async (f: { who: string; reason: string; due: string; at: string }) => {
     const fd = new FormData();
     fd.set('tenant', tenantId); fd.set('who', f.who); fd.set('reason', f.reason); fd.set('due', f.due); fd.set('at', f.at);
@@ -45,8 +48,9 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
         </div>
       ) : null}
       <div className="helix-turns">
-        {turns.map((t, i) => (
-          <div key={i} className={`helix-turn ${t.role}`}>
+        {turns.map((t, i) => (<div key={i} style={{ display: 'contents' }}>
+          {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
+          <div className={`helix-turn ${t.role}`}>
             <p>{t.text}</p>
             {t.noted ? <span className="chip info" style={{ justifySelf: 'start' }}>Sent to the Genovus team</span> : null}
             {t.followUps?.map((f, j) => (
@@ -56,7 +60,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
               <div key={j} className="helix-card draft"><span className="muted" style={{ fontSize: 12 }}>Draft {d.channel} to {d.to || 'the lead'} · you send it</span><p style={{ margin: 0 }}>{d.body}</p><button className="btn small" type="button" onClick={() => navigator.clipboard.writeText(d.body).then(() => toast({ ok: 'Draft copied.' }), () => toast({ err: 'Copy failed: select the text instead.' }))}>Copy</button></div>
             ))}
           </div>
-        ))}
+        </div>))}
         {busy ? <div className="helix-turn helix"><p className="muted">Helix is looking…</p></div> : null}
         <div ref={end} />
       </div>

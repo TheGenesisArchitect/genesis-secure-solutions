@@ -3,15 +3,15 @@
 // (or Ctrl+J) on every console page opens Helix beside the page, already knowing where you are; any Ask Helix button
 // sends the same event. Answers can end in a draft to copy, a note for the Helix notes inbox, or "Remember this?",
 // which a person keeps with one tap (nothing is remembered silently). Shares the agency drawer's look.
+// The console layout mounts it once (HelixHost), so the conversation travels with you from page to page.
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { HELIX_EVT, helixAsk } from './HelixDrawer';
+import { helixAsk } from './HelixDrawer';
 import { HelixTour } from './vision/HelixTour';
+import { HelixDock, useHelixThread } from './HelixHost';
 import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
 
-type Ask = { question?: string; context?: string };
 type Memory = { department: string; kind: string; text: string };
-type Turn = { role: 'user' | 'helix'; text: string; noted?: boolean; drafts?: { to: string; channel: string; body: string }[]; remember?: Memory[] };
 const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } })); };
 
 const PAGES: { match: RegExp; name: string; suggest: string[] }[] = [
@@ -31,8 +31,8 @@ const HOME = { name: 'Overview', suggest: ['What should the team do first today?
 const DEPT: Record<string, string> = { sales: 'Sales', pipeline: 'Pipeline', clients: 'Clients', finance: 'Finance', studio: 'Studio', operations: 'Operations', general: 'General' };
 
 /** The Enterprise Helix chat: in the drawer (compact) and on the full Ask page. */
-export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, compact }: { context?: string; suggest?: string[]; start?: string; compact?: boolean }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
+export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, startN = 0, page, compact }: { context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
+  const { turns, setTurns, asked } = useHelixThread();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [kept, setKept] = useState<Set<string>>(new Set());
@@ -41,16 +41,17 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, com
     const text = question.trim();
     if (!text || busy) return;
     const history = turns.map((t) => ({ role: t.role, text: t.text }));
-    setTurns((t) => [...t, { role: 'user', text }]);
+    setTurns((t) => [...t, { role: 'user', text, page }]);
     setQ(''); setBusy(true);
     const r = await fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ history, question: text, context }) })
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
-    setTurns((t) => [...t, r.okay ? { role: 'helix', text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
-  const started = useRef(false);
-  useEffect(() => { if (start && !started.current) { started.current = true; void ask(start); } }); // eslint-disable-line react-hooks/exhaustive-deps
+  // Each "Ask Helix" button press asks once, adding to the thread.
+  useEffect(() => { if (start && startN && asked.current !== startN) { asked.current = startN; void ask(start); } }); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, []);
   const keep = async (m: Memory) => { const r = await rememberEnterprise({ ...m, source: 'conversation' }); toast(r); if (r.ok) setKept((s) => new Set(s).add(m.text)); };
   return (
     <div className={'helix-chat' + (compact ? ' compact' : '')}>
@@ -61,8 +62,9 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, com
         </div>
       ) : null}
       <div className="helix-turns">
-        {turns.map((t, i) => (
-          <div key={i} className={`helix-turn ${t.role}`}>
+        {turns.map((t, i) => (<div key={i} style={{ display: 'contents' }}>
+          {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
+          <div className={`helix-turn ${t.role}`}>
             <p>{t.text}</p>
             {t.noted ? <a className="chip info" href="/console/helix" style={{ justifySelf: 'start' }}>Added to Helix notes</a> : null}
             {t.drafts?.map((d, j) => (
@@ -73,7 +75,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, com
             ))}
             {t.role === 'helix' && !t.noted && i === turns.length - 1 && !busy ? <button className="btn small ghost" type="button" style={{ justifySelf: 'start' }} onClick={async () => toast(await helixNote(t.text))}>Make it a note</button> : null}
           </div>
-        ))}
+        </div>))}
         {busy ? <div className="helix-turn helix"><p className="muted">Helix is looking…</p></div> : null}
         <div ref={end} />
       </div>
@@ -111,36 +113,16 @@ export function EnterpriseVoice({ path, autoStart, where }: { path: string; auto
 /** The drawer on every console page. */
 export function EnterpriseHelixDrawer() {
   const path = usePathname();
-  const [open, setOpen] = useState(false);
-  const [ask, setAsk] = useState<Ask & { n: number }>({ n: 0 });
   const page = PAGES.find((p) => p.match.test(path)) ?? HOME;
-  useEffect(() => {
-    const onAsk = (e: Event) => { const d = (e as CustomEvent<Ask>).detail ?? {}; setAsk((a) => ({ ...d, n: a.n + 1 })); setOpen(true); };
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); setOpen((o) => !o); }
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener(HELIX_EVT, onAsk);
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener(HELIX_EVT, onAsk); window.removeEventListener('keydown', onKey); };
-  }, []);
-  if (path === '/console/helix/ask') return null; // the full view is already open
   return (
-    <>
-      <button className="helix-fab" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Ask Helix (Ctrl+J)" title="Ask Helix (Ctrl+J)">
-        <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" /><span>Ask Helix</span>
-      </button>
-      {open ? (
-        <aside className="helix-drawer" aria-label="Ask Helix">
-          <header className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="row" style={{ gap: 8 }}><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" style={{ width: 20 }} /><b>Helix</b><span className="muted" style={{ fontSize: 12 }}>on {page.name}</span></span>
-            <span className="row" style={{ gap: 6 }}><a className="btn small ghost" href="/console/helix/ask">Full view</a><button className="btn small ghost" type="button" onClick={() => setOpen(false)} aria-label="Close Helix">✕</button></span>
-          </header>
-          <EnterpriseVoice path={path} autoStart={!ask.question} where={`the ${page.name} page`} />
-          <AskHelixEnterprise key={`${path}:${ask.n}`} compact context={ask.context ?? `the ${page.name} page (${path})`} suggest={page.suggest} start={ask.question} />
-        </aside>
-      ) : null}
-    </>
+    <HelixDock
+      path={path}
+      pageName={page.name}
+      fullHref="/console/helix/ask"
+      hidden={path === '/console/helix/ask'}
+      voice={(autoStart) => <EnterpriseVoice path={path} autoStart={autoStart} where={`the ${page.name} page`} />}
+      chat={(ask) => <AskHelixEnterprise compact page={page.name} context={ask.context ?? `the ${page.name} page (${path})`} suggest={page.suggest} start={ask.question} startN={ask.n} />}
+    />
   );
 }
 

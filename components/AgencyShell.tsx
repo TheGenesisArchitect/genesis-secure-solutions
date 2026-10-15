@@ -7,7 +7,6 @@ import { businessToday } from '@/lib/billing';
 import { AgencyTabBar } from './AgencyTabBar';
 import { PROGRAM_NAME } from '@/lib/programs';
 import { accessFor } from '@/lib/access';
-import { HelixDrawer } from './HelixDrawer';
 
 export type AgencyCtx = { viewer: Viewer; tenant: Membership; asStaff: boolean; isOwner: boolean };
 
@@ -79,9 +78,9 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
       {asStaff && !film ? <div className="notice">You are viewing {tenant.name}’s dashboard as the Genovus team. Client approvals can only be decided by the agency owner.</div> : null}
       {tenant.isSample && !film ? <div className="notice sample"><b>Sample agency.</b> {tenant.name} is fictional. Every number here is illustrative and marked Sample.</div> : null}
       {/* Filming the demo agency: the per-item Sample chips go too; the film itself carries the fictional-agency caption. */}
-      {film ? <style>{'.chip.sample{display:none}'}</style> : null}
+      {film ? <style>{'.chip.sample,.helix-fab,.helix-pill,.helix-drawer{display:none}'}</style> : null}
       {children}
-      {has('helix') && !film ? <HelixDrawer slug={tenant.slug} tenantId={tenant.tenantId} /> : null}
+      {/* Ask Helix is mounted once by the agency layout (app/app/[slug]/layout.tsx), so it travels across pages. */}
       <AgencyTabBar base={base} film={film} />
     </Shell>
   );
