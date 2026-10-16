@@ -118,6 +118,8 @@ await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
 const bubble = () => ev(`document.querySelector('.helix-nudge')?.innerText ?? null`);
 const frames = () => ev(`window.__live.sent.filter((m) => m.realtimeInput?.audio).length`);
 const ended = () => ev(`window.__live.sent.filter((m) => m.realtimeInput?.audioStreamEnd).length`);
+// A real click (the browser treats it as the person's tap, so audio is allowed to start), not a script click.
+const tap = async (sel) => { const r = await ev(`(() => { const b = document.querySelector('${sel}')?.getBoundingClientRect(); return b ? [b.x + b.width / 2, b.y + b.height / 2] : null; })()`); if (!r) return false; for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x: r[0], y: r[1], button: 'left', clickCount: 1 }); return true; };
 const key = async (type) => send('Input.dispatchKeyEvent', { type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: type === 'keyDown' ? ' ' : undefined });
 
 try {
@@ -147,7 +149,7 @@ try {
   // 3. Push-to-talk.
   await ev(`localStorage.setItem('helix-voice', 'on'); localStorage.setItem('helix-ptt', '1'); localStorage.setItem('helix-hands', '0')`);
   await go(`${BASE}/leads`);
-  await ev(`document.querySelector('.helix-fab')?.click()`);
+  await tap('.helix-fab');
   await waitFor(async () => (await ev('window.__live.socks.length')) === 1);
   await emit({ setupComplete: {} });
   await sleep(1500);

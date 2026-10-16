@@ -210,7 +210,8 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug 
       {dock === 'min' ? (
         <button className="helix-pill" type="button" onClick={() => setDock('open')} aria-label="Open Ask Helix (Ctrl+J)" title="Open Ask Helix (Ctrl+J)">
           <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" />
-          <span className="helix-pill-text"><b>{nudge ? 'New lead' : 'Helix'}</b><span>{nudge ? `${nudge.name}${nudge.topic ? ` · ${nudge.topic}` : ''}. Call now?` : last ? last.text : 'Ask anything. Helix keeps this conversation as you move.'}</span></span>
+          {/* Mid-conversation the pill keeps Helix's last reply; a new lead shows here only before any conversation. */}
+          <span className="helix-pill-text"><b>{nudge && !last ? 'New lead' : 'Helix'}</b><span>{last ? last.text : nudge ? `${nudge.name}${nudge.topic ? ` · ${nudge.topic}` : ''}. Call now?` : 'Ask anything. Helix keeps this conversation as you move.'}</span></span>
           {unread ? <span className="helix-pill-dot" aria-label="New reply" /> : null}
         </button>
       ) : null}
