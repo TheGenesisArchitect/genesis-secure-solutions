@@ -852,6 +852,11 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .qt-card{position:fixed;z-index:95;display:grid;gap:10px;padding:14px;border-radius:16px;border:1px solid var(--accent);background:var(--surface);box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .hx-spot.tour{z-index:94}
 @media (max-width:760px){.whats-new{left:14px;right:14px;bottom:140px;width:auto}}
+/* Helix teaching the menu: the page it is about to open lights up in the menu first. */
+.rail a.menu-teach{position:relative;outline:2px solid var(--accent);outline-offset:2px;border-radius:10px;background:color-mix(in srgb,var(--accent) 18%,transparent);animation:menu-teach 1s ease-in-out infinite}
+.rail a.menu-teach::after{content:attr(data-teach);position:absolute;right:8px;top:50%;transform:translateY(-50%);white-space:nowrap;padding:5px 10px;border-radius:999px;background:var(--accent);color:var(--on-accent,#160803);font-size:12px;font-weight:700;pointer-events:none;z-index:5}
+@keyframes menu-teach{50%{outline-offset:5px}}
+@media (prefers-reduced-motion:reduce){.rail a.menu-teach{animation:none}}
 .helix-saved{margin:0;font-size:11px;line-height:1.4}
 .helix-spoken{display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px;background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink)}
 .helix-moved::before,.helix-moved::after{content:"";flex:1;height:1px;background:var(--line)}

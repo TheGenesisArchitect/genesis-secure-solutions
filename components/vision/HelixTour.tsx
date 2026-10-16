@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { useHelixThread } from '../HelixHost';
+import { goViaMenu } from '@/lib/helix-menu';
 
 type Note = { id: string; kind: string; text: string; chapter: string | null; status: string; work?: { title?: string; summary?: string; steps?: string[]; acceptance?: string[]; effort?: string; area?: string; error?: string } | null };
 type Phase = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
@@ -190,7 +191,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const p = pages.current.find((x) => x.label.toLowerCase() === String(args.page ?? '').toLowerCase());
       if (!p) return { ok: false, error: 'not one of this person’s pages', pages: pages.current.map((x) => x.label) };
       setSpot(null);
-      if (pathRef.current !== p.href) { selfNav.current = true; router.push(p.href); }
+      if (pathRef.current !== p.href) { selfNav.current = true; await goViaMenu(p.href, () => router.push(p.href), p.label); }
       const landed = await waitFor(() => pathRef.current === p.href, 8000);
       return landed ? { ok: true, page: p.label } : { ok: false, error: 'the page is still loading' };
     }
@@ -200,7 +201,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const matches = () => [...document.querySelectorAll<HTMLElement>('[data-helix-item]')].filter((e) => e.dataset.helixItem!.toLowerCase().includes(want));
       if (!matches().length) {
         const leads = pages.current.find((x) => /\/leads$/.test(x.href));
-        if (leads && pathRef.current !== leads.href) { selfNav.current = true; router.push(leads.href); await waitFor(() => pathRef.current === leads.href && matches().length > 0, 8000); }
+        if (leads && pathRef.current !== leads.href) { selfNav.current = true; await goViaMenu(leads.href, () => router.push(leads.href), leads.label); await waitFor(() => pathRef.current === leads.href && matches().length > 0, 8000); }
       }
       const found = matches();
       if (!found.length) return { ok: false, error: `no lead named ${args.name} on ${pageRef.current ?? 'this page'}` };

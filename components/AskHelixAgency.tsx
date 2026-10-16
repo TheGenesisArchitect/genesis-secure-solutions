@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { addFollowUp } from '@/lib/actions';
 import { HelixActCard, useHelixThread } from './HelixHost';
+import { goViaMenu } from '@/lib/helix-menu';
 
 const SUGGEST = ['Who needs a call today?', 'Where did my leads come from this month?', 'Draft a text to my newest lead', 'What’s on my calendar this week?', 'Which leads are going cold?'];
 const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } })); };
@@ -30,7 +31,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     setBusy(false);
     if (r.j.threadId) setThreadId(r.j.threadId);
     // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
-    if (r.okay && r.j.go?.href) router.push(r.j.go.href);
+    if (r.okay && r.j.go?.href) { const go = r.j.go as { href: string; label: string }; void goViaMenu(go.href, () => router.push(go.href), go.label); }
     // Helix proposed a change: show it for a yes (one tap); nothing happens until then.
     if (r.okay && r.j.proposal) act?.show(r.j.proposal);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);

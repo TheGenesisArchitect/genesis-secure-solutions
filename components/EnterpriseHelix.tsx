@@ -10,6 +10,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { helixAsk } from './HelixDrawer';
 import { HelixTour } from './vision/HelixTour';
 import { HelixDock, useHelixThread } from './HelixHost';
+import { goViaMenu } from '@/lib/helix-menu';
 import { pageNameFor } from '@/lib/agency-nav';
 import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
 
@@ -51,7 +52,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
     setBusy(false);
     if (r.j.threadId) setThreadId(r.j.threadId);
     // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
-    if (r.okay && r.j.go?.href) router.push(r.j.go.href);
+    if (r.okay && r.j.go?.href) { const go = r.j.go as { href: string; label: string }; void goViaMenu(go.href, () => router.push(go.href), go.label); }
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
