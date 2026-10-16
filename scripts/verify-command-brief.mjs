@@ -157,6 +157,8 @@ try {
   await ev(`[...document.querySelectorAll('.helix-card.act button')].find((b) => /Not now/.test(b.textContent))?.click()`);
   await ev(`[...(${rosa}).querySelectorAll('.cb-helix')][0]?.click()`);
   check(await waitFor(async () => /Help me with this now: Call Rosa Brief/.test((await ev(`(() => { const d = document.querySelector('.helix-drawer'); return d && !d.hidden ? d.innerText : ''; })()`)) ?? '')), 'Do it with Helix asks Helix about that card');
+  // Let Helix finish that answer first (it takes one question at a time).
+  await waitFor(async () => !/Helix is looking/.test((await ev(`document.querySelector('.helix-drawer')?.innerText`)) ?? ''), 40000);
   await ev(`document.querySelector('.helix-drawer button[aria-label^="Minimize"]')?.click()`); await sleep(300);
   await ev(`(${rosa})?.querySelector('.cb-check')?.click()`); await sleep(400);
   check(/1\/\d+/.test((await cb()).replace(/\s/g, '')) && !!(await ev(`(${rosa})?.classList.contains('done')`)), 'checking a card off moves the progress');

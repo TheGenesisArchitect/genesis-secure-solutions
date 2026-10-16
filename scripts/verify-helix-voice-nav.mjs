@@ -161,6 +161,7 @@ try {
   await ev(`document.querySelector('.helix-drawer form button[type="submit"]')?.click()`);
   check(await waitFor(async () => (await ev('location.pathname')) === `${BASE}/calendar`), 'typed “Take me to my calendar” opens Calendar');
   check(/Opening your Calendar/.test((await drawer()) ?? ''), 'and Helix says so in the thread');
+  await sleep(2500); // Helix shows the menu first, then the new page settles
   // A real Ctrl+K key press (the browser's own keyboard path).
   await ev('document.activeElement && document.activeElement.blur()');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', modifiers: 2, key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75 });
