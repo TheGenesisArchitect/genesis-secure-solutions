@@ -903,6 +903,10 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .cb-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px}
 @media (max-width:760px){.cb{padding:16px;border-radius:18px}.cb-hero{grid-template-columns:auto minmax(0,1fr)}.cb-progress{grid-column:1/-1;justify-items:start;grid-auto-flow:column;align-items:baseline;gap:8px}.cb-progress i,.cb-progress::after{left:0;right:auto}.cb-grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.cb-card,.cb-egg{animation:none}.cb-card:hover{transform:none}}
+/* A field Helix just filled: it lights up as the value lands. */
+.helix-filled{animation:helix-filled 1.6s ease}
+@keyframes helix-filled{0%{box-shadow:0 0 0 3px var(--accent);background:color-mix(in srgb,var(--accent) 22%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.helix-filled{animation:none;outline:2px solid var(--accent)}}
 .helix-saved{margin:0;font-size:11px;line-height:1.4}
 .helix-spoken{display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px;background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink)}
 .helix-moved::before,.helix-moved::after{content:"";flex:1;height:1px;background:var(--line)}

@@ -58,7 +58,7 @@ export default async function Pipeline({ params }: { params: Promise<{ slug: str
                   {key === 'contacted' || key === 'new' ? (
                     <details className="book">
                       <summary>Book a consult</summary>
-                      <ActionForm action={bookLead} className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }}>
+                      <ActionForm action={bookLead} helix="book" helixTitle="Book a consult" className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }}>
                         <input type="hidden" name="id" value={l.id} />
                         <label className="field"><span>Day</span><input className="input" type="date" name="day" defaultValue={today} required /></label>
                         <label className="field"><span>Time</span><input className="input" type="time" name="time" defaultValue="10:00" required /></label>

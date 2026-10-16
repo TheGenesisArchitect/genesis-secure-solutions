@@ -8,8 +8,9 @@ import { agencyBrief, askHelix } from '@/lib/helix-agency';
 import { PROGRAM_NAME, type ProgramId } from '@/lib/programs';
 import { fileGap } from '@/lib/helix-gaps';
 import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurns } from '@/lib/helix-thread';
-import { helixPagesFor, textNavRules } from '@/lib/helix-actions';
+import { formRules, helixPagesFor, textNavRules } from '@/lib/helix-actions';
 import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
+import { onScreen } from '@/lib/helix-screen';
 import { actRules, propose } from '@/lib/helix-act';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const viewer = await getViewer().catch(() => null);
   if (!viewer) return Response.json({ error: 'Sign in first.' }, { status: 401 });
-  const b = (await req.json().catch(() => ({}))) as { slug?: string; threadId?: string; question?: string; context?: string; page?: string };
+  const b = (await req.json().catch(() => ({}))) as { slug?: string; threadId?: string; question?: string; context?: string; page?: string; screen?: unknown };
   const question = String(b.question ?? '').trim();
   if (!question) return Response.json({ error: 'Ask Helix something.' }, { status: 400 });
   const supabase = await db();
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     const thread = await openThread(supabase, viewer, scope, 'agency', b.threadId);
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
     const pages = await helixPagesFor(viewer, 'agency', { id: scope.tenantId, slug: String(b.slug), plan: scope.plan });
-    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages) + actRules(false) + noteRules('agency');
+    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages) + actRules(false) + noteRules('agency') + formRules(false) + onScreen(b.screen);
     // Something Helix doesn't know yet becomes a Helix note for the Genovus team.
     const reply = await fileGap(await askHelix(brief, history, question, context), { question, tenantId: scope.tenantId, where: scope.name, askedBy: viewer.userId });
     // "Make a note": saved where the person will look for it (their Helix notes), with a link to open it.

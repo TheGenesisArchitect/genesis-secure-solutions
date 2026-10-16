@@ -16,9 +16,15 @@ type Props = {
   style?: CSSProperties;
   resetOnOk?: boolean;
   confirm?: string;
+  /** Helix can find, fill and (with the person's yes) save this form: its name on the page, e.g. "campaign". */
+  helix?: string;
+  /** What Helix calls it out loud ("New campaign"). */
+  helixTitle?: string;
+  /** internal: Helix may save it after a yes. outward (sends, publishes, approves, spends): Helix only fills it. */
+  lane?: 'internal' | 'outward';
 };
 
-export function ActionForm({ action, children, className, style, resetOnOk, confirm }: Props) {
+export function ActionForm({ action, children, className, style, resetOnOk, confirm, helix, helixTitle, lane }: Props) {
   const ref = useRef<HTMLFormElement>(null);
   const [, formAction, pending] = useActionState(async (prev: ActionResult, f: FormData) => {
     const r = await action(prev, f);
@@ -34,6 +40,9 @@ export function ActionForm({ action, children, className, style, resetOnOk, conf
       style={style}
       aria-busy={pending}
       data-pending={pending ? '' : undefined}
+      data-helix-form={helix}
+      data-helix-title={helix ? helixTitle ?? helix : undefined}
+      data-helix-lane={helix ? (confirm ? 'outward' : lane ?? 'internal') : undefined}
       onSubmit={(e) => { if (confirm && !window.confirm(confirm)) e.preventDefault(); }}
     >
       {children}

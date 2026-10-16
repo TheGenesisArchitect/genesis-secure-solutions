@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { WhatsNew } from './WhatsNew';
+import { fillForm, submitForm } from '@/lib/helix-page';
 
 const HELIX_EVT = 'genovus:helix'; // the event helixAsk() sends (components/HelixDrawer.tsx)
 
@@ -52,6 +53,8 @@ export type HelixAct = {
   dismiss: () => void;
   undo: (page?: string) => Promise<{ ok: boolean; done?: string; error?: string }>;
   show: (p: HelixProposal) => void;
+  /** Saving a form Helix filled: the same card and yes; the save runs through the form's own action. */
+  proposeForm: (form: string, summary: string) => void;
 };
 const ThreadCtx = createContext<Thread | null>(null);
 
@@ -77,14 +80,24 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
   useEffect(() => { lastRef.current = last; }, [last]);
   const actCall = useCallback(async (body: Record<string, unknown>) => fetch('/api/helix/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, ...body }) })
     .then((r) => r.json()).catch(() => ({ ok: false, error: 'Helix couldn’t reach Genovus.' })), [slug]);
-  const act: HelixAct | undefined = surface === 'agency' ? {
+  const act: HelixAct | undefined = surface ? {
     pending, last,
     show: (p) => setPending(p),
+    proposeForm: (form, summary) => setPending({ ok: true, summary, token: `form:${form}` }),
     dismiss: () => setPending(null),
     propose: async (action, args) => { const p = (await actCall({ step: 'propose', action, args })) as HelixProposal; setPending(p); return p; },
     confirm: async (page) => {
       const p = pendingRef.current;
       if (!p || !p.ok) return { ok: false, error: 'Nothing is waiting for a yes.' };
+      // A form Helix filled: save it through its own action, right here (its result shows as the usual toast).
+      if (p.token.startsWith('form:')) {
+        setPending(null);
+        const r = submitForm(p.token.slice(5));
+        if (!r.ok) return r;
+        const done = `${p.summary.replace(/^Save /, '')} saved.`;
+        setTurns((t) => [...t, { role: 'helix', text: `Done: ${done}`, page }]);
+        return { ok: true, done };
+      }
       setPending(null);
       const r = await actCall({ step: 'confirm', token: p.token, threadId: idRefAct.current, page });
       if (r.ok) { setLast({ done: r.done, undo: r.undo, at: Date.now() }); setTurns((t) => [...t, { role: 'helix', text: `Done: ${r.done}`, page }]); router.refresh(); }
@@ -301,4 +314,22 @@ function useLeadNudge(slug?: string) {
   }, [slug]);
   const dismissNudge = (id: string) => setGone((g) => { const n = [id, ...g.filter((x) => x !== id)].slice(0, 50); try { localStorage.setItem('helix-nudged', JSON.stringify(n)); } catch {} return n; });
   return { nudge: lead && !gone.includes(lead.id) ? lead : null, dismissNudge };
+}
+
+/**
+ * Typed Helix filled a form ("fill" in its reply): type it into the page live, then (if asked to save, and it's an
+ * internal form with nothing required missing) put the confirm card up. Outward forms are filled only.
+ */
+export function useApplyFill() {
+  const { act, setTurns } = useHelixThread();
+  return async (fill: { form: string; fields: { name: string; value: string }[] } | undefined, save: boolean | undefined, page?: string) => {
+    if (!fill) return;
+    if (window.matchMedia('(max-width: 760px)').matches) window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'min' } }));
+    const r = await fillForm(fill.form, fill.fields);
+    const say = (text: string) => setTurns((t) => [...t, { role: 'helix', text, page }]);
+    if (!r.ok) { say(`${r.error}${r.forms?.length ? ` Forms here: ${r.forms.join(', ')}.` : ''}`); return; }
+    if (r.missing.length) { say(`Filled ${r.filled.length ? r.filled.join(', ') : 'nothing yet'}. Still needed: ${r.missing.join(', ')}.`); return; }
+    if (r.lane === 'outward') { say(`It's filled and ready. This one goes out, so tap “${r.submit}” yourself when you're happy.`); return; }
+    if (save && act) { act.proposeForm(r.form, `Save ${r.form}`); window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'open' } })); }
+  };
 }

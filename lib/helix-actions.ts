@@ -45,3 +45,19 @@ export const navTools = (pages: HelixPage[], leads: boolean) => pages.length ? [
   ...(leads ? [{ name: 'open_lead', description: 'Find a lead by name and point at it on screen (opens Leads if they are not on this page). Returns how many leads match.', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' } }, required: ['name'] } }] : []),
   { name: 'highlight', description: 'Point at something on the current page: a name, heading or button label as it appears on screen.', parameters: { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] } },
 ] : [];
+
+/** Forms (both surfaces): Helix reads the page's forms, fills them from the conversation, and saves internal ones
+ *  only after the person's yes. Outward forms (send, publish, approve, spend) it fills but never presses. */
+export const formRules = (voice: boolean) => `
+FORMS ON THE PAGE: you can see and fill the forms on the page the person is on.${voice ? ' Call read_page to see them (each form, its fields, options and current values); after go_to you get them too.' : ' They are listed under ON SCREEN NOW.'}
+- Fill from the conversation: ${voice ? 'fill_form with the form name and fields' : 'add "fill": {"form": <form name>, "fields": [{"name": <field name or label>, "value": <text>}]} to your JSON'}. Dates YYYY-MM-DD, times HH:MM, money as a number, and for a choice use one of its options. Fill what you know; ask for anything required that's missing. Never invent facts.
+- Saving: an internal form saves only after the person says yes. ${voice ? 'Call submit_form, read its summary and ask "Shall I save it?"; only after a clear yes, call confirm_action.' : 'Add "save": true when they asked you to save it; they confirm with one tap. Never say it is saved.'}
+- Outward forms (lane outward: sending, publishing, approving, spending, inviting) you fill only. Tell the person it's ready and to tap the button themselves.`;
+
+/** Voice tools for forms (and confirming a save, which Enterprise doesn't get from the lead tools). */
+export const formTools = (withConfirm: boolean) => [
+  { name: 'read_page', description: 'See the page the person is on: its title, named items, and every form you can fill (fields, options, current values, lane).', parameters: { type: 'OBJECT', properties: {} } },
+  { name: 'fill_form', description: 'Fill a form on the page, live, from the conversation. form: its name from read_page. fields: field name or label with the value. Returns what was filled, what is still required, and the form lane.', parameters: { type: 'OBJECT', properties: { form: { type: 'STRING' }, fields: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, value: { type: 'STRING' } }, required: ['name', 'value'] } } }, required: ['form', 'fields'] } },
+  { name: 'submit_form', description: 'Put a confirmation card up to save a filled internal form. Read the summary and ask; save with confirm_action only after a clear yes. Outward forms are refused (the person taps those).', parameters: { type: 'OBJECT', properties: { form: { type: 'STRING' } }, required: ['form'] } },
+  ...(withConfirm ? [{ name: 'confirm_action', description: 'Do what the confirmation card shows. ONLY right after the person clearly said yes to it in this conversation.', parameters: { type: 'OBJECT', properties: {} } }] : []),
+];

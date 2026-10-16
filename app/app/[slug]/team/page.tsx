@@ -35,7 +35,7 @@ export default async function Team({ params, searchParams }: { params: Promise<{
         </Panel>
         {ctx.isOwner ? (
           <Panel title="Invite someone" sub="They get an email with a sign-in link. No passwords.">
-            <ActionForm action={inviteMember} className="form">
+            <ActionForm action={inviteMember} helix="invite" helixTitle="Invite someone" lane="outward" className="form">
               <input type="hidden" name="tenant" value={ctx.tenant.tenantId} />
               <input type="hidden" name="back" value={here} />
               <label className="field"><span>Email</span><input className="input" type="email" name="email" required maxLength={200} /></label>

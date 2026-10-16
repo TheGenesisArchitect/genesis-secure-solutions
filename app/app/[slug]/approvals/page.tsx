@@ -31,7 +31,7 @@ export default async function AgencyApprovals({ params, searchParams }: { params
                 {typeof a.body?.text === 'string' ? <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>{a.body.text}</div> : null}
                 {typeof a.body?.channel === 'string' ? <span className="muted" style={{ fontSize: 13 }}>For {a.body.channel}{typeof a.body?.when === 'string' ? ` · planned ${a.body.when}` : ''}</span> : null}
                 {canDecide ? (
-                  <ActionForm action={decideApproval} className="form">
+                  <ActionForm action={decideApproval} helix="decision" helixTitle="Decision" lane="outward" className="form">
                     <input type="hidden" name="id" value={a.id} />
                     <input type="hidden" name="back" value={here} />
                     <input className="input" name="note" placeholder="What should change? (needed only to request changes)" />

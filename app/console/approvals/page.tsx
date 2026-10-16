@@ -28,7 +28,7 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
         title="Waiting on the team"
         sub={`${team.length} item${team.length === 1 ? '' : 's'}, oldest first`}
         actions={clean.length > 1 ? (
-          <ActionForm action={bulkApprove}>
+          <ActionForm action={bulkApprove} helix="approve all" helixTitle="Approve all clean items" lane="outward">
             {clean.map((a) => <input key={a.id} type="hidden" name="id" value={a.id} />)}
             <button className="btn good small" type="submit">Approve all {clean.length} that passed every rule</button>
           </ActionForm>
@@ -41,7 +41,7 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
               const flags = text ? checkCopy(text, typeof a.body?.field === 'string' ? (a.body.field as string) : undefined) : [];
               const tenant = t.get(a.tenant_id);
               return (
-                <li key={a.id} style={{ gap: 8 }}>
+                <li key={a.id} style={{ gap: 8 }} data-helix-item={a.title}>
                   <div className="spread">
                     <b>{a.title}</b>
                     <span className="row" style={{ gap: 6 }}>
@@ -57,7 +57,7 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
                   {flags.length ? (
                     <div className="row" style={{ gap: 6 }}>{flags.map((f, i) => <Chip key={i} kind={f.hard ? 'bad' : 'pending'}>{f.label}</Chip>)}</div>
                   ) : text ? <Chip kind="done">Passed every rule</Chip> : null}
-                  <ActionForm action={decideApproval} className="row">
+                  <ActionForm action={decideApproval} helix="decision" helixTitle="Decision" lane="outward" className="row">
                     <input type="hidden" name="id" value={a.id} />
                     <input type="hidden" name="back" value="/console/approvals" />
                     <input className="input" name="note" placeholder="Note (required to request changes)" style={{ flex: 1, minWidth: 200 }} />

@@ -96,7 +96,7 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
         </Panel>
         {canMoney ? (
           <Panel title="Record an expense" sub="Tick monthly for recurring costs: they carry forward on the 1st">
-            <ActionForm action={addExpense} className="form" resetOnOk>
+            <ActionForm action={addExpense} helix="expense" helixTitle="New expense" className="form" resetOnOk>
               <div className="row" style={{ flexWrap: 'nowrap' }}>
                 <label className="field" style={{ flex: 2 }}><span>Vendor</span><input className="input" name="vendor" required maxLength={80} placeholder="Vercel" /></label>
                 <label className="field" style={{ flex: 1 }}><span>Amount (USD)</span><input className="input" name="amount" required inputMode="decimal" placeholder="100.00" /></label>
@@ -111,7 +111,7 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Record expense</button>
             </ActionForm>
             {v.staff.role === 'admin' ? (
-              <ActionForm action={setCashOnHand} className="row" style={{ gap: 8, alignItems: 'end', marginTop: 16 }}>
+              <ActionForm action={setCashOnHand} helix="cash" helixTitle="Cash on hand" className="row" style={{ gap: 8, alignItems: 'end', marginTop: 16 }}>
                 <label className="field" style={{ flex: 1 }}><span>Cash on hand (USD), for runway</span><input className="input" name="cash" required inputMode="decimal" placeholder={cashRow ? (Number(cashRow.cents) / 100).toFixed(2) : '25000.00'} /></label>
                 <button className="btn small" type="submit">Save</button>
               </ActionForm>

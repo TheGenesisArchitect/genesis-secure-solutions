@@ -27,7 +27,7 @@ export default async function AgencyCare({ params, searchParams }: { params: Pro
       <Flash ok={sp.ok} err={sp.err} />
       <div className="grid g2">
         <Panel title="Ask for a change" sub={`We reply within ${RESPONSE[t?.plan ?? 'launch']}. Site down or a lead form not delivering: within 2 business hours on every plan.`}>
-          <ActionForm action={createCareRequest} className="form" resetOnOk>
+          <ActionForm action={createCareRequest} helix="care request" helixTitle="Request a change" className="form" resetOnOk>
             <input type="hidden" name="tenant" value={tid} />
             <input type="hidden" name="back" value={here} />
             <label className="field"><span>What do you need?</span>

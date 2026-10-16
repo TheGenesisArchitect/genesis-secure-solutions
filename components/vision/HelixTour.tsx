@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { useHelixThread } from '../HelixHost';
 import { goViaMenu } from '@/lib/helix-menu';
+import { fillForm, findForm, readPage } from '@/lib/helix-page';
 
 type Note = { id: string; kind: string; text: string; chapter: string | null; status: string; work?: { title?: string; summary?: string; steps?: string[]; acceptance?: string[]; effort?: string; area?: string; error?: string } | null };
 type Phase = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
@@ -193,7 +194,9 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       setSpot(null);
       if (pathRef.current !== p.href) { selfNav.current = true; await goViaMenu(p.href, () => router.push(p.href), p.label); }
       const landed = await waitFor(() => pathRef.current === p.href, 8000);
-      return landed ? { ok: true, page: p.label } : { ok: false, error: 'the page is still loading' };
+      if (!landed) return { ok: false, error: 'the page is still loading' };
+      await new Promise((r) => setTimeout(r, 400)); // let its forms render
+      return { ok: true, page: p.label, onScreen: readPage() };
     }
     if (ask && name === 'open_lead') {
       const want = String(args.name ?? '').trim().toLowerCase();
@@ -217,6 +220,24 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (!el) return { ok: false, error: `nothing called “${args.text}” on ${pageRef.current ?? 'this page'}` };
       point(el.closest('.lead, .board-card, li, section, tr') ?? el);
       return { ok: true, page: pageRef.current };
+    }
+    // Forms on the page (both surfaces): see them, fill them live, and save an internal one only after a yes.
+    if (ask && name === 'read_page') return { ok: true, ...readPage() };
+    if (ask && name === 'fill_form') {
+      const fields = Array.isArray((args as unknown as { fields?: unknown }).fields) ? ((args as unknown as { fields: { name: string; value: string }[] }).fields) : [];
+      // Out of the way so the person watches it fill (voice keeps going).
+      window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'min' } }));
+      const r = await fillForm(String(args.form ?? ''), fields);
+      return r.ok ? { ...r, next: r.missing.length ? `Ask for: ${r.missing.join(', ')}.` : r.lane === 'outward' ? `It's ready; tell them to tap “${r.submit}” themselves.` : 'Ask "Shall I save it?"; if yes, call submit_form then confirm_action.' } : r;
+    }
+    if (ask && thread.act && name === 'submit_form') {
+      const f = findForm(String(args.form ?? ''));
+      if (!f) return { ok: false, error: `No form called “${args.form}” on this page.` };
+      if (f.dataset.helixLane === 'outward') return { ok: false, error: 'That one goes out (send, publish, approve or spend): the person taps it themselves.' };
+      const key = readPage().forms.find((x) => findForm(x.key) === f)?.key ?? String(args.form);
+      thread.act.proposeForm(key, `Save ${key}`);
+      window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'open' } }));
+      return { ok: true, summary: `Save ${key}`, next: 'Ask "Shall I save it?". Call confirm_action only after a clear yes.' };
     }
     // The confirm lane (agency): a card on screen waits for the person's yes; Helix confirms only after hearing it.
     if (ask && thread.act && name === 'propose_action') {

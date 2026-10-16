@@ -79,7 +79,7 @@ export default async function FollowUps({ params, searchParams }: { params: Prom
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
           <Panel title="Add a follow-up" sub="After a call, a visit or a text: who, why, and when">
-            <ActionForm action={addFollowUp} className="form" resetOnOk>
+            <ActionForm action={addFollowUp} className="form" resetOnOk helix="follow-up" helixTitle="New follow-up">
               <input type="hidden" name="tenant" value={tid} />
               <label className="field"><span>Who</span><input className="input" name="who" required maxLength={120} placeholder="e.g. The Hendersons" autoComplete="off" /></label>
               <label className="field"><span>Why</span><input className="input" name="reason" maxLength={300} placeholder="e.g. Moving next month: review their coverage" autoComplete="off" /></label>

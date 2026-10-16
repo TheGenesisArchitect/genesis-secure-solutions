@@ -57,14 +57,14 @@ export default async function Calls() {
               {list.map((p, i) => {
                 const d = details[i];
                 return (
-                  <li key={p.id} style={{ gap: 8 }}>
+                  <li key={p.id} style={{ gap: 8 }} data-helix-item={d?.name || p.contact_name || `Office ${p.code}`}>
                     <div className="spread">
                       <Link href={`/console/prospects/${p.code}`}><b>{d?.name || p.contact_name || `Office ${p.code}`}</b></Link>
                       <span className="row" style={{ gap: 6 }}><Chip kind="info">Fit {p.fit_score}</Chip>{p.clock.callable ? <Chip kind="done">{p.clock.label}</Chip> : <Chip kind="pending">{p.clock.label}</Chip>}</span>
                     </div>
                     <span className="muted" style={{ fontSize: 13 }}>{(p.carriers as { name?: string } | null)?.name ?? 'Independent'} · {d?.address ?? p.state}</span>
                     {d?.phone ? <a className="btn small primary" href={`tel:${d.phone}`} style={{ justifySelf: 'start' }}>Call {d.phone}</a> : <span className="muted" style={{ fontSize: 13 }}>No phone listed: open the office for details.</span>}
-                    <ActionForm action={logProspect} className="row">
+                    <ActionForm action={logProspect} helix="call log" helixTitle="Log the call" className="row">
                       <input type="hidden" name="id" value={p.id} />
                       <select className="select" name="outcome" required defaultValue="" aria-label="Outcome" style={{ flex: 1 }}>
                         <option value="" disabled>Outcome…</option>

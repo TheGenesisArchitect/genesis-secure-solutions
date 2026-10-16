@@ -26,6 +26,9 @@ export type HelixReply = {
   propose?: Record<string, string>;
   /** "Make a note": saved by the route to Helix notes (lib/helix-note-save.ts). */
   note?: { kind: string; text: string };
+  /** Fill a form on the person's page (and ask to save it): applied by the browser, never saved in the thread. */
+  fill?: { form: string; fields: { name: string; value: string }[] };
+  save?: boolean;
   /** Set by the server once the gap is filed as a Helix note. */
   noted?: boolean;
   model: string;
@@ -111,6 +114,8 @@ function parse(raw: string, model: string): HelixReply {
     unknown: j.unknown === true,
     gap: s(j.gap, 200),
     go: s((j as { go?: unknown }).go, 60) || undefined,
+    fill: (() => { const x = (j as { fill?: { form?: unknown; fields?: unknown } }).fill; if (!x || typeof x !== 'object' || typeof x.form !== 'string' || !Array.isArray(x.fields)) return undefined; return { form: s(x.form, 120), fields: (x.fields as { name?: unknown; value?: unknown }[]).slice(0, 20).filter((f) => f && typeof f.name === 'string').map((f) => ({ name: s(f.name, 60), value: String(f.value ?? '').slice(0, 1000) })) }; })(),
+    save: (j as { save?: unknown }).save === true,
     note: (() => { const n = (j as { note?: { kind?: unknown; text?: unknown } }).note; return n && typeof n === 'object' && typeof n.text === 'string' && n.text.trim().length > 1 ? { kind: s(n.kind, 20), text: s(n.text, 600) } : undefined; })(),
     propose: (() => { const p = (j as { propose?: unknown }).propose; return p && typeof p === 'object' && !Array.isArray(p) ? Object.fromEntries(Object.entries(p as Record<string, unknown>).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k.slice(0, 20), String(v).slice(0, 300)]).slice(0, 8)) : undefined; })(),
     model,

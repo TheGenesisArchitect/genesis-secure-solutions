@@ -50,7 +50,7 @@ export default async function Program({ params }: { params: Promise<{ slug: stri
               {adds.map((m) => <li key={m.key}><div className="spread" style={{ gap: 8 }}><b>{m.label}</b>{m.option ? <Chip kind="info">Option</Chip> : m.live ? null : <Chip kind="pending">Coming</Chip>}</div><span className="muted" style={{ fontSize: 13 }}>{m.blurb}</span></li>)}
             </ul>
             {ctx.isOwner ? (
-              <ActionForm action={createCareRequest} className="row" style={{ gap: 8 }}>
+              <ActionForm action={createCareRequest} helix="upgrade question" helixTitle="Ask about an upgrade" className="row" style={{ gap: 8 }}>
                 <input type="hidden" name="tenant" value={ctx.tenant.tenantId} />
                 <input type="hidden" name="back" value={`${base}/program`} />
                 <input type="hidden" name="kind" value="support" />

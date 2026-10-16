@@ -58,7 +58,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
                   <span className="muted" style={{ fontSize: 12 }}>In Mercury: <b>{i.mercury_status ?? 'Unpaid'}</b>{i.mercury_synced_at ? ` · checked ${ago(i.mercury_synced_at)}` : ''}{i.pay_url ? <> · <a href={i.pay_url} target="_blank" rel="noreferrer">pay page</a></> : null}</span>
                 ) : null}
                 {i.status === 'draft' && mercury ? (
-                  <ActionForm action={sendViaMercury} className="row">
+                  <ActionForm action={sendViaMercury} helix="send invoice" helixTitle="Send invoice" lane="outward" className="row">
                     <input type="hidden" name="id" value={i.id} />
                     <input className="input" name="due" type="date" defaultValue={i.due_date ?? ''} style={{ width: 160 }} aria-label="Due date" />
                     <button className="btn small primary" type="submit">{i.kind === 'upgrade' ? 'Send upgrade through Mercury' : 'Create in Mercury & send'}</button>
@@ -69,7 +69,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
                     {i.mercury_invoice_id ? null : (
                     <details open={!mercury || i.status === 'open'}>
                     {mercury ? <summary className="muted" style={{ fontSize: 12, cursor: 'pointer' }}>Or paste a Mercury link yourself</summary> : null}
-                    <ActionForm action={publishInvoice} className="row">
+                    <ActionForm action={publishInvoice} helix="publish invoice" helixTitle="Publish invoice" lane="outward" className="row">
                       <input type="hidden" name="id" value={i.id} />
                       <input className="input" name="pay_url" type="url" required defaultValue={i.pay_url ?? ''} placeholder="https://… Mercury invoice payment link" style={{ flex: 2, minWidth: 220 }} aria-label="Mercury payment link" />
                       <input className="input" name="number" defaultValue={i.number ?? ''} placeholder="Invoice #" style={{ width: 110 }} aria-label="Invoice number" />
@@ -79,7 +79,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
                     </details>
                     )}
                     <div className="row">
-                      <ActionForm action={markInvoicePaid} className="row">
+                      <ActionForm action={markInvoicePaid} helix="mark paid" helixTitle="Mark paid" className="row">
                         <input type="hidden" name="id" value={i.id} />
                         <input className="input" name="via" defaultValue="Mercury" style={{ width: 130 }} aria-label="Paid via" />
                         <input className="input" name="paid_on" type="date" defaultValue={today()} style={{ width: 160 }} aria-label="Paid on" />
@@ -112,7 +112,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
               <div className="spread"><b>{t.care_plan}</b><span className="num"><b>{money(t.care_rate_cents ?? 0)}</b> <span className="muted">/ month</span></span></div>
               <p className="soft" style={{ fontSize: 14 }}>Running since {date((t.care_started_on ?? today()) + 'T12:00:00')}. {t.care_autosend && mercury ? 'Each month’s invoice is created and sent through Mercury automatically on the 1st.' : 'Each month’s invoice is drafted on the 1st for you to send.'}</p>
               {mercury ? (
-                <ActionForm action={setCareAutosend} className="row">
+                <ActionForm action={setCareAutosend} helix="autosend" helixTitle="Monthly autosend" lane="outward" className="row">
                   <input type="hidden" name="tenant" value={t.id} />
                   <input type="hidden" name="on" value={t.care_autosend ? 'false' : 'true'} />
                   <button className="btn small" type="submit">{t.care_autosend ? 'Turn off automatic billing' : 'Bill automatically through Mercury'}</button>
@@ -125,7 +125,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
               </ActionForm>
             </>
           ) : (
-            <ActionForm action={startCare} className="form">
+            <ActionForm action={startCare} helix="start care" helixTitle="Start monthly care" lane="outward" className="form">
               <input type="hidden" name="tenant" value={t.id} />
               <label className="field"><span>Care plan</span>
                 <select className="select" name="plan" defaultValue={defaultCare}>
@@ -150,7 +150,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
                 <dl className="kv lines" style={{ fontSize: 13 }}>
                   {q.lines.flatMap((l, k) => [<dt key={k + 'l'}>{l.label}</dt>, <dd key={k + 'v'} className="num" style={{ textAlign: 'right' }}>{signed(l.cents)}</dd>])}
                 </dl>
-                <ActionForm action={createUpgradeInvoice} className="row">
+                <ActionForm action={createUpgradeInvoice} helix="upgrade invoice" helixTitle="Upgrade invoice" lane="outward" className="row">
                   <input type="hidden" name="tenant" value={t.id} />
                   <input type="hidden" name="to" value={p.id} />
                   <input className="input" name="on" type="date" defaultValue={today()} style={{ width: 160 }} aria-label="Upgrade effective date" />
@@ -163,7 +163,7 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
         ) : null}
 
         <Panel title="New invoice" sub="Deposit, balance, care, or Other for anything custom">
-          <ActionForm action={createInvoice} className="form" resetOnOk>
+          <ActionForm action={createInvoice} helix="invoice" helixTitle="New invoice draft" className="form" resetOnOk>
             <input type="hidden" name="tenant" value={t.id} />
             <label className="field"><span>Type</span>
               <select className="select" name="kind" defaultValue="custom">

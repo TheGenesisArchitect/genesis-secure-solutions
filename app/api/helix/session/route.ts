@@ -15,7 +15,7 @@ import { accessFor } from '@/lib/access';
 import { agencyBrief } from '@/lib/helix-agency';
 import { canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
 import { agencyVoice, enterpriseVoice, threadSeed, voiceTools } from '@/lib/helix-voice';
-import { actTools, helixPagesFor, navTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
+import { actTools, formRules, formTools, helixPagesFor, navTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
 import { actRules } from '@/lib/helix-act';
 import { helixScope, openThread, threadTurns } from '@/lib/helix-thread';
 import { PROGRAM_NAME } from '@/lib/programs';
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     const brief = await enterpriseBrief(await userDb(), { money: canSeeMoney(viewer.staff.role) });
     tenantId = brief.houseId;
     pages = await helixPagesFor(viewer, 'enterprise');
-    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + (await seed('enterprise')), voiceTools(navTools(pages, false)), voice);
+    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + formRules(true) + (await seed('enterprise')), voiceTools([...navTools(pages, false), ...formTools(true)]), voice);
   } else if (context === 'agency') {
     if (!viewer) return Response.json({ error: 'Sign in first.' }, { status: 401 });
     const m = viewer.memberships.find((x) => x.slug === body.slug);
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     if (!access.has('helix')) return Response.json({ error: 'Ask Helix is part of Growth.' }, { status: 403 });
     tenantId = t.id;
     pages = await helixPagesFor(viewer, 'agency', { id: t.id, slug: String(body.slug), plan: t.plan });
-    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])) + voiceNavRules(pages, true) + actRules(true) + (await seed('agency', String(body.slug))), voiceTools([...navTools(pages, true), ...actTools]), voice);
+    setup = liveSetupWith(agencyVoice(await agencyBrief(await userDb(), t.id, t.name, PROGRAM_NAME[access.program])) + voiceNavRules(pages, true) + actRules(true) + formRules(true) + (await seed('agency', String(body.slug))), voiceTools([...navTools(pages, true), ...actTools, ...formTools(false)]), voice);
   } else if (context === 'packages') {
     // The public package tour: facts only from that package's steps (no prices), driving the page with show_step.
     const plan = ['launch', 'growth', 'premium'].includes(String(body.focus?.code)) ? (body.focus!.code as 'launch' | 'growth' | 'premium') : 'growth';

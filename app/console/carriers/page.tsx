@@ -66,7 +66,7 @@ export default async function Carriers() {
                   </td>
                   <td><Link href={`/console/prospects?carrier=${c.slug}`} className="num">{(count.get(c.id) ?? 0).toLocaleString('en-US')}</Link></td>
                   <td colSpan={2}>
-                    <ActionForm action={saveCarrier} className="row" style={{ flexWrap: 'nowrap' }}>
+                    <ActionForm action={saveCarrier} helix="carrier" helixTitle="Carrier settings" className="row" style={{ flexWrap: 'nowrap' }}>
                       <input type="hidden" name="slug" value={c.slug} />
                       <input className="input" name="fit" type="number" min={0} max={100} defaultValue={c.fit_score} style={{ width: 72 }} aria-label={`${c.name} fit score`} />
                       <label className="check" style={{ alignItems: 'center' }}><input type="checkbox" name="scan" defaultChecked={c.scan_enabled} /> Scan</label>
@@ -83,7 +83,7 @@ export default async function Carriers() {
       <div className="grid g2" style={{ alignItems: 'start' }}>
         <Panel title="Scan settings" sub="Pilot states first; the scan stops on its own at the monthly budget">
           {admin ? (
-            <ActionForm action={saveScanSettings} className="form">
+            <ActionForm action={saveScanSettings} helix="scan settings" helixTitle="Scan settings" className="form">
               <label className="field"><span>States to scan</span><input className="input" name="states" defaultValue={settings.states.join(', ')} /></label>
               <label className="field"><span>Monthly budget (USD, Google list prices)</span><input className="input" name="budget" type="number" min={0} max={5000} defaultValue={settings.budgetCents / 100} /></label>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Save settings</button>
@@ -92,7 +92,7 @@ export default async function Carriers() {
         </Panel>
         <Panel title="Recent scans" sub="Runs every 10 minutes while areas are left; or run a slice now">
           {admin ? (
-            <ActionForm action={runScanNow} className="row">
+            <ActionForm action={runScanNow} helix="run scan" helixTitle="Run the scan now" lane="outward" className="row">
               <button className="btn primary small" type="submit" disabled={!connected}>Run a scan slice now</button>
             </ActionForm>
           ) : null}

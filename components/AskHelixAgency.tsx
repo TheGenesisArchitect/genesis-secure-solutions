@@ -8,7 +8,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { addFollowUp } from '@/lib/actions';
-import { HelixActCard, useHelixThread } from './HelixHost';
+import { HelixActCard, useApplyFill, useHelixThread } from './HelixHost';
+import { readPage } from '@/lib/helix-page';
 import { goViaMenu } from '@/lib/helix-menu';
 
 const SUGGEST = ['Who needs a call today?', 'Where did my leads come from this month?', 'Draft a text to my newest lead', 'What’s on my calendar this week?', 'Which leads are going cold?'];
@@ -17,6 +18,7 @@ const toast = (r: { ok?: string; err?: string } | null) => { if (r) window.dispa
 export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, start, startN = 0, page, compact }: { slug: string; tenantId: string; context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
   const router = useRouter();
   const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure, act } = useHelixThread();
+  const applyFill = useApplyFill();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -26,7 +28,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     setTurns((t) => [...t, { role: 'user', text, page }]);
     setQ(''); setBusy(true);
     // The server reads the saved thread (not history from the browser) and saves both turns to it.
-    const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, threadId, question: text, context, page }) })
+    const r = await fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, threadId, question: text, context, page, screen: readPage() }) })
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
     if (r.j.threadId) setThreadId(r.j.threadId);
@@ -34,6 +36,8 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     if (r.okay && r.j.go?.href) { const go = r.j.go as { href: string; label: string }; void goViaMenu(go.href, () => router.push(go.href), go.label); }
     // Helix proposed a change: show it for a yes (one tap); nothing happens until then.
     if (r.okay && r.j.proposal) act?.show(r.j.proposal);
+    // Helix filled a form on this page (and maybe asked to save it with a yes).
+    if (r.okay && r.j.fill) await applyFill(r.j.fill, r.j.save, page);
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };

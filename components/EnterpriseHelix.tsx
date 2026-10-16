@@ -9,7 +9,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { helixAsk } from './HelixDrawer';
 import { HelixTour } from './vision/HelixTour';
-import { HelixDock, useHelixThread } from './HelixHost';
+import { HelixActCard, HelixDock, useApplyFill, useHelixThread } from './HelixHost';
+import { readPage } from '@/lib/helix-page';
 import { goViaMenu } from '@/lib/helix-menu';
 import { pageNameFor } from '@/lib/agency-nav';
 import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
@@ -36,7 +37,8 @@ const DEPT: Record<string, string> = { sales: 'Sales', pipeline: 'Pipeline', cli
 /** The Enterprise Helix chat: in the drawer (compact) and on the full Ask page. */
 export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, startN = 0, page, compact }: { context?: string; suggest?: string[]; start?: string; startN?: number; page?: string; compact?: boolean }) {
   const router = useRouter();
-  const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure } = useHelixThread();
+  const { turns, setTurns, asked, threadId, setThreadId, restored, disclosure, act } = useHelixThread();
+  const applyFill = useApplyFill();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [kept, setKept] = useState<Set<string>>(new Set());
@@ -47,11 +49,12 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
     setTurns((t) => [...t, { role: 'user', text, page }]);
     setQ(''); setBusy(true);
     // The server reads the saved thread (not history from the browser) and saves both turns to it.
-    const r = await fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ threadId, question: text, context, page }) })
+    const r = await fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ threadId, question: text, context, page, screen: readPage() }) })
       .then(async (x) => ({ okay: x.ok, j: await x.json().catch(() => ({})) }), () => ({ okay: false, j: {} as Record<string, string> }));
     setBusy(false);
     if (r.j.threadId) setThreadId(r.j.threadId);
     // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
+    if (r.okay && r.j.fill) await applyFill(r.j.fill, r.j.save, page);
     if (r.okay && r.j.go?.href) { const go = r.j.go as { href: string; label: string }; void goViaMenu(go.href, () => router.push(go.href), go.label); }
     setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
@@ -88,6 +91,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
         {busy ? <div className="helix-turn helix"><p className="muted">Helix is looking…</p></div> : null}
         <div ref={end} />
       </div>
+      {act?.pending ? <HelixActCard page={page} /> : null}
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{suggest.map((s) => <button key={s} className="btn small ghost" type="button" disabled={busy} onClick={() => ask(s)}>{s}</button>)}</div>
       <form className="row" style={{ gap: 8 }} onSubmit={(e) => { e.preventDefault(); void ask(q); }}>
         <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about any part of the business" aria-label="Ask Helix" style={{ flex: 1, minWidth: 0 }} maxLength={1000} />

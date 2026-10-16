@@ -8,8 +8,9 @@ import { askHelix } from '@/lib/helix-agency';
 import { ENTERPRISE_SYSTEM, canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
 import { fileGap } from '@/lib/helix-gaps';
 import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurns } from '@/lib/helix-thread';
-import { helixPagesFor, textNavRules } from '@/lib/helix-actions';
+import { formRules, helixPagesFor, textNavRules } from '@/lib/helix-actions';
 import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
+import { onScreen } from '@/lib/helix-screen';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -17,7 +18,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const viewer = await getViewer().catch(() => null);
   if (!viewer?.staff) return Response.json({ error: 'Enterprise Helix is for the Genovus team.' }, { status: 403 });
-  const b = (await req.json().catch(() => ({}))) as { threadId?: string; question?: string; context?: string; page?: string };
+  const b = (await req.json().catch(() => ({}))) as { threadId?: string; question?: string; context?: string; page?: string; screen?: unknown };
   const question = String(b.question ?? '').trim();
   if (!question) return Response.json({ error: 'Ask Helix something.' }, { status: 400 });
   const supabase = await db();
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
     const brief = await enterpriseBrief(supabase, { money: canSeeMoney(viewer.staff.role) });
     const pages = await helixPagesFor(viewer, 'enterprise');
-    const asked = await askHelix(brief.text + textNavRules(pages) + noteRules('enterprise'), history, question, context, ENTERPRISE_SYSTEM);
+    const asked = await askHelix(brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + onScreen(b.screen), history, question, context, ENTERPRISE_SYSTEM);
     if (brief.memoryIds.length) await adminDb().rpc('touch_memories', { p_ids: brief.memoryIds });
     // Something Helix doesn't know yet becomes a Helix note for the team.
     const reply = await fileGap(asked, { question, tenantId: brief.houseId, where: `${viewer.staff.name} (Enterprise)`, askedBy: viewer.userId });

@@ -72,7 +72,7 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
           <Panel title="Log a call or note" sub="Outcomes move the office through the pipeline">
-            <ActionForm action={logProspect} className="form" resetOnOk>
+            <ActionForm action={logProspect} helix="call log" helixTitle="Log the call" className="form" resetOnOk>
               <input type="hidden" name="id" value={p.id} />
               <input type="hidden" name="kind" value="call" />
               <div className="row">

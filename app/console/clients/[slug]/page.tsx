@@ -104,7 +104,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           </div>
           <div className="grid g2">
             <Panel title="Lifecycle" sub="Moving a stage is logged and drives the client’s next messages">
-              <ActionForm action={moveStage} className="row">
+              <ActionForm action={moveStage} helix="stage" helixTitle="Move stage" className="row">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input type="hidden" name="back" value={here} />
                 <select className="select" name="stage" defaultValue={t.stage} style={{ width: 'auto' }} aria-label="Stage">
@@ -162,12 +162,12 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <thead><tr><th>Gate</th><th>Status</th><th>Evidence</th><th>Update</th></tr></thead>
                 <tbody>
                   {g.map((x) => (
-                    <tr key={x.id}>
+                    <tr key={x.id} data-helix-item={GATE_LABEL[x.kind] ?? x.kind}>
                       <td>{GATE_LABEL[x.kind] ?? x.kind}</td>
                       <td><Status value={x.status} />{x.cleared_at ? <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{date(x.cleared_at)}</div> : null}</td>
                       <td className="soft" style={{ fontSize: 13, maxWidth: 340 }}>{x.evidence ?? '—'}</td>
                       <td>
-                        <ActionForm action={setGate} className="row" style={{ flexWrap: 'nowrap' }}>
+                        <ActionForm action={setGate} helix="gate" helixTitle="Gate" className="row" style={{ flexWrap: 'nowrap' }}>
                           <input type="hidden" name="tenant" value={t.id} />
                           <input type="hidden" name="kind" value={x.kind} />
                           <input type="hidden" name="back" value={here} />
@@ -187,7 +187,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           {t.kind === 'agency' && !findClientBySlug(slug) ? (
             <Panel title="Welcome package" sub="A personal welcome page and setup guide, built from this record. No deploy needed.">
               {links.data?.length ? <p className="soft">Link issued {dateTime(links.data[0].created_at)}. Reissuing replaces it; the client keeps their progress.</p> : <p className="soft">No welcome link yet. Issue one when the deposit clears; it is shown to you once.</p>}
-              <ActionForm action={issueWelcomeLink} className="row">
+              <ActionForm action={issueWelcomeLink} helix="welcome link" helixTitle="Welcome link" className="row">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input type="hidden" name="back" value={here} />
                 <button className="btn small primary" type="submit">{links.data?.length ? 'Reissue welcome link' : 'Issue welcome link'}</button>
@@ -219,7 +219,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               <Empty title="No one is invited yet">Invite the agency owner when they are ready to sign in.</Empty>
             )}
             {t.kind === 'agency' ? (
-              <ActionForm action={inviteMember} className="row">
+              <ActionForm action={inviteMember} helix="invite" helixTitle="Invite someone" lane="outward" className="row">
                 <input type="hidden" name="tenant" value={t.id} />
                 <input type="hidden" name="back" value={here} />
                 <input className="input" type="email" name="email" required placeholder="name@agency.com" style={{ flex: 1, minWidth: 200 }} aria-label="Email to invite" />
@@ -235,7 +235,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === 'record' && (
         <div className="grid g2">
           <Panel title={`Agent record v${rec?.version ?? 0}`} sub="One record drives the site, copy, kit and welcome package. Saving creates a new version.">
-            <ActionForm action={saveRecord} className="form">
+            <ActionForm action={saveRecord} helix="record" helixTitle="Agent record" className="form">
               <input type="hidden" name="tenant" value={t.id} />
               <input type="hidden" name="back" value={here} />
               <textarea className="textarea" name="data" defaultValue={JSON.stringify(data, null, 2)} style={{ minHeight: 420, font: '500 12.5px/1.5 var(--mono)' }} aria-label="Agent record JSON" />
@@ -284,7 +284,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                   <span className="muted" style={{ fontSize: 13 }}>Decided by {a.approver === 'team' ? 'the team' : 'the client'} · requested {dateTime(a.requested_at)}{a.decided_at ? ` · decided ${dateTime(a.decided_at)}` : ''}</span>
                   {a.decision_note ? <span className="soft">“{a.decision_note}”</span> : null}
                   {a.status === 'pending' && a.approver === 'team' ? (
-                    <ActionForm action={decideApproval} className="row">
+                    <ActionForm action={decideApproval} helix="decision" helixTitle="Decision" lane="outward" className="row">
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="back" value={here} />
                       <input className="input" name="note" placeholder="Note (required to request changes)" style={{ flex: 1, minWidth: 180 }} />
@@ -307,7 +307,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <li key={c.id}>
                   <div className="spread"><b>{c.title}</b><span className="row" style={{ gap: 6 }}>{c.is_sample ? <Chip kind="sample">Sample</Chip> : null}<Status value={c.status} /></span></div>
                   {c.detail ? <span className="soft">{c.detail}</span> : null}
-                  <ActionForm action={setCareStatus} className="row">
+                  <ActionForm action={setCareStatus} helix="care status" helixTitle="Care status" className="row">
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="back" value={here} />
                     <select className="select" name="status" defaultValue={c.status} style={{ width: 'auto' }} aria-label="Status">

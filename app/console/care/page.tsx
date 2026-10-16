@@ -60,13 +60,13 @@ export default async function Care({ searchParams }: { searchParams: Promise<{ s
               <thead><tr><th>Request</th><th>Client</th><th>Kind</th><th>Reply due</th><th>Status</th></tr></thead>
               <tbody>
                 {reqs.map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} data-helix-item={r.title}>
                     <td><b>{r.title}</b>{r.detail ? <div className="soft" style={{ fontSize: 13 }}>{r.detail}</div> : null}</td>
                     <td><Link href={`/console/clients/${t.get(r.tenant_id)?.slug}?tab=care`}>{t.get(r.tenant_id)?.name}</Link> {r.is_sample ? <Chip kind="sample">Sample</Chip> : null}</td>
                     <td>{r.kind}</td>
                     <td className="num">{(() => { const due = dueBy(r.created_at, TARGET_HOURS[t.get(r.tenant_id)?.plan ?? 'launch'] ?? 16); const late = r.status === 'new' && due.getTime() < Date.now(); return <span style={{ color: late ? 'var(--bad)' : undefined }}>{late ? 'Overdue · ' : ''}{dateTime(due.toISOString())}</span>; })()}</td>
                     <td>
-                      <ActionForm action={setCareStatus} className="row" style={{ flexWrap: 'nowrap' }}>
+                      <ActionForm action={setCareStatus} helix="status" helixTitle="Care status" className="row" style={{ flexWrap: 'nowrap' }}>
                         <input type="hidden" name="id" value={r.id} />
                         <input type="hidden" name="back" value={'/console/care' + (samples ? '?samples=1' : '')} />
                         <select className="select" name="status" defaultValue={r.status} style={{ width: 'auto' }} aria-label="Status">

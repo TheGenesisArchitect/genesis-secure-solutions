@@ -91,7 +91,7 @@ export default async function HelixNotes({ params, searchParams }: { params: Pro
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
           <Panel title="Add a note" sub="Anything the office should remember or do">
-            <ActionForm action={agencyAddHelixNote} className="form" resetOnOk>
+            <ActionForm action={agencyAddHelixNote} className="form" resetOnOk helix="note" helixTitle="New note">
               <input type="hidden" name="tenant" value={tid} />
               <label className="field"><span>Note</span><textarea className="input" name="text" required minLength={2} maxLength={600} rows={3} placeholder="e.g. Call the marina on Lake Oliver about a referral partnership" /></label>
               <label className="field"><span>Kind</span>

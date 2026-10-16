@@ -58,7 +58,7 @@ export default async function Campaigns() {
           ) : <Empty title="No campaigns yet">Create the first one, for example a GA and AL captive-agent call campaign.</Empty>}
         </Panel>
         <Panel title="New or update a campaign" sub="Saving an existing code updates it">
-          <ActionForm action={saveCampaign} className="form" resetOnOk>
+          <ActionForm action={saveCampaign} helix="campaign" helixTitle="New campaign" className="form" resetOnOk>
             <label className="field"><span>Code (used in links)</span><input className="input" name="slug" required pattern="[a-z0-9][a-z0-9\-]{1,40}" placeholder="ga-al-captive-calls" /></label>
             <label className="field"><span>Name</span><input className="input" name="name" required maxLength={120} placeholder="GA and AL captive agents: calls" /></label>
             <div className="row" style={{ flexWrap: 'nowrap' }}>
