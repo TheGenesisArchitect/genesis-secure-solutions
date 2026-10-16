@@ -153,7 +153,7 @@ try {
   // 4. Page names that used to be wrong.
   check(/on Carriers/.test((await drawer()) ?? ''), `Carriers is Carriers, not Overview (${((await drawer()) ?? '').split('\n')[0]})`);
   await typeAsk('make a note: follow up with Riverside on Friday');
-  check(await waitFor(async () => /In Helix notes · Open/.test((await drawer()) ?? '')), 'typed “make a note” saves it, with an Open link');
+  check(await waitFor(async () => /In Helix notes · Open/i.test((await drawer()) ?? '')), 'typed “make a note” saves it, with an Open link');
   const tnote = must(await db.from('helix_notes').select('chapter, kind, asked_by').like('text', 'Verify copilot typed%').maybeSingle(), 'typed note');
   check(!!tnote && tnote.chapter === 'helix' && tnote.asked_by === admin.user_id, 'in the team’s Helix notes with who asked');
   await ev(`[...document.querySelectorAll('.helix-drawer a')].find((a) => /In Helix notes/.test(a.textContent))?.click()`);
@@ -168,7 +168,7 @@ try {
   await ev(`document.querySelector('.helix-fab')?.click()`); await sleep(600);
   check(/on Setup/.test((await drawer()) ?? ''), 'agency Setup is Setup, not Home');
   await typeAsk('make a note: agency call the dealership on Monday');
-  check(await waitFor(async () => /In Helix notes · Open/.test((await drawer()) ?? '')), 'agency typed note saved with an Open link');
+  check(await waitFor(async () => /In Helix notes · Open/i.test((await drawer()) ?? '')), 'agency typed note saved with an Open link');
   const anote = must(await db.from('helix_notes').select('chapter, tenant_id').like('text', 'Verify copilot typed agency%').maybeSingle(), 'agency note');
   check(!!anote && anote.chapter === 'agency' && anote.tenant_id === t.id, 'in the agency’s own Helix notes');
   for (const [p, name] of [['approvals', 'Approvals'], ['team', 'Team'], ['program', 'Your program']]) {
