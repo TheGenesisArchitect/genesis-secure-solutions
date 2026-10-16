@@ -3,7 +3,8 @@ import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Tile, Chip, Status, Empty, Bar, STAGES, STAGE_LABEL, money, dateTime, daysSince, type Stage } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/session';
-import { EnterpriseMorningBrief } from '@/components/EnterpriseHelix';
+import { CommandBrief } from '@/components/CommandBrief';
+import { enterpriseCards } from '@/lib/command-brief';
 import { canSeeMoney, cfoLine } from '@/lib/helix-enterprise';
 import { businessToday } from '@/lib/billing';
 import { HOUSE_SLUG } from '@/lib/phone-line';
@@ -57,7 +58,7 @@ export default async function ConsoleHome({ searchParams }: { searchParams: Prom
       }
     >
       <Flash ok={sp.ok} err={sp.err} />
-      <EnterpriseMorningBrief initial={(cached?.body as { answer: string } | undefined) ?? null} money={cfo} />
+      <CommandBrief surface="enterprise" initial={(cached?.body as { answer: string } | undefined) ?? null} money={cfo} cards={await enterpriseCards(supabase)} sources="From sales, pipeline, clients, Studio and spend" />
       {samples ? <div className="notice sample">Sample clients are included. Their numbers are illustrative and marked Sample.</div> : null}
       <div className="grid g4">
         <Tile label="Clients" value={<span className="num">{ts.length}</span>} hint={`${counts.care} in care · ${ts.length - counts.care} in setup`} />

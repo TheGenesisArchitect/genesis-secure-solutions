@@ -854,9 +854,55 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 @media (max-width:760px){.whats-new{left:14px;right:14px;bottom:140px;width:auto}}
 /* Helix teaching the menu: the page it is about to open lights up in the menu first. */
 .rail a.menu-teach{position:relative;outline:2px solid var(--accent);outline-offset:2px;border-radius:10px;background:color-mix(in srgb,var(--accent) 18%,transparent);animation:menu-teach 1s ease-in-out infinite}
-.rail a.menu-teach::after{content:attr(data-teach);position:absolute;right:8px;top:50%;transform:translateY(-50%);white-space:nowrap;padding:5px 10px;border-radius:999px;background:var(--accent);color:var(--on-accent,#160803);font-size:12px;font-weight:700;pointer-events:none;z-index:5}
+.rail a.menu-teach{margin-bottom:26px}
+.rail a.menu-teach::after{content:attr(data-teach);position:absolute;left:8px;top:calc(100% + 6px);white-space:nowrap;padding:5px 10px;border-radius:999px;background:var(--accent);color:var(--on-accent,#160803);font-size:12px;font-weight:700;pointer-events:none;z-index:5}
 @keyframes menu-teach{50%{outline-offset:5px}}
 @media (prefers-reduced-motion:reduce){.rail a.menu-teach{animation:none}}
+/* The Command Brief: the day, ready to run. */
+.cb{display:grid;gap:16px;padding:20px;border-radius:22px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));background:radial-gradient(120% 140% at 0% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 55%),var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.cb-hero{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:start}
+.cb-egg{width:44px;transform:rotate(-8deg);filter:drop-shadow(0 6px 18px color-mix(in srgb,var(--accent) 55%,transparent));animation:cb-bob 4s ease-in-out infinite}
+@keyframes cb-bob{50%{transform:rotate(-4deg) translateY(-3px)}}
+.cb-hello{display:grid;gap:6px;min-width:0}
+.cb-eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--link)}
+.cb-hello h2{margin:0;font-size:clamp(20px,2.4vw,28px);line-height:1.2;letter-spacing:-.01em;color:var(--ink)}
+.cb-money{margin:0;font-size:14px;color:var(--soft)}
+.cb-more{justify-self:start;padding:0;border:0;background:none;color:var(--link);font-weight:600;font-size:13px;cursor:pointer}
+.cb-full{margin:0;white-space:pre-wrap;color:var(--soft);font-size:14px;line-height:1.55}
+.cb-progress{position:relative;display:grid;justify-items:end;gap:2px;min-width:92px;padding-bottom:8px}
+.cb-progress b{font-size:30px;line-height:1;color:var(--ink)}
+.cb-progress b span{font-size:16px;color:var(--muted)}
+.cb-progress>span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.cb-progress i{position:absolute;right:0;bottom:0;height:4px;border-radius:4px;background:var(--grad,var(--accent));transition:width .6s ease}
+.cb-progress::after{content:'';position:absolute;right:0;bottom:0;width:92px;height:4px;border-radius:4px;background:var(--line);z-index:-1}
+.cb-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.cb-filter{display:flex;flex-wrap:wrap;gap:6px}
+.cb-filter button{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--soft);font-size:13px;font-weight:600;cursor:pointer}
+.cb-filter button span{margin-left:4px;color:var(--muted)}
+.cb-filter button[aria-pressed=true]{border-color:var(--accent);color:var(--ink);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.cb-card{display:grid;gap:8px;align-content:start;padding:14px;border-radius:16px;border:1px solid var(--line);background:var(--raise);transition:transform .2s ease,box-shadow .2s ease,opacity .4s ease;animation:cb-in .45s ease both}
+.cb-grid .cb-card:nth-child(2){animation-delay:.05s}.cb-grid .cb-card:nth-child(3){animation-delay:.1s}.cb-grid .cb-card:nth-child(4){animation-delay:.15s}.cb-grid .cb-card:nth-child(n+5){animation-delay:.2s}
+@keyframes cb-in{from{opacity:0;transform:translateY(8px)}}
+.cb-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.cb-card.urgent{border-color:color-mix(in srgb,var(--accent) 60%,var(--line));background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 12%,var(--raise)),var(--raise))}
+.cb-card.idea{border-style:dashed}
+.cb-card.done{opacity:.55}
+.cb-card.done .cb-title{text-decoration:line-through;text-decoration-color:var(--muted)}
+.cb-card header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cb-lane{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--link)}
+.cb-check{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);background:transparent;color:var(--on-done,#fff);font-weight:800;cursor:pointer;flex:0 0 auto}
+.cb-check[aria-pressed=true]{background:var(--done,#0f8a55);border-color:var(--done,#0f8a55);animation:cb-pop .35s ease}
+@keyframes cb-pop{50%{transform:scale(1.25)}}
+.cb-title{font-size:16px;line-height:1.3;color:var(--ink)}
+.cb-why{margin:0;font-size:13px;line-height:1.45;color:var(--soft)}
+.cb-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px}
+.cb-actions .btn{min-height:36px}
+.cb-helix{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:0 6px;border:0;background:none;color:var(--link);font-size:12px;font-weight:700;cursor:pointer}
+.cb-helix img{width:14px;transform:rotate(-8deg)}
+.cb-clear{margin:0;color:var(--soft)}
+.cb-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px}
+@media (max-width:760px){.cb{padding:16px;border-radius:18px}.cb-hero{grid-template-columns:auto minmax(0,1fr)}.cb-progress{grid-column:1/-1;justify-items:start;grid-auto-flow:column;align-items:baseline;gap:8px}.cb-progress i,.cb-progress::after{left:0;right:auto}.cb-grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.cb-card,.cb-egg{animation:none}.cb-card:hover{transform:none}}
 .helix-saved{margin:0;font-size:11px;line-height:1.4}
 .helix-spoken{display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px;background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink)}
 .helix-moved::before,.helix-moved::after{content:"";flex:1;height:1px;background:var(--line)}

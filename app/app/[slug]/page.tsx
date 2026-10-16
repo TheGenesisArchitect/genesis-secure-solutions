@@ -8,7 +8,8 @@ import { PROGRAM_NAME, programOf } from '@/lib/programs';
 import { accessFor } from '@/lib/access';
 import { businessToday } from '@/lib/billing';
 import { LINES, momentsNow } from '@/lib/lines';
-import { MorningBrief } from '@/components/MorningBrief';
+import { CommandBrief } from '@/components/CommandBrief';
+import { agencyCards } from '@/lib/command-brief';
 
 export const metadata = { title: 'Home' };
 export const dynamic = 'force-dynamic';
@@ -65,11 +66,13 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   const [{ data: brief }, { data: prof }] = showBrief
     ? await Promise.all([supabase.from('helix_briefs').select('body').eq('tenant_id', tid).eq('day', businessToday()).maybeSingle(), supabase.from('agency_profiles').select('lines').eq('tenant_id', tid).maybeSingle()])
     : [{ data: null }, { data: null }];
+  // The day's action cards, from this agency's own records (only when the brief shows).
+  const cards = showBrief ? await agencyCards(supabase, tid, slug, { isOwner: ctx.isOwner, has: (k) => access.has(k) }) : [];
   const moment = momentsNow(prof?.lines)[0];
   const pulse = moment ? `Market: ${LINES[moment.line].label} ${moment.label.toLowerCase()} ${moment.starting ? 'starts next month' : 'is on now'}` : null;
   return (
     <AgencyShell ctx={ctx} title={`Welcome back`} film={film}>
-      {showBrief ? <MorningBrief slug={slug} tenantId={tid} initial={(brief?.body as never) ?? null} pulse={pulse} /> : null}
+      {showBrief ? <CommandBrief surface="agency" slug={slug} tenantId={tid} initial={(brief?.body as never) ?? null} cards={cards} pulse={pulse} sources="From your leads, calls, calendar, partners and market" /> : null}
       <div className="grid g4">
         <Tile label="Where you are" value={STAGE_LABEL[t?.stage as Stage] ?? '—'} hint={t?.stage === 'care' ? 'Live, with monthly care' : 'Getting you live'} />
         <Tile label="Your program" value={t?.plan ? PROGRAM_NAME[program] : PLAN_LABEL[t?.plan ?? ''] ?? '—'} hint={<Link href={`${base}/program`}>{t?.care_plan ? `Care: ${t.care_plan} · see what’s included` : 'See what’s included'}</Link>} />
