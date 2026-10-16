@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { AskHelixAgency } from './AskHelixAgency';
 import { HelixTour } from './vision/HelixTour';
 import { HelixDock } from './HelixHost';
+import { pageNameFor } from '@/lib/agency-nav';
 
 type Ask = { question?: string; context?: string };
 const EVT = 'genovus:helix';
@@ -27,9 +28,11 @@ const PAGE: { match: RegExp; name: string; suggest: string[] }[] = [
 ];
 const HOME = { name: 'Home', suggest: ['What should I do first today?', 'Where did my leads come from this month?', 'Which partner should I call this week?'] };
 
-export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string }) {
+export function HelixDrawer({ slug, tenantId, pages = [] }: { slug: string; tenantId: string; pages?: { label: string; href: string }[] }) {
   const path = usePathname();
-  const page = PAGE.find((p) => p.match.test(path)) ?? HOME;
+  const known = PAGE.find((p) => p.match.test(path)) ?? HOME;
+  // The page's name from the menu itself (so Setup is Setup, not Home); suggestions where we have them.
+  const page = { name: pageNameFor(path, pages) ?? known.name, suggest: known.suggest };
   return (
     <HelixDock
       slug={slug}

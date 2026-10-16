@@ -167,7 +167,7 @@ try {
   check(await waitFor(async () => (await ev('location.pathname')) === `${BASE}/today` && /Turn alerts on for this device/.test((await ev(`document.querySelector('.qt-card')?.innerText`)) ?? '') && !!(await ev(`!!document.querySelector('.hx-spot.tour')`)), 8000), 'Show me opens Today and points at the alerts card (Quick Helix Tour, step 1)');
   await send('Page.captureScreenshot', { format: 'png' }).then((s) => fs.writeFileSync(path.join(OUT, 'notify-tour.png'), Buffer.from(s.result.data, 'base64')));
   await ev(`[...document.querySelectorAll('.qt-card button')].find((b) => /Next/.test(b.textContent))?.click()`);
-  check(await waitFor(async () => /2 of 2/.test((await ev(`document.querySelector('.qt-card')?.innerText`)) ?? '')), 'Next goes to step 2');
+  check(await waitFor(async () => /2 of 2/i.test((await ev(`document.querySelector('.qt-card')?.innerText`)) ?? '')), 'Next goes to step 2');
   await ev(`[...document.querySelectorAll('.qt-card button')].find((b) => /Got it/.test(b.textContent))?.click()`); await sleep(400);
   check(!(await ev(`!!document.querySelector('.qt-card, .whats-new')`)) && /lead-alerts-2026-10-15/.test((await ev(`localStorage.getItem('genovus-whats-new')`)) ?? ''), 'Got it closes it, and it’s seen on this device');
   await go(`${BASE}/leads`); await sleep(3500);
@@ -177,6 +177,17 @@ try {
   check(await waitFor(async () => /Helix updates leads, with your yes/.test((await ev(`document.querySelector('.whats-new')?.innerText`)) ?? ''), 8000), 'next session: the next upgrade');
   await ev(`[...document.querySelectorAll('.whats-new button')].find((b) => /Try it/.test(b.textContent))?.click()`);
   check(await waitFor(async () => !!(await ev(`(() => { const d = document.querySelector('.helix-drawer'); return d && !d.hidden; })()`)) && /mark <a lead’s name> called/.test((await ev(`document.querySelector('.qt-card')?.innerText`)) ?? '')), 'Try it opens Ask Helix and points at where to type, with an example');
+
+  // 5. Every update stays on the What's new page, replayable.
+  await go(`${BASE}/whats-new`);
+  const arch = (await ev(`document.querySelector('.whats-new-list')?.innerText`)) ?? '';
+  check(['New-lead alerts on your phone', 'Helix updates leads, with your yes', 'Push-to-talk and hands-free', 'Helix takes you there', 'Helix remembers the conversation'].every((x) => arch.includes(x)), 'the What’s new page lists every update');
+  const badges = await ev(`[...document.querySelectorAll('.whats-new-item')].map((li) => li.querySelector('b').textContent + '=' + li.querySelector('.chip').textContent)`);
+  check(badges.includes('New-lead alerts on your phone=Seen') && badges.includes('Helix updates leads, with your yes=Seen') && badges.includes('Push-to-talk and hands-free=New'), `with the ones already seen marked Seen and the rest New (${badges.join('; ')})`);
+  check(!!(await ev(`[...document.querySelectorAll('.rail a')].some((a) => a.getAttribute('href') === '${BASE}/whats-new')`)), 'and it’s in the menu (so Ctrl+K and Helix can open it)');
+  await ev(`[...document.querySelectorAll('.whats-new-item')].find((li) => /Helix takes you there/.test(li.innerText))?.querySelector('button')?.click()`);
+  check(await waitFor(async () => /Tap Talk, then say where to go/.test((await ev(`document.querySelector('.qt-card')?.innerText`)) ?? '')), 'Show me replays that update’s Quick Helix Tour from the archive');
+  await send('Page.captureScreenshot', { format: 'png' }).then((s) => fs.writeFileSync(path.join(OUT, 'notify-archive.png'), Buffer.from(s.result.data, 'base64')));
 } finally {
   must(await db.from('module_grants').delete().eq('tenant_id', t.id).eq('reason', REASON), 'remove grants');
   must(await db.from('leads').delete().eq('tenant_id', t.id).like('ext_id', 'nt-%'), 'remove nt leads');

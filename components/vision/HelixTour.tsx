@@ -98,6 +98,22 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const loud = useRef(0);
   const tokens = useRef(0);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+  // Ask Helix: when the person moves to another page themselves, tell voice Helix quietly (no reply), so "this page"
+  // means the page they're on. Skipped when Helix did the moving (its tool result says so); held while it's speaking.
+  const selfNav = useRef(false);
+  const pendingPage = useRef<string | null>(null);
+  const lastToldPage = useRef<string | undefined>(page);
+  useEffect(() => {
+    if (!ask || !page || page === lastToldPage.current) return;
+    if (selfNav.current) { selfNav.current = false; lastToldPage.current = page; return; }
+    pendingPage.current = page;
+  }, [ask, page]);
+  useEffect(() => {
+    const p = pendingPage.current;
+    if (!p || speaking || ws.current?.readyState !== WebSocket.OPEN) return;
+    pendingPage.current = null; lastToldPage.current = p;
+    ws.current.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: `(Context, not a request: the person just opened the ${p} page themselves.)` }] }], turnComplete: false } }));
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   // A tap on the confirmation card or Undo while voice is live: tell Helix, so it says what happened.
   useEffect(() => {
     const onSaid = (e: Event) => { const t = String((e as CustomEvent).detail?.text ?? ''); if (t && ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify({ realtimeInput: { text: t } })); };
@@ -174,7 +190,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const p = pages.current.find((x) => x.label.toLowerCase() === String(args.page ?? '').toLowerCase());
       if (!p) return { ok: false, error: 'not one of this person’s pages', pages: pages.current.map((x) => x.label) };
       setSpot(null);
-      if (pathRef.current !== p.href) router.push(p.href);
+      if (pathRef.current !== p.href) { selfNav.current = true; router.push(p.href); }
       const landed = await waitFor(() => pathRef.current === p.href, 8000);
       return landed ? { ok: true, page: p.label } : { ok: false, error: 'the page is still loading' };
     }
@@ -184,7 +200,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const matches = () => [...document.querySelectorAll<HTMLElement>('[data-helix-item]')].filter((e) => e.dataset.helixItem!.toLowerCase().includes(want));
       if (!matches().length) {
         const leads = pages.current.find((x) => /\/leads$/.test(x.href));
-        if (leads && pathRef.current !== leads.href) { router.push(leads.href); await waitFor(() => pathRef.current === leads.href && matches().length > 0, 8000); }
+        if (leads && pathRef.current !== leads.href) { selfNav.current = true; router.push(leads.href); await waitFor(() => pathRef.current === leads.href && matches().length > 0, 8000); }
       }
       const found = matches();
       if (!found.length) return { ok: false, error: `no lead named ${args.name} on ${pageRef.current ?? 'this page'}` };

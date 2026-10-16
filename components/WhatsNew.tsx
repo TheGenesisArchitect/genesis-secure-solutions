@@ -1,15 +1,23 @@
 'use client';
 // What's new, made usable on the spot: one small toast per session for the newest upgrade this person hasn't seen,
 // with "Show me" (a Quick Helix Tour: a few spotlights on the real controls) and "Try it" (opens the feature and
-// points at where to start). Seen once per device. Entries live in lib/whats-new.ts.
+// points at where to start). Seen once per device. Every upgrade stays on the What's new page (WhatsNewArchive),
+// where any of them can be replayed. Entries live in lib/whats-new.ts.
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { WHATS_NEW, type TourStep, type WhatsNew as Entry } from '@/lib/whats-new';
 
 const SEEN = 'genovus-whats-new';
+const RUN = 'genovus:whats-new-run';
 const seen = (): string[] => { try { return JSON.parse(localStorage.getItem(SEEN) ?? '[]'); } catch { return []; } };
 const markSeen = (id: string) => { try { localStorage.setItem(SEEN, JSON.stringify([id, ...seen().filter((x) => x !== id)].slice(0, 100))); } catch {} };
+// This session's toast: the id being shown (it comes back after a reload until acted on), or 'done'.
+const session = (v?: string) => { try { if (v) sessionStorage.setItem(SEEN, v); return sessionStorage.getItem(SEEN); } catch { return 'done'; } };
+const forSurface = (surface: 'agency' | 'enterprise') => WHATS_NEW.filter((w) => w.surfaces.includes(surface)).sort((a, b) => b.date.localeCompare(a.date));
+
+/** Replay an upgrade's Quick Helix Tour (or its Try it) from anywhere, e.g. the What's new page. */
+export const runWhatsNew = (id: string, mode: 'tour' | 'try') => window.dispatchEvent(new CustomEvent(RUN, { detail: { id, mode } }));
 
 export function WhatsNew({ surface, base }: { surface: 'agency' | 'enterprise'; base?: string }) {
   const router = useRouter();
@@ -17,17 +25,30 @@ export function WhatsNew({ surface, base }: { surface: 'agency' | 'enterprise'; 
   const [entry, setEntry] = useState<Entry | null>(null);
   const [tour, setTour] = useState<{ steps: TourStep[]; i: number } | null>(null);
   const [box, setBox] = useState<DOMRect | null>(null);
-  // One per session, a moment after the page settles: the newest upgrade for this surface not seen on this device.
+  // One per session, a moment after the page settles: the newest upgrade for this surface not seen on this device
+  // (or the one already showing before a reload).
   useEffect(() => {
-    let shown = false;
-    try { shown = sessionStorage.getItem(SEEN) === '1'; } catch {}
-    if (shown) return;
+    const now = session();
+    if (now === 'done') return;
     const t = setTimeout(() => {
-      const next = WHATS_NEW.filter((w) => w.surfaces.includes(surface) && !seen().includes(w.id)).sort((a, b) => b.date.localeCompare(a.date))[0];
-      if (next) { setEntry(next); try { sessionStorage.setItem(SEEN, '1'); } catch {} }
+      const list = forSurface(surface);
+      const next = (now && list.find((w) => w.id === now && !seen().includes(w.id))) || list.find((w) => !seen().includes(w.id));
+      if (next) { session(next.id); setEntry(next); }
     }, 2500);
     return () => clearTimeout(t);
   }, [surface]);
+  // Replays from the What's new page.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; mode: 'tour' | 'try' }>).detail;
+      const w = WHATS_NEW.find((x) => x.id === d?.id);
+      if (!w) return;
+      setEntry(w);
+      setTour({ steps: d.mode === 'try' ? [w.tryIt] : w.tour, i: 0 });
+    };
+    window.addEventListener(RUN, on);
+    return () => window.removeEventListener(RUN, on);
+  }, []);
 
   // Run a step: open its page and/or Ask Helix, then find what to point at.
   const step = tour?.steps[tour.i];
@@ -51,9 +72,10 @@ export function WhatsNew({ surface, base }: { surface: 'agency' | 'enterprise'; 
     return () => { live = false; cancelAnimationFrame(raf); };
   }, [step, base, router, path]);
 
-  const close = () => { if (entry) markSeen(entry.id); setEntry(null); setTour(null); };
-  const show = () => { if (entry) setTour({ steps: entry.tour, i: 0 }); };
-  const tryIt = () => { if (entry) setTour({ steps: [entry.tryIt], i: 0 }); };
+  const close = () => { if (entry) markSeen(entry.id); session('done'); setEntry(null); setTour(null); };
+  // Opening the tour or trying it counts as seeing it (it stays on the What's new page for later).
+  const show = () => { if (entry) { markSeen(entry.id); session('done'); setTour({ steps: entry.tour, i: 0 }); } };
+  const tryIt = () => { if (entry) { markSeen(entry.id); session('done'); setTour({ steps: [entry.tryIt], i: 0 }); } };
   if (!entry) return null;
 
   if (tour && step) {
@@ -87,7 +109,34 @@ export function WhatsNew({ surface, base }: { surface: 'agency' | 'enterprise'; 
         <button type="button" className="btn small primary" onClick={show}>Show me</button>
         <button type="button" className="btn small" onClick={tryIt}>Try it</button>
         <button type="button" className="btn small ghost" onClick={close} aria-label="Dismiss what’s new">Not now</button>
+        <a className="btn small ghost" href={base ? `${base}/whats-new` : '/console/whats-new'} onClick={() => { markSeen(entry.id); session('done'); }}>All updates</a>
       </span>
     </div>
+  );
+}
+
+/** The What's new page: every upgrade for this surface, newest first, each replayable. Seen ones are marked. */
+export function WhatsNewArchive({ surface }: { surface: 'agency' | 'enterprise' }) {
+  const [seenIds, setSeenIds] = useState<string[]>([]);
+  useEffect(() => { setSeenIds(seen()); }, []);
+  const list = forSurface(surface);
+  const run = (id: string, mode: 'tour' | 'try') => { markSeen(id); setSeenIds(seen()); runWhatsNew(id, mode); };
+  return (
+    <ul className="whats-new-list">
+      {list.map((w) => (
+        <li key={w.id} className="whats-new-item" data-helix-item={w.title}>
+          <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <b>{w.title}</b>
+            {seenIds.includes(w.id) ? <span className="chip">Seen</span> : <span className="chip info">New</span>}
+            <span className="muted" style={{ fontSize: 12 }}>{new Date(`${w.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>
+          </span>
+          <p>{w.line}</p>
+          <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <button type="button" className="btn small primary" onClick={() => run(w.id, 'tour')}>Show me</button>
+            <button type="button" className="btn small" onClick={() => run(w.id, 'try')}>Try it</button>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -20,6 +20,8 @@ export type HelixTurn = {
   followUps?: { who: string; reason: string; due: string; at: string }[];
   drafts?: { to: string; channel: string; body: string }[];
   remember?: { department: string; kind: string; text: string }[];
+  /** A note Helix saved when asked ("make a note"), with where to open it. */
+  savedNote?: { href: string; kind: string; text: string };
 };
 /**
  * `asked`: the last "Ask Helix" button press already answered, so a chat that remounts never asks it twice.

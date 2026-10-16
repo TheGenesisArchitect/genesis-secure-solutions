@@ -24,6 +24,8 @@ export type HelixReply = {
   go?: string;
   /** A change Helix proposes (confirm lane, lib/helix-act.ts); the route signs it for one tap. Never saved. */
   propose?: Record<string, string>;
+  /** "Make a note": saved by the route to Helix notes (lib/helix-note-save.ts). */
+  note?: { kind: string; text: string };
   /** Set by the server once the gap is filed as a Helix note. */
   noted?: boolean;
   model: string;
@@ -109,6 +111,7 @@ function parse(raw: string, model: string): HelixReply {
     unknown: j.unknown === true,
     gap: s(j.gap, 200),
     go: s((j as { go?: unknown }).go, 60) || undefined,
+    note: (() => { const n = (j as { note?: { kind?: unknown; text?: unknown } }).note; return n && typeof n === 'object' && typeof n.text === 'string' && n.text.trim().length > 1 ? { kind: s(n.kind, 20), text: s(n.text, 600) } : undefined; })(),
     propose: (() => { const p = (j as { propose?: unknown }).propose; return p && typeof p === 'object' && !Array.isArray(p) ? Object.fromEntries(Object.entries(p as Record<string, unknown>).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k.slice(0, 20), String(v).slice(0, 300)]).slice(0, 8)) : undefined; })(),
     model,
   };

@@ -65,6 +65,7 @@ export function consoleNav(role: string | null, counts?: { approvals?: Promise<n
           title: 'Oversee',
           items: [
             { href: '/console/audit', label: 'Audit log' },
+            { href: '/console/whats-new', label: 'What’s new', icon: 'helix' },
             ...(role === 'admin' ? [{ href: '/console/setup', label: 'Domains & email' }] : []),
             { href: '/console/meta', label: 'Meta connector', plain: true },
           ],

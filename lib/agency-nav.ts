@@ -36,6 +36,7 @@ export function agencyNav(base: string, has: (k: string) => boolean, opts: { isO
         { href: `${base}/assets`, label: 'Assets & documents' },
         ...(opts.isOwner ? [{ href: `${base}/billing`, label: 'Billing & maintenance' }] : []),
         { href: `${base}/team`, label: 'Team' },
+        { href: `${base}/whats-new`, label: 'What’s new', icon: 'helix' },
         { href: `${base}/program`, label: 'Your program', icon: 'overview' },
       ],
     },
@@ -43,8 +44,19 @@ export function agencyNav(base: string, has: (k: string) => boolean, opts: { isO
   ];
 }
 
-/** Pages Helix can take someone to by voice or text: the menu, minus the pages that would end a voice session
- *  (the full Ask Helix page, the Studio) and the hop out to the console. */
+/** Pages Helix can take someone to by voice or text: the menu, minus only the pages that would end a voice session
+ *  (the full Ask Helix page of an agency or the console, and the Studio) and the hop from an agency to the console. */
+const OFF = /^\/app\/[^/]+\/helix$|^\/console\/helix\/ask$|^\/console\/studio(\/|$)|^\/console\/clients\/[^/]+$/;
 export function helixPages(nav: NavSection[]): { label: string; href: string }[] {
-  return nav.flatMap((s) => s.items).filter((i) => !/\/helix$|^\/console\/(studio|helix\/ask)|^\/console\/clients\//.test(i.href)).map((i) => ({ label: i.label, href: i.href }));
+  return nav.flatMap((s) => s.items).filter((i) => !OFF.test(i.href)).map((i) => ({ label: i.label, href: i.href }));
+}
+
+/** Every menu page with its name, for telling Helix which page the person is on. */
+export const navPages = (nav: NavSection[]): { label: string; href: string }[] => nav.flatMap((s) => s.items).map((i) => ({ label: i.label, href: i.href }));
+
+/** The page the person is on, by the longest menu link that matches the address (a client page is "Clients"). */
+export function pageNameFor(path: string, pages: { label: string; href: string }[]): string | null {
+  let best: { label: string; href: string } | null = null;
+  for (const p of pages) if ((path === p.href || path.startsWith(p.href + '/')) && (!best || p.href.length > best.href.length)) best = p;
+  return best?.label ?? null;
 }

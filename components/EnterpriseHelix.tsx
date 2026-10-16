@@ -5,10 +5,12 @@
 // which a person keeps with one tap (nothing is remembered silently). Shares the agency drawer's look.
 // The console layout mounts it once (HelixHost), so the conversation travels with you from page to page.
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { helixAsk } from './HelixDrawer';
 import { HelixTour } from './vision/HelixTour';
 import { HelixDock, useHelixThread } from './HelixHost';
+import { pageNameFor } from '@/lib/agency-nav';
 import { helixNote, rememberEnterprise } from '@/lib/helix-memory-actions';
 
 type Memory = { department: string; kind: string; text: string };
@@ -50,7 +52,7 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
     if (r.j.threadId) setThreadId(r.j.threadId);
     // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
     if (r.okay && r.j.go?.href) router.push(r.j.go.href);
-    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
   // Each "Ask Helix" button press asks once, adding to the thread.
@@ -71,7 +73,8 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
           {i > 0 && t.role === 'user' && t.page && turns[i - 1].page && t.page !== turns[i - 1].page ? <div className="helix-moved">→ {t.page}</div> : null}
           <div className={`helix-turn ${t.role}`}>
             <p>{t.channel === 'voice' ? <span className="helix-spoken">Spoken</span> : null}{t.text}</p>
-            {t.noted ? <a className="chip info" href="/console/helix" style={{ justifySelf: 'start' }}>Added to Helix notes</a> : null}
+            {t.noted ? <Link className="chip info" href="/console/helix" style={{ justifySelf: 'start' }}>Added to Helix notes</Link> : null}
+            {t.savedNote ? <Link className="chip info" href={t.savedNote.href} style={{ justifySelf: 'start' }}>In Helix notes · Open</Link> : null}
             {t.drafts?.map((d, j) => (
               <div key={j} className="helix-card draft"><span className="muted" style={{ fontSize: 12 }}>Draft {d.channel}{d.to ? ` to ${d.to}` : ''} · you send it</span><p style={{ margin: 0 }}>{d.body}</p><button className="btn small" type="button" onClick={() => navigator.clipboard.writeText(d.body).then(() => toast({ ok: 'Draft copied.' }), () => toast({ err: 'Copy failed: select the text instead.' }))}>Copy</button></div>
             ))}
@@ -117,9 +120,11 @@ export function EnterpriseVoice({ path, autoStart, where, page }: { path: string
 }
 
 /** The drawer on every console page. */
-export function EnterpriseHelixDrawer() {
+export function EnterpriseHelixDrawer({ pages = [] }: { pages?: { label: string; href: string }[] }) {
   const path = usePathname();
-  const page = PAGES.find((p) => p.match.test(path)) ?? HOME;
+  const known = PAGES.find((p) => p.match.test(path)) ?? HOME;
+  // The page's name from the console menu itself (Carriers is Carriers, not Overview); suggestions where we have them.
+  const page = { name: pageNameFor(path, pages) ?? known.name, suggest: known.suggest };
   return (
     <HelixDock
       path={path}

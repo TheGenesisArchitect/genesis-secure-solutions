@@ -5,6 +5,7 @@
 // looking at (a page, a lead, a partner) and `start` asks a question straight away (`startN` counts the asks). The
 // drawer and the full page share one thread (HelixHost), so the conversation carries on as you move between pages.
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { addFollowUp } from '@/lib/actions';
 import { HelixActCard, useHelixThread } from './HelixHost';
@@ -32,7 +33,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
     if (r.okay && r.j.go?.href) router.push(r.j.go.href);
     // Helix proposed a change: show it for a yes (one tap); nothing happens until then.
     if (r.okay && r.j.proposal) act?.show(r.j.proposal);
-    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, followUps: r.j.followUps, drafts: r.j.drafts, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
   // Each "Ask Helix" button press asks once, adding to the thread.
@@ -59,6 +60,7 @@ export function AskHelixAgency({ slug, tenantId, context, suggest = SUGGEST, sta
           <div className={`helix-turn ${t.role}`}>
             <p>{t.channel === 'voice' ? <span className="helix-spoken">Spoken</span> : null}{t.text}</p>
             {t.noted ? <span className="chip info" style={{ justifySelf: 'start' }}>Sent to the Genovus team</span> : null}
+            {t.savedNote ? <Link className="chip info" href={t.savedNote.href} style={{ justifySelf: 'start' }}>{t.savedNote.kind === 'question' ? 'Sent to the Genovus team' : 'In Helix notes'} · Open</Link> : null}
             {t.followUps?.map((f, j) => (
               <div key={j} className="helix-card"><span><b>Follow-up:</b> {f.who} · {f.due} {f.at}{f.reason ? ` · ${f.reason}` : ''}</span><button className="btn small primary" type="button" onClick={() => addFu(f)}>Add</button></div>
             ))}

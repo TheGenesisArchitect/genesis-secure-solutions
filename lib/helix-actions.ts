@@ -11,7 +11,8 @@ export type HelixPage = { label: string; href: string };
 
 /** The pages Helix may open for this person on this surface. */
 export async function helixPagesFor(viewer: Viewer, surface: 'agency' | 'enterprise', t?: { id: string; slug: string; plan: string | null }): Promise<HelixPage[]> {
-  if (surface === 'enterprise') return viewer.staff ? helixPages(consoleNav(viewer.staff.role)) : [];
+  // Enterprise also gets Helix knows (what Helix has learned), which sits under Helix notes rather than in the rail.
+  if (surface === 'enterprise') return viewer.staff ? [...helixPages(consoleNav(viewer.staff.role)), { label: 'Helix knows', href: '/console/helix/knows' }] : [];
   if (!t) return [];
   const access = await accessFor(t.id, t.plan);
   const m = viewer.memberships.find((x) => x.tenantId === t.id);

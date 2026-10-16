@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase/server';
 import { accessFor } from '@/lib/access';
 import { HelixThreadProvider } from '@/components/HelixHost';
 import { HelixDrawer } from '@/components/HelixDrawer';
+import { agencyNav, navPages } from '@/lib/agency-nav';
 
 export default async function AgencyLayout({ children, params }: LayoutProps<'/app/[slug]'>) {
   const { slug } = await params;
@@ -15,11 +16,14 @@ export default async function AgencyLayout({ children, params }: LayoutProps<'/a
     const { data } = await (await db()).from('tenants').select('id, plan').eq('slug', slug).maybeSingle();
     if (data) tenant = { tenantId: data.id, slug, name: '', role: 'owner', isSample: false, plan: data.plan };
   }
-  const helix = tenant ? (await accessFor(tenant.tenantId, tenant.plan)).has('helix') : false;
+  const access = tenant ? await accessFor(tenant.tenantId, tenant.plan) : null;
+  const helix = access?.has('helix') ?? false;
+  // The menu's own page names, so Helix always knows which page the person is on.
+  const pages = access ? navPages(agencyNav(`/app/${slug}`, (k) => access.has(k), { isOwner: true, programTitle: '' })) : [];
   return (
     <HelixThreadProvider surface={tenant && helix ? 'agency' : undefined} slug={slug}>
       {children}
-      {tenant && helix ? <HelixDrawer slug={slug} tenantId={tenant.tenantId} /> : null}
+      {tenant && helix ? <HelixDrawer slug={slug} tenantId={tenant.tenantId} pages={pages} /> : null}
     </HelixThreadProvider>
   );
 }

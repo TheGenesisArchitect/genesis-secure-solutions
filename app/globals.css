@@ -844,6 +844,9 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 .whats-new{position:fixed;left:20px;bottom:20px;z-index:65;display:grid;gap:6px;width:min(360px,calc(100vw - 40px));padding:14px;border-radius:16px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--surface);box-shadow:0 14px 40px rgba(0,0,0,.4)}
 .whats-new b{font-size:15px}
 .whats-new p,.qt-card p{margin:0;font-size:14px;line-height:1.45;color:var(--soft)}
+.whats-new-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.whats-new-item{display:grid;gap:8px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--raise)}
+.whats-new-item p{margin:0;font-size:14px;line-height:1.45;color:var(--soft)}
 .qt-eyebrow{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--link)}
 .qt-eyebrow img{width:16px;transform:rotate(-8deg)}
 .qt-card{position:fixed;z-index:95;display:grid;gap:10px;padding:14px;border-radius:16px;border:1px solid var(--accent);background:var(--surface);box-shadow:0 18px 50px rgba(0,0,0,.5)}

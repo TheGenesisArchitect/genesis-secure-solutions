@@ -3,13 +3,15 @@
 import { getViewer } from '@/lib/session';
 import { HelixThreadProvider } from '@/components/HelixHost';
 import { EnterpriseHelixDrawer } from '@/components/EnterpriseHelix';
+import { consoleNav } from '@/components/ConsoleShell';
+import { navPages } from '@/lib/agency-nav';
 
 export default async function ConsoleLayout({ children }: LayoutProps<'/console'>) {
   const v = await getViewer();
   return (
     <HelixThreadProvider surface={v?.staff ? 'enterprise' : undefined}>
       {children}
-      {v?.staff ? <EnterpriseHelixDrawer /> : null}
+      {v?.staff ? <EnterpriseHelixDrawer pages={[...navPages(consoleNav(v.staff.role)), { label: 'Helix knows', href: '/console/helix/knows' }]} /> : null}
     </HelixThreadProvider>
   );
 }
