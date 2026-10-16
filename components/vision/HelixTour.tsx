@@ -380,18 +380,23 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
 
   const toggleMic = () => { const v = !micOn; setMicOn(v); micOnRef.current = v; };
   // Push-to-talk: hold to open the mic; letting go closes it and tells Helix the person finished speaking.
-  const hold = () => { if (heldRef.current || phase !== 'live') return; heldRef.current = true; stopPlayback(); micOnRef.current = true; setMicOn(true); };
+  const phaseRef = useRef(phase);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  const hold = () => { if (heldRef.current || phaseRef.current !== 'live') return; heldRef.current = true; stopPlayback(); micOnRef.current = true; setMicOn(true); };
   const release = () => { if (!heldRef.current) return; heldRef.current = false; micOnRef.current = false; setMicOn(false); send({ realtimeInput: { audioStreamEnd: true } }); };
+  const holdRef = useRef(hold), releaseRef = useRef(release);
+  holdRef.current = hold; releaseRef.current = release;
+  // Registered once per push-to-talk switch, not per render: a re-render (holding Space re-renders) must not let go.
   useEffect(() => {
     if (!(embedded && ask && ptt)) return;
     const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName));
-    const down = (e: KeyboardEvent) => { if (e.code !== 'Space' || e.repeat || typing(e.target)) return; e.preventDefault(); hold(); };
-    const up = (e: KeyboardEvent) => { if (e.code !== 'Space') return; release(); };
-    const away = () => release();
-    const hidden = () => { if (document.hidden) release(); };
+    const down = (e: KeyboardEvent) => { if (e.code !== 'Space' || e.repeat || typing(e.target)) return; e.preventDefault(); holdRef.current(); };
+    const up = (e: KeyboardEvent) => { if (e.code !== 'Space') return; releaseRef.current(); };
+    const away = () => releaseRef.current();
+    const hidden = () => { if (document.hidden) releaseRef.current(); };
     window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', away); document.addEventListener('visibilitychange', hidden);
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', away); document.removeEventListener('visibilitychange', hidden); release(); };
-  }); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', away); document.removeEventListener('visibilitychange', hidden); releaseRef.current(); };
+  }, [embedded, ask, ptt]);
   const setPttPref = (v: boolean) => { pref('helix-ptt', v); setPtt(v); heldRef.current = false; micOnRef.current = !v; setMicOn(!v); };
   const setHandsPref = (v: boolean) => { pref('helix-hands', v); setHands(v); };
   const sendTyped = (e: React.FormEvent) => {

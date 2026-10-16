@@ -158,6 +158,7 @@ try {
   await tap(/Yes, do it/);
   const fuMade = await waitFor(async () => ((await db.from('follow_ups').select('id').eq('tenant_id', t.id).eq('reason', 'Verify act follow-up')).data ?? []).length === 1);
   check(fuMade, 'after the tap the follow-up exists');
+  await waitFor(async () => /Undo/.test((await ev(`document.querySelector('.helix-undo')?.innerText`)) ?? ''));
   await tap(/^Undo$/);
   check(await waitFor(async () => ((await db.from('follow_ups').select('id').eq('tenant_id', t.id).eq('reason', 'Verify act follow-up')).data ?? []).length === 0), 'Undo removes it');
 
