@@ -44,6 +44,18 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   const [speaking, setSpeaking] = useState(false);
   const [hush, setHush] = useState(false);
   const [micOn, setMicOn] = useState(true);
+  // Ask Helix on this device: push-to-talk (hold Space, or hold the button) and hands-free (keeps going past the
+  // session cap while the person is talking). Both are per-device choices; neither listens when nothing is open.
+  const pref = (k: string, v?: boolean) => { try { if (v !== undefined) localStorage.setItem(k, v ? '1' : '0'); return localStorage.getItem(k) === '1'; } catch { return false; } };
+  const [ptt, setPtt] = useState(false);
+  const [hands, setHands] = useState(false);
+  useEffect(() => { setPtt(pref('helix-ptt')); setHands(pref('helix-hands')); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const pttRef = useRef(false);
+  const handsRef = useRef(false);
+  useEffect(() => { handsRef.current = hands; }, [hands]);
+  useEffect(() => { pttRef.current = ptt; }, [ptt]);
+  const heldRef = useRef(false);
+  const lastSpoke = useRef(0);
   const [level, setLevel] = useState(0);
   const [caption, setCaption] = useState('');
   const [heard, setHeard] = useState('');
@@ -242,7 +254,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (sc.interrupted) { stopPlayback(); }
       for (const p of sc.modelTurn?.parts ?? []) if (p.inlineData?.data) play(p.inlineData.data, p.inlineData.mimeType ?? 'audio/pcm;rate=24000');
       if (sc.outputTranscription?.text) { turnText.current += sc.outputTranscription.text; setCaption(turnText.current); }
-      if (sc.inputTranscription?.text) { heardText.current += sc.inputTranscription.text; setHeard(heardText.current); }
+      if (sc.inputTranscription?.text) { heardText.current += sc.inputTranscription.text; setHeard(heardText.current); lastSpoke.current = Date.now(); }
       if (sc.turnComplete) {
         const said = turnText.current.trim(), you = heardText.current.trim();
         setLines((l) => [...l, ...(you ? [{ who: 'you' as const, text: you }] : []), ...(said ? [{ who: 'helix' as const, text: said }] : [])].slice(-40));
@@ -286,7 +298,8 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
           } else loud.current = 0;
           send({ realtimeInput: { audio: { data: b64(e.data.pcm), mimeType: 'audio/pcm;rate=16000' } } });
         };
-        setMicOn(true); micOnRef.current = true;
+        // Push-to-talk: the mic stays closed until Space (or the button) is held.
+        setMicOn(!pttRef.current); micOnRef.current = !pttRef.current;
       } catch {
         setMicOn(false); micOnRef.current = false;
         setErr('Microphone is off: type your questions below.');
@@ -336,7 +349,11 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const s = session.current; if (!s) return;
       const remaining = Math.max(0, s.max - Math.round((Date.now() - s.started) / 1000));
       setLeft(remaining);
-      if (remaining <= 30 && !wrapSent.current) { wrapSent.current = true; send({ realtimeInput: { text: 'We have 30 seconds left in this session. Wrap up warmly in one or two sentences.' } }); }
+      // Hands-free (Ask Helix): no wrap-up line, and if the person spoke in the last three minutes, a fresh session picks
+      // up quietly (it starts with the conversation so far). Otherwise it ends and waits for a tap.
+      const carryOn = ask && handsRef.current && Date.now() - lastSpoke.current < 180_000;
+      if (remaining <= 0 && carryOn) { end(); void start(); return; }
+      if (remaining <= 30 && !wrapSent.current && !(ask && handsRef.current)) { wrapSent.current = true; send({ realtimeInput: { text: 'We have 30 seconds left in this session. Wrap up warmly in one or two sentences.' } }); }
       if (remaining <= 0) end(convo ? 'Session time is up. Tap Talk to start again.' : 'Session time is up. Thanks for taking the tour.');
     }, 1000);
     return () => clearInterval(t);
@@ -362,6 +379,21 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
   };
 
   const toggleMic = () => { const v = !micOn; setMicOn(v); micOnRef.current = v; };
+  // Push-to-talk: hold to open the mic; letting go closes it and tells Helix the person finished speaking.
+  const hold = () => { if (heldRef.current || phase !== 'live') return; heldRef.current = true; stopPlayback(); micOnRef.current = true; setMicOn(true); };
+  const release = () => { if (!heldRef.current) return; heldRef.current = false; micOnRef.current = false; setMicOn(false); send({ realtimeInput: { audioStreamEnd: true } }); };
+  useEffect(() => {
+    if (!(embedded && ask && ptt)) return;
+    const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName));
+    const down = (e: KeyboardEvent) => { if (e.code !== 'Space' || e.repeat || typing(e.target)) return; e.preventDefault(); hold(); };
+    const up = (e: KeyboardEvent) => { if (e.code !== 'Space') return; release(); };
+    const away = () => release();
+    const hidden = () => { if (document.hidden) release(); };
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', away); document.addEventListener('visibilitychange', hidden);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', away); document.removeEventListener('visibilitychange', hidden); release(); };
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+  const setPttPref = (v: boolean) => { pref('helix-ptt', v); setPtt(v); heldRef.current = false; micOnRef.current = !v; setMicOn(!v); };
+  const setHandsPref = (v: boolean) => { pref('helix-hands', v); setHands(v); };
   const sendTyped = (e: React.FormEvent) => {
     e.preventDefault();
     const t = typed.trim(); if (!t) return;
@@ -420,6 +452,13 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
             ? <button type="button" className="hx-ic" onClick={() => { voicePref('off'); end(); }}>Voice off</button>
             : <button type="button" className="btn small primary" onClick={() => { voicePref('on'); void start(); }}>Talk</button>}
         </div>
+        {ask ? (
+          <div className="hx-bar-modes">
+            <button type="button" className="hx-chip" aria-pressed={ptt} onClick={() => setPttPref(!ptt)} title="Hold Space (or the Hold to talk button) to speak; the mic is closed otherwise">Push-to-talk</button>
+            <button type="button" className="hx-chip" aria-pressed={hands} onClick={() => setHandsPref(!hands)} title="Keep the conversation going past the 10-minute session while you're talking">Hands-free</button>
+            {ptt && phase === 'live' ? <button type="button" className={'btn small' + (micOn ? ' primary' : '')} onPointerDown={(e) => { e.preventDefault(); hold(); }} onPointerUp={release} onPointerLeave={release} onPointerCancel={release} onContextMenu={(e) => e.preventDefault()}>{micOn ? 'Listening… let go to send' : 'Hold to talk (or Space)'}</button> : null}
+          </div>
+        ) : null}
         {live && (heardLine || saidLine) ? (
           <div className="hx-bar-lines">
             {heardLine ? <p className="hx-line you"><span>You</span>{heardLine}</p> : null}

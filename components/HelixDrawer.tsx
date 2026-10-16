@@ -32,6 +32,7 @@ export function HelixDrawer({ slug, tenantId }: { slug: string; tenantId: string
   const page = PAGE.find((p) => p.match.test(path)) ?? HOME;
   return (
     <HelixDock
+      slug={slug}
       path={path}
       pageName={page.name}
       fullHref={`/app/${slug}/helix`}

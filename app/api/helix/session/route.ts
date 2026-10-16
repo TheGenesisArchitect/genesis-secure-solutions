@@ -77,7 +77,8 @@ export async function POST(req: Request) {
   const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
   // No per-visitor limit: the link is meant to be shared and replayed. One high daily ceiling stays as a
   // runaway-spend guard (HELIX_DAILY_SESSIONS); the team's own tours never count against it.
-  const { count: today } = await db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('is_staff', false).gte('started_at', dayStart.toISOString());
+  // The ceiling is for the public tours; signed-in Ask Helix (agency, Enterprise, Studio) doesn't use it up.
+  const { count: today } = await db.from('helix_tour_sessions').select('id', { count: 'exact', head: true }).eq('is_staff', false).or('context.is.null,context.in.(tour,packages)').gte('started_at', dayStart.toISOString());
   // Ask Helix in the Studio is for the Genovus team only.
   if (context === 'studio' && !staff) return Response.json({ error: 'Ask Helix in the Studio is for the Genovus team.' }, { status: 403 });
   // Voice Ask Helix: the same brief and hard lines as typed Ask Helix, read with the viewer's own session.
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
   } else {
     setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
   }
-  if (!staff && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
+  if (!staff && (context === 'tour' || context === 'packages') && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 
   // Lock Helix's instructions and tools into the token; if the service won't accept the lock, fall back to an
   // unlocked token (the browser sends the same setup), which only the Genovus team may use.

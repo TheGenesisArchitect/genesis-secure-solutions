@@ -33,6 +33,8 @@ type Thread = {
   setThreadId: (id: string | null) => void;
   restored: boolean;
   disclosure?: string;
+  /** The restored thread, for "Pick up where you left off" (its title, last page and when). */
+  resume?: { title: string; lastPage: string | null; lastAt: string } | null;
   /** Save a spoken exchange (voice Ask Helix) to the thread and show it in the chat. */
   saveVoice?: (turns: { role: 'user' | 'helix'; text: string }[], page?: string) => void;
   /** The confirm lane (agency): one change waiting for a yes, and the last change, undoable for a short while. */
@@ -61,6 +63,7 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
   const [turns, setTurns] = useState<HelixTurn[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
+  const [resume, setResume] = useState<Thread['resume']>(null);
   const router = useRouter();
   // The confirm lane: a proposal waits for a yes (spoken or tapped); a done change can be undone for ten seconds here.
   const [pending, setPending] = useState<HelixProposal | null>(null);
@@ -109,8 +112,9 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
   useEffect(() => {
     if (!surface) return;
     const q = new URLSearchParams({ surface, ...(slug ? { slug } : {}) });
-    fetch(`/api/helix/thread?${q}`).then((r) => (r.ok ? r.json() : null)).then((j: { threadId: string | null; turns: Saved[] } | null) => {
+    fetch(`/api/helix/thread?${q}`).then((r) => (r.ok ? r.json() : null)).then((j: { threadId: string | null; turns: Saved[]; title?: string; lastPage?: string | null; lastAt?: string } | null) => {
       if (!j?.threadId) return;
+      if (j.title && j.lastAt) setResume({ title: j.title, lastPage: j.lastPage ?? null, lastAt: j.lastAt });
       setThreadId((id) => id ?? j.threadId);
       // A question asked before the thread arrived wins; otherwise pick up where they left off.
       setTurns((t) => {
@@ -120,7 +124,7 @@ export function HelixThreadProvider({ children, surface, slug }: { children: Rea
       });
     }).catch(() => {});
   }, [surface, slug]);
-  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined, saveVoice, act }}>{children}</ThreadCtx.Provider>;
+  return <ThreadCtx.Provider value={{ turns, setTurns, asked, threadId, setThreadId, restored, disclosure: surface ? DISCLOSURE[surface] : undefined, saveVoice, act, resume }}>{children}</ThreadCtx.Provider>;
 }
 
 /** The shared thread, or a private one where no host is mounted. */
@@ -141,7 +145,9 @@ type Dock = 'closed' | 'open' | 'min';
  * The egg button, the drawer and the minimized pill. The drawer stays mounted once opened (hidden when minimized),
  * so the conversation and the voice session carry on while you work. Ctrl+J opens or minimizes; Esc minimizes.
  */
-export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
+export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug }: {
+  /** The agency (its newest uncalled lead can be nudged beside the button). */
+  slug?: string;
   path: string;
   pageName: string;
   fullHref: string;
@@ -180,6 +186,19 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
   const askHere = ask.path === path ? ask : { ...ask, context: undefined };
   const last = [...turns].reverse().find((t) => t.role === 'helix');
   const unread = dock === 'min' && turns.length > seen;
+  // One quiet message beside Helix at a time: the newest uncalled lead first, else "pick up where you left off".
+  const { nudge, dismissNudge } = useLeadNudge(slug);
+  const { resume } = useHelixThread();
+  const [resumeShown, setResumeShown] = useState(true);
+  useEffect(() => { try { setResumeShown(sessionStorage.getItem('helix-resumed') === '1'); } catch { setResumeShown(true); } }, []);
+  const markResumed = () => { setResumeShown(true); try { sessionStorage.setItem('helix-resumed', '1'); } catch {} };
+  const router = useRouter();
+  const stale = resume && Date.now() - new Date(resume.lastAt).getTime() > 20 * 60_000 && Date.now() - new Date(resume.lastAt).getTime() < 86_400_000;
+  const bubble = nudge && slug
+    ? { head: 'New lead · call now?', text: `${nudge.name}${nudge.topic ? ` · ${nudge.topic}` : ''} · ${ago(nudge.created_at)}`, go: () => { dismissNudge(nudge.id); router.push(`/app/${slug}/today`); }, dismiss: () => dismissNudge(nudge.id) }
+    : stale && !resumeShown && resume
+      ? { head: 'Pick up where you left off', text: `${resume.title}${resume.lastPage ? ` · ${resume.lastPage}` : ''}`, go: () => { markResumed(); setDock('open'); }, dismiss: markResumed }
+      : null;
   if (hidden) return null; // the full Ask Helix page shows the same thread
   return (
     <>
@@ -191,11 +210,17 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat }: {
       {dock === 'min' ? (
         <button className="helix-pill" type="button" onClick={() => setDock('open')} aria-label="Open Ask Helix (Ctrl+J)" title="Open Ask Helix (Ctrl+J)">
           <img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" />
-          <span className="helix-pill-text"><b>Helix</b><span>{last ? last.text : 'Ask anything. Helix keeps this conversation as you move.'}</span></span>
+          <span className="helix-pill-text"><b>{nudge ? 'New lead' : 'Helix'}</b><span>{nudge ? `${nudge.name}${nudge.topic ? ` · ${nudge.topic}` : ''}. Call now?` : last ? last.text : 'Ask anything. Helix keeps this conversation as you move.'}</span></span>
           {unread ? <span className="helix-pill-dot" aria-label="New reply" /> : null}
         </button>
       ) : null}
       <HelixUndoBar page={pageName} />
+      {dock === 'closed' && bubble ? (
+        <div className="helix-nudge" role="status">
+          <button type="button" className="helix-nudge-main" onClick={bubble.go}><b>{bubble.head}</b><span>{bubble.text}</span></button>
+          <button type="button" className="helix-nudge-x" aria-label="Dismiss" onClick={bubble.dismiss}>×</button>
+        </div>
+      ) : null}
       {dock !== 'closed' ? (
         <aside className="helix-drawer" aria-label="Ask Helix" hidden={dock !== 'open'}>
           <header className="row" style={{ justifyContent: 'space-between' }}>
@@ -252,4 +277,23 @@ export function HelixUndoBar({ page }: { page?: string }) {
       {last.undo ? <button className="btn small" type="button" onClick={async () => { const r = await act.undo(page); tellVoice(r.ok ? `(The person tapped Undo. ${r.done})` : `(Undo didn't go through: ${r.error})`); }}>Undo</button> : null}
     </div>
   );
+}
+
+const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+
+/** The newest uncalled lead from the last day (checked every minute), unless the person dismissed it on this device. */
+function useLeadNudge(slug?: string) {
+  const [lead, setLead] = useState<{ id: string; name: string; topic: string | null; created_at: string } | null>(null);
+  const [gone, setGone] = useState<string[]>([]);
+  useEffect(() => { try { setGone(JSON.parse(localStorage.getItem('helix-nudged') ?? '[]')); } catch {} }, []);
+  useEffect(() => {
+    if (!slug) return;
+    let live = true;
+    const check = () => fetch(`/api/helix/nudge?slug=${encodeURIComponent(slug)}`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (live) setLead(j?.lead ?? null); }).catch(() => {});
+    void check();
+    const t = setInterval(check, 60_000);
+    return () => { live = false; clearInterval(t); };
+  }, [slug]);
+  const dismissNudge = (id: string) => setGone((g) => { const n = [id, ...g.filter((x) => x !== id)].slice(0, 50); try { localStorage.setItem('helix-nudged', JSON.stringify(n)); } catch {} return n; });
+  return { nudge: lead && !gone.includes(lead.id) ? lead : null, dismissNudge };
 }
