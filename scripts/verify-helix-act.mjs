@@ -177,8 +177,9 @@ try {
   await ev(`document.querySelector('.helix-fab')?.click()`);
   await waitFor(async () => (await ev('window.__live.socks.length')) === 1);
   await emit({ setupComplete: {} });
+  await sleep(1500); // let the page finish starting the session before the first tool call
   const none = await tool('confirm_action', {});
-  check(none.ok === false, 'confirm_action with nothing waiting is refused');
+  check(none.ok === false, `confirm_action with nothing waiting is refused (${JSON.stringify(none)})`);
   await ev(`document.querySelector('.helix-drawer button[aria-label^="Minimize"]')?.click()`); await sleep(300);
   const v1 = await tool('propose_action', { action: 'book_lead', lead: 'Priya Okafor', day: tomorrow, time: '14:00' });
   check(v1.ok === true && /Book Priya Okafor for a consult/.test(v1.summary ?? ''), `voice propose_action returns the summary to read out (${v1.summary ?? v1.error})`);
