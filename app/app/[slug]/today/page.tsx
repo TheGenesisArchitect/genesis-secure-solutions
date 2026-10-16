@@ -9,6 +9,8 @@ import { db } from '@/lib/supabase/server';
 import { businessToday } from '@/lib/billing';
 import { starFollowUp, updateFollowUp, updateLead } from '@/lib/actions';
 import { prettyPhone } from '@/lib/twilio';
+import { LeadAlerts } from '@/components/LeadAlerts';
+import { LeadFocus } from '@/components/LeadFocus';
 
 export const metadata = { title: 'Today' };
 export const dynamic = 'force-dynamic';
@@ -30,10 +32,11 @@ function Star({ f }: { f: F }) {
   );
 }
 
-export default async function Today({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ film?: string }> }) {
+export default async function Today({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ film?: string; lead?: string }> }) {
   const { slug } = await params;
   const ctx = await agencyContext(slug);
-  const film = (await searchParams).film === '1' && ctx.tenant.isSample;
+  const sp = await searchParams;
+  const film = sp.film === '1' && ctx.tenant.isSample;
   const tid = ctx.tenant.tenantId;
   const today = businessToday();
   const tomorrow = addDays(today, 1);
@@ -59,13 +62,16 @@ export default async function Today({ params, searchParams }: { params: Promise<
           <h2>{fresh.length ? `${fresh.length} new lead${fresh.length === 1 ? '' : 's'} to call.` : calls.length ? 'Tomorrow is ready.' : 'Nothing booked for tomorrow yet.'}</h2>
           <p className="muted">{fresh.length} to call now · {calls.length} on tomorrow’s call list · {priority.length} {priority.length === 1 ? 'priority' : 'priorities'}</p>
         </div>
+        {film ? null : <LeadAlerts compact />}
+        {/* Opened from a new-lead alert: that lead, ready to call. */}
+        {sp.lead ? <LeadFocus id={sp.lead} /> : null}
 
         <section className="today-card today-now" aria-labelledby="t-now">
           <div className="today-card-head"><span className="today-ic pri" aria-hidden="true">☎</span><h3 id="t-now">Call now</h3><span className="today-count">{fresh.length}</span></div>
           {fresh.length ? (
             <ul className="today-list leads">
               {fresh.map((l) => (
-                <li key={l.id} data-helix-item={l.name}>
+                <li key={l.id} data-helix-item={l.name} data-lead-id={l.id}>
                   <span className="today-time">{ago(l.created_at)}</span>
                   <span className="today-lead"><b>{l.name}</b><small>{[l.topic, l.channel === 'call' ? 'called the office' : l.channel === 'partner' ? 'referral partner' : `via ${l.source}`].filter(Boolean).join(' · ')}</small></span>
                   <span className="row" style={{ gap: 6 }}>

@@ -1,23 +1,36 @@
 // Every minute: send due outbox emails. Rows are claimed before sending so two runs never send twice;
 // failures retry with backoff and give up after five attempts. Each send is recorded in the audit log.
+// Push alerts (template lead_push) go out the same way, to the agency members' devices, even where email isn't set up.
 import { adminDb } from '@/lib/supabase/admin';
 import { emailConfigured, outboxEmail, sendEmail } from '@/lib/email';
 import { cronAuthorized, siteOrigin } from '@/lib/cron';
+import { pushConfigured, sendLeadPush } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return new Response('Unauthorized', { status: 401 });
-  if (!emailConfigured()) return Response.json({ skipped: 'email not configured' });
+  const email = emailConfigured(), push = pushConfigured();
+  if (!email && !push) return Response.json({ skipped: 'email and push not configured' });
   const db = adminDb();
-  const { data: due } = await db.from('outbox').select('id').eq('status', 'pending').lte('send_after', new Date().toISOString()).order('id').limit(25);
+  let q = db.from('outbox').select('id').eq('status', 'pending').lte('send_after', new Date().toISOString());
+  if (!email) q = q.eq('template', 'lead_push');
+  if (!push) q = q.neq('template', 'lead_push');
+  const { data: due } = await q.order('id').limit(25);
   const ids = (due ?? []).map((r) => r.id);
   if (!ids.length) return Response.json({ sent: 0 });
   const { data: claimed } = await db.from('outbox').update({ status: 'sending' }).in('id', ids).eq('status', 'pending').select('*');
   const origin = siteOrigin();
   let sent = 0, failed = 0;
   for (const row of claimed ?? []) {
+    if (row.template === 'lead_push') {
+      const p = await sendLeadPush(db, row.tenant_id, row.data as Record<string, string>);
+      await db.from('outbox').update({ status: p.sent ? 'sent' : 'skipped', attempts: row.attempts + 1, sent_at: new Date().toISOString(), last_error: p.sent ? null : `no device took it (${p.gone} gone, ${p.failed} failed)` }).eq('id', row.id);
+      if (p.sent) await db.from('audit_events').insert({ tenant_id: row.tenant_id, actor: null, actor_label: 'outbox', action: 'push.sent', subject: 'lead_push', after: { devices: p.sent, outbox: row.id }, prev_hash: '', hash: '' });
+      sent += p.sent ? 1 : 0;
+      continue;
+    }
     const mail = outboxEmail(row.template, row.to_email, row.data as Record<string, string>, origin);
     if (!mail) {
       await db.from('outbox').update({ status: 'skipped', last_error: 'unknown template' }).eq('id', row.id);

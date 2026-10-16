@@ -5,6 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { WhatsNew } from './WhatsNew';
 
 const HELIX_EVT = 'genovus:helix'; // the event helixAsk() sends (components/HelixDrawer.tsx)
 
@@ -176,7 +177,7 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug 
       if (e.key === 'Escape') setDock((s) => (s === 'open' ? 'min' : s));
     };
     // Helix pointing at something on the page minimizes itself so the page shows (voice keeps going).
-    const onDock = (e: Event) => { const st = (e as CustomEvent<{ state?: Dock }>).detail?.state; if (st === 'min') setDock((s) => (s === 'open' ? 'min' : s)); if (st === 'open') setDock((s) => (s === 'min' ? 'open' : s)); };
+    const onDock = (e: Event) => { const st = (e as CustomEvent<{ state?: Dock }>).detail?.state; if (st === 'min') setDock((s) => (s === 'open' ? 'min' : s)); if (st === 'open') setDock('open'); };
     window.addEventListener(HELIX_EVT, onAsk);
     window.addEventListener('keydown', onKey);
     window.addEventListener('genovus:helix-dock', onDock);
@@ -216,6 +217,7 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug 
         </button>
       ) : null}
       <HelixUndoBar page={pageName} />
+      <WhatsNew surface={slug ? 'agency' : 'enterprise'} base={slug ? `/app/${slug}` : undefined} />
       {dock === 'closed' && bubble ? (
         <div className="helix-nudge" role="status">
           <button type="button" className="helix-nudge-main" onClick={bubble.go}><b>{bubble.head}</b><span>{bubble.text}</span></button>
