@@ -160,17 +160,12 @@ try {
   check(await waitFor(async () => must(await db.from('inquiries').select('status').eq('id', riverside.id).single(), 'r').status === 'contacted'), 'filling and saving it changes Riverside’s status');
   check(must(await db.from('inquiries').select('status').eq('id', other.id).single(), 'o').status === 'new', 'and no other inquiry');
 
-  // 5. Outward forms are never pressed.
-  await go('/console/approvals');
-  const ap = await tool('read_page', {});
-  const outward = ap.forms.find((f) => f.lane === 'outward');
-  if (outward) {
-    const r = await tool('submit_form', { form: outward.key });
-    check(r.ok === false && /taps it themselves/.test(r.error ?? ''), `submit_form on an outward form (${outward.key}) is refused: the person taps it`);
-  } else {
-    const r = await (async () => { await go('/console/clients/test-launch'); const p = await tool('read_page', {}); const inv = p.forms.find((f) => f.key === 'Invite someone'); return inv ? tool('submit_form', { form: inv.key }) : { ok: null }; })();
-    check(r.ok === false && /taps it themselves/.test(r.error ?? ''), 'submit_form on an outward form (Invite someone) is refused: the person taps it');
-  }
+  // 5. Outward forms are never pressed (Run the scan now spends money).
+  const gc = await tool('go_to', { page: 'Carriers & scanner' });
+  const scan = (gc.onScreen?.forms ?? []).find((f) => f.key === 'Run the scan now');
+  check(!!scan && scan.lane === 'outward', 'Helix sees “Run the scan now” as outward');
+  const rs = await tool('submit_form', { form: 'Run the scan now' });
+  check(rs.ok === false && /taps it themselves/.test(rs.error ?? '') && !(await card()), 'submit_form on it is refused (no card): the person taps it themselves');
 
   // 6. Typed: Helix sees the screen and fills the expense form; one tap saves.
   await ev(`localStorage.setItem('helix-voice', 'off')`);

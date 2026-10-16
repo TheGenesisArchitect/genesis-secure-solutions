@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { useHelixThread } from '../HelixHost';
 import { goViaMenu } from '@/lib/helix-menu';
-import { fillForm, findForm, readPage } from '@/lib/helix-page';
+import { fillForm, findForm, readPage, settled } from '@/lib/helix-page';
 
 type Note = { id: string; kind: string; text: string; chapter: string | null; status: string; work?: { title?: string; summary?: string; steps?: string[]; acceptance?: string[]; effort?: string; area?: string; error?: string } | null };
 type Phase = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
@@ -195,7 +195,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (pathRef.current !== p.href) { selfNav.current = true; await goViaMenu(p.href, () => router.push(p.href), p.label); }
       const landed = await waitFor(() => pathRef.current === p.href, 8000);
       if (!landed) return { ok: false, error: 'the page is still loading' };
-      await new Promise((r) => setTimeout(r, 400)); // let its forms render
+      await settled(); // let the new page and its forms render
       return { ok: true, page: p.label, onScreen: readPage() };
     }
     if (ask && name === 'open_lead') {

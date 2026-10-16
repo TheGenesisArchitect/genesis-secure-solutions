@@ -54,7 +54,7 @@ export default async function Carriers() {
             <thead><tr><th>Carrier</th><th>Model</th><th>Published count</th><th>Found</th><th>Fit</th><th>Scan</th></tr></thead>
             <tbody>
               {(carriers ?? []).map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id} data-helix-item={c.name}>
                   <td><b>{c.name}</b><div className="muted" style={{ fontSize: 12 }}>{c.fit_reasons.slice(0, 2).join(' · ')}</div></td>
                   <td>{c.model}</td>
                   <td>
