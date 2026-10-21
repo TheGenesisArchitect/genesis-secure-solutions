@@ -9,6 +9,7 @@ import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { buyLocalNumber, connectExistingNumber, releaseNumber, twilioConfigured } from '@/lib/twilio';
 import { startRadar, runRadarSlice } from '@/lib/radar';
+import { startCompetitorScan, runCompetitorSlice } from '@/lib/competitor-radar';
 import { placesConfigured } from '@/lib/places';
 import { easternIso } from '@/lib/agency-calendar';
 import { accessFor } from '@/lib/access';
@@ -121,6 +122,39 @@ export async function startPartnerRadar(tenantId: string, capDollars: number): P
   } catch (e) {
     return { err: e instanceof Error ? e.message : 'The radar could not start.' };
   }
+}
+
+/** Staff: map the agency's competitors out to `radiusMi`, stopping before the cap (spend, so staff only). */
+export async function startCompetitorRadar(tenantId: string, radiusMi: number, capDollars: number): Promise<Out> {
+  const viewer = await requireStaff();
+  if (!uuid.test(tenantId)) return { err: 'Unknown agency.' };
+  if (!placesConfigured()) return { err: 'Google Places is not connected (GOOGLE_PLACES_API_KEY).' };
+  const radius = Math.round(Math.max(1, Math.min(25, radiusMi || 10)));
+  const cap = Math.round(Math.max(1, Math.min(100, capDollars || 25)) * 100);
+  try {
+    const id = await startCompetitorScan(tenantId, radius, cap, viewer.userId);
+    const r = await runCompetitorSlice(id, 45_000);
+    revalidatePath('/', 'layout');
+    const spent = `$${(Number(r.costCents) / 100).toFixed(2)}`;
+    return { ok: r.status === 'running' ? `Competitor sweep started: ${r.found} offices so far (${spent}). It continues every 10 minutes until done or the $${cap / 100} cap.` : `Competitor sweep ${r.status === 'budget' ? 'stopped at the cap' : 'finished'}: ${r.found} new offices within ${radius} mi for ${spent}.` };
+  } catch (e) {
+    return { err: e instanceof Error ? e.message : 'The sweep could not start.' };
+  }
+}
+
+/** A member or staff saves the radar's current filters as a named view. */
+export async function saveRadarView(tenantId: string, v: { name: string; radius: number; carriers: string[]; zips: string[] }): Promise<Out> {
+  if (!uuid.test(tenantId)) return { err: 'Unknown agency.' };
+  const { error } = await (await db()).rpc('save_radar_view', { p_tenant: tenantId, p_name: String(v.name ?? '').slice(0, 80), p_radius: Math.round(Number(v.radius)), p_carriers: (v.carriers ?? []).slice(0, 20).map((c) => String(c).slice(0, 60)), p_zips: (v.zips ?? []).slice(0, 30).map((z) => String(z).slice(0, 5)) });
+  revalidatePath('/', 'layout');
+  return error ? { err: error.message } : { ok: `Saved “${String(v.name).slice(0, 80)}”.` };
+}
+
+export async function deleteRadarView(id: string): Promise<Out> {
+  if (!uuid.test(id)) return { err: 'Unknown view.' };
+  const { error } = await (await db()).rpc('delete_radar_view', { p_id: id });
+  revalidatePath('/', 'layout');
+  return error ? { err: error.message } : { ok: 'View deleted.' };
 }
 
 /** A member works a partner: call or visit outcome, status, next step, a contact they confirmed. */

@@ -12,7 +12,7 @@ import { issueWelcomeLink } from '@/lib/actions';
 import { BillingConsole } from '@/components/BillingConsole';
 import { StaffAccess } from '@/components/StaffAccess';
 import { ModuleGrants } from '@/components/ModuleGrants';
-import { AgencyProfilePanel, PhoneNumbersPanel, PartnerRadarPanel } from '@/components/GrowthEngineConsole';
+import { AgencyProfilePanel, PhoneNumbersPanel, PartnerRadarPanel, CompetitorRadarPanel } from '@/components/GrowthEngineConsole';
 import { twilioConfigured } from '@/lib/twilio';
 import { CALLS_OPTION, phoneProof } from '@/lib/phone-line';
 import { placesConfigured } from '@/lib/places';
@@ -69,6 +69,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     supabase.from('partner_scans').select('status, found, cost_cents, cap_cents, started_at, requests').eq('tenant_id', t.id).order('started_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('partner_targets').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id),
   ]);
+  const [compScan, compMapped] = t.kind === 'agency' && tab === 'overview' ? await Promise.all([
+    supabase.from('competitor_scans').select('status, found, requests, cost_cents, cap_cents, started_at, radius_mi').eq('tenant_id', t.id).order('started_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('competitor_offices').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id),
+  ]) : [null, null];
   const [meetings, defaultInvitees] = t.kind === 'agency' && tab === 'overview' ? await Promise.all([
     supabase.from('calendar_events').select('id, title, starts_at, ends_at, location, attendees, status, sequence, invited_at, invited_sequence').eq('tenant_id', t.id).gte('ends_at', new Date().toISOString()).order('starts_at').limit(12),
     supabase.rpc('event_default_attendees', { p_tenant: t.id }),
@@ -215,6 +219,9 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               </Panel>
               <Panel title="Partner radar" sub="Maps referral partners near the office: businesses whose customers buy this agency's lines.">
                 <PartnerRadarPanel tenantId={t.id} scan={(scan.data ?? null) as never} mapped={mapped.count ?? 0} ready={placesConfigured() && Boolean(profile.data?.lat)} />
+              </Panel>
+              <Panel title="Competitor radar" sub="Maps the insurance offices around the agency, tagged by carrier. The agency filters by radius, carrier and ZIP for free; a wider sweep is a capped Google search.">
+                <CompetitorRadarPanel tenantId={t.id} scan={(compScan?.data ?? null) as never} mapped={compMapped?.count ?? 0} ready={placesConfigured() && Boolean(profile.data?.lat)} radius={Number(profile.data?.service_radius_mi ?? 10)} />
               </Panel>
             </>
           ) : null}

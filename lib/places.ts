@@ -96,6 +96,26 @@ export const getDetails = cache(async (placeId: string): Promise<PlaceDetails | 
   }
 });
 
+export type OfficeCard = { name: string; rating: number | null; reviews: number; address: string; zip: string | null; website: string | null; mapsUrl: string | null; status: string | null };
+
+/** A competitor office as shown on the Competitor Radar: name, Google rating and review count, address (and its ZIP),
+ * website. Live for display only, never stored; paused when the budget is spent. */
+export const getOfficeCard = cache(async (placeId: string): Promise<OfficeCard | null> => {
+  const demo = demoName(placeId);
+  if (demo) return { name: demo, rating: null, reviews: 0, address: '', zip: null, website: null, mapsUrl: null, status: 'OPERATIONAL' };
+  if (!placesConfigured()) return null;
+  const b = await placesBudget();
+  if (b.spent >= b.budget) return null;
+  try {
+    const p = await call<{ displayName?: { text?: string }; rating?: number; userRatingCount?: number; formattedAddress?: string; websiteUri?: string; googleMapsUri?: string; businessStatus?: string }>(
+      'details', `/places/${encodeURIComponent(placeId)}`, { fields: 'displayName,rating,userRatingCount,formattedAddress,websiteUri,googleMapsUri,businessStatus' });
+    const address = p.formattedAddress ?? '';
+    return { name: p.displayName?.text ?? '', rating: typeof p.rating === 'number' ? p.rating : null, reviews: p.userRatingCount ?? 0, address, zip: address.match(/\b(\d{5})(?:-\d{4})?(?:,\s*USA)?\s*$/)?.[1] ?? null, website: p.websiteUri ?? null, mapsUrl: p.googleMapsUri ?? null, status: p.businessStatus ?? null };
+  } catch {
+    return null;
+  }
+});
+
 /** Name and address only (cheaper tier) for list rows; fetched live, never stored. */
 export const getSummary = cache(async (placeId: string): Promise<{ name: string; address: string } | null> => {
   const demo = demoName(placeId);

@@ -5,7 +5,8 @@
 // the partner radar (capped per run, $25 by default). The Genovus line itself is set up on the Call list page.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { buyTrackingNumber, releaseTrackingNumber, saveAgencyProfile, saveHouseForward, startPartnerRadar } from '@/lib/growth-actions';
+import { buyTrackingNumber, releaseTrackingNumber, saveAgencyProfile, saveHouseForward, startPartnerRadar, startCompetitorRadar } from '@/lib/growth-actions';
+import { sweepEstimate } from '@/lib/radar-estimate';
 import { LINES, type LineId } from '@/lib/lines';
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
@@ -134,6 +135,29 @@ export function GenovusLinePanel({ houseId, numbers, forward, proof, ready }: { 
           <span className="muted" style={{ fontSize: 12 }}>Genovus points its calls here and turns off Twilio’s demo replies; no copying URLs.</span>
         </form>
       ) : null}
+    </div>
+  );
+}
+
+/** The Competitor Radar's sweep: pick a radius, see the estimate, run it (capped). Narrowing later is free. */
+export function CompetitorRadarPanel({ tenantId, scan, mapped, ready, radius: defaultRadius }: { tenantId: string; scan: (NonNullable<Scan> & { radius_mi: number }) | null; mapped: number; ready: boolean; radius: number }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [radius, setRadius] = useState(Math.min(25, Math.max(1, scan?.radius_mi ?? defaultRadius ?? 10)));
+  const [cap, setCap] = useState(25);
+  const est = sweepEstimate(radius);
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+        {mapped} competitor offices mapped.{' '}
+        {scan ? `Last sweep ${new Date(scan.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} out to ${scan.radius_mi} mi: ${scan.status === 'running' ? 'still running' : scan.status === 'budget' ? 'stopped at its cap' : scan.status}, ${scan.found} new, ${scan.requests} searches, $${(Number(scan.cost_cents) / 100).toFixed(2)} of $${(scan.cap_cents / 100).toFixed(0)}.` : 'Not swept yet.'}
+      </p>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }}>
+        <label className="field" style={{ width: 120 }}><span>Radius (mi)</span><input className="input" type="number" min={1} max={25} value={radius} onChange={(e) => setRadius(Math.min(25, Math.max(1, Number(e.target.value) || 1)))} /></label>
+        <label className="field" style={{ width: 110 }}><span>Cap ($)</span><input className="input" type="number" min={1} max={100} value={cap} onChange={(e) => setCap(Number(e.target.value))} /></label>
+        <button className="btn small primary" type="button" disabled={busy || !ready} onClick={async () => { setBusy(true); toast(await startCompetitorRadar(tenantId, radius, cap)); setBusy(false); router.refresh(); }}>{scan ? `Sweep again to ${radius} mi` : `Map competitors to ${radius} mi`}</button>
+        <span className="muted" style={{ fontSize: 12 }}>About {est.searches} searches, about ${(est.cents / 100).toFixed(2)}. Stops before the cap; the agency narrows it for free.</span>
+      </div>
     </div>
   );
 }
