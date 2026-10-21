@@ -121,6 +121,7 @@ const mail = outboxEmail('meeting_invite', sample.to_email, sample.data, 'https:
 // Long lines are folded (RFC 5545); unfold before reading, as calendar apps do.
 const rawIcs = mail?.attachments?.[0]?.content ?? '', ics = rawIcs.replace(/\r\n /g, '');
 check(rawIcs.split('\r\n').every((l) => Buffer.byteLength(l) <= 75), 'every line of the invite is within the 75-octet limit');
+check(mail?.replyTo === OPS && ics.includes(`ORGANIZER;CN="Verify Operator":mailto:${OPS}`), 'replies and RSVPs go to the Genovus person who sent it');
 check(/^Invitation: Verify: carrier setup/.test(mail?.subject ?? '') && /10:30 AM – 12:00 PM ET/.test(mail?.subject ?? ''), `the invite reads plainly (${mail?.subject})`);
 check(/METHOD:REQUEST/.test(ics) && ics.includes(`UID:ev-${id2}@genovus.io`) && ics.includes(`mailto:${OWNER}`) && ics.includes(`mailto:${OPS}`) && /DTSTART:\d{8}T143000Z/.test(ics), 'it carries a calendar invite with both attendees, a stable UID and 10:30 Eastern (14:30 UTC)');
 const cancelRow = rows.find((r) => r.data.status === 'cancelled');

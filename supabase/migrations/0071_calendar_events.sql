@@ -124,9 +124,11 @@ end $$;
 -- sends the cancellation. Genovus staff only: an invite goes out in the team's name.
 create or replace function send_event_invite(p_id uuid)
 returns int language plpgsql security definer set search_path = public as $$
-declare ev calendar_events; t tenants; a text; n int := 0; c int;
+declare ev calendar_events; t tenants; a text; n int := 0; c int; me text; my_name text;
 begin
   if not is_staff() then raise exception 'Only the Genovus team sends invites.'; end if;
+  -- Replies and RSVPs go to the person who sent the invite.
+  select lower(u.email), coalesce(nullif(s.display_name, ''), 'Genovus') into me, my_name from auth.users u join staff s on s.user_id = u.id where u.id = auth.uid();
   select * into ev from calendar_events where id = p_id for update;
   if ev.id is null then raise exception 'not found'; end if;
   if cardinality(ev.attendees) = 0 then raise exception 'Add at least one person to invite.'; end if;
@@ -138,7 +140,7 @@ begin
     values (ev.tenant_id, a, 'meeting_invite', jsonb_build_object(
       'event', ev.id, 'title', ev.title, 'starts', ev.starts_at, 'ends', ev.ends_at, 'location', coalesce(ev.location, ''),
       'notes', coalesce(ev.notes, ''), 'attendees', array_to_string(ev.attendees, ','), 'sequence', ev.sequence::text,
-      'status', ev.status, 'agency', t.name, 'slug', t.slug),
+      'status', ev.status, 'agency', t.name, 'slug', t.slug, 'from_email', coalesce(me, ''), 'from_name', coalesce(my_name, 'Genovus')),
       'invite:' || ev.id || ':' || ev.sequence || ':' || a)
     on conflict (dedupe_key) do nothing;
     get diagnostics c = row_count; n := n + c;

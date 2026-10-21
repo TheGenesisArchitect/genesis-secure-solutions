@@ -37,7 +37,7 @@ export const WHATS_NEW: WhatsNew[] = [
     title: 'Helix updates leads, with your yes',
     line: 'Type or say “mark Dana called” or “book Dana Thursday at 2”. One tap to confirm, ten seconds to undo.',
     tour: [
-      { helix: true, at: '.helix-drawer input[aria-label="Ask Helix"]', caption: 'Ask Helix to mark a lead called, book a consult or add a follow-up, by name.' },
+      { helix: true, at: '.helix-drawer input[aria-label="Ask Helix"]', caption: 'Ask Helix to mark a lead called, book a consult, add a follow-up, or put a meeting on the calendar (and move or cancel it), by name.' },
       { helix: true, at: '.helix-drawer', caption: 'Helix shows a card first. Nothing changes until you tap Yes (or say yes), and Undo stays for ten seconds.' },
     ],
     tryIt: { helix: true, at: '.helix-drawer input[aria-label="Ask Helix"]', caption: 'Try: “mark <a lead’s name> called”.' },

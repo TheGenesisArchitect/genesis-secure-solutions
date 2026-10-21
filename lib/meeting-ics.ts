@@ -10,14 +10,14 @@ const stamp = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, '').
 // Lines over 75 octets fold onto continuation lines that start with a space.
 const fold = (line: string) => { const out: string[] = []; let s = line; while (Buffer.byteLength(s) > 74) { let n = 74; while (Buffer.byteLength(s.slice(0, n)) > 74) n--; out.push(s.slice(0, n)); s = ' ' + s.slice(n); } out.push(s); return out.join('\r\n'); };
 
-export function meetingIcs(m: Meeting, organizer: string): string {
+export function meetingIcs(m: Meeting, organizer: string, organizerName = 'Genovus'): string {
   const method = m.cancelled ? 'CANCEL' : 'REQUEST';
   const lines = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Genovus//Meeting invite//EN', 'CALSCALE:GREGORIAN', `METHOD:${method}`,
     'BEGIN:VEVENT', `UID:ev-${m.id}@genovus.io`, `SEQUENCE:${m.sequence}`, `DTSTAMP:${stamp(new Date().toISOString())}`,
     `DTSTART:${stamp(m.starts)}`, `DTEND:${stamp(m.ends)}`, `SUMMARY:${esc(m.title)}`,
     ...(m.location ? [`LOCATION:${esc(m.location)}`] : []), ...(m.notes ? [`DESCRIPTION:${esc(m.notes)}`] : []),
-    `ORGANIZER;CN=Genovus:mailto:${organizer}`,
+    `ORGANIZER;CN="${organizerName.replace(/["\\;,:\r\n]/g, ' ').trim()}":mailto:${organizer}`,
     ...m.attendees.map((a) => `ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${a}`),
     `STATUS:${m.cancelled ? 'CANCELLED' : 'CONFIRMED'}`,
     ...(m.cancelled ? [] : ['BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', `DESCRIPTION:${esc(m.title)}`, 'END:VALARM']),

@@ -11,7 +11,7 @@ const FROM = () => process.env.EMAIL_FROM || 'Genovus <hello@genovus.io>';
 const REPLY_TO = () => process.env.EMAIL_REPLY_TO || 'hello@genovus.io';
 
 export type Attachment = { filename: string; content: string; contentType: string };
-export type Mail = { to: string; subject: string; html: string; text: string; attachments?: Attachment[] };
+export type Mail = { to: string; subject: string; html: string; text: string; attachments?: Attachment[]; replyTo?: string };
 
 export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (!emailConfigured()) return { ok: false, error: 'email not configured' };
@@ -20,7 +20,7 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_KEY()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: FROM(), to: [m.to], reply_to: REPLY_TO(), subject: m.subject, html: m.html, text: m.text,
+        from: FROM(), to: [m.to], reply_to: m.replyTo || REPLY_TO(), subject: m.subject, html: m.html, text: m.text,
         ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString('base64'), content_type: a.contentType })) } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
@@ -117,8 +117,11 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
       const cancelled = data.status === 'cancelled';
       const m = { id: data.event, title: data.title, starts: data.starts, ends: data.ends, location: data.location ?? '', notes: data.notes ?? '', attendees: (data.attendees ?? '').split(',').filter(Boolean), sequence: Number(data.sequence ?? 0), cancelled };
       const when = meetingWhen(m.starts, m.ends);
+      // Replies and RSVPs go to the Genovus person who sent it (the team inbox if that is unknown).
+      const sender = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(data.from_email ?? '') ? data.from_email : REPLY_TO();
       return {
         to,
+        replyTo: sender,
         subject: `${cancelled ? 'Cancelled' : Number(m.sequence) > 0 ? 'Updated invitation' : 'Invitation'}: ${m.title} · ${when}`,
         ...frame({
           preheader: cancelled ? `${m.title} on ${when} is cancelled.` : `${when}${m.location ? ` · ${m.location}` : ''}`,
@@ -128,7 +131,7 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
             : [`When: ${when}`, ...(m.location ? [`Where: ${m.location}`] : []), ...(m.notes ? [m.notes] : []), `It’s on the ${data.agency} calendar in Genovus too. Open the attached invite to add it to your own calendar, or reply to this email with any questions.`],
           button: cancelled ? undefined : { label: 'Open your calendar', url: `${origin}/app/${data.slug}/calendar` },
         }, origin),
-        attachments: [{ filename: 'invite.ics', content: meetingIcs(m, REPLY_TO()), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
+        attachments: [{ filename: 'invite.ics', content: meetingIcs(m, sender, data.from_name || 'Genovus'), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
       };
     }
     case 'approval_waiting':

@@ -175,7 +175,7 @@ CHANGES YOU CAN MAKE, ONLY WITH A YES: mark a lead called, won, lost or back to 
 office time); add a follow-up (who, day, time, reason); add an event to the calendar (title, day, start time, end time,
 where); move an upcoming event (event = its title, new day, new start and end); cancel an upcoming event (event).
 Events are meetings and appointments that aren't a lead's consult, e.g. "carrier training with Genovus Thursday 10:30 to noon".
-Use the TODAY date in the BRIEF to turn "Thursday" or "tomorrow" into YYYY-MM-DD. ${voice
+Work out dates like "Thursday" or "tomorrow" from today's weekday and date in the BRIEF (the AGENCY line), as YYYY-MM-DD. ${voice
   ? 'Call propose_action first; it puts a confirmation card on screen. Read the summary out and ask "Shall I?". Only after the person clearly says yes in this conversation, call confirm_action. If they say no, call nothing. "Undo" right after a change: call undo_last.'
   : 'Add "propose": {"action": "mark_lead"|"book_lead"|"add_follow_up"|"add_event"|"move_event"|"cancel_event", "lead": name, "status": "contacted"|"won"|"lost"|"new", "day": "YYYY-MM-DD", "time": "HH:MM" (a follow-up\'s or an event\'s start), "end": "HH:MM", "who": name, "reason": text, "title": event title, "event": an existing event\'s title, "location": where} to your JSON (only the fields that action needs, at most 8) and ask "Shall I?" in your answer. The person confirms with one tap; you never claim it is done.'}
 Never send, post, buy or delete; for messages, write a draft the person sends.`;
