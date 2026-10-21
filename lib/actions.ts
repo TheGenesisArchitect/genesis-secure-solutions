@@ -315,6 +315,34 @@ export async function updateFollowUp(_: ActionResult, f: FormData) {
   return call('update_follow_up', { p_id: str(f, 'id', 64), p_status: status, p_due: due }, status === 'done' ? 'Done. Nice.' : due ? 'Moved.' : 'Reopened.');
 }
 
+// ---------- Calendar events (meetings) ----------
+// Times are the office's (Eastern); the database turns day + HH:MM into an instant. Invites are Genovus staff only.
+export async function addEvent(_: ActionResult, f: FormData) {
+  const day = str(f, 'day', 10), start = str(f, 'start', 5);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(start)) return fail('Pick a day and a start time.');
+  return call('add_event', { p_tenant: str(f, 'tenant', 64), p_title: str(f, 'title', 160), p_day: day, p_start: start, p_end: str(f, 'end', 5), p_location: str(f, 'location', 200), p_notes: str(f, 'notes', 1000), p_attendees: str(f, 'attendees', 2200) },
+    `${str(f, 'title', 160) || 'Event'} is on the calendar for ${day === businessToday() ? 'today' : day} at ${start}.`);
+}
+
+export async function moveEvent(_: ActionResult, f: FormData) {
+  const day = str(f, 'day', 10), start = str(f, 'start', 5);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return fail('Pick the new day.');
+  return call('move_event', { p_id: str(f, 'id', 64), p_day: day, p_start: start, p_end: str(f, 'end', 5) }, `Moved to ${day}${start ? ` at ${start}` : ''}.`);
+}
+
+export async function cancelEvent(_: ActionResult, f: FormData) {
+  return call('cancel_event', { p_id: str(f, 'id', 64) }, 'Cancelled. It’s off the calendar.');
+}
+
+export async function sendEventInvite(_: ActionResult, f: FormData) {
+  const supabase = await db();
+  const { data, error } = await supabase.rpc('send_event_invite', { p_id: str(f, 'id', 64) });
+  revalidatePath('/', 'layout');
+  if (error) return fail(error.message);
+  const n = Number(data ?? 0);
+  return done(n ? `Invite queued for ${n} ${n === 1 ? 'person' : 'people'}. It goes out within a minute.` : 'Everyone already has this version of the invite.');
+}
+
 // ---------- Helix notes (agency) ----------
 export async function agencyAddHelixNote(_: ActionResult, f: FormData) {
   const kind = str(f, 'kind', 20) || 'action_item';

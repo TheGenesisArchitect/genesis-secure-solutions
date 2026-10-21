@@ -2,6 +2,7 @@
 // client (table layout, inline styles, a text version). Server only; nothing here is sent without a caller
 // that has already checked permission (sign-in, invites) or a database event that queued it (outbox).
 import 'server-only';
+import { meetingIcs, meetingWhen } from './meeting-ics';
 
 // The Vercel variable was created as RESEND_GENOVOUS_API_KEY; RESEND_API_KEY is accepted too.
 const RESEND_KEY = () => process.env.RESEND_API_KEY || process.env.RESEND_GENOVOUS_API_KEY || '';
@@ -9,7 +10,8 @@ export const emailConfigured = () => Boolean(RESEND_KEY());
 const FROM = () => process.env.EMAIL_FROM || 'Genovus <hello@genovus.io>';
 const REPLY_TO = () => process.env.EMAIL_REPLY_TO || 'hello@genovus.io';
 
-export type Mail = { to: string; subject: string; html: string; text: string };
+export type Attachment = { filename: string; content: string; contentType: string };
+export type Mail = { to: string; subject: string; html: string; text: string; attachments?: Attachment[] };
 
 export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (!emailConfigured()) return { ok: false, error: 'email not configured' };
@@ -17,7 +19,10 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_KEY()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: FROM(), to: [m.to], reply_to: REPLY_TO(), subject: m.subject, html: m.html, text: m.text }),
+      body: JSON.stringify({
+        from: FROM(), to: [m.to], reply_to: REPLY_TO(), subject: m.subject, html: m.html, text: m.text,
+        ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString('base64'), content_type: a.contentType })) } : {}),
+      }),
       signal: AbortSignal.timeout(10_000),
     });
     const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
@@ -105,6 +110,25 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           ],
           button: { label: 'Open the lead', url: `${origin}/app/${data.slug}/leads` },
         }, origin),
+      };
+    }
+    case 'meeting_invite': {
+      // A meeting invite (or its cancellation) from the Genovus team, with the event attached for one-tap Yes / No.
+      const cancelled = data.status === 'cancelled';
+      const m = { id: data.event, title: data.title, starts: data.starts, ends: data.ends, location: data.location ?? '', notes: data.notes ?? '', attendees: (data.attendees ?? '').split(',').filter(Boolean), sequence: Number(data.sequence ?? 0), cancelled };
+      const when = meetingWhen(m.starts, m.ends);
+      return {
+        to,
+        subject: `${cancelled ? 'Cancelled' : Number(m.sequence) > 0 ? 'Updated invitation' : 'Invitation'}: ${m.title} · ${when}`,
+        ...frame({
+          preheader: cancelled ? `${m.title} on ${when} is cancelled.` : `${when}${m.location ? ` · ${m.location}` : ''}`,
+          heading: cancelled ? `Cancelled: ${m.title}` : m.title,
+          body: cancelled
+            ? [`${when}.`, 'This meeting is cancelled; it comes off your calendar when you open the attached update. Reply to this email if you’d like a new time.']
+            : [`When: ${when}`, ...(m.location ? [`Where: ${m.location}`] : []), ...(m.notes ? [m.notes] : []), `It’s on the ${data.agency} calendar in Genovus too. Open the attached invite to add it to your own calendar, or reply to this email with any questions.`],
+          button: cancelled ? undefined : { label: 'Open your calendar', url: `${origin}/app/${data.slug}/calendar` },
+        }, origin),
+        attachments: [{ filename: 'invite.ics', content: meetingIcs(m, REPLY_TO()), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
       };
     }
     case 'approval_waiting':

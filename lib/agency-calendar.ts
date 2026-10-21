@@ -1,11 +1,15 @@
-// An agency's calendar: follow-ups (with their time), booked consults (from the pipeline) and scheduled posts, in
-// one list per day. The dashboard page and the subscribe feed (iCal) read the same items. The feed link is signed
+// An agency's calendar: events (meetings the team, Genovus or Helix added), follow-ups (with their time), booked
+// consults (from the pipeline), scheduled posts and partner visits, in one list per day. The dashboard page and the subscribe feed (iCal) read the same items. The feed link is signed
 // per agency (HMAC of its id), so only someone holding it can read the calendar.
 import 'server-only';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type CalItem = { id: string; kind: 'follow-up' | 'consult' | 'post' | 'visit'; title: string; detail: string | null; start: string; allDay: boolean };
+export type CalItem = {
+  id: string; kind: 'event' | 'follow-up' | 'consult' | 'post' | 'visit'; title: string; detail: string | null; start: string; allDay: boolean;
+  /** Events only: when it ends, where, its id, who set it up (agency or genovus) and whether invites went out. */
+  end?: string; location?: string | null; eventId?: string; host?: string; invited?: boolean;
+};
 
 const secret = () => process.env.CALENDAR_FEED_SECRET || process.env.CRON_SECRET || '';
 export const feedEnabled = () => Boolean(secret());
@@ -28,13 +32,15 @@ export function easternIso(day: string, time: string): string {
 }
 
 export async function calendarItems(db: SupabaseClient, tenantId: string, from: string, to: string): Promise<CalItem[]> {
-  const [fu, leads, posts, visits] = await Promise.all([
+  const [ev, fu, leads, posts, visits] = await Promise.all([
+    db.from('calendar_events').select('id, title, starts_at, ends_at, location, notes, host, invited_at').eq('tenant_id', tenantId).eq('status', 'scheduled').gte('starts_at', `${from}T00:00:00Z`).lte('starts_at', `${to}T23:59:59Z`).limit(300),
     db.from('follow_ups').select('id, who, reason, due_on, due_at').eq('tenant_id', tenantId).eq('status', 'open').gte('due_on', from).lte('due_on', to).limit(500),
     db.from('leads').select('id, name, topic, phone, booked_for').eq('tenant_id', tenantId).eq('status', 'booked').gte('booked_for', `${from}T00:00:00Z`).lte('booked_for', `${to}T23:59:59Z`).limit(500),
     db.from('content_items').select('id, channel, copy, status, scheduled_for').eq('tenant_id', tenantId).in('status', ['approved', 'scheduled', 'published']).gte('scheduled_for', `${from}T00:00:00Z`).lte('scheduled_for', `${to}T23:59:59Z`).limit(200),
     db.from('partner_targets').select('id, category, contact_name, next_action_at').eq('tenant_id', tenantId).eq('status', 'meeting').gte('next_action_at', `${from}T00:00:00Z`).lte('next_action_at', `${to}T23:59:59Z`).limit(100),
   ]);
   const items: CalItem[] = [];
+  for (const e of ev.data ?? []) items.push({ id: `ev-${e.id}`, kind: 'event', title: e.title, detail: e.notes, start: e.starts_at, end: e.ends_at, allDay: false, location: e.location, eventId: e.id, host: e.host, invited: Boolean(e.invited_at) });
   for (const f of fu.data ?? []) items.push({ id: `fu-${f.id}`, kind: 'follow-up', title: `Call ${f.who}`, detail: f.reason, start: f.due_at ? easternIso(f.due_on, String(f.due_at).slice(0, 5)) : `${f.due_on}T12:00:00.000Z`, allDay: !f.due_at });
   for (const l of leads.data ?? []) items.push({ id: `cs-${l.id}`, kind: 'consult', title: `Consult: ${l.name}`, detail: [l.topic, l.phone].filter(Boolean).join(' · ') || null, start: l.booked_for!, allDay: false });
   for (const p of posts.data ?? []) items.push({ id: `po-${p.id}`, kind: 'post', title: `${p.channel[0].toUpperCase()}${p.channel.slice(1)} post (${p.status})`, detail: String(p.copy ?? '').slice(0, 140), start: p.scheduled_for!, allDay: false });
@@ -52,11 +58,11 @@ export function toIcs(name: string, items: CalItem[]): string {
   const now = stamp(new Date().toISOString());
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Genovus//Agency Calendar//EN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${esc(name)}`];
   for (const it of items) {
-    const end = new Date(new Date(it.start).getTime() + (it.kind === 'consult' || it.kind === 'visit' ? 60 : 15) * 60_000).toISOString();
+    const end = it.end ?? new Date(new Date(it.start).getTime() + (it.kind === 'consult' || it.kind === 'visit' ? 60 : 15) * 60_000).toISOString();
     lines.push('BEGIN:VEVENT', `UID:${it.id}@genovus.io`, `DTSTAMP:${now}`);
     if (it.allDay) { const d = dayOf(it.start).replace(/-/g, ''); lines.push(`DTSTART;VALUE=DATE:${d}`); }
     else lines.push(`DTSTART:${stamp(it.start)}`, `DTEND:${stamp(end)}`);
-    lines.push(`SUMMARY:${esc(it.title)}`, ...(it.detail ? [`DESCRIPTION:${esc(it.detail)}`] : []), 'END:VEVENT');
+    lines.push(`SUMMARY:${esc(it.title)}`, ...(it.detail ? [`DESCRIPTION:${esc(it.detail)}`] : []), ...(it.location ? [`LOCATION:${esc(it.location)}`] : []), 'END:VEVENT');
   }
   lines.push('END:VCALENDAR');
   return lines.join('\r\n') + '\r\n';

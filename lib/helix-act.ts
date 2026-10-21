@@ -7,12 +7,15 @@ import 'server-only';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type ActName = 'mark_lead' | 'book_lead' | 'add_follow_up';
-export const ACT_NAMES: ActName[] = ['mark_lead', 'book_lead', 'add_follow_up'];
+export type ActName = 'mark_lead' | 'book_lead' | 'add_follow_up' | 'add_event' | 'move_event' | 'cancel_event';
+export const ACT_NAMES: ActName[] = ['mark_lead', 'book_lead', 'add_follow_up', 'add_event', 'move_event', 'cancel_event'];
 const STATUS_WORD: Record<string, string> = { contacted: 'called (Contacted)', won: 'won', lost: 'lost', new: 'back to New' };
 
 type Lead = { id: string; name: string; status: string; booked_for: string | null; first_contact_at: string | null };
-type Payload = { a: ActName | 'undo'; t: string; u: string; exp: number; args: Record<string, string>; before?: Partial<Lead> & { id?: string }; after?: string; fu?: string };
+type Ev = { id: string; title: string; starts_at: string; ends_at: string; status: string; sequence: number; invited_at: string | null };
+/** An event as it was before Helix moved or cancelled it, so undo can put it back. */
+type EvBefore = { id: string; starts: string; ends: string; status: string; seq: number };
+type Payload = { a: ActName | 'undo'; t: string; u: string; exp: number; args: Record<string, string>; before?: Partial<Lead> & { id?: string }; after?: string; fu?: string; ev?: string; evBefore?: EvBefore };
 
 const KEY = () => createHmac('sha256', process.env.HELIX_ACT_SECRET || process.env.CRON_SECRET || '').update('genovus helix act v1').digest();
 const sign = (p: Payload) => { const body = Buffer.from(JSON.stringify(p)).toString('base64url'); return `${body}.${createHmac('sha256', KEY()).update(body).digest('base64url')}`; };
@@ -37,7 +40,20 @@ async function findLeads(db: SupabaseClient, tenantId: string, q: string): Promi
   return (data ?? []) as Lead[];
 }
 
-export type Proposal = { ok: true; summary: string; token: string } | { ok: false; error: string; choices?: string[] };
+/** Upcoming, scheduled events in this agency whose title contains `q` (soonest first). */
+async function findEvents(db: SupabaseClient, tenantId: string, q: string): Promise<Ev[]> {
+  const like = q.replace(/[%_\\]/g, '').trim();
+  if (like.length < 2) return [];
+  const { data } = await db.from('calendar_events').select('id, title, starts_at, ends_at, status, sequence, invited_at').eq('tenant_id', tenantId).eq('status', 'scheduled')
+    .gte('ends_at', new Date().toISOString()).ilike('title', `%${like}%`).order('starts_at').limit(6);
+  return (data ?? []) as Ev[];
+}
+const evWhen = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+const hhmm = /^\d{2}:\d{2}$/;
+/** "13:30" → "1:30 PM". */
+const clock = (t: string) => { const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+
+export type Proposal ={ ok: true; summary: string; token: string } | { ok: false; error: string; choices?: string[] };
 
 /** Work out exactly what a change would do, and sign it for the person to confirm (valid five minutes). */
 export async function propose(db: SupabaseClient, userId: string, tenantId: string, action: string, raw: Record<string, unknown>): Promise<Proposal> {
@@ -52,6 +68,29 @@ export async function propose(db: SupabaseClient, userId: string, tenantId: stri
     if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !/^\d{2}:\d{2}$/.test(at)) return { ok: false, error: 'Which day and time? (YYYY-MM-DD and HH:MM)' };
     const reason = clean(raw.reason, 300);
     return { ok: true, summary: `Add a follow-up with ${who}, ${when(due, at)}${reason ? ` (${reason})` : ''}`, token: sign({ ...base, args: { who, due, at, reason } }) };
+  }
+  if (a === 'add_event') {
+    const title = clean(raw.title ?? raw.what, 160), day = clean(raw.day, 10), start = clean(raw.time ?? raw.start, 5), end = clean(raw.end, 5), location = clean(raw.location ?? raw.where, 200);
+    if (!title) return { ok: false, error: 'What is the event called?' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !hhmm.test(start)) return { ok: false, error: 'Which day and start time? (YYYY-MM-DD and HH:MM, office time)' };
+    if (end && (!hhmm.test(end) || end <= start)) return { ok: false, error: 'The end time needs to be after the start (HH:MM).' };
+    return { ok: true, summary: `Add “${title}” to the calendar, ${when(day, start)}${end ? ` to ${clock(end)}` : ''}${location ? `, at ${location}` : ''}`, token: sign({ ...base, args: { title, day, start, end, location, notes: clean(raw.notes ?? raw.reason, 1000) } }) };
+  }
+  if (a === 'move_event' || a === 'cancel_event') {
+    const q = clean(raw.event ?? raw.title, 160);
+    const found = await findEvents(db, tenantId, q);
+    if (!found.length) return { ok: false, error: `No upcoming event called “${q.slice(0, 60)}”.` };
+    const exact = found.filter((e) => e.title.toLowerCase() === q.toLowerCase());
+    const pick = exact.length === 1 ? exact : found;
+    if (pick.length > 1) return { ok: false, error: 'More than one event matches. Which one?', choices: pick.map((e) => `${e.title} (${evWhen(e.starts_at)})`) };
+    const e = pick[0];
+    const evBefore: EvBefore = { id: e.id, starts: e.starts_at, ends: e.ends_at, status: e.status, seq: e.sequence + 1 };
+    const invited = e.invited_at ? ' Invites already went out; the Genovus team sends the update.' : '';
+    if (a === 'cancel_event') return { ok: true, summary: `Cancel “${e.title}” (${evWhen(e.starts_at)}).${invited}`, token: sign({ ...base, args: { id: e.id, title: e.title }, evBefore }) };
+    const day = clean(raw.day, 10), start = clean(raw.time ?? raw.start, 5), end = clean(raw.end, 5);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, error: 'Move it to which day? (YYYY-MM-DD)' };
+    if ((start && !hhmm.test(start)) || (end && !hhmm.test(end))) return { ok: false, error: 'Times as HH:MM, office time.' };
+    return { ok: true, summary: `Move “${e.title}” from ${evWhen(e.starts_at)} to ${start ? when(day, start) : `${day}, same time`}.${invited}`, token: sign({ ...base, args: { id: e.id, title: e.title, day, start, end }, evBefore }) };
   }
   const found = await findLeads(db, tenantId, clean(raw.lead ?? raw.name, 120));
   if (!found.length) return { ok: false, error: `No lead named “${clean(raw.lead ?? raw.name, 60)}”.` };
@@ -83,6 +122,21 @@ export async function confirm(db: SupabaseClient, userId: string, tenantId: stri
     if (error) return { ok: false, error: error.message };
     return { ok: true, done: `Follow-up added with ${p.args.who}, ${when(p.args.due, p.args.at)}.`, undo: sign({ ...undoBase, fu: data as string }) };
   }
+  if (p.a === 'add_event') {
+    const { data, error } = await db.rpc('add_event', { p_tenant: tenantId, p_title: p.args.title, p_day: p.args.day, p_start: p.args.start, p_end: p.args.end, p_location: p.args.location, p_notes: p.args.notes, p_attendees: '' });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, done: `“${p.args.title}” is on the calendar, ${when(p.args.day, p.args.start)}.`, undo: sign({ ...undoBase, ev: data as string }) };
+  }
+  if (p.a === 'move_event') {
+    const { error } = await db.rpc('move_event', { p_id: p.args.id, p_day: p.args.day, p_start: p.args.start, p_end: p.args.end });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, done: `“${p.args.title}” moved to ${p.args.start ? when(p.args.day, p.args.start) : p.args.day}.`, undo: sign({ ...undoBase, evBefore: p.evBefore }) };
+  }
+  if (p.a === 'cancel_event') {
+    const { error } = await db.rpc('cancel_event', { p_id: p.args.id });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, done: `“${p.args.title}” is cancelled and off the calendar.`, undo: sign({ ...undoBase, evBefore: p.evBefore }) };
+  }
   if (p.a === 'mark_lead') {
     const { error } = await db.rpc('update_lead', { p_id: p.args.id, p_status: p.args.status, p_note: '' });
     if (error) return { ok: false, error: error.message };
@@ -97,6 +151,15 @@ export async function confirm(db: SupabaseClient, userId: string, tenantId: stri
 export async function undo(db: SupabaseClient, userId: string, tenantId: string, token: string): Promise<ActResult> {
   const p = verify(token, userId, tenantId);
   if (!p || p.a !== 'undo') return { ok: false, error: 'Too late to undo here.' };
+  if (p.ev) {
+    const { error } = await db.rpc('helix_remove_event', { p_id: p.ev });
+    return error ? { ok: false, error: error.message } : { ok: true, done: 'Undone: the event is gone.' };
+  }
+  if (p.evBefore) {
+    const b = p.evBefore;
+    const { error } = await db.rpc('helix_restore_event', { p_id: b.id, p_expect_sequence: b.seq, p_starts: b.starts, p_ends: b.ends, p_status: b.status });
+    return error ? { ok: false, error: error.message } : { ok: true, done: 'Undone: the event is back as it was.' };
+  }
   if (p.fu) {
     const { error } = await db.rpc('helix_remove_follow_up', { p_id: p.fu });
     return error ? { ok: false, error: error.message } : { ok: true, done: 'Undone: the follow-up is gone.' };
@@ -109,7 +172,10 @@ export async function undo(db: SupabaseClient, userId: string, tenantId: string,
 /** The rules Helix follows for changes (typed and spoken). */
 export const actRules = (voice: boolean) => `
 CHANGES YOU CAN MAKE, ONLY WITH A YES: mark a lead called, won, lost or back to new; book a lead's consult (day and
-office time); add a follow-up (who, day, time, reason). ${voice
+office time); add a follow-up (who, day, time, reason); add an event to the calendar (title, day, start time, end time,
+where); move an upcoming event (event = its title, new day, new start and end); cancel an upcoming event (event).
+Events are meetings and appointments that aren't a lead's consult, e.g. "carrier training with Genovus Thursday 10:30 to noon".
+Use the TODAY date in the BRIEF to turn "Thursday" or "tomorrow" into YYYY-MM-DD. ${voice
   ? 'Call propose_action first; it puts a confirmation card on screen. Read the summary out and ask "Shall I?". Only after the person clearly says yes in this conversation, call confirm_action. If they say no, call nothing. "Undo" right after a change: call undo_last.'
-  : 'Add "propose": {"action": "mark_lead"|"book_lead"|"add_follow_up", "lead": name, "status": "contacted"|"won"|"lost"|"new", "day": "YYYY-MM-DD", "time": "HH:MM", "who": name, "reason": text} to your JSON (only the fields that action needs) and ask "Shall I?" in your answer. The person confirms with one tap; you never claim it is done.'}
+  : 'Add "propose": {"action": "mark_lead"|"book_lead"|"add_follow_up"|"add_event"|"move_event"|"cancel_event", "lead": name, "status": "contacted"|"won"|"lost"|"new", "day": "YYYY-MM-DD", "time": "HH:MM" (a follow-up\'s or an event\'s start), "end": "HH:MM", "who": name, "reason": text, "title": event title, "event": an existing event\'s title, "location": where} to your JSON (only the fields that action needs, at most 8) and ask "Shall I?" in your answer. The person confirms with one tap; you never claim it is done.'}
 Never send, post, buy or delete; for messages, write a draft the person sends.`;

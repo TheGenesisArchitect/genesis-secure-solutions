@@ -18,6 +18,8 @@ import { CALLS_OPTION, phoneProof } from '@/lib/phone-line';
 import { placesConfigured } from '@/lib/places';
 import { programOf } from '@/lib/programs';
 import { findClientBySlug } from '@/lib/clients';
+import { MeetingsPanel, type MeetingRow } from '@/components/MeetingsPanel';
+import { businessToday } from '@/lib/billing';
 
 const TABS = [
   ['overview', 'Overview'], ['record', 'Agent record'], ['assets', 'Assets'], ['approvals', 'Approvals'],
@@ -67,6 +69,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     supabase.from('partner_scans').select('status, found, cost_cents, cap_cents, started_at, requests').eq('tenant_id', t.id).order('started_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('partner_targets').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id),
   ]);
+  const [meetings, defaultInvitees] = t.kind === 'agency' && tab === 'overview' ? await Promise.all([
+    supabase.from('calendar_events').select('id, title, starts_at, ends_at, location, attendees, status, sequence, invited_at, invited_sequence').eq('tenant_id', t.id).gte('ends_at', new Date().toISOString()).order('starts_at').limit(12),
+    supabase.rpc('event_default_attendees', { p_tenant: t.id }),
+  ]) : [null, null];
   const proof = await phoneProof(supabase);
   const links = await supabase.from('client_links').select('created_at').eq('tenant_id', t.id).is('revoked_at', null).order('created_at', { ascending: false }).limit(1);
   const rec = records.data?.find((r) => r.is_current);
@@ -211,6 +217,11 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <PartnerRadarPanel tenantId={t.id} scan={(scan.data ?? null) as never} mapped={mapped.count ?? 0} ready={placesConfigured() && Boolean(profile.data?.lat)} />
               </Panel>
             </>
+          ) : null}
+          {t.kind === 'agency' ? (
+            <Panel title="Meetings" sub={`Schedule a meeting on ${t.name}’s calendar, then send the invite. Office time (Eastern).`}>
+              <MeetingsPanel tenantId={t.id} agency={t.name} today={businessToday()} attendees={(defaultInvitees?.data as string | null) ?? ''} rows={(meetings?.data ?? []) as MeetingRow[]} />
+            </Panel>
           ) : null}
           <Panel title="People" sub="Who can sign in to this agency’s dashboard">
             {members.data?.length ? (
