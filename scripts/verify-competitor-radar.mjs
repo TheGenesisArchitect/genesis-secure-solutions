@@ -45,6 +45,7 @@ const named = [
   { id: 'cr-alfa-1', name: 'Alfa Insurance - Columbus', types: ['insurance_agency'], loc: at(4.0, 250), rating: 4.9, reviews: 173, zip: '31907' },
   { id: 'cr-ind-1', name: 'Riverside Insurance Group', types: ['insurance_agency'], loc: at(2.7, 30), rating: 4.7, reviews: 131, zip: '31904' },
   { id: 'cr-sf-2', name: 'Pat Roe - State Farm Insurance Agent', types: ['insurance_agency'], loc: at(7.9, 205), rating: 4.9, reviews: 301, zip: '36867' },
+  { id: 'cr-lh', name: 'Columbus Medicare Solutions', types: ['insurance_agency'], loc: at(1.8, 150), rating: 4.9, reviews: 40, zip: '31904' },
   { id: 'cr-own', name: 'Test Agent - GEICO Insurance Agent', types: ['insurance_agency'], loc: at(0.02, 0), rating: 3.9, reviews: 151, zip: '31909' },
   { id: 'cr-diner', name: 'State Farm Road Diner', types: ['restaurant'], loc: at(3, 90), rating: 4.2, reviews: 80, zip: '31907' },
   { id: 'cr-far', name: 'Far Away - Allstate Insurance', types: ['insurance_agency'], loc: at(14.5, 90), rating: 4.5, reviews: 20, zip: '31820' },
@@ -206,7 +207,11 @@ await waitFor(`location.pathname.endsWith('/radar') && Boolean(document.querySel
 const rows = () => evalJs(`document.querySelectorAll('.radar-table tbody tr:not(.radar-own)').length`);
 const all = await rows();
 const text = await evalJs('document.body.innerText');
-check(all >= 75 && /Jane Doe - State Farm Insurance Agent/.test(text) && /466/.test(text) && /31909/.test(text), `the owner sees the mapped offices with names, review counts and ZIPs (${all} rows)`);
+check(all >= 75 && !/Columbus Medicare Solutions/.test(text) && /Jane Doe - State Farm Insurance Agent/.test(text) && /466/.test(text) && /31909/.test(text), `the owner sees the mapped offices with names, review counts and ZIPs; life & health is hidden by default (${all} rows)`);
+await evalJs(`[...document.querySelectorAll('input[type=checkbox]')].find((c) => c.closest('label')?.textContent.includes('life & health'))?.click()`); await sleep(500);
+const withLH = await rows();
+check(withLH === all + 1 && /Columbus Medicare Solutions/.test(await evalJs('document.body.innerText')), `one tap includes life & health agencies (${all} → ${withLH})`);
+await evalJs(`[...document.querySelectorAll('input[type=checkbox]')].find((c) => c.closest('label')?.textContent.includes('life & health'))?.click()`); await sleep(400);
 check(/Test Launch|you/i.test(await evalJs(`document.querySelector('.radar-own')?.innerText ?? ''`)), 'their own office heads the list as “you”, with its live rating');
 await evalJs(`[...document.querySelectorAll('.radar-chip')].find((b) => b.textContent.startsWith('State Farm'))?.click()`); await sleep(500);
 const sfRows = await rows();

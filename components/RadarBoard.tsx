@@ -15,19 +15,24 @@ const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new Cus
 const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : null; };
 const host = (url: string | null) => { try { return url ? new URL(url).hostname.replace(/^www\./, '') : null; } catch { return null; } };
 const C = 200, R = 176;
+const LH = 'Life & health';
 
 export function RadarBoard({ tenantId, offices, swept, own, views, unnamed }: { tenantId: string; offices: RadarOffice[]; swept: number; own: Own; views: RadarView[]; unnamed: number }) {
   const router = useRouter();
   const [radius, setRadius] = useState(swept);
   const [carriers, setCarriers] = useState<Set<string>>(new Set());
   const [zips, setZips] = useState<Set<string>>(new Set());
+  // Life, health and Medicare agencies don't sell what a P&C office sells: off by default, one tap to include.
+  const [withLH, setWithLH] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [viewName, setViewName] = useState('');
   const [busy, setBusy] = useState(false);
 
   const allCarriers = useMemo(() => [...new Set(offices.map((o) => o.carrier))].sort((a, b) => offices.filter((o) => o.carrier === b).length - offices.filter((o) => o.carrier === a).length), [offices]);
   const allZips = useMemo(() => [...new Set(offices.map((o) => o.zip).filter(Boolean) as string[])].sort(), [offices]);
-  const list = offices.filter((o) => o.miles <= radius && (!carriers.size || carriers.has(o.carrier)) && (!zips.size || (o.zip && zips.has(o.zip))));
+  const shown = (o: RadarOffice) => o.carrier !== LH || withLH || carriers.has(LH);
+  const list = offices.filter((o) => shown(o) && o.miles <= radius && (!carriers.size || carriers.has(o.carrier)) && (!zips.size || (o.zip && zips.has(o.zip))));
+  const lhCount = offices.filter((o) => o.carrier === LH && o.miles <= radius).length;
   const sel = list.find((o) => o.id === picked) ?? null;
   const rated = list.filter((o) => o.rating != null);
   const med = median(rated.map((o) => o.rating!));
@@ -50,12 +55,12 @@ export function RadarBoard({ tenantId, offices, swept, own, views, unnamed }: { 
           <div className="radar-ctl">
             <span className="radar-label">Saved views</span>
             <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-              <select className="select" style={{ width: 'auto', minWidth: 0, flex: 1 }} aria-label="Saved views" value="" onChange={(e) => { const v = views.find((x) => x.id === e.target.value); if (!v) return; setRadius(Math.min(swept, v.radius_mi)); setCarriers(new Set(v.carriers)); setZips(new Set(v.zips)); }}>
+              <select className="select" style={{ width: 'auto', minWidth: 0, flex: 1 }} aria-label="Saved views" value="" onChange={(e) => { const v = views.find((x) => x.id === e.target.value); if (!v) return; setRadius(Math.min(swept, v.radius_mi)); setCarriers(new Set(v.carriers.filter((c) => c !== LH || v.carriers.length < allCarriers.length))); setWithLH(v.carriers.includes(LH)); setZips(new Set(v.zips)); }}>
                 <option value="">{views.length ? 'Open a saved view…' : 'No saved views yet'}</option>
                 {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
             </div>
-            <form className="row" style={{ gap: 6, flexWrap: 'nowrap' }} onSubmit={async (e) => { e.preventDefault(); if (!viewName.trim()) return; setBusy(true); toast(await saveRadarView(tenantId, { name: viewName.trim(), radius, carriers: [...carriers], zips: [...zips] })); setBusy(false); setViewName(''); router.refresh(); }}>
+            <form className="row" style={{ gap: 6, flexWrap: 'nowrap' }} onSubmit={async (e) => { e.preventDefault(); if (!viewName.trim()) return; setBusy(true); toast(await saveRadarView(tenantId, { name: viewName.trim(), radius, carriers: withLH && !carriers.size ? allCarriers : [...carriers], zips: [...zips] })); setBusy(false); setViewName(''); router.refresh(); }}>
               <input className="input" value={viewName} onChange={(e) => setViewName(e.target.value)} placeholder="Name this view" maxLength={80} aria-label="Name for this view" style={{ flex: 1, minWidth: 0 }} />
               <button className="btn small" type="submit" disabled={busy || !viewName.trim()}>Save view</button>
             </form>
@@ -64,13 +69,14 @@ export function RadarBoard({ tenantId, offices, swept, own, views, unnamed }: { 
         <div className="radar-ctl"><span className="radar-label">Carriers</span>
           <div className="pill-row" role="group" aria-label="Filter by carrier">
             <button type="button" className="radar-chip" aria-pressed={!carriers.size} onClick={() => setCarriers(new Set())}>All</button>
-            {allCarriers.map((c) => <button key={c} type="button" className="radar-chip" aria-pressed={carriers.has(c)} onClick={() => toggle(carriers, c, setCarriers)}>{c}<span>{offices.filter((o) => o.carrier === c && o.miles <= radius).length}</span></button>)}
+            {allCarriers.filter((c) => c !== LH).map((c) => <button key={c} type="button" className="radar-chip" aria-pressed={carriers.has(c)} onClick={() => toggle(carriers, c, setCarriers)}>{c}<span>{offices.filter((o) => o.carrier === c && o.miles <= radius).length}</span></button>)}
           </div>
+          {lhCount || withLH ? <label className="row" style={{ gap: 8, fontSize: 13, color: 'var(--soft)' }}><input type="checkbox" checked={withLH} onChange={(e) => setWithLH(e.target.checked)} /> Include life &amp; health agencies ({lhCount}): Medicare, life and benefits offices that don’t sell auto or home</label> : null}
         </div>
         {allZips.length ? <div className="radar-ctl"><span className="radar-label">ZIP codes</span>
           <div className="pill-row" role="group" aria-label="Filter by ZIP code">
             <button type="button" className="radar-chip" aria-pressed={!zips.size} onClick={() => setZips(new Set())}>All</button>
-            {allZips.map((z) => <button key={z} type="button" className="radar-chip" aria-pressed={zips.has(z)} onClick={() => toggle(zips, z, setZips)}>{z}<span>{offices.filter((o) => o.zip === z && o.miles <= radius).length}</span></button>)}
+            {allZips.map((z) => <button key={z} type="button" className="radar-chip" aria-pressed={zips.has(z)} onClick={() => toggle(zips, z, setZips)}>{z}<span>{offices.filter((o) => shown(o) && o.zip === z && o.miles <= radius).length}</span></button>)}
           </div>
         </div> : null}
         {views.length ? <div className="pill-row">{views.map((v) => <span key={v.id} className="chip">{v.name} <button type="button" className="radar-x" aria-label={`Delete ${v.name}`} onClick={async () => { toast(await deleteRadarView(v.id)); router.refresh(); }}>×</button></span>)}</div> : null}
