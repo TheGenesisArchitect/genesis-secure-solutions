@@ -112,6 +112,14 @@ const old = must(await db.from('competitor_scans').select('status').eq('id', id3
 check(old.status === 'stopped', 'starting a new sweep stops one still running');
 await radar.runCompetitorSlice(id4, 60_000);
 
+// A sweep that cannot search (no Google key) fails and keeps its work; it is never "done" with nothing found.
+const id5 = await radar.startCompetitorScan(t.id, 10, 2500, null);
+process.env.GOOGLE_PLACES_API_KEY = '';
+const rf = await radar.runCompetitorSlice(id5, 20_000);
+process.env.GOOGLE_PLACES_API_KEY = 'test';
+const s5 = must(await db.from('competitor_scans').select('status, queue').eq('id', id5).single(), 'failed scan');
+check(rf.status === 'failed' && s5.status === 'failed' && s5.queue.length === 1, `without a Google key the sweep fails and keeps its area to search (${s5.status})`);
+
 // 5. live cards
 const card = await places.getOfficeCard('cr-sf-1');
 check(card?.name === 'Jane Doe - State Farm Insurance Agent' && card.rating === 5 && card.reviews === 466 && card.zip === '31909', `a live card reads name, rating, reviews and ZIP (${JSON.stringify(card)})`);

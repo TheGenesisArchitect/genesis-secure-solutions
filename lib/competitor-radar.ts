@@ -86,7 +86,13 @@ export async function runCompetitorSlice(scanId: string, deadlineMs = 40_000) {
         rows.push({ tenant_id: s.tenant_id, place_id: pl.id, carrier_id: c.carrier?.id ?? null, carrier: c.segment === 'independent' ? 'Independent' : (c.carrier as { name?: string } | null)?.name ?? 'Other carrier', segment: c.segment, distance_mi: Math.round(miles * 10) / 10, bearing_deg: bearing(office, { lat: pl.lat, lng: pl.lng }), last_seen: new Date().toISOString() });
       }
       token = r.next;
-    } while (token && pages < PAGES); } catch (e) { console.error(`[competitors] ${e instanceof Error ? e.message : e}`); }
+    } while (token && pages < PAGES); } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[competitors] ${msg}`);
+      // A search that never ran is not "done": put the area back. No key = a setup problem, so the sweep fails
+      // (and says why); anything else (a timeout, a Google hiccup) is retried on the next run.
+      if (pages === 0) { queue.unshift(job); status = /not connected|not set/i.test(msg) ? 'failed' : status; break; }
+    }
     if (rows.length) {
       const { data: before } = await db.from('competitor_offices').select('place_id').eq('tenant_id', s.tenant_id).in('place_id', rows.map((r) => r.place_id));
       const known = new Set((before ?? []).map((r) => r.place_id));
