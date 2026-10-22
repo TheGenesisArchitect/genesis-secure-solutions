@@ -83,6 +83,33 @@ async function clean() {
 }
 await clean();
 
+// Tagging, name by name (lib/competitor-tags.ts) with the real carrier catalog.
+const { competitorTag } = await import('../lib/competitor-tags.ts');
+const catalog = must(await db.from('carriers').select('id, slug, name, aliases, model, fit_score, fit_reasons'), 'carriers');
+const A = ['insurance_agency'];
+const tag = (n) => { const x = competitorTag(n, A, catalog); return x ? `${x.carrier}/${x.segment}` : 'dropped'; };
+const cases = [
+  ['Jane Doe - State Farm Insurance Agent', 'State Farm/captive'],
+  ['Nationwide Insurance: Kim Lee Agency', 'Nationwide/captive'],
+  ['Direct Auto Insurance', 'Direct Auto/captive'],
+  ['Freeway Insurance', 'Freeway Insurance/captive'],
+  ['Columbus Medicare Insurance Solutions', 'Life & health/independent'],
+  ['Primerica: Lee Financial', 'Life & health/independent'],
+  ['New York Life - John Smith', 'Life & health/independent'],
+  ['Senior Life & Auto Insurance', 'Independent/independent'],
+  ['Riverside Insurance Group', 'Independent/independent'],
+  ['Smith Auto & Home Insurance', 'Independent/independent'],
+  ['Columbus Claims Adjusters', 'dropped'],
+  ['Chattahoochee Title Insurance Company', 'dropped'],
+  ['A-1 Bail Bonds & Insurance', 'dropped'],
+];
+const wrong = cases.filter(([n, want]) => tag(n) !== want).map(([n, want]) => `${n}: ${tag(n)} (want ${want})`);
+check(!wrong.length, `tagging: carriers the catalog lacks are named, life & health is its own group, non-agencies are dropped (${wrong.length ? wrong.join('; ') : `${cases.length} names`})`);
+// An adjuster an older sweep had kept is removed when the sweep sees it again.
+PLACES.push({ id: 'cr-adj', name: 'Columbus Claims Adjusters', types: ['insurance_agency'], loc: at(1.1, 60), rating: 4.0, reviews: 3, zip: '31904' });
+byId.set('cr-adj', PLACES.at(-1));
+must(await db.from('competitor_offices').insert({ tenant_id: t.id, place_id: 'cr-adj', carrier: 'Independent', segment: 'independent', distance_mi: 1.1, bearing_deg: 60 }), 'old adjuster row');
+
 // 1-3. the sweep
 const id = await radar.startCompetitorScan(t.id, 10, 2500, null);
 let r = await radar.runCompetitorSlice(id, 60_000);
@@ -93,6 +120,7 @@ check(r.status === 'done' && got.has('cr-sf-1') && got.has('cr-all-1') && got.ha
 const of = (pid) => offices.find((o) => o.place_id === pid);
 check(of('cr-sf-1')?.carrier === 'State Farm' && of('cr-sf-1')?.segment === 'captive' && of('cr-alfa-1')?.carrier.startsWith('Alfa') && of('cr-ind-1')?.carrier === 'Independent' && of('cr-ind-1')?.segment === 'independent', 'each office is tagged by carrier (State Farm, Alfa: captive; Riverside: independent)');
 check(!got.has('cr-diner') && !got.has('cr-far'), 'a diner that only shares a carrier’s name, and an office 14.5 mi out, are left off');
+check(!got.has('cr-adj'), 'an adjuster an older sweep had kept is taken off when the sweep sees it again');
 check(!got.has('cr-own') && scan.own_place_id === 'cr-own', 'the agency’s own GEICO listing is “you”, not a competitor');
 check(cluster.every((c) => got.has(c.id)), `a busy area that fills all three pages splits until all 70 offices there are found (${cluster.filter((c) => got.has(c.id)).length}/70)`);
 const sf = of('cr-sf-1');
