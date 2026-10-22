@@ -5,7 +5,9 @@
 // the form's own action (only internal forms, only after the person's yes; Helix never presses outward buttons).
 export type PageField = { name: string; label: string; type: string; required: boolean; value: string; options?: string[] };
 export type PageForm = { key: string; title: string; lane: 'internal' | 'outward'; item?: string; fields: PageField[]; submit: string };
-export type PageMap = { page: string; path: string; items: string[]; forms: PageForm[] };
+/** A card on the page (a partner, a lead): its name, the facts it shows, and a ref Helix's lookups take. */
+export type PageCard = { name: string; facts: string; ref?: string };
+export type PageMap = { page: string; path: string; items: string[]; cards: PageCard[]; forms: PageForm[] };
 
 const clean = (t: string | null | undefined) => (t ?? '').replace(/\s+/g, ' ').trim();
 const formKey = (f: HTMLFormElement) => { const item = f.closest<HTMLElement>('[data-helix-item]')?.dataset.helixItem; const t = f.dataset.helixTitle ?? f.dataset.helixForm ?? ''; return item ? `${item} · ${t}` : t; };
@@ -47,19 +49,31 @@ export function readPage(): PageMap {
     page: clean(document.querySelector('.topbar h1')?.textContent),
     path: location.pathname,
     items: [...new Set([...document.querySelectorAll<HTMLElement>('main [data-helix-item]')].map((e) => e.dataset.helixItem!))].slice(0, 30),
+    cards: [],
     forms,
   };
+  // Cards carry their facts (data-helix-facts) with their own budget, in page order (the Call Desk first), so a long
+  // list never pushes out the forms.
+  let room = 2600;
+  for (const e of document.querySelectorAll<HTMLElement>('main [data-helix-facts]')) {
+    const c: PageCard = { name: clean(e.dataset.helixItem).slice(0, 80), facts: clean(e.dataset.helixFacts).slice(0, 240), ...(e.dataset.helixRef ? { ref: e.dataset.helixRef } : {}) };
+    if (map.cards.some((x) => x.name === c.name && x.facts === c.facts)) continue;
+    room -= JSON.stringify(c).length;
+    if (room < 0) break;
+    map.cards.push(c);
+  }
   // Keep it small. Long lists repeat the same row form many times: shorten row forms to their name and field names
   // first (fill_form still matches options by their text), and only then drop what still doesn't fit.
-  if (JSON.stringify(map).length > 3200) map.forms = map.forms.map((f) => (f.item ? { ...f, fields: f.fields.map((x) => ({ name: x.name, label: x.label, type: x.type, required: x.required, value: '' })) } : f));
+  const size = () => JSON.stringify({ ...map, cards: [] }).length;
+  if (size() > 3200) map.forms = map.forms.map((f) => (f.item ? { ...f, fields: f.fields.map((x) => ({ name: x.name, label: x.label, type: x.type, required: x.required, value: '' })) } : f));
   // Still too big: drop repeated row forms (keeping one of each kind) before any of the page's own forms.
   const repeated = (f: PageForm) => !!f.item && map.forms.filter((x) => x.title === f.title).length > 1;
-  while (JSON.stringify(map).length > 3200) {
+  while (size() > 3200) {
     const i = map.forms.map((f, n) => (repeated(f) ? n : -1)).filter((n) => n >= 0).pop();
     if (i === undefined) break;
     map.forms.splice(i, 1);
   }
-  while (JSON.stringify(map).length > 3200 && map.forms.length > 1) map.forms.pop();
+  while (size() > 3200 && map.forms.length > 1) map.forms.pop();
   return map;
 }
 

@@ -24,6 +24,8 @@ export type HelixReply = {
   go?: string;
   /** A change Helix proposes (confirm lane, lib/helix-act.ts); the route signs it for one tap. Never saved. */
   propose?: Record<string, string>;
+  /** A lookup Helix wants before answering (lib/helix-lookups.ts); the route runs it and asks again. Never saved. */
+  lookup?: { tool: string; args: Record<string, unknown> };
   /** "Make a note": saved by the route to Helix notes (lib/helix-note-save.ts). */
   note?: { kind: string; text: string };
   /** Fill a form on the person's page (and ask to save it): applied by the browser, never saved in the thread. */
@@ -94,7 +96,7 @@ RULES (never break):
 - Proposed follow-ups are suggestions the agent adds with one tap; only propose them when asked or clearly useful.
 - Keep the agency's customer data inside your answer; don't add anything about other agencies.
 - Only talk about the LINES THIS AGENCY SELLS. If asked about any other kind of insurance, say the agency doesn't offer it and don't draft anything for it.
-- Partner names are not in the BRIEF (only categories); refer to partners by category and distance.
+- Partner names are not in the BRIEF (only categories). Names on screen (ON SCREEN) or from a LOOKUP may be used; never repeat a partner's phone, address or Google rating (they're on the card).
 
 Reply with JSON only: {"answer": string (plain text, under 120 words), "unknown": boolean, "gap": string, "followUps": [{"who": string, "reason": string, "due": "YYYY-MM-DD", "at": "HH:MM"}], "drafts": [{"to": string, "channel": "text"|"email", "body": string (under 400 characters, friendly, no prices or coverage claims, signed as the agency)}]}.
 
@@ -118,6 +120,7 @@ function parse(raw: string, model: string): HelixReply {
     save: (j as { save?: unknown }).save === true,
     note: (() => { const n = (j as { note?: { kind?: unknown; text?: unknown } }).note; return n && typeof n === 'object' && typeof n.text === 'string' && n.text.trim().length > 1 ? { kind: s(n.kind, 20), text: s(n.text, 600) } : undefined; })(),
     propose: (() => { const p = (j as { propose?: unknown }).propose; return p && typeof p === 'object' && !Array.isArray(p) ? Object.fromEntries(Object.entries(p as Record<string, unknown>).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k.slice(0, 20), String(v).slice(0, 300)]).slice(0, 8)) : undefined; })(),
+    lookup: (() => { const l = (j as { lookup?: { tool?: unknown; args?: unknown } }).lookup; return l && typeof l === 'object' && typeof l.tool === 'string' ? { tool: s(l.tool, 30), args: l.args && typeof l.args === 'object' && !Array.isArray(l.args) ? Object.fromEntries(Object.entries(l.args as Record<string, unknown>).slice(0, 8).map(([k, v]) => [k.slice(0, 20), typeof v === 'number' ? v : String(v ?? '').slice(0, 120)])) : {} } : undefined; })(),
     model,
   };
 }

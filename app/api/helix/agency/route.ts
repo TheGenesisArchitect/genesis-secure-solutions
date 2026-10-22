@@ -12,6 +12,7 @@ import { formRules, helixPagesFor, textNavRules } from '@/lib/helix-actions';
 import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
 import { onScreen } from '@/lib/helix-screen';
 import { actRules, propose } from '@/lib/helix-act';
+import { LOOKUPS, lookupBlock, lookupRules, runLookup } from '@/lib/helix-lookups';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -31,9 +32,19 @@ export async function POST(req: Request) {
     const thread = await openThread(supabase, viewer, scope, 'agency', b.threadId);
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
     const pages = await helixPagesFor(viewer, 'agency', { id: scope.tenantId, slug: String(b.slug), plan: scope.plan });
-    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages) + actRules(false) + noteRules('agency') + formRules(false) + onScreen(b.screen);
+    const brief = (await agencyBrief(supabase, scope.tenantId, scope.name, PROGRAM_NAME[scope.program as ProgramId])) + textNavRules(pages) + actRules(false) + noteRules('agency') + formRules(false) + lookupRules(false) + onScreen(b.screen);
+    // Helix may look something up first (a partner's card, their website, open times): at most two lookups, run with
+    // the person's own session; the results feed this answer only and are never saved to the thread.
+    let ask = brief, first = await askHelix(ask, history, question, context);
+    for (let round = 0; first.lookup && round < 2; round++) {
+      const tool = first.lookup.tool as (typeof LOOKUPS)[number];
+      if (!LOOKUPS.includes(tool)) break;
+      ask += lookupBlock(tool, first.lookup.args, await runLookup(supabase, scope.tenantId, tool, first.lookup.args));
+      first = await askHelix(ask, history, question, context);
+    }
+    if (first.lookup) first = await askHelix(`${ask}\n\nNo more lookups: answer now with what you have.`, history, question, context);
     // Something Helix doesn't know yet becomes a Helix note for the Genovus team.
-    const reply = await fileGap(await askHelix(brief, history, question, context), { question, tenantId: scope.tenantId, where: scope.name, askedBy: viewer.userId });
+    const reply = await fileGap({ ...first, lookup: undefined }, { question, tenantId: scope.tenantId, where: scope.name, askedBy: viewer.userId });
     // "Make a note": saved where the person will look for it (their Helix notes), with a link to open it.
     const n = reply.note ? await saveHelixNote(supabase, scope, 'agency', b.slug, viewer.userId, reply.note.kind, reply.note.text) : null;
     const savedNote = n?.ok ? { href: n.href, kind: n.kind, text: reply.note!.text } : undefined;

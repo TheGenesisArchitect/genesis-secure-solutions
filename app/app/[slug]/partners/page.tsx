@@ -76,7 +76,8 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
         {desk.length ? desk.map((p, i) => {
           const d = deskInfo[i], c = catOf(p.category), season = inSeason.has(p.line);
           return (
-            <article key={p.id} className="partner-card">
+            <article key={p.id} className="partner-card" data-helix-item={d?.name || c?.label || p.category} data-helix-ref={`partner:${p.id}`}
+              data-helix-facts={`${c?.label ?? p.category} · ${p.distance_mi} mi · ${LINES[p.line as LineId]?.label ?? p.line} · fit ${p.fit} · ${STATUS[p.status]?.[0] ?? p.status}${season ? ' · in season now' : ''}${d?.website ? ' · has a website' : ''}`}>
               <div className="spread" style={{ gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ display: 'grid', gap: 2 }}>
                   <b>{d?.name || c?.label || p.category}</b>
@@ -89,7 +90,7 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
                 {d?.phone ? <a className="btn small" href={`tel:${d.phone.replace(/[^\d+]/g, '')}`}>Call {d.phone}</a> : null}
                 <a className="btn small ghost" href={d?.mapsUrl ?? mapsUrl(p.place_id)} target="_blank" rel="noreferrer">Map</a>
                 {d?.website ? <a className="btn small ghost" href={d.website} target="_blank" rel="noreferrer">Website</a> : null}
-                <HelixAskButton label="Talking points" question={`Give me talking points for calling this ${c?.label ?? 'business'} about referring their customers to us.`} context={`partner: ${c?.label ?? p.category}, ${p.distance_mi} miles from the office, line ${LINES[p.line as LineId]?.label}${season ? ', in season now' : ''}, status ${p.status}`} />
+                <HelixAskButton label="Talking points" question={`Give me talking points for calling this ${c?.label ?? 'business'} about referring their customers to us (use their card and their website).`} context={`partner partner:${p.id}: ${c?.label ?? p.category}, ${p.distance_mi} miles from the office, line ${LINES[p.line as LineId]?.label}${season ? ', in season now' : ''}, status ${p.status}`} />
               </div>
               <PartnerActions id={p.id} status={p.status} refLink={refLink(p.ref_code)} />
             </article>
@@ -106,7 +107,8 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
               <section key={key} className="board-col" aria-label={label}>
                 <header><b>{label}</b><span className="num muted">{col.length}</span></header>
                 {col.map((p) => (
-                  <article key={p.id} className="board-card">
+                  <article key={p.id} className="board-card" data-helix-item={nameOf.get(p.id) || catOf(p.category)?.label || p.category} data-helix-ref={`partner:${p.id}`}
+                    data-helix-facts={`${catOf(p.category)?.label ?? p.category} · ${p.distance_mi} mi · fit ${p.fit} · ${STATUS[p.status]?.[0] ?? p.status}${p.next_action_at && p.status === 'meeting' ? ` · visit ${when(p.next_action_at)}` : ''}${p.contact_name ? ` · contact ${p.contact_name}` : ''}${referred[p.id] ? ` · ${referred[p.id]} referred` : ''}`}>
                     <b>{nameOf.get(p.id) || catOf(p.category)?.label || p.category}</b>
                     <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Chip kind={STATUS[p.status][1]}>{STATUS[p.status][0]}</Chip><span className="muted" style={{ fontSize: 12 }}>{catOf(p.category)?.label} · {p.distance_mi} mi</span></span>
                     {p.next_action_at && p.status === 'meeting' ? <span style={{ fontSize: 13 }}><b>Visit:</b> {when(p.next_action_at)}{p.contact_name ? ` with ${p.contact_name}` : ''}</span> : null}

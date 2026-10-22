@@ -315,6 +315,24 @@ export async function updateFollowUp(_: ActionResult, f: FormData) {
   return call('update_follow_up', { p_id: str(f, 'id', 64), p_status: status, p_due: due }, status === 'done' ? 'Done. Nice.' : due ? 'Moved.' : 'Reopened.');
 }
 
+// ---------- Booking from the calendar (a partner visit or a lead's consult) ----------
+// The Calendar's booking panel: an open time Helix suggested (or the person picked) becomes a partner visit (the
+// partner moves to "visit booked") or a lead's consult. Times are the office's (Eastern).
+export async function bookFromCalendar(_: ActionResult, f: FormData) {
+  const target = str(f, 'target', 60), day = str(f, 'day', 10), time = str(f, 'time', 5);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return fail('Pick a day and a time.');
+  const [kind, id] = target.split(':');
+  const label = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const [h, m] = time.split(':').map(Number), clock = `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (kind === 'partner') {
+    const { easternIso } = await import('./agency-calendar');
+    const who = str(f, 'contact', 120);
+    return call('log_partner', { p_id: id, p_kind: 'call', p_status: 'meeting', p_note: who ? `Visit with ${who}` : 'Visit booked', p_next: easternIso(day, time), p_contact: who ? { name: who } : {} }, `Visit booked for ${label} at ${clock}. It’s on your calendar.`);
+  }
+  if (kind === 'lead') return call('book_lead', { p_id: id, p_when: `${day} ${time} America/New_York`, p_note: str(f, 'note', 2000) }, `Consult booked for ${label} at ${clock}. It’s on your calendar.`);
+  return fail('Pick who the booking is with.');
+}
+
 // ---------- Calendar events (meetings) ----------
 // Times are the office's (Eastern); the database turns day + HH:MM into an instant. Invites are Genovus staff only.
 export async function addEvent(_: ActionResult, f: FormData) {

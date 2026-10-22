@@ -9,6 +9,10 @@ import { CopyButton } from '@/components/CopyButton';
 import { Panel, Chip } from '@/components/ui';
 import { ActionForm } from '@/components/ActionForm';
 import { addEvent, cancelEvent } from '@/lib/actions';
+import { BookingPanel } from '@/components/BookingPanel';
+import { openTimes } from '@/lib/helix-lookups';
+import { getSummary } from '@/lib/places';
+import { partnerCategories } from '@/lib/lines';
 import { db } from '@/lib/supabase/server';
 import { businessToday } from '@/lib/billing';
 import { accessFor } from '@/lib/access';
@@ -23,21 +27,43 @@ const mondayOf = (d: string) => { const x = new Date(`${d}T12:00:00Z`); return a
 const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 const time = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 
-export default async function Calendar({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ week?: string }> }) {
+export default async function Calendar({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ week?: string; book?: string }> }) {
   const { slug } = await params;
   const ctx = await agencyContext(slug);
   const access = await accessFor(ctx.tenant.tenantId, ctx.tenant.plan);
   if (!access.has('calendar')) return <AgencyShell ctx={ctx} title="Calendar"><ModuleGate ctx={ctx} moduleKey="calendar" /></AgencyShell>;
   const today = businessToday();
-  const wk = (await searchParams).week;
+  const sp = await searchParams;
+  const wk = sp.week;
   const start = mondayOf(wk && /^\d{4}-\d{2}-\d{2}$/.test(wk) ? wk : today);
   const days = Array.from({ length: 7 }, (_, i) => add(start, i));
-  const items = await calendarItems(await db(), ctx.tenant.tenantId, start, days[6]);
+  const supabase = await db();
+  const items = await calendarItems(supabase, ctx.tenant.tenantId, start, days[6]);
+  // Booking from a partner card or a lead (?book=partner:<id> or lead:<id>): who, and the open times to suggest.
+  const [bookKind, bookId] = String(sp.book ?? '').split(':');
+  const booking = (bookKind === 'partner' || bookKind === 'lead') && /^[0-9a-f-]{36}$/.test(bookId ?? '') ? await (async () => {
+    if (bookKind === 'partner') {
+      const { data: p } = await supabase.from('partner_targets').select('id, place_id, category, status, next_action_at').eq('tenant_id', ctx.tenant.tenantId).eq('id', bookId).maybeSingle();
+      if (!p) return null;
+      const { data: prof } = await supabase.from('agency_profiles').select('lines').eq('tenant_id', ctx.tenant.tenantId).maybeSingle();
+      const name = (await getSummary(p.place_id))?.name || partnerCategories(prof?.lines).find((c) => c.key === p.category)?.label || 'this partner';
+      return { kind: 'partner' as const, who: name, done: p.status === 'meeting' && p.next_action_at ? new Date(p.next_action_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : null };
+    }
+    const { data: l } = await supabase.from('leads').select('id, name, status, booked_for').eq('tenant_id', ctx.tenant.tenantId).eq('id', bookId).maybeSingle();
+    if (!l) return null;
+    return { kind: 'lead' as const, who: l.name, done: l.status === 'booked' && l.booked_for ? new Date(l.booked_for).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : null };
+  })() : null;
+  const slots = booking ? (await openTimes(supabase, ctx.tenant.tenantId, { minutes: 60, days: 5 })).slots : [];
   const h = await headers();
   const feed = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}/api/calendar/${slug}?k=${feedToken(ctx.tenant.tenantId)}`;
   const base = `/app/${slug}/calendar`;
   return (
     <AgencyShell ctx={ctx} title="Calendar" actions={<span className="row" style={{ gap: 6 }}><Link className="btn small ghost" href={`${base}?week=${add(start, -7)}`}>← Last week</Link><Link className="btn small ghost" href={base}>This week</Link><Link className="btn small ghost" href={`${base}?week=${add(start, 7)}`}>Next week →</Link></span>}>
+      {booking ? (
+        <Panel title={`Book a ${booking.kind === 'partner' ? 'visit' : 'consult'} with ${booking.who}`} sub="Helix checked your calendar for open times. Pick one, or choose your own.">
+          <BookingPanel target={`${booking.kind}:${bookId}`} who={booking.who} kind={booking.kind} slots={slots} done={booking.done} />
+        </Panel>
+      ) : null}
       <p className="muted" style={{ margin: 0, fontSize: 13 }}>Week of {dayLabel(start)} · {items.filter((i) => i.kind === 'event').length} events, {items.filter((i) => i.kind === 'consult').length} consults, {items.filter((i) => i.kind === 'follow-up').length} follow-ups, {items.filter((i) => i.kind === 'post').length} posts</p>
       <div className="week">
         {days.map((d) => {

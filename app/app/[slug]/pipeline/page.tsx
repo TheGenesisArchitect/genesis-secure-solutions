@@ -45,7 +45,8 @@ export default async function Pipeline({ params }: { params: Promise<{ slug: str
               <header><b>{label}</b><span className="num muted">{col.length}</span></header>
               <span className="muted" style={{ fontSize: 12 }}>{hint}</span>
               {col.map((l) => (
-                <article key={l.id} className="board-card" data-helix-item={l.name}>
+                <article key={l.id} className="board-card" data-helix-item={l.name} data-helix-ref={`lead:${l.id}`}
+                  data-helix-facts={[label, l.topic, `from ${SOURCE[l.source] ?? l.source}`, l.booked_for && `consult ${when(l.booked_for)}`, `arrived ${age(l.created_at)}`, l.note && `note: ${String(l.note).slice(0, 80)}`].filter(Boolean).join(' · ')}>
                   <div className="spread" style={{ gap: 6 }}><b>{l.name}</b><span className="muted" style={{ fontSize: 12 }}>{age(l.created_at)}</span></div>
                   <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Chip kind="info">{SOURCE[l.source] ?? l.source}</Chip>{l.topic ? <span style={{ fontSize: 13 }}>{l.topic}</span> : null}</span>
                   {l.booked_for ? <span style={{ fontSize: 13 }}><b>Consult:</b> {when(l.booked_for)}</span> : null}
@@ -58,6 +59,7 @@ export default async function Pipeline({ params }: { params: Promise<{ slug: str
                   {key === 'contacted' || key === 'new' ? (
                     <details className="book">
                       <summary>Book a consult</summary>
+                      <Link className="btn small ghost" href={`/app/${slug}/calendar?book=lead:${l.id}`} style={{ justifySelf: 'start' }}>Find an open time on the calendar →</Link>
                       <ActionForm action={bookLead} helix="book" helixTitle="Book a consult" className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'end' }}>
                         <input type="hidden" name="id" value={l.id} />
                         <label className="field"><span>Day</span><input className="input" type="date" name="day" defaultValue={today} required /></label>
