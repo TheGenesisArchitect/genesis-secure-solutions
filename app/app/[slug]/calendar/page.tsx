@@ -43,10 +43,10 @@ export default async function Calendar({ params, searchParams }: { params: Promi
   const [bookKind, bookId] = String(sp.book ?? '').split(':');
   const booking = (bookKind === 'partner' || bookKind === 'lead') && /^[0-9a-f-]{36}$/.test(bookId ?? '') ? await (async () => {
     if (bookKind === 'partner') {
-      const { data: p } = await supabase.from('partner_targets').select('id, place_id, category, status, next_action_at').eq('tenant_id', ctx.tenant.tenantId).eq('id', bookId).maybeSingle();
+      const { data: p } = await supabase.from('partner_targets').select('id, place_id, category, status, next_action_at, known_name').eq('tenant_id', ctx.tenant.tenantId).eq('id', bookId).maybeSingle();
       if (!p) return null;
       const { data: prof } = await supabase.from('agency_profiles').select('lines').eq('tenant_id', ctx.tenant.tenantId).maybeSingle();
-      const name = (await getSummary(p.place_id))?.name || partnerCategories(prof?.lines).find((c) => c.key === p.category)?.label || 'this partner';
+      const name = p.known_name || (await getSummary(p.place_id))?.name || partnerCategories(prof?.lines).find((c) => c.key === p.category)?.label || 'this partner';
       return { kind: 'partner' as const, who: name, done: p.status === 'meeting' && p.next_action_at ? new Date(p.next_action_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : null };
     }
     const { data: l } = await supabase.from('leads').select('id, name, status, booked_for').eq('tenant_id', ctx.tenant.tenantId).eq('id', bookId).maybeSingle();

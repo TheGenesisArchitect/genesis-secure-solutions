@@ -32,7 +32,10 @@ export function BookingPanel({ target, who, kind, slots, done }: { target: strin
           <label className="field"><span>Day</span><input className="input" type="date" name="day" required defaultValue={slots[0]?.day} /></label>
           <label className="field" style={{ width: 130 }}><span>Time</span><input className="input" type="time" name="time" required defaultValue={slots[0]?.time} /></label>
           {kind === 'partner'
-            ? <label className="field"><span>Who you’ll meet <span className="muted">(optional)</span></span><input className="input" name="contact" maxLength={120} placeholder="Name" autoComplete="off" /></label>
+            ? <>
+              <label className="field"><span>Business (kept on your records)</span><input className="input" name="business" maxLength={120} defaultValue={who} autoComplete="off" /></label>
+              <label className="field"><span>Who you’ll meet <span className="muted">(optional)</span></span><input className="input" name="contact" maxLength={120} placeholder="Name" autoComplete="off" /></label>
+            </>
             : <label className="field"><span>Note <span className="muted">(optional)</span></span><input className="input" name="note" maxLength={300} placeholder="What they want to cover" autoComplete="off" /></label>}
           <button className="btn small primary" type="submit">Book {noun}</button>
         </ActionForm>

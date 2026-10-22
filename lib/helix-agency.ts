@@ -50,7 +50,7 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
     calendarItems(db, tenantId, today, add(today, 7)),
     db.from('agency_profiles').select('city, state, lines, service_radius_mi, carrier, licensed_states').eq('tenant_id', tenantId).maybeSingle(),
     db.from('calls').select('from_e164, started_at, duration_s, status, summary, number_id, tracking_numbers(label)').eq('tenant_id', tenantId).gte('started_at', since).order('started_at', { ascending: false }).limit(40),
-    db.from('partner_targets').select('category, line, distance_mi, fit, status, contact_name, next_action_at, ref_code').eq('tenant_id', tenantId).order('fit', { ascending: false }).limit(400),
+    db.from('partner_targets').select('category, line, distance_mi, fit, status, contact_name, next_action_at, ref_code, known_name').eq('tenant_id', tenantId).order('fit', { ascending: false }).limit(400),
     db.from('source_costs').select('source, cents').eq('tenant_id', tenantId).eq('month', today.slice(0, 8) + '01'),
   ]);
   const L = leads.data ?? [];
@@ -73,7 +73,7 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
     `CALLS last 30 days (${C.length}; missed ${C.filter((c) => c.status === 'missed').length}):`,
     ...C.slice(0, 25).map((c) => `- ${et(c.started_at)} | ${prettyPhone(c.from_e164)} | ${c.status}${c.duration_s ? ` ${Math.round(c.duration_s / 60)} min` : ''} | line: ${(c.tracking_numbers as unknown as { label?: string } | null)?.label ?? 'tracking'}${c.summary ? ` | note: ${c.summary}` : ''}`),
     `PARTNERS (referral partners mapped near the office: ${T.length}; working: ${T.filter((t) => t.status !== 'new' && t.status !== 'opted_out' && t.status !== 'not_now').length}):`,
-    ...T.filter((t) => t.status !== 'new').slice(0, 25).map((t) => `- ${catLabel(t.category)} (${LINES[t.line as keyof typeof LINES]?.label ?? t.line}) ${t.distance_mi} mi | ${t.status}${t.contact_name ? ` | contact ${t.contact_name}` : ''}${t.next_action_at ? ` | next ${et(t.next_action_at)}` : ''}`),
+    ...T.filter((t) => t.status !== 'new').slice(0, 25).map((t) => `- ${t.known_name ? `${t.known_name}, ` : ''}${catLabel(t.category)} (${LINES[t.line as keyof typeof LINES]?.label ?? t.line}) ${t.distance_mi} mi | ${t.status}${t.contact_name ? ` | contact ${t.contact_name}` : ''}${t.next_action_at ? ` | next ${et(t.next_action_at)}` : ''}`),
     `Best unworked partners by fit: ${T.filter((t) => t.status === 'new').slice(0, 8).map((t) => `${catLabel(t.category)} ${t.distance_mi} mi (fit ${t.fit})`).join('; ') || 'none mapped yet'}`,
     `LEADS, last 30 days (${L.length}; by status: ${by((l) => l.status) || 'none'}; by source: ${by((l) => l.source) || 'none'}; median time to first call: ${replies.length ? `${Math.round(replies[Math.floor(replies.length / 2)])} min` : 'n/a'}):`,
     ...L.map((l) => `- ${l.name} | ${l.status}${l.booked_for ? ` consult ${et(l.booked_for)}` : ''} | ${l.topic ?? 'no topic'} | from ${l.source}${l.campaign ? `/${l.campaign}` : ''} | ${l.phone ?? ''} ${l.email ?? ''} | arrived ${et(l.created_at)}${l.note ? ` | note: ${l.note}` : ''}`),
@@ -96,7 +96,7 @@ RULES (never break):
 - Proposed follow-ups are suggestions the agent adds with one tap; only propose them when asked or clearly useful.
 - Keep the agency's customer data inside your answer; don't add anything about other agencies.
 - Only talk about the LINES THIS AGENCY SELLS. If asked about any other kind of insurance, say the agency doesn't offer it and don't draft anything for it.
-- Partner names are not in the BRIEF (only categories). Names on screen (ON SCREEN) or from a LOOKUP may be used; never repeat a partner's phone, address or Google rating (they're on the card).
+- Partners the agency has worked carry the business name it confirmed (in PARTNERS). Other names come from the screen (ON SCREEN) or a LOOKUP (recall for what the agency did and said before); never repeat a partner's phone, address or Google rating (they're on the card).
 
 Reply with JSON only: {"answer": string (plain text, under 120 words), "unknown": boolean, "gap": string, "followUps": [{"who": string, "reason": string, "due": "YYYY-MM-DD", "at": "HH:MM"}], "drafts": [{"to": string, "channel": "text"|"email", "body": string (under 400 characters, friendly, no prices or coverage claims, signed as the agency)}]}.
 

@@ -6,6 +6,9 @@
 //   partner_card  one partner, by its card on screen (ref) or by name (a Google search near the office, 3.2 cents)
 //   partner_site  the partner's own website, read as text (lib/site-scan.ts)
 //   open_times    open slots on the agency's calendar for a visit or consult (weekdays 9 to 5, office time)
+//   recall        what the agency did and said before: partner calls, visits and outcomes in a date range, Helix's
+//                 past lookups, and past Helix conversations about something (Helix Knows)
+// Each lookup is logged (helix_lookups: the tool, what was asked, the partner it matched; never Google's data).
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getDetails, getSummary, textSearch } from './places';
@@ -14,11 +17,13 @@ import { calendarItems, dayOf, easternIso } from './agency-calendar';
 import { businessToday } from './billing';
 import { scanSite } from './site-scan';
 
-export const LOOKUPS = ['partner_list', 'partner_card', 'partner_site', 'open_times'] as const;
+export const LOOKUPS = ['partner_list', 'partner_card', 'partner_site', 'open_times', 'recall'] as const;
 export type LookupName = (typeof LOOKUPS)[number];
 type Args = Record<string, unknown>;
-type Partner = { id: string; place_id: string; line: string; category: string; distance_mi: number; fit: number; status: string; contact_name: string | null; contact_phone: string | null; notes: string | null; next_action_at: string | null };
-const COLS = 'id, place_id, line, category, distance_mi, fit, status, contact_name, contact_phone, notes, next_action_at';
+type Partner = { id: string; place_id: string; line: string; category: string; distance_mi: number; fit: number; status: string; contact_name: string | null; contact_phone: string | null; notes: string | null; next_action_at: string | null; known_name: string | null };
+/** The name to show: the agency's own record when it has one, else Google's, live. */
+const nameOf = async (r: { place_id: string; known_name: string | null }) => r.known_name ?? (await getSummary(r.place_id))?.name ?? null;
+const COLS = 'id, place_id, line, category, distance_mi, fit, status, contact_name, contact_phone, notes, next_action_at, known_name';
 const str = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const et = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
@@ -42,10 +47,10 @@ async function partnerList(db: SupabaseClient, tenantId: string, a: Args) {
   const sorted = rows.sort((x, y) => sort === 'fit' ? y.fit - x.fit || x.distance_mi - y.distance_mi : sort === 'distance' ? x.distance_mi - y.distance_mi || y.fit - x.fit : bestScore(y) - bestScore(x)).slice(0, limit);
   const p = await profile(db, tenantId);
   const cats = partnerCategories(p?.lines);
-  const names = await Promise.all(sorted.map((r) => getSummary(r.place_id)));
+  const names = await Promise.all(sorted.map(nameOf));
   return {
     sorted_by: sort === 'best' ? 'best fit and proximity (fit minus 2 points a mile)' : sort, of: rows.length,
-    partners: sorted.map((r, i) => ({ ref: `partner:${r.id}`, name: names[i]?.name ?? null, category: cats.find((c) => c.key === r.category)?.label ?? r.category, line: LINES[r.line as LineId]?.label ?? r.line, miles: Number(r.distance_mi), fit: r.fit, status: r.status, ...(r.next_action_at ? { next: et(r.next_action_at) } : {}) })),
+    partners: sorted.map((r, i) => ({ ref: `partner:${r.id}`, name: names[i], category: cats.find((c) => c.key === r.category)?.label ?? r.category, line: LINES[r.line as LineId]?.label ?? r.line, miles: Number(r.distance_mi), fit: r.fit, status: r.status, ...(r.next_action_at ? { next: et(r.next_action_at) } : {}) })),
   };
 }
 
@@ -58,6 +63,9 @@ async function resolvePartner(db: SupabaseClient, tenantId: string, a: Args): Pr
   }
   const name = str(a.name, 120);
   if (name.length < 2) return { error: 'Which partner? Give their name, or open their card.' };
+  // The agency's own records first (free, and theirs), then Google.
+  const { data: known } = await db.from('partner_targets').select(COLS).eq('tenant_id', tenantId).ilike('known_name', `%${name.replace(/[%_\\]/g, '')}%`).limit(2);
+  if (known?.length === 1) return known[0] as Partner;
   const p = await profile(db, tenantId);
   if (!p?.lat || !p?.lng) return { error: 'The agency’s office isn’t placed yet, so Helix can’t search near it.' };
   const miles = Math.max(5, Math.min(25, Number(p.service_radius_mi) || 15)), dLat = miles / 69, dLng = miles / (69 * Math.cos((p.lat * Math.PI) / 180));
@@ -81,7 +89,7 @@ async function partnerCard(db: SupabaseClient, tenantId: string, a: Args) {
   const cat = partnerCategories(p?.lines).find((c) => c.key === r.category);
   const season = momentsNow(p?.lines).find((m) => m.line === r.line);
   return {
-    ref: `partner:${r.id}`, name: d?.name ?? null, category: cat?.label ?? r.category, why_they_refer: cat?.pitch ?? null,
+    ref: `partner:${r.id}`, name: r.known_name ?? d?.name ?? null, ...(r.known_name ? { on_your_records_as: r.known_name } : {}), category: cat?.label ?? r.category, why_they_refer: cat?.pitch ?? null,
     line: LINES[r.line as LineId]?.label ?? r.line, in_season: season ? `${season.label} (${season.why})` : null,
     miles: Number(r.distance_mi), fit: r.fit, status: r.status, has_website: Boolean(d?.website),
     contact: r.contact_name ?? null, notes: r.notes ?? null, next_visit: r.next_action_at && r.status === 'meeting' ? et(r.next_action_at) : null,
@@ -98,7 +106,7 @@ async function partnerSite(db: SupabaseClient, tenantId: string, a: Args) {
   if (!d?.website) return { error: `${d?.name ?? 'This partner'} has no website on their Google listing.` };
   try {
     const s = await scanSite(d.website);
-    return { ref: `partner:${r.id}`, name: d.name, website: s.url, title: s.title, description: s.description, untrusted_website_text: s.text };
+    return { ref: `partner:${r.id}`, name: r.known_name ?? d.name, website: s.url, title: s.title, description: s.description, untrusted_website_text: s.text };
   } catch (e) {
     return { error: `Couldn’t read ${d.website}: ${e instanceof Error ? e.message : 'it didn’t load'}` };
   }
@@ -135,8 +143,60 @@ export async function openTimes(db: SupabaseClient, tenantId: string, a: Args) {
   return { minutes, slots: slots.slice(0, 8), booked: items.filter((i) => i.kind !== 'post' && dayOf(i.start) >= today).slice(0, 12).map((i) => `${et(i.start)} ${i.title}`) };
 }
 
-export async function runLookup(db: SupabaseClient, tenantId: string, tool: string, args: Args): Promise<Record<string, unknown>> {
+/** Helix Knows: what the agency did and said in a window (default the last 7 days): partner activity (calls, visits,
+ *  outcomes, with the business name the agency confirmed, else Google's, live), the partners Helix looked up, and past
+ *  Helix conversations mentioning `about`. Conversations follow their own rules: owners see the team's, others their own. */
+async function recall(db: SupabaseClient, tenantId: string, a: Args) {
+  const today = businessToday();
+  const day = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const days = Math.max(1, Math.min(90, Number(a.days) || 7));
+  const back = (n: number) => { const x = new Date(`${today}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - n); return x.toISOString().slice(0, 10); };
+  const since = day(a.since) ?? back(days), until = day(a.until) ?? today;
+  const from = easternIso(since, '00:00'), to = new Date(new Date(easternIso(until, '00:00')).getTime() + 86_400_000).toISOString();
+  const about = str(a.about, 80).replace(/[%_\\]/g, ''), category = str(a.category, 40).toLowerCase();
+  const p = await profile(db, tenantId);
+  const cats = partnerCategories(p?.lines);
+  const [ev, looked, msgs] = await Promise.all([
+    db.from('partner_events').select('kind, outcome, note, created_at, partner_targets(id, place_id, category, known_name, contact_name, status)').eq('tenant_id', tenantId).gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).limit(60),
+    db.from('helix_lookups').select('tool, query, at, partner_targets(id, place_id, category, known_name)').eq('tenant_id', tenantId).gte('at', from).lt('at', to).order('at', { ascending: false }).limit(30),
+    about.length >= 2 ? db.from('helix_messages').select('role, text, created_at').eq('tenant_id', tenantId).ilike('text', `%${about}%`).order('created_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
+  ]);
+  type PT = { id: string; place_id: string; category: string; known_name: string | null; contact_name?: string | null; status?: string };
+  const label = (k: string) => cats.find((c) => c.key === k)?.label ?? k;
+  // "real estate", "realtors", "brokers": match the category's label or key, word by word.
+  const words = category.split(/\s+/).filter((w) => w.length > 2).map((w) => w.replace(/s$/, ''));
+  const fits = (pt: PT | null) => !category || Boolean(pt && (() => { const l = `${label(pt.category)} ${pt.category}`.toLowerCase(); return l.includes(category) || words.some((w) => l.includes(w)) || (/broker|realt/.test(category) && pt.category === 'realtor'); })());
+  const activity = ((ev.data ?? []) as unknown as { kind: string; outcome: string | null; note: string | null; created_at: string; partner_targets: PT | null }[]).filter((e) => e.partner_targets && fits(e.partner_targets)).slice(0, 15);
+  const lookups = ((looked.data ?? []) as unknown as { tool: string; query: string | null; at: string; partner_targets: PT | null }[]).filter((l) => !category || fits(l.partner_targets)).slice(0, 10);
+  // Names: the agency's own record first; Google, live, for at most ten others.
+  const need = [...new Map([...activity, ...lookups].map((x) => x.partner_targets).filter((x): x is PT => Boolean(x && !x.known_name)).map((x) => [x.id, x] as const)).values()].slice(0, 10);
+  const live = new Map(await Promise.all(need.map(async (x) => [x.id, (await getSummary(x.place_id))?.name ?? null] as const)));
+  const nm = (x: PT | null) => (x ? x.known_name ?? live.get(x.id) ?? null : null);
+  return {
+    window: `${since} to ${until}`,
+    partner_activity: activity.map((e) => ({ when: et(e.created_at), what: e.kind, outcome: e.outcome, note: e.note, partner: nm(e.partner_targets), category: label(e.partner_targets!.category), contact: e.partner_targets!.contact_name ?? null, status_now: e.partner_targets!.status, ref: `partner:${e.partner_targets!.id}` })),
+    helix_lookups: lookups.map((l) => ({ when: et(l.at), tool: l.tool, asked: l.query, partner: nm(l.partner_targets) })),
+    ...(about.length >= 2 ? { past_conversations: ((msgs.data ?? []) as { role: string; text: string; created_at: string }[]).map((m) => ({ when: et(m.created_at), who: m.role === 'helix' ? 'Helix' : 'the team', text: m.text.slice(0, 240) })) } : {}),
+  };
+}
+
+/** Log what Helix looked up: the tool, what was asked, and the partner it matched (never Google's data). */
+async function logLookup(db: SupabaseClient, tenantId: string, userId: string, tool: string, args: Args, result: Record<string, unknown>) {
+  if (tool === 'open_times' || tool === 'recall') return;
+  const asked = tool === 'partner_list' ? `sort: ${str(args.sort, 12) || 'best'}${args.status ? `, ${str(args.status, 20)}` : ''}${args.line ? `, ${str(args.line, 20)}` : ''}` : str(args.name, 120) || str(args.ref, 60);
+  const ref = typeof result.ref === 'string' ? result.ref.replace(/^partner:/, '') : null;
+  try { await db.from('helix_lookups').insert({ tenant_id: tenantId, user_id: userId, tool, query: asked || null, partner_id: ref && uuid.test(ref) ? ref : null }); } catch { /* the answer matters more than the log */ }
+}
+
+export async function runLookup(db: SupabaseClient, tenantId: string, tool: string, args: Args, userId?: string): Promise<Record<string, unknown>> {
+  const out = await runOne(db, tenantId, tool, args);
+  if (userId && !out.error) await logLookup(db, tenantId, userId, tool, args, out);
+  return out;
+}
+
+async function runOne(db: SupabaseClient, tenantId: string, tool: string, args: Args): Promise<Record<string, unknown>> {
   try {
+    if (tool === 'recall') return await recall(db, tenantId, args);
     if (tool === 'partner_list') return await partnerList(db, tenantId, args);
     if (tool === 'partner_card') return await partnerCard(db, tenantId, args);
     if (tool === 'partner_site') return await partnerSite(db, tenantId, args);
@@ -163,5 +223,6 @@ LOOKUPS (before you answer, when the BRIEF or the screen doesn't have it): ${voi
 - partner_card {ref?: "partner:<id>" from a card on screen, name?}: one partner's card: category, why they refer, season, fit, status, history, notes.
 - partner_site {ref? or name?}: read the partner's own website (from their Google listing) for facts that help the conversation.
 - open_times {minutes?: 60, days?: 5}: open times on the calendar for a visit or a consult.
+- recall {days?: 7, since?: "YYYY-MM-DD", until?, category?: e.g. "real estate", about?: words}: what the agency did and said before: partner calls, visits and outcomes in that window (with names), the partners Helix looked up, and past Helix conversations mentioning "about". Use it for "who did we call last week", "what did we say about SPL Realty", "which brokers did I look up". Answer with names, dates and outcomes.
 PARTNER TALKING POINTS: lead with what their customers need and how the office takes care of them; use facts from their site (years in business, specialties, community work, new listings) to make it personal. Never promise or mention rewards, payments or anything tied to a sale; partners never discuss policy terms, prices or coverage; no quotes. Name the partner, but don't repeat phones, addresses or Google ratings (they're on the card).
 BOOKING: when the person wants to book a visit or a consult, suggest one or two open times (open_times) and send them to the Calendar's booking, or fill it if it's on screen.`;

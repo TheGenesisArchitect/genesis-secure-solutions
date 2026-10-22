@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     for (let round = 0; first.lookup && round < 2; round++) {
       const tool = first.lookup.tool as (typeof LOOKUPS)[number];
       if (!LOOKUPS.includes(tool)) break;
-      ask += lookupBlock(tool, first.lookup.args, await runLookup(supabase, scope.tenantId, tool, first.lookup.args));
+      ask += lookupBlock(tool, first.lookup.args, await runLookup(supabase, scope.tenantId, tool, first.lookup.args, viewer.userId));
       first = await askHelix(ask, history, question, context);
     }
     if (first.lookup) first = await askHelix(`${ask}\n\nNo more lookups: answer now with what you have.`, history, question, context);

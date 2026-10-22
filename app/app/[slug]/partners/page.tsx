@@ -17,7 +17,7 @@ import { LINES, momentsNow, partnerCategories, type LineId } from '@/lib/lines';
 export const metadata = { title: 'Partners' };
 export const dynamic = 'force-dynamic';
 
-type P = { id: string; place_id: string; line: string; category: string; distance_mi: number; fit: number; status: string; ref_code: string; next_action_at: string | null; contact_name: string | null; notes: string | null };
+type P = { id: string; place_id: string; line: string; category: string; distance_mi: number; fit: number; status: string; ref_code: string; next_action_at: string | null; contact_name: string | null; notes: string | null; known_name: string | null };
 const STATUS: Record<string, [string, string]> = { new: ['To call', 'info'], called: ['Called', 'pending'], meeting: ['Visit booked', 'pending'], partner: ['Partner', 'done'], referring: ['Referring', 'done'], not_now: ['Not now', ''], opted_out: ['Do not contact', 'bad'] };
 const COLS = [['called', 'Called'], ['meeting', 'Visit booked'], ['partner', 'Partner'], ['referring', 'Referring']] as const;
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
@@ -31,7 +31,7 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
   const supabase = await db();
   const [{ data: prof }, { data: rows }, { data: refs }] = await Promise.all([
     supabase.from('agency_profiles').select('lines, service_radius_mi, website, city').eq('tenant_id', ctx.tenant.tenantId).maybeSingle(),
-    supabase.from('partner_targets').select('id, place_id, line, category, distance_mi, fit, status, ref_code, next_action_at, contact_name, notes').eq('tenant_id', ctx.tenant.tenantId).neq('status', 'opted_out').order('fit', { ascending: false }).limit(2000),
+    supabase.from('partner_targets').select('id, place_id, line, category, distance_mi, fit, status, ref_code, next_action_at, contact_name, notes, known_name').eq('tenant_id', ctx.tenant.tenantId).neq('status', 'opted_out').order('fit', { ascending: false }).limit(2000),
     supabase.from('leads').select('partner_id').eq('tenant_id', ctx.tenant.tenantId).not('partner_id', 'is', null),
   ]);
   const all = (rows ?? []) as P[];
@@ -47,7 +47,7 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
   const working = all.filter((p) => p.status !== 'new' && p.status !== 'not_now');
-  const [deskInfo, boardInfo] = await Promise.all([Promise.all(desk.map((p) => getDetails(p.place_id))), Promise.all(working.slice(0, 40).map((p) => getSummary(p.place_id)))]);
+  const [deskInfo, boardInfo] = await Promise.all([Promise.all(desk.map((p) => getDetails(p.place_id))), Promise.all(working.slice(0, 40).map((p) => (p.known_name ? Promise.resolve({ name: p.known_name, address: '' }) : getSummary(p.place_id))))]);
   const nameOf = new Map(working.slice(0, 40).map((p, i) => [p.id, boardInfo[i]?.name ?? null]));
   const refLink = (code: string) => prof?.website ? `${prof.website}/?utm_source=partner&utm_campaign=${code}` : null;
   const byLine = (Object.keys(LINES) as LineId[]).filter((l) => (prof?.lines ?? []).includes(l)).map((l) => ({ l, n: all.filter((p) => p.line === l).length }));
@@ -92,7 +92,7 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
                 {d?.website ? <a className="btn small ghost" href={d.website} target="_blank" rel="noreferrer">Website</a> : null}
                 <HelixAskButton label="Talking points" question={`Give me talking points for calling this ${c?.label ?? 'business'} about referring their customers to us (use their card and their website).`} context={`partner partner:${p.id}: ${c?.label ?? p.category}, ${p.distance_mi} miles from the office, line ${LINES[p.line as LineId]?.label}${season ? ', in season now' : ''}, status ${p.status}`} />
               </div>
-              <PartnerActions id={p.id} status={p.status} refLink={refLink(p.ref_code)} />
+              <PartnerActions id={p.id} status={p.status} refLink={refLink(p.ref_code)} name={d?.name ?? null} knownName={p.known_name} />
             </article>
           );
         }) : <p className="muted" style={{ margin: 0 }}>Everyone on your map has been called. New businesses appear after the next map refresh.</p>}
@@ -113,7 +113,7 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
                     <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Chip kind={STATUS[p.status][1]}>{STATUS[p.status][0]}</Chip><span className="muted" style={{ fontSize: 12 }}>{catOf(p.category)?.label} · {p.distance_mi} mi</span></span>
                     {p.next_action_at && p.status === 'meeting' ? <span style={{ fontSize: 13 }}><b>Visit:</b> {when(p.next_action_at)}{p.contact_name ? ` with ${p.contact_name}` : ''}</span> : null}
                     {referred[p.id] ? <span style={{ fontSize: 13 }}><b>{referred[p.id]}</b> referred lead{referred[p.id] === 1 ? '' : 's'}</span> : null}
-                    <PartnerActions id={p.id} status={p.status} refLink={refLink(p.ref_code)} />
+                    <PartnerActions id={p.id} status={p.status} refLink={refLink(p.ref_code)} name={nameOf.get(p.id) ?? null} knownName={p.known_name} />
                   </article>
                 ))}
                 {!col.length ? <span className="muted" style={{ fontSize: 13, padding: '8px 0' }}>None yet.</span> : null}

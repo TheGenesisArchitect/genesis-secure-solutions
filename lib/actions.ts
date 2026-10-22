@@ -326,7 +326,9 @@ export async function bookFromCalendar(_: ActionResult, f: FormData) {
   const [h, m] = time.split(':').map(Number), clock = `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
   if (kind === 'partner') {
     const { easternIso } = await import('./agency-calendar');
-    const who = str(f, 'contact', 120);
+    const who = str(f, 'contact', 120), business = str(f, 'business', 120);
+    // The business name the person confirmed here becomes the agency's own record of this partner.
+    if (business) await (await db()).rpc('set_partner_name', { p_id: id, p_name: business });
     return call('log_partner', { p_id: id, p_kind: 'call', p_status: 'meeting', p_note: who ? `Visit with ${who}` : 'Visit booked', p_next: easternIso(day, time), p_contact: who ? { name: who } : {} }, `Visit booked for ${label} at ${clock}. It’s on your calendar.`);
   }
   if (kind === 'lead') return call('book_lead', { p_id: id, p_when: `${day} ${time} America/New_York`, p_note: str(f, 'note', 2000) }, `Consult booked for ${label} at ${clock}. It’s on your calendar.`);

@@ -157,12 +157,23 @@ export async function deleteRadarView(id: string): Promise<Out> {
   return error ? { err: error.message } : { ok: 'View deleted.' };
 }
 
-/** A member works a partner: call or visit outcome, status, next step, a contact they confirmed. */
-export async function logPartner(f: { id: string; kind: string; status?: string; note?: string; next?: string; contact?: { name?: string; phone?: string; email?: string } }): Promise<Out> {
+/** Correct (or clear) the business name on the agency's record of a partner. */
+export async function namePartner(id: string, name: string): Promise<Out> {
+  if (!(await getViewer().catch(() => null))) return { err: 'Sign in first.' };
+  if (!uuid.test(id)) return { err: 'Unknown partner.' };
+  const { error } = await (await db()).rpc('set_partner_name', { p_id: id, p_name: String(name ?? '').slice(0, 120) });
+  revalidatePath('/', 'layout');
+  return error ? { err: error.message } : { ok: name.trim() ? `Saved to your records as ${name.trim().slice(0, 120)}.` : 'Name removed from your records.' };
+}
+
+/** A member works a partner: call or visit outcome, status, next step, a contact they confirmed. `name`: the business
+ *  name shown on the card they acted on, which becomes the agency's own record of it (migration 0073). */
+export async function logPartner(f: { id: string; kind: string; status?: string; note?: string; next?: string; contact?: { name?: string; phone?: string; email?: string }; name?: string }): Promise<Out> {
   if (!(await getViewer().catch(() => null))) return { err: 'Sign in first.' };
   const next = f.next && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(f.next) ? easternIso(f.next.slice(0, 10), f.next.slice(11)) : null;
   const { error } = await (await db()).rpc('log_partner', { p_id: f.id, p_kind: f.kind, p_status: f.status ?? null, p_note: f.note ?? null, p_next: next, p_contact: f.contact ?? {} });
   if (error) return { err: error.message === 'not allowed' ? 'That partner isn’t in your agency.' : error.message };
+  if (f.name?.trim()) await (await db()).rpc('set_partner_name', { p_id: f.id, p_name: f.name.trim().slice(0, 120) });
   revalidatePath('/', 'layout');
   return { ok: f.status === 'meeting' ? 'Visit booked: it’s on your calendar.' : f.status === 'partner' ? 'New partner! Send them their referral link.' : 'Logged.' };
 }

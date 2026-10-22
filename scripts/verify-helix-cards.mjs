@@ -9,6 +9,9 @@
 //  4. partner and lead cards carry their facts and refs on the page
 //  5. "Interested: book a visit" opens the Calendar with open times; one tap fills the form; booking moves the partner
 //     to "visit booked" at that time (office time)
+//  6. Helix Knows: logging a call keeps the business name on the agency's records (editable); Helix's lookups are
+//     logged; "what was the name of the real estate broker we called last week" is answered from that memory, and a
+//     name the agency knows is found without a Google search
 // Uses the "test-launch" agency (verify-agency-dashboard.mjs, verify-growth-engine.mjs).
 //   node --conditions=react-server --env-file=.env.local scripts/verify-helix-cards.mjs [outDir]
 import fs from 'node:fs';
@@ -45,6 +48,7 @@ const clean = async () => {
   must(await db.from('partner_targets').delete().eq('tenant_id', t.id).like('place_id', 'hc-%'), 'clear partners');
   must(await db.from('calendar_events').delete().eq('tenant_id', t.id).like('title', 'Cards:%'), 'clear busy');
   must(await db.from('helix_threads').delete().eq('tenant_id', t.id), 'clear threads');
+  must(await db.from('helix_lookups').delete().eq('tenant_id', t.id), 'clear lookups');
 };
 await clean();
 const rows = must(await db.from('partner_targets').insert(PARTNERS.map((p) => ({ tenant_id: t.id, place_id: p.place_id, line: p.line, category: p.category, distance_mi: p.distance_mi, fit: p.fit, status: 'new' }))).select('id, place_id'), 'partners');
@@ -73,7 +77,11 @@ const mock = http.createServer((req, res) => {
             ? { answer: 'SPL Realty talking points: they have helped Columbus families buy homes since 1998 and run a first-time buyer seminar, so open with how we get their buyers a binder-ready home policy before closing, from a local office they can call.', followUps: [], drafts: [] }
             : { lookup: { tool: 'partner_site', args: { name: 'SPL Realty' } }, answer: 'One moment.' })
           : { lookup: { tool: 'partner_card', args: { name: 'SPL Realty' } }, answer: 'One moment.' })
-        : { answer: 'Verify typed answer.', followUps: [], drafts: [] };
+        : /real estate broker we called last week/i.test(asked)
+          ? (/LOOKUP recall/.test(sys)
+            ? { answer: (sys.match(/"partner":"([^"]+)","category":"Real estate agent"/)?.[1] ?? 'I don’t know') + ': you called them this week and got no answer.', followUps: [], drafts: [] }
+            : { lookup: { tool: 'recall', args: { category: 'real estate broker', days: 7 } }, answer: 'One moment.' })
+          : { answer: 'Verify typed answer.', followUps: [], drafts: [] };
       return res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] }));
     }
     res.statusCode = 404; res.end('{}');
@@ -153,11 +161,33 @@ const saved = threadIds.length ? must(await db.from('helix_messages').select('*'
 const savedText = JSON.stringify(saved);
 check(saved.length >= 2 && !/LOOKUP|why_they_refer|untrusted_website_text|555-0142|One moment/.test(savedText), 'the thread keeps only the question and the answer (no lookup data, no phone)');
 
+// 6. Helix Knows: a call logged on the card keeps the name; lookups are logged; recall answers from memory
+const logged = must(await db.from('helix_lookups').select('tool, query, partner_id').eq('tenant_id', t.id), 'lookups');
+check(logged.some((l) => l.tool === 'partner_card' && l.query === 'SPL Realty' && l.partner_id === idOf('hc-spl')) && logged.some((l) => l.tool === 'partner_site'), `Helix's lookups are logged with what was asked and the partner matched (${logged.map((l) => `${l.tool}: ${l.query}`).join('; ')})`);
+check(!JSON.stringify(logged).includes('555-0142') && !JSON.stringify(logged).includes('since 1998'), 'the lookup log keeps no Google or website data');
+await js(`[...document.querySelectorAll('[data-helix-ref="partner:${idOf('hc-spl')}"] button')].find((b) => b.textContent.trim() === 'No answer')?.click()`);
+let known; for (let i = 0; i < 20; i++) { await sleep(1000); known = must(await db.from('partner_targets').select('known_name, known_name_by, status').eq('id', idOf('hc-spl')).single(), 'known'); if (known.known_name) break; }
+check(known.known_name === 'SPL Realty' && known.known_name_by === owner.id && known.status === 'called', 'logging “No answer” on SPL Realty’s card keeps “SPL Realty” on the agency’s records, with who confirmed it');
+await waitFor(`document.body.innerText.includes('On your records as')`, 20_000);
+check(await js(`document.body.innerText.includes('On your records as SPL Realty')`), 'the card shows “On your records as SPL Realty”, with Edit');
+const before = textQueries.length;
+const byKnown = await L.runLookup(asOwner, t.id, 'partner_card', { name: 'SPL' });
+check(byKnown.ref === `partner:${idOf('hc-spl')}` && byKnown.on_your_records_as === 'SPL Realty' && textQueries.length === before, 'a name on the agency’s records is found without a Google search');
+const rec = await L.runLookup(asOwner, t.id, 'recall', { category: 'real estate broker', days: 7 });
+check(rec.partner_activity?.some((a) => a.partner === 'SPL Realty' && a.outcome === 'called') && !rec.partner_activity?.some((a) => a.category !== 'Real estate agent'), `recall finds the real estate calls this week, by name (${rec.partner_activity?.map((a) => `${a.partner} ${a.outcome} ${a.when}`).join('; ')})`);
+const talk = await L.runLookup(asOwner, t.id, 'recall', { about: 'SPL Realty', days: 7 });
+check(talk.past_conversations?.some((m) => m.who === 'Helix' && /since 1998/.test(m.text)), 'recall finds what Helix said about SPL Realty before');
+const brief = await (await import('../lib/helix-agency.ts')).agencyBrief(asOwner, t.id, 'Test Launch Agency', 'Growth');
+check(/- SPL Realty, Real estate agent/.test(brief), 'the agency’s known partners are in Helix’s brief by name');
+const ask = await js(`fetch('/api/helix/agency', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: '${SLUG}', question: 'Helix, what was the name of the real estate broker we called last week?' }) }).then((r) => r.json())`);
+check(/^SPL Realty: you called them/.test(ask.answer ?? ''), `“What was the name of the real estate broker we called last week?” Helix Knows (${ask.answer ?? ask.error})`);
+
 // 5. booking from the card
 await js(`[...document.querySelectorAll('[data-helix-ref="partner:${idOf('hc-spl')}"] button')].find((b) => /book a visit/i.test(b.textContent))?.click()`);
 const onCal = await waitFor(`location.pathname.endsWith('/calendar') && location.search.includes('book=partner') && Boolean(document.querySelector('form[data-helix-form="booking"]'))`, 60_000);
 const panel = await js(`document.querySelector('main').innerText`);
-check(onCal && /Book a visit with SPL Realty/.test(panel) && /Soonest:/.test(panel), '“Interested: book a visit” opens the Calendar with open times for SPL Realty');
+const bizField = await js(`document.querySelector('form[data-helix-form="booking"] input[name=business]')?.value`);
+check(onCal && /Book a visit with SPL Realty/.test(panel) && /Soonest:/.test(panel) && bizField === 'SPL Realty', '“Interested: book a visit” opens the Calendar with open times for SPL Realty (the business name prefilled from the agency’s records)');
 const second = times.slots[1];
 await js(`[...document.querySelectorAll('[data-helix-item^="Open time"]')][1]?.click()`); await sleep(400);
 const filled = await js(`({ day: document.querySelector('form[data-helix-form="booking"] input[name=day]').value, time: document.querySelector('form[data-helix-form="booking"] input[name=time]').value })`);

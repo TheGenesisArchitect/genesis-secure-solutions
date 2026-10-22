@@ -18,5 +18,5 @@ export async function POST(req: Request) {
   const scope = await helixScope(supabase, viewer, 'agency', b.slug);
   if ('error' in scope) return Response.json({ error: scope.error }, { status: scope.status });
   const args = b.args && typeof b.args === 'object' && !Array.isArray(b.args) ? Object.fromEntries(Object.entries(b.args).slice(0, 8)) : {};
-  return Response.json(await runLookup(supabase, scope.tenantId, String(b.tool), args));
+  return Response.json(await runLookup(supabase, scope.tenantId, String(b.tool), args, viewer.userId));
 }

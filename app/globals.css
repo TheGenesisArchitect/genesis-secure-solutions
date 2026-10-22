@@ -1362,3 +1362,4 @@ button.chip{cursor:pointer}
 @media (max-width:860px){.radar-ctl-row,.radar-grid{grid-template-columns:1fr}}
 .radar-scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .radar-scroll thead th{position:sticky;top:0;background:var(--surface);z-index:1}
+.linkish{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline}
