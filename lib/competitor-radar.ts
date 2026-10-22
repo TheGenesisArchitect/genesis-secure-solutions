@@ -81,8 +81,9 @@ export async function runCompetitorSlice(scanId: string, deadlineMs = 40_000) {
         if (!c) continue;
         const miles = milesBetween(office, { lat: pl.lat, lng: pl.lng });
         if (miles > s.radius_mi) continue;
-        // The agency's own office (its carrier, at its address) is "you", not a competitor.
-        if (miles < 0.15 && own && c.carrier && ((c.carrier as { name?: string }).name ?? c.carrier.slug).toLowerCase().includes(own)) { ownPlace = pl.id; continue; }
+        // The agency’s own office (its carrier, within half a mile of the geocoded address; Google’s pin can sit a few
+        // hundred yards off) is "you", not a competitor.
+        if (miles < 0.5 && own && c.carrier && ((c.carrier as { name?: string }).name ?? c.carrier.slug).toLowerCase().includes(own)) { ownPlace = pl.id; continue; }
         rows.push({ tenant_id: s.tenant_id, place_id: pl.id, carrier_id: c.carrier?.id ?? null, carrier: c.segment === 'independent' ? 'Independent' : (c.carrier as { name?: string } | null)?.name ?? 'Other carrier', segment: c.segment, distance_mi: Math.round(miles * 10) / 10, bearing_deg: bearing(office, { lat: pl.lat, lng: pl.lng }), last_seen: new Date().toISOString() });
       }
       token = r.next;
