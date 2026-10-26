@@ -140,9 +140,12 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         subject: `Approval needed: ${data.title}`,
         ...frame({
           preheader: 'Nothing goes out in your name until you approve it.',
-          heading: 'Something is ready for your approval',
-          body: [`${data.title}, for ${data.agency}.`, 'Nothing is posted, published or charged in your name until you approve it. Approve, or tell us what to change.'],
-          button: { label: 'Review it', url: `${origin}/app/${data.slug}/approvals` },
+          // A batch (a month of posts) arrives as one email with its count.
+          heading: data.count ? `${data.count} posts are ready for your approval` : 'Something is ready for your approval',
+          body: data.count
+            ? [`${data.title}, for ${data.agency}. Each one shows the ad, the caption and when it goes out.`, 'Nothing is posted in your name until you approve it. Approve each post, or tell us what to change.']
+            : [`${data.title}, for ${data.agency}.`, 'Nothing is posted, published or charged in your name until you approve it. Approve, or tell us what to change.'],
+          button: { label: data.count ? 'Review them' : 'Review it', url: `${origin}/app/${data.slug}/approvals` },
         }, origin),
       };
     case 'invoice_ready':

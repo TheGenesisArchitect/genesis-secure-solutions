@@ -99,6 +99,32 @@ const late = must(await plan(asOps, { p_asset: story.id }), 'late post');
 must(await asOwner.rpc('decide_approval', { p_id: must(await db.from('approvals').select('id').eq('content_item_id', late).single(), 'la').id, p_decision: 'approved' }), 'approve late');
 must(await db.from('content_items').update({ scheduled_for: new Date(Date.now() - 5 * 3_600_000).toISOString() }).eq('id', late), 'make late');
 
+// 2b. a batch (a month of posts): each post gets its own approval, the owner gets ONE email; a single post still emails
+const owner = (await users()).find((x) => x.email === `owner@${SLUG}.example`);
+// By outbox id, not time: this machine's clock and the database's can differ by seconds.
+const lastMail = async () => (await db.from('outbox').select('id').order('id', { ascending: false }).limit(1)).data?.[0]?.id ?? 0;
+const mails = async (after) => must(await db.from('outbox').select('to_email, data, dedupe_key').eq('tenant_id', t.id).eq('template', 'approval_waiting').gt('id', after), 'outbox');
+const before = await lastMail();
+const batchStart = new Date(Date.now() - 120_000).toISOString();
+const batch = [
+  { asset: ad.id, channel: 'facebook', format: 'post', copy: 'Verify post batch one', when: inDays(3) },
+  { asset: ad.id, channel: 'instagram', format: 'post', copy: 'Verify post batch one', when: inDays(3) },
+  { asset: story.id, channel: 'instagram', format: 'story', copy: '', when: inDays(4) },
+];
+const nb = await db.rpc('plan_post_batch', { p_tenant: t.id, p_posts: batch });
+const bm = await mails(before);
+const batchApprovals = must(await db.from('approvals').select('id, body').eq('tenant_id', t.id).not('body->>batch', 'is', null).gte('requested_at', batchStart), 'batch approvals');
+check(nb.data === 3 && batchApprovals.length === 3 && bm.length === 1 && bm[0].to_email === owner?.email && bm[0].data.count === 3 && /3 posts for (Facebook and Instagram|Instagram and Facebook)/.test(bm[0].data.title), `a batch of 3: three approvals, one email to the owner (“${bm[0]?.data.title}”, ${bm.length} email)`);
+const badBatch = await db.rpc('plan_post_batch', { p_tenant: t.id, p_posts: [batch[0], { ...batch[1], asset: theirs.id }] });
+const after = must(await db.from('content_items').select('id').eq('tenant_id', t.id).eq('copy', 'Verify post batch one'), 'after bad');
+check(badBatch.error && after.length === 2, `one bad post refuses the whole batch, nothing half-loaded (${badBatch.error?.message})`);
+const noBatch = await asOps.rpc('plan_post_batch', { p_tenant: t.id, p_posts: batch });
+check(noBatch.error, 'a batch can only come from the Genovus server, not a signed-in person');
+const before2 = await lastMail();
+must(await plan(asOps, { p_when: inDays(5) }), 'single');
+check((await mails(before2)).length === 1, 'a single planned post still emails the owner once');
+for (const a of batchApprovals) must(await db.from('content_items').delete().eq('id', (await db.from('approvals').select('content_item_id').eq('id', a.id).single()).data.content_item_id), 'clear batch');
+
 // 3. sending
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, next) { try { return await next(s, c); } catch (e) { if (s.startsWith('.') && !/\\.[a-z]+$/.test(s)) return next(s + '.ts', c); if (s.startsWith('@/')) return next(new URL('../' + s.slice(2) + (/\\.[a-z]+$/.test(s) ? '' : '.ts'), ${JSON.stringify(new URL('./', import.meta.url).href)}).href, c); throw e; } }`));
 const P = await import('../lib/post-distribute.ts');
