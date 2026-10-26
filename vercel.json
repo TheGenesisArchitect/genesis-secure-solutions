@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/competitors",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/posts",
+      "schedule": "* * * * *"
     }
   ]
 }

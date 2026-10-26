@@ -26,7 +26,7 @@ export function AssetGrid({ assets, showAudience, tenantNames }: { assets: Asset
         const external = href?.startsWith('http');
         return (
           <article key={a.id} className="panel" style={{ padding: 14, gap: 10 }}>
-            {a.preview ? <img className="thumb" src={a.preview} alt="" loading="lazy" /> : <div className="thumb" style={{ display: 'grid', placeItems: 'center', color: 'var(--muted)', font: '500 11px var(--mono)', letterSpacing: '.2em' }}>{(KIND_LABEL[a.kind] ?? a.kind).toUpperCase()}</div>}
+            {a.preview ? <img className={a.kind === 'image' ? 'thumb fit' : 'thumb'} src={a.preview} alt="" loading="lazy" /> : <div className="thumb" style={{ display: 'grid', placeItems: 'center', color: 'var(--muted)', font: '500 11px var(--mono)', letterSpacing: '.2em' }}>{(KIND_LABEL[a.kind] ?? a.kind).toUpperCase()}</div>}
             <div style={{ display: 'grid', gap: 6 }}>
               <div className="row" style={{ gap: 6 }}>
                 <Chip>{KIND_LABEL[a.kind] ?? a.kind}</Chip>

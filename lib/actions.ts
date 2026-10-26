@@ -604,3 +604,24 @@ export async function studioRegisterCasting(characterId: string, pathname: strin
   revalidatePath('/', 'layout');
   return error ? fail(error.message) : done('Casting sheet uploaded. Approve it to lock the face, then generate the front portrait from it.');
 }
+
+// ---------- Posting schedule (agency posts) ----------
+// Staff plan a post with an approved ad from the agency's Library; it waits for the owner's yes on Approvals.
+// One post per network (Facebook and Instagram each get their own approval). Times are the office's (Eastern).
+export async function proposePosts(_: ActionResult, f: FormData) {
+  const day = str(f, 'day', 10), time = str(f, 'time', 5), format = str(f, 'format', 10) || 'post';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return fail('Pick a day and a time.');
+  const channels = f.getAll('channel').map(String).filter((c) => ['facebook', 'instagram', 'google'].includes(c));
+  if (!channels.length) return fail('Pick at least one network.');
+  const copy = str(f, 'copy', 2200);
+  const { easternIso } = await import('./agency-calendar');
+  const { copyWarnings } = await import('./copy-rules');
+  const supabase = await db();
+  for (const channel of channels) {
+    const { error } = await supabase.rpc('propose_post', { p_tenant: str(f, 'tenant', 64), p_asset: str(f, 'asset', 64), p_channel: channel, p_format: format, p_copy: copy, p_when: easternIso(day, time) });
+    if (error) { revalidatePath('/', 'layout'); return fail(`${channel}: ${error.message}`); }
+  }
+  revalidatePath('/', 'layout');
+  const warn = copyWarnings(copy);
+  return done(`${channels.length === 1 ? 'Post' : `${channels.length} posts`} sent to the owner for approval.${warn.length ? ` Check the caption: ${warn.join(' ')}` : ''}`, warn.length > 0);
+}

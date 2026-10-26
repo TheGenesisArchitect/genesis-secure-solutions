@@ -28,8 +28,15 @@ export default async function AgencyApprovals({ params, searchParams }: { params
             {pending.map((a) => (
               <li key={a.id} style={{ gap: 10 }}>
                 <div className="spread"><b>{a.title}</b><span className="row" style={{ gap: 6 }}>{a.is_sample ? <Chip kind="sample">Sample</Chip> : null}<Chip>{a.subject_kind.replace('_', ' ')}</Chip></span></div>
-                {typeof a.body?.text === 'string' ? <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>{a.body.text}</div> : null}
-                {typeof a.body?.channel === 'string' ? <span className="muted" style={{ fontSize: 13 }}>For {a.body.channel}{typeof a.body?.when === 'string' ? ` · planned ${a.body.when}` : ''}</span> : null}
+                {typeof a.body?.asset_id === 'string' ? (
+                  <a href={`/api/assets/${a.body.asset_id}`} target="_blank" rel="noreferrer" className="post-ad" data-format={a.body.format === 'story' ? 'story' : 'post'}>
+                    <img src={`/api/assets/${a.body.asset_id}`} alt={typeof a.body.asset_title === 'string' ? a.body.asset_title : 'The ad for this post'} loading="lazy" />
+                  </a>
+                ) : null}
+                {a.body?.format === 'story'
+                  ? <span className="soft" style={{ fontSize: 13 }}>A story shows the ad on its own, with no caption.</span>
+                  : typeof a.body?.text === 'string' && a.body.text ? <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>{a.body.text}</div> : null}
+                {typeof a.body?.channel === 'string' ? <span className="muted" style={{ fontSize: 13 }}>For {a.body.channel}{a.body?.format === 'story' ? ' Stories' : ''}{typeof a.body?.when === 'string' ? ` · planned ${a.body.when}` : ''}</span> : null}
                 {canDecide ? (
                   <ActionForm action={decideApproval} helix="decision" helixTitle="Decision" lane="outward" className="form">
                     <input type="hidden" name="id" value={a.id} />
