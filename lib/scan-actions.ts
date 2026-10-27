@@ -70,14 +70,46 @@ export async function logProspect(_: ActionResult, f: FormData): Promise<ActionR
 }
 
 /** Start onboarding: the prospect becomes a client in Consult with a draft record from what the team confirmed
- *  (convert_prospect). Admin or account lead. Opens the new client. */
+ *  (convert_prospect), and the package they picked is set up right along with it:
+ *  - its features switch on as a 30-day trial (the plan itself changes when the upgrade invoice is paid);
+ *  - the website starts: a draft site.config.ts from the record, attached to the client, and a "Build the website"
+ *    task with the launch checklist. Care billing doesn't start here, and nothing is sent to the client.
+ *  Admin or account lead. Running it again changes nothing. Opens the new client. */
 export async function startOnboarding(_: ActionResult, f: FormData): Promise<ActionResult> {
   const slug = str(f, 'slug', 64).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
-  const { error } = await (await db()).rpc('convert_prospect', {
+  const pkg = (['launch', 'growth', 'premium'].includes(str(f, 'package', 10)) ? str(f, 'package', 10) : 'launch') as 'launch' | 'growth' | 'premium';
+  const supabase = await db();
+  const { data: tid, error } = await supabase.rpc('convert_prospect', {
     p_id: str(f, 'id', 64), p_slug: slug, p_name: str(f, 'name', 160), p_contact: str(f, 'contact', 120) || null, p_email: str(f, 'email', 200) || null,
     p_phone: str(f, 'phone', 40) || null, p_city: str(f, 'city', 80) || null, p_state: str(f, 'state', 2) || null, p_website: str(f, 'website', 200) || null, p_note: str(f, 'note', 300) || null,
+    p_package: pkg,
   });
   revalidatePath('/', 'layout');
-  if (error) return fail(error.message.includes('duplicate') ? 'That client web address is taken; pick another.' : error.message);
-  redirect(`/console/clients/${slug}?ok=${encodeURIComponent('Onboarding started: the client is in Consult with a draft record')}`);
+  if (error || !tid) return fail(error?.message.includes('duplicate') ? 'That client web address is taken; pick another.' : error?.message ?? 'Couldn’t start onboarding.');
+  const { data: t } = await supabase.from('tenants').select('slug').eq('id', tid).single();
+  const clientSlug = (t?.slug as string) ?? slug;
+  const { packageModules } = await import('./site-config');
+  const { careName } = await import('./billing');
+  const label = pkg[0].toUpperCase() + pkg.slice(1);
+  // The package's features, as a trial until the invoice is paid (worked out here from the package, never the form).
+  const { data: had } = await supabase.from('module_grants').select('id').eq('tenant_id', tid).like('reason', 'Onboarding:%').limit(1);
+  const keys = packageModules(pkg);
+  if (!had?.length && keys.length) {
+    const g = await supabase.rpc('grant_modules', { p_tenant: tid, p_keys: keys, p_until: new Date(Date.now() + 30 * 86_400_000).toISOString(), p_reason: `Onboarding: ${label} package (30-day trial until the invoice is paid)` });
+    if (g.error) return fail(`The client was created, but its ${label} features couldn’t be switched on: ${g.error.message}`);
+  }
+  // The website starts with the record.
+  const admin = adminDb();
+  const cfgTitle = 'Website config (draft)';
+  const { data: cfg } = await admin.from('assets').select('id').eq('tenant_id', tid).eq('title', cfgTitle).maybeSingle();
+  if (!cfg) await admin.from('assets').insert({ tenant_id: tid, kind: 'document', title: cfgTitle, location_kind: 'route', location: `/api/clients/${clientSlug}/site-config`, audience: 'internal', rights_status: 'not_needed', notes: `site.config.ts for the agency site template, written from the record (${label} package). Always matches the current record.` });
+  const { data: task } = await supabase.from('care_requests').select('id').eq('tenant_id', tid).eq('title', 'Build the website').limit(1);
+  if (!task?.length) await supabase.rpc('create_care_request', { p_tenant: tid, p_kind: 'change', p_title: 'Build the website', p_detail: [
+    `${label} package · ${careName[pkg]} after launch.`,
+    `1. Start from the agency site template with the draft config: /api/clients/${clientSlug}/site-config`,
+    '2. Fill every TODO; name, address and phone must match the carrier’s official agent profile exactly.',
+    '3. Headshot and hero image (photo rights gate), then deploy to a preview.',
+    '4. Carrier approval and the client’s approval (gates). Nothing is indexed until both approve the live site.',
+  ].join('\n') });
+  redirect(`/console/clients/${clientSlug}?ok=${encodeURIComponent(`Onboarding started: ${label} package. Features are on as a 30-day trial, and the website build is underway.`)}`);
 }

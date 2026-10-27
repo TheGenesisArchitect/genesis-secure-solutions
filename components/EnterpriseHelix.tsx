@@ -135,7 +135,7 @@ export function EnterpriseHelixDrawer({ pages = [] }: { pages?: { label: string;
       path={path}
       pageName={page.name}
       fullHref="/console/helix/ask"
-      hidden={path === '/console/helix/ask'}
+      full={path === '/console/helix/ask'}
       voice={(autoStart) => <EnterpriseVoice path={path} autoStart={autoStart} where={`the ${page.name} page`} page={page.name} />}
       chat={(ask) => <AskHelixEnterprise compact page={page.name} context={ask.context ?? `the ${page.name} page (${path})`} suggest={page.suggest} start={ask.question} startN={ask.n} />}
     />
@@ -164,7 +164,7 @@ export function EnterpriseMorningBrief({ initial, money }: { initial: { answer: 
       {brief ? <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{brief.answer}</p> : null}
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <button className="btn small ghost" type="button" onClick={() => helixAsk({ question: 'What should the team do first today, and why?', context: 'Enterprise overview: the morning brief' })}>Ask Helix about today</button>
-        <a className="btn small ghost" href="/console/helix/knows">What Helix knows</a>
+        <Link className="btn small ghost" href="/console/helix/knows">What Helix knows</Link>
       </div>
     </section>
   );

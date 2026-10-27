@@ -28,11 +28,14 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
 
 const admin = must(await db.from('staff').select('user_id').eq('role', 'admin').limit(1).single(), 'an admin');
 const adminEmail = must(await db.auth.admin.getUserById(admin.user_id), 'admin email').user.email;
-const PLACE = 'verify-onb-tyson', SLUG = 'verify-barrett-agency', OPS = 'verify-onb-ops@genovus.example';
+// Each run its own client address: clients can't be deleted (the audit trail keeps them), so test clients are
+// marked as samples afterwards, out of every real list.
+const PLACE = 'verify-onb-tyson', SLUG = `verify-barrett-${Date.now().toString(36)}`, OPS = 'verify-onb-ops@genovus.example';
 const users = async () => (await db.auth.admin.listUsers({ perPage: 1000 })).data?.users ?? [];
 const saved = must(await db.from('app_settings').select('key, value').eq('key', 'scan_budget_usd'), 'budget');
 const clean = async () => {
-  await db.from('tenants').delete().eq('slug', SLUG);
+  await db.from('tenants').update({ is_sample: true, name: 'Verify onboarding (test)' }).like('slug', 'verify-barrett-%');
+  await db.from('module_grants').update({ revoked_at: new Date().toISOString() }).in('tenant_id', ((await db.from('tenants').select('id').like('slug', 'verify-barrett-%')).data ?? []).map((x) => x.id)).is('revoked_at', null);
   await db.from('prospects').delete().eq('place_id', PLACE);
   await db.from('helix_threads').delete().eq('user_id', admin.user_id);
   for (const x of (await users()).filter((x) => x.email === OPS)) { await db.from('staff').delete().eq('user_id', x.id); await db.auth.admin.deleteUser(x.id); }
@@ -62,6 +65,7 @@ const mock = http.createServer((req, res) => {
     const sys = j.systemInstruction?.parts?.[0]?.text ?? '';
     const asked = JSON.stringify(j.contents?.at(-1) ?? '');
     let reply = { answer: 'Verify typed answer.', followUps: [], drafts: [], remember: [] };
+    if (/take me to tyson barrett/i.test(asked)) reply = { answer: 'Opening Tyson Barrett’s page.', open: { kind: 'prospect', name: 'Tyson Barrett' }, followUps: [], drafts: [], remember: [] };
     if (/who is tyson barrett/i.test(asked)) {
       const m = sys.match(/"name":"([^"]+)","address":"([^"]+)"/), open = sys.match(/"open":"([^"]+)"/);
       reply = /LOOKUP prospect_card/.test(sys) ? { answer: `${m?.[1]} at ${m?.[2]} (${open?.[1]})`, followUps: [], drafts: [], remember: [] } : { lookup: { tool: 'prospect_card', args: { name: 'Tyson Barrett' } }, answer: 'One moment.' };
@@ -137,12 +141,24 @@ try {
   const ownerConvert = await owner.rpc('convert_prospect', { p_id: pr.id, p_slug: 'verify-nope-agency', p_name: 'Nope' });
   check(ownerRows.length === 0 && !!ownerConvert.error, 'an agency member can’t read prospects or start onboarding');
 
-  // 3. voice, on his page
+  // 1b. typed: "Take me to Tyson Barrett" opens his page
+  const typedOpen = await ev(`fetch('/api/helix/enterprise', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: 'Take me to Tyson Barrett' }) }).then((r) => r.json())`);
+  check(typedOpen?.go?.href === `/console/prospects/${pr.code}`, `typed: “take me to Tyson Barrett” opens his page (${JSON.stringify(typedOpen?.go)})`);
+
+  // 3. voice, starting on the full Ask Helix page: the same conversation all the way through
   await ev(`localStorage.setItem('helix-voice', 'on')`);
-  await go(`/console/prospects/${pr.code}`);
-  await ev(`document.querySelector('.helix-fab')?.click()`);
+  await go('/console/helix/ask');
+  check(await waitFor(async () => await ev(`!!document.querySelector('.helix-drawer.full:not([hidden])')`), 10000), 'the full Ask Helix page is the same drawer, open wide');
+  await ev(`[...document.querySelectorAll('.helix-drawer button')].find((b) => /^(Talk|Start)$/.test(b.textContent.trim()))?.click()`);
   await waitFor(async () => (await ev('window.__live.socks.length')) === 1);
   await emit({ setupComplete: {} });
+  await emit({ serverContent: { inputTranscription: { text: 'Who is Tyson Barrett?' } } }); await emit({ serverContent: { outputTranscription: { text: 'He is a State Farm agent in Columbus.' } } }); await emit({ serverContent: { turnComplete: true } }); await sleep(800);
+  const oi = await tool('open_item', { kind: 'prospect', name: 'Tyson Barrett' });
+  check(oi.ok === true && (await ev('location.pathname')) === `/console/prospects/${pr.code}` && (oi.onScreen?.forms ?? []).some((f) => /onboarding/i.test(f.key)), `voice: “take me to his onboarding” opens his page and sees the form (${oi.opened ?? oi.error})`);
+  check((await ev('window.__live.socks.length')) === 1 && (await ev(`window.__live.socks[0].readyState`)) === 1, 'the same voice session carries on from the full Ask page to his page (no restart)');
+  check(/State Farm agent in Columbus/.test((await ev(`document.querySelector('.helix-drawer')?.innerText`)) ?? ''), 'and the conversation so far is still on screen');
+  const bad = await tool('open_item', { kind: 'client', name: 'Nobody At All Agency' });
+  check(bad.ok === false && (await ev('location.pathname')) === `/console/prospects/${pr.code}`, `an unknown name opens nothing (${bad.error})`);
   const setup = await ev(`JSON.stringify(window.__live.sent.find((m) => m.setup)?.setup?.tools ?? [])`);
   check(/prospect_card/.test(setup ?? '') && /prospect_list/.test(setup ?? ''), 'voice Helix has the prospect tools');
   const pc = await tool('prospect_card', { name: 'Tyson Barrett' });
@@ -150,7 +166,7 @@ try {
   const rp = await tool('read_page', {});
   const form = (rp.forms ?? []).find((f) => /onboarding/i.test(f.key));
   check(!!form && form.lane === 'internal' && ['name', 'slug', 'contact', 'email', 'phone', 'city', 'state'].every((n) => form.fields.some((f) => f.name === n)), `Helix sees the Start onboarding form (${(form?.fields ?? []).map((f) => f.name).join(', ')})`);
-  const fr = await tool('fill_form', { form: form?.key ?? 'Start onboarding', fields: [{ name: 'name', value: 'Barrett Insurance Agency' }, { name: 'slug', value: SLUG }, { name: 'contact', value: 'Tyson Barrett' }, { name: 'email', value: 'tyson@example.com' }, { name: 'city', value: 'Columbus' }, { name: 'note', value: 'Launch package; kickoff next week' }] });
+  const fr = await tool('fill_form', { form: form?.key ?? 'Start onboarding', fields: [{ name: 'name', value: 'Barrett Insurance Agency' }, { name: 'slug', value: SLUG }, { name: 'contact', value: 'Tyson Barrett' }, { name: 'email', value: 'tyson@example.com' }, { name: 'city', value: 'Columbus' }, { name: 'package', value: 'Growth' }, { name: 'note', value: 'Growth package; kickoff next week' }] });
   check(fr.ok === true && (fr.missing ?? []).length === 0, `fill_form fills it live (${JSON.stringify({ filled: fr.filled, missing: fr.missing, unknown: fr.unknown })})`);
   await shot('onboarding-filled');
   check(!(await db.from('tenants').select('id').eq('slug', SLUG).maybeSingle()).data, 'nothing is created before the yes');
@@ -168,6 +184,22 @@ try {
     check(p2.status === 'consult' && p2.tenant_id === t.id && p2.contact_name === 'Tyson Barrett', 'the prospect is linked to the client and in Consult');
     check(await waitFor(async () => (await ev('location.pathname')) === `/console/clients/${SLUG}`, 15000), `and the new client opens (${await ev('location.pathname')})`);
     await shot('onboarding-client');
+    // The package: its features as a 30-day trial, exactly Growth's; the plan and billing untouched.
+    const { MODULES, includes } = await import('../lib/programs.ts').catch(() => ({}));
+    const grants = must(await db.from('module_grants').select('module_key, until, reason').eq('tenant_id', t.id).is('revoked_at', null), 'grants');
+    const want = MODULES ? MODULES.filter((m) => includes('growth', m) && !includes('launch', m)).map((m) => m.key).sort() : null;
+    const days = grants[0] ? (Date.parse(grants[0].until) - Date.now()) / 86_400_000 : 0;
+    check(want && JSON.stringify(grants.map((g) => g.module_key).sort()) === JSON.stringify(want) && days > 29 && days < 31 && /Onboarding: Growth/.test(grants[0].reason), `Growth’s features are on as a 30-day trial, exactly the package (${grants.length} modules)`);
+    const tt = must(await db.from('tenants').select('plan, care_active').eq('id', t.id).single(), 'plan');
+    const inv = (await db.from('invoices').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id)).count;
+    check(tt.plan == null && !tt.care_active && !inv && rec.data.package === 'growth', 'the plan changes only when the invoice is paid: no plan set, no care billing, no invoice; the package is on the record');
+    const cfgAsset = (await db.from('assets').select('location, audience').eq('tenant_id', t.id).eq('title', 'Website config (draft)').maybeSingle()).data;
+    const task = (await db.from('care_requests').select('detail').eq('tenant_id', t.id).eq('title', 'Build the website').maybeSingle()).data;
+    check(cfgAsset?.audience === 'internal' && cfgAsset.location === `/api/clients/${SLUG}/site-config` && /Growth package/.test(task?.detail ?? '') && /carrier/i.test(task?.detail ?? ''), 'the website starts with the record: a draft site config on the client and a “Build the website” task with the launch checklist');
+    const cfgText = await ev(`fetch('/api/clients/${SLUG}/site-config').then((r) => r.text())`);
+    check(/name: "Barrett Insurance Agency"/.test(cfgText) && cfgText.includes('phoneE164: "+17065550123"') && /Package: Growth/.test(cfgText) && /TODO/.test(cfgText), `the draft config is written from the record, with TODOs where it doesn’t know yet`);
+    const ownerCfg = await fetch(`${ORIGIN}/api/clients/${SLUG}/site-config`);
+    check(ownerCfg.status === 403, 'the draft config is Genovus-team only');
   }
 
   // 4. who can

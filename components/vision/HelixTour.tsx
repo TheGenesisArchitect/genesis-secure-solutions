@@ -249,6 +249,17 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     if (ask && thread.act && name === 'undo_last') return thread.act.undo(pageRef.current);
     // Lookups (agency): the partner map, a partner's card or website, open calendar times; results go back to the
     // conversation only (lib/helix-lookups.ts).
+    // Open one prospect or client by name: the server resolves it; only those two kinds of page open, in place.
+    if (ask && context === 'enterprise' && name === 'open_item') {
+      const r = await fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: 'open_item', args }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'Helix couldn’t reach Genovus.' }));
+      if (!r.ok || typeof r.href !== 'string' || !/^\/console\/(prospects|clients)\/[a-z0-9-]+$/.test(r.href)) return { ok: false, error: r.error ?? 'Nothing to open.' };
+      setSpot(null);
+      if (pathRef.current !== r.href) { selfNav.current = true; router.push(r.href); }
+      const landed = await waitFor(() => pathRef.current === r.href, 10000);
+      if (!landed) return { ok: false, error: 'the page is still loading' };
+      await settled();
+      return { ok: true, opened: r.label, page: r.href, onScreen: readPage() };
+    }
     if (ask && context === 'enterprise' && ['prospect_card', 'prospect_list'].includes(name)) {
       return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: name, args }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));
     }

@@ -7,7 +7,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getDetails, getSummary, placesBudget, placesConfigured, textSearch } from './places';
 import { OUTCOMES, STATUS_LABEL } from './prospects';
 
-export const PROSPECT_LOOKUPS = ['prospect_card', 'prospect_list'] as const;
+export const PROSPECT_LOOKUPS = ['prospect_card', 'prospect_list', 'open_item'] as const;
+/** The only pages Helix may open by name: one prospect's page or one client's page. */
+export const OPENABLE = /^\/console\/(prospects\/[a-z0-9]{6,20}|clients\/[a-z0-9][a-z0-9-]{1,48}[a-z0-9])$/;
 type Args = Record<string, unknown>;
 const COLS = 'id, code, place_id, status, segment, state, fit_score, contact_name, contact_email, contact_phone, known_name, known_address, next_action_at, tenant_id, carriers(name)';
 type Row = { id: string; code: string; place_id: string; status: string; segment: string; state: string | null; fit_score: number; contact_name: string | null; contact_email: string | null; contact_phone: string | null; known_name: string | null; known_address: string | null; next_action_at: string | null; tenant_id: string | null; carriers: { name?: string } | null };
@@ -61,7 +63,27 @@ async function card(db: SupabaseClient, row: Row) {
   };
 }
 
+/** Resolve "open Tyson Barrett's page" / "open the Barrett Insurance client" to one page Helix may open. */
+export async function resolveOpen(db: SupabaseClient, args: Args): Promise<{ href: string; label: string } | { error: string }> {
+  const kind = clean(args.kind, 10).toLowerCase(), name = clean(args.name), slug = clean(args.slug, 50).toLowerCase();
+  if (kind !== 'prospect') {
+    let q = db.from('tenants').select('slug, name').eq('is_sample', false);
+    q = slug ? q.eq('slug', slug) : name ? q.or(`name.ilike.%${name}%,slug.ilike.%${name.toLowerCase().replace(/\s+/g, '-')}%`) : q.eq('slug', '__none__');
+    const { data } = await q.limit(2);
+    if (data?.length === 1) return { href: `/console/clients/${data[0].slug}`, label: data[0].name as string };
+    if ((data?.length ?? 0) > 1) return { error: `More than one client matches “${name}”. Ask which one.` };
+    if (kind === 'client') return { error: `No client matches “${name || slug}”.` };
+  }
+  const f = await find(db, args);
+  if (!f.row) return { error: `No prospect or client matches “${name || clean(args.code)}”.` };
+  const live = f.row.known_name ?? (await getSummary(f.row.place_id))?.name ?? f.row.contact_name ?? `Office ${f.row.code}`;
+  // A prospect we've already onboarded opens as the client.
+  if (f.row.tenant_id) { const { data: t } = await db.from('tenants').select('slug, name').eq('id', f.row.tenant_id).maybeSingle(); if (t) return { href: `/console/clients/${t.slug}`, label: t.name as string }; }
+  return { href: `/console/prospects/${f.row.code}`, label: live };
+}
+
 export async function runProspectLookup(db: SupabaseClient, tool: string, args: Args): Promise<Record<string, unknown>> {
+  if (tool === 'open_item') { const r = await resolveOpen(db, args); return 'error' in r ? { ok: false, error: r.error } : { ok: true, ...r }; }
   if (tool === 'prospect_card') {
     const f = await find(db, args);
     if (!f.row) return { found: false, note: `No prospect matches “${clean(args.name || args.code)}”. Ask for the office name as it appears on Google, or its code from the Prospects page. Never guess a match.` };
@@ -88,5 +110,6 @@ export const prospectLookupRules = (voice: boolean) => `
 PROSPECTS (offices the scanner found, the people we're selling Genovus to): ${voice ? 'call the tool' : 'reply with only {"lookup": {"tool": <name>, "args": {...}}, "answer": "One moment."} and you will be asked again with the result (two lookups at most)'}.
 - prospect_card {name?: office or person name, code?: the prospect code}: one office: name, address, phone, website (live from Google), carrier, fit, status, contact, history, next call, and its page (open).
 - prospect_list {status?: contacting|replied|consult|proposal|verified, state?: "GA", limit?}: the offices in play, soonest call first.
-ONBOARDING A PROSPECT: on the office's page there is a "Start onboarding" form. Open the office's page (go to Prospects, then the office), read it, fill the form from the conversation and what you looked up (agency name, web address, contact, email, phone, carrier, city, state), and save it only after the person says yes. Never invent an email or phone; ask. It creates the client in Consult with a draft record; the team takes it from there.
+OPENING ONE OFFICE OR CLIENT: ${voice ? 'call open_item {kind: "prospect"|"client", name?, code?}; you land on its page and see its forms' : 'add "open": {"kind": "prospect"|"client", "name": <name>} (or "code") to your JSON; the page opens and the conversation carries on'}. "Take me to Tyson's onboarding" means open his prospect page (the Start onboarding form is there).
+ONBOARDING A PROSPECT: on the office's page there is a "Start onboarding" form. Open the office's page, read it, fill the form from the conversation and what you looked up (agency name, web address, contact, email, phone, carrier, city, state), and save it only after the person says yes. Never invent an email or phone; ask. It creates the client in Consult with a draft record; the team takes it from there.
 Never quote insurance or Genovus prices beyond what the BRIEF says, and never say an office is a client until the save is done.`;

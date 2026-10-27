@@ -161,13 +161,15 @@ type Dock = 'closed' | 'open' | 'min';
  * The egg button, the drawer and the minimized pill. The drawer stays mounted once opened (hidden when minimized),
  * so the conversation and the voice session carry on while you work. Ctrl+J opens or minimizes; Esc minimizes.
  */
-export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug }: {
+export function HelixDock({ path, pageName, fullHref, hidden, full, voice, chat, slug }: {
   /** The agency (its newest uncalled lead can be nudged beside the button). */
   slug?: string;
   path: string;
   pageName: string;
   fullHref: string;
   hidden?: boolean;
+  /** The full Ask Helix page: the same drawer, open and wide, so the conversation and voice carry on in and out of it. */
+  full?: boolean;
   voice: (autoStart: boolean) => ReactNode;
   chat: (ask: HelixAsk) => ReactNode;
 }) {
@@ -180,6 +182,8 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug 
   const dockRef = useRef<Dock>('closed');
   useEffect(() => { dockRef.current = dock; }, [dock]);
   useEffect(() => { if (dock === 'open') setSeen(turns.length); }, [dock, turns.length]);
+  // On the full Ask Helix page the drawer opens wide (no new voice session; a running one carries on).
+  useEffect(() => { if (full && dockRef.current !== 'open') { if (dockRef.current === 'closed') setAutoVoice(false); setDock('open'); } }, [full]);
   useEffect(() => {
     const onAsk = (e: Event) => {
       const d = (e as CustomEvent<Omit<HelixAsk, 'n'>>).detail ?? {};
@@ -240,11 +244,11 @@ export function HelixDock({ path, pageName, fullHref, hidden, voice, chat, slug 
         </div>
       ) : null}
       {dock !== 'closed' ? (
-        <aside className="helix-drawer" aria-label="Ask Helix" hidden={dock !== 'open'}>
+        <aside className={full ? 'helix-drawer full' : 'helix-drawer'} aria-label="Ask Helix" hidden={dock !== 'open'}>
           <header className="row" style={{ justifyContent: 'space-between' }}>
             <span className="row" style={{ gap: 8 }}><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" style={{ width: 20 }} /><b>Helix</b><span className="muted" style={{ fontSize: 12 }}>on {pageName}</span></span>
             <span className="row" style={{ gap: 6 }}>
-              <Link className="btn small ghost" href={fullHref}>Full view</Link>
+              {full ? null : <Link className="btn small ghost" href={fullHref}>Full view</Link>}
               <button className="btn small ghost" type="button" onClick={() => setDock('min')} aria-label="Minimize Helix (Esc)" title="Minimize: Helix keeps the conversation">–</button>
             </span>
           </header>

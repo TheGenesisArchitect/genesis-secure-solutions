@@ -11,7 +11,7 @@ import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurn
 import { formRules, helixPagesFor, textNavRules } from '@/lib/helix-actions';
 import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
 import { onScreen } from '@/lib/helix-screen';
-import { PROSPECT_LOOKUPS, prospectLookupBlock, prospectLookupRules, runProspectLookup } from '@/lib/helix-prospects';
+import { OPENABLE, PROSPECT_LOOKUPS, prospectLookupBlock, prospectLookupRules, resolveOpen, runProspectLookup } from '@/lib/helix-prospects';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -56,8 +56,10 @@ No more lookups: answer now with what you have.`, history, question, context, EN
       { role: 'helix', text: reply.answer, meta: { drafts: reply.drafts, remember: reply.remember, noted: reply.noted || undefined, savedNote } },
     ]);
     // A page Helix was asked to open: only one of this person's own pages, and never saved (a reload mustn't replay it).
-    const go = pages.find((p) => p.label.toLowerCase() === reply.go?.toLowerCase());
-    return Response.json({ ...reply, note: undefined, go, savedNote, threadId });
+    // One prospect's or client's page by name: resolved here, and only those two kinds of page.
+    const opened = reply.open ? await resolveOpen(supabase, reply.open) : null;
+    const go = opened && 'href' in opened && OPENABLE.test(opened.href) ? opened : pages.find((p) => p.label.toLowerCase() === reply.go?.toLowerCase());
+    return Response.json({ ...reply, open: undefined, note: undefined, go, savedNote, threadId });
   } catch (e) {
     console.error(`[helix-enterprise] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });

@@ -104,6 +104,14 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
                   <label className="field" style={{ flex: '0 1 90px' }}><span>State</span><input className="input" name="state" maxLength={2} defaultValue={p.state ?? ''} /></label>
                   <label className="field" style={{ flex: '1 1 220px' }}><span>Website</span><input className="input" name="website" maxLength={200} defaultValue={details?.website ?? ''} /></label>
                 </div>
+                <label className="field"><span>Package (its features switch on as a 30-day trial; the website build starts with it)</span>
+                  <select className="select" name="package" required defaultValue="">
+                    <option value="" disabled>Pick the package they chose</option>
+                    <option value="launch">Launch · website, profiles, leads (Essential Care after launch)</option>
+                    <option value="growth">Growth · plus Helix, partners, pipeline, calendar, content (Growth Care)</option>
+                    <option value="premium">Premium · everything in Growth and more (Optimization Care)</option>
+                  </select>
+                </label>
                 <label className="field"><span>What we agreed (optional)</span><input className="input" name="note" maxLength={300} placeholder="e.g. Launch package, kickoff next Tuesday" /></label>
                 <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Start onboarding</button>
               </ActionForm>

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { Panel } from '@/components/ui';
 import { HelixTabs } from '@/components/HelixTabs';
-import { AskHelixEnterprise, EnterpriseVoice } from '@/components/EnterpriseHelix';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { canSeeMoney } from '@/lib/helix-enterprise';
@@ -22,12 +21,11 @@ export default async function AskHelixPage() {
   return (
     <ConsoleShell title="Ask Helix" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Ask Helix' }]}>
       <HelixTabs current="ask" />
-      <div className="grid g2" style={{ alignItems: 'start', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)' }}>
+      {/* The conversation is the Helix drawer, open wide on this page: the same one on every page, so it carries on when you move. */}
+      <div className="grid helix-ask-full" style={{ alignItems: 'start' }}>
         <Panel title="Helix Knows" sub="The copilot that knows Genovus better over time">
-          <EnterpriseVoice path="/console/helix/ask" where="the full Ask Helix page" />
-          <AskHelixEnterprise suggest={money
-            ? ['How is the business doing this month?', 'Where is margin leaking, and what fixes it?', 'Which department needs attention this week?', 'What would grow MRR fastest?']
-            : ['What should the team do first today?', 'Which department needs attention this week?', 'Who called the Genovus line and what did they want?', 'Which client needs us most?']} />
+          <p className="soft" style={{ margin: 0 }}>Helix is open beside this page. Talk or type there; the conversation keeps going as you open prospects, clients or any page, and Helix can take you there itself (“open Tyson Barrett’s page”).</p>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>Try: {money ? '“How is the business doing this month?” · “What would grow MRR fastest?”' : '“What should the team do first today?” · “Which client needs us most?”'}</p>
         </Panel>
         <Panel title="What Helix reads" sub="Live, every time you ask">
           <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, fontSize: 14 }}>

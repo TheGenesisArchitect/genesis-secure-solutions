@@ -1400,3 +1400,7 @@ button.chip{cursor:pointer}
 .vis-todo>div{min-width:0}
 .vis-todo .chip{justify-self:start;white-space:normal;line-height:1.4;max-width:100%}
 @media (max-width:900px){.vis-loop{grid-template-columns:repeat(2,minmax(0,1fr))}.vis-stage{padding:14px}.vis-n{font-size:26px}.vis-stage:nth-child(3){border-left:0}.vis-stage:nth-child(n+3){border-top:1px solid var(--line)}.vis-move{grid-template-columns:auto minmax(0,1fr)}.vis-move .btn{grid-column:1/-1;justify-self:start}}
+
+/* The full Ask Helix page: the same drawer, wider, so moving in and out of it never restarts the conversation. */
+.helix-drawer.full{width:min(640px,100vw)}
+@media (min-width:1100px){.helix-ask-full{margin-right:640px}}

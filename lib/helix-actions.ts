@@ -50,6 +50,7 @@ export const lookupTools = [
 
 /** Voice tools for Enterprise prospect lookups (lib/helix-prospects.ts). */
 export const prospectTools = [
+  { name: 'open_item', description: 'Open one prospect office’s page or one client’s page by name (or prospect code / client web address), and see its forms. Use it for “take me to Tyson Barrett” or “open his onboarding”.', parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['prospect', 'client'] }, name: { type: 'STRING' }, code: { type: 'STRING' }, slug: { type: 'STRING' } } } },
   { name: 'prospect_card', description: 'One prospect office (an agency we are selling Genovus to): name, address, phone and website live from Google, carrier, fit, status, contact, history, next call and its page. Pass the office or person name, or its code.', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, code: { type: 'STRING' } } } },
   { name: 'prospect_list', description: 'The prospect offices in play, soonest call first. Optional status (contacting, replied, consult, proposal, verified), state (two letters), limit (up to 8).', parameters: { type: 'OBJECT', properties: { status: { type: 'STRING' }, state: { type: 'STRING' }, limit: { type: 'NUMBER' } } } },
 ];

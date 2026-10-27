@@ -23,6 +23,8 @@ export type HelixReply = {
   gap: string;
   /** A page Helix was asked to open (an exact name from PAGES); the route turns it into a link. Never saved. */
   go?: string;
+  /** Open one prospect's or client's page by name (Enterprise; resolved by the server, lib/helix-prospects.ts). */
+  open?: { kind?: string; name?: string; code?: string; slug?: string };
   /** A change Helix proposes (confirm lane, lib/helix-act.ts); the route signs it for one tap. Never saved. */
   propose?: Record<string, string>;
   /** A lookup Helix wants before answering (lib/helix-lookups.ts); the route runs it and asks again. Never saved. */
@@ -120,6 +122,7 @@ function parse(raw: string, model: string): HelixReply {
     unknown: j.unknown === true,
     gap: s(j.gap, 200),
     go: s((j as { go?: unknown }).go, 60) || undefined,
+    open: (() => { const o = (j as { open?: unknown }).open; return o && typeof o === 'object' && !Array.isArray(o) ? Object.fromEntries(Object.entries(o as Record<string, unknown>).filter(([k]) => ['kind', 'name', 'code', 'slug'].includes(k)).map(([k, v]) => [k, String(v ?? '').slice(0, 80)])) : undefined; })(),
     fill: (() => { const x = (j as { fill?: { form?: unknown; fields?: unknown } }).fill; if (!x || typeof x !== 'object' || typeof x.form !== 'string' || !Array.isArray(x.fields)) return undefined; return { form: s(x.form, 120), fields: (x.fields as { name?: unknown; value?: unknown }[]).slice(0, 20).filter((f) => f && typeof f.name === 'string').map((f) => ({ name: s(f.name, 60), value: String(f.value ?? '').slice(0, 1000) })) }; })(),
     save: (j as { save?: unknown }).save === true,
     note: (() => { const n = (j as { note?: { kind?: unknown; text?: unknown } }).note; return n && typeof n === 'object' && typeof n.text === 'string' && n.text.trim().length > 1 ? { kind: s(n.kind, 20), text: s(n.text, 600) } : undefined; })(),
