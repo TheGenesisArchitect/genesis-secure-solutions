@@ -27,10 +27,12 @@ export async function saveScanSettings(_: ActionResult, f: FormData): Promise<Ac
   const budget = Number(str(f, 'budget', 10));
   if (!states.length) return fail('List at least one state, e.g. GA, AL, FL, TX.');
   if (!(budget >= 0 && budget <= 5000)) return fail('Budget must be between $0 and $5,000 a month.');
+  const reserveRaw = str(f, 'reserve', 10), reserve = reserveRaw === '' ? null : Number(reserveRaw);
+  if (reserve != null && !(reserve >= 0 && reserve <= budget)) return fail('The amount kept for showing names must be between $0 and the monthly budget.');
   const now = new Date().toISOString();
-  await adminDb().from('app_settings').upsert([{ key: 'scan_states', value: [...new Set(states)].join(','), updated_at: now }, { key: 'scan_budget_usd', value: String(budget), updated_at: now }]);
+  await adminDb().from('app_settings').upsert([{ key: 'scan_states', value: [...new Set(states)].join(','), updated_at: now }, { key: 'scan_budget_usd', value: String(budget), updated_at: now }, ...(reserve != null ? [{ key: 'places_display_reserve_usd', value: String(reserve), updated_at: now }] : [])]);
   const { data: auth } = await (await db()).auth.getUser();
-  await adminDb().from('audit_events').insert({ tenant_id: null, actor: auth.user?.id ?? null, actor_label: auth.user?.email ?? 'staff', action: 'scan.settings', subject: states.join(','), after: { states, budget }, prev_hash: '', hash: '' });
+  await adminDb().from('audit_events').insert({ tenant_id: null, actor: auth.user?.id ?? null, actor_label: auth.user?.email ?? 'staff', action: 'scan.settings', subject: states.join(','), after: { states, budget, reserve }, prev_hash: '', hash: '' });
   revalidatePath('/console/carriers');
   return done(`Scanning ${states.join(', ')} with a $${budget}/month budget.`);
 }
@@ -59,6 +61,8 @@ export async function logProspect(_: ActionResult, f: FormData): Promise<ActionR
     p_id: str(f, 'id', 64), p_kind: outcome ? 'call' : 'note', p_outcome: outcome, p_note: str(f, 'note', 2000), p_status: status,
     p_next: /^\d{4}-\d{2}-\d{2}$/.test(next) ? `${next}T14:00:00Z` : null,
     p_contact_name: str(f, 'contact_name', 120) || null, p_contact_email: str(f, 'contact_email', 200) || null, p_contact_phone: str(f, 'contact_phone', 40) || null,
+    // The business name and address the team confirmed on the call stay on Genovus's own record (shown when Google is paused).
+    p_known_name: str(f, 'known_name', 160) || null, p_known_address: str(f, 'known_address', 240) || null,
   });
   revalidatePath('/console/prospects', 'layout');
   return error ? fail(error.message) : done('Saved.');

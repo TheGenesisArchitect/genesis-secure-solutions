@@ -2,6 +2,7 @@
 // on screen by radius, carrier and ZIP. Only place IDs and our own classification are stored (carrier, segment,
 // miles, bearing); names, Google ratings and reviews, ZIPs and websites come live from Google Maps for the nearest
 // offices on each visit. Each office opens its public Facebook/Instagram and Google ads.
+import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { ModuleGate } from '@/components/ModuleGate';
 import { Empty } from '@/components/ui';
@@ -50,6 +51,7 @@ export default async function Radar({ params }: { params: Promise<{ slug: string
   const own = ownCard ? { name: ctx.tenant.name, rating: ownCard.rating, reviews: ownCard.reviews, carrier: prof?.carrier ?? 'Your carrier' } : null;
   return (
     <AgencyShell ctx={ctx} title="Competitor Radar">
+      <PlacesPausedNotice audience="agency" />
       <p className="muted" style={{ margin: 0, fontSize: 13 }}>
         Who else sells insurance around your office. Narrow it by miles, carrier and ZIP code, then open any office’s public ads. Use it to position your own strengths: your ads never name or compare another office, and your carrier still approves them.
       </p>

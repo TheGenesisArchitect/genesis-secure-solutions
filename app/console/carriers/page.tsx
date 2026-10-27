@@ -6,7 +6,7 @@ import { ActionForm } from '@/components/ActionForm';
 import { Panel, Chip, Tile } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
-import { placesConfigured } from '@/lib/places';
+import { placesConfigured, placesBudget } from '@/lib/places';
 import { scanSettings, monthSpendCents } from '@/lib/scanner';
 import { saveCarrier, saveScanSettings, runScanNow } from '@/lib/scan-actions';
 
@@ -16,6 +16,7 @@ export const maxDuration = 60; // "Run a scan slice now" works for up to 40 seco
 
 export default async function Carriers() {
   const v = await requireStaff();
+  const places = await placesBudget();
   const supabase = await db();
   const [{ data: carriers }, { data: found }, { data: cells }, { data: runs }, settings, spent] = await Promise.all([
     supabase.from('carriers').select('*').order('fit_score', { ascending: false }),
@@ -81,11 +82,12 @@ export default async function Carriers() {
       </Panel>
 
       <div className="grid g2" style={{ alignItems: 'start' }}>
-        <Panel title="Scan settings" sub="Pilot states first; the scan stops on its own at the monthly budget">
+        <Panel title="Scan settings" sub={`Pilot states first. Sweeps stop $${places.reserve / 100} short of the monthly budget, so names keep showing on screen. This month: $${(places.spent / 100).toFixed(2)} of $${places.budget / 100}.`}>
           {admin ? (
             <ActionForm action={saveScanSettings} helix="scan settings" helixTitle="Scan settings" className="form">
               <label className="field"><span>States to scan</span><input className="input" name="states" defaultValue={settings.states.join(', ')} /></label>
               <label className="field"><span>Monthly budget (USD, Google list prices)</span><input className="input" name="budget" type="number" min={0} max={5000} defaultValue={settings.budgetCents / 100} /></label>
+              <label className="field"><span>Kept for showing names (USD): sweeps stop this much short of the budget</span><input className="input" name="reserve" type="number" min={0} max={5000} defaultValue={places.reserve / 100} /></label>
               <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Save settings</button>
             </ActionForm>
           ) : <p className="muted">Scanning {settings.states.join(', ')} · ${settings.budgetCents / 100}/month. An admin can change this.</p>}

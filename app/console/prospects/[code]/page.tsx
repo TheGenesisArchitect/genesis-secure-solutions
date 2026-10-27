@@ -8,6 +8,7 @@ import { Panel, Chip } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { getDetails, isOwnSite, GOOGLE_ATTRIBUTION } from '@/lib/places';
+import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import { fit } from '@/lib/classify';
 import { scanSettings } from '@/lib/scanner';
 import { STATUS_LABEL, OUTCOMES, CARRIER_HOSTS, officeClock } from '@/lib/prospects';
@@ -35,13 +36,14 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
   const origin = process.env.APP_ORIGIN || 'https://genovus.io';
   const segPath = p.segment === 'captive' ? '/for/captive-agents' : '/for/independent-agencies';
   const blocked = Boolean(suppressed?.length) || p.status === 'opted_out';
-  const title = details?.name || p.contact_name || `Office ${p.code}`;
+  const title = details?.name || p.known_name || p.contact_name || `Office ${p.code}`;
   return (
     <ConsoleShell title={title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/prospects', label: 'Prospects' }, { label: title }]}>
+      <PlacesPausedNotice audience="staff" />
       {blocked ? <div className="notice err"><b>Do not contact.</b> This office opted out; it stays on the suppression list.</div> : null}
       <div className="grid g2" style={{ alignItems: 'start' }}>
         <div className="grid" style={{ alignContent: 'start' }}>
-          <Panel title="Office" sub="Live from Google Maps; not stored" actions={<Chip kind="info">{STATUS_LABEL[p.status]}</Chip>}>
+          <Panel title="Office" sub={details ? 'Live from Google Maps' : p.known_name || p.contact_phone ? 'From your team’s records' : 'Live from Google Maps'} actions={<Chip kind="info">{STATUS_LABEL[p.status]}</Chip>}>
             {details ? (
               <dl className="kv">
                 <dt>Name</dt><dd>{details.name}</dd>
@@ -51,7 +53,15 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
                 <dt>Status</dt><dd>{details.status === 'OPERATIONAL' ? 'Open' : details.status ?? '—'}</dd>
                 <dt>Local time</dt><dd>{clock.label} {clock.callable ? <Chip kind="done">Good time to call</Chip> : <Chip kind="pending">Outside calling hours</Chip>}</dd>
               </dl>
-            ) : <p className="muted">Live details are unavailable (Google Places not connected).</p>}
+            ) : p.known_name || p.known_address || p.contact_phone || p.contact_name ? (
+              <dl className="kv">
+                <dt>Name</dt><dd>{p.known_name ?? '—'}</dd>
+                <dt>Address</dt><dd>{p.known_address ?? '—'}</dd>
+                <dt>Phone</dt><dd>{p.contact_phone ? <a href={`tel:${p.contact_phone}`}>{p.contact_phone}</a> : '—'}</dd>
+                <dt>Contact</dt><dd>{p.contact_name ?? '—'}{p.contact_email ? ` · ${p.contact_email}` : ''}</dd>
+                <dt>Local time</dt><dd>{clock.label} {clock.callable ? <Chip kind="done">Good time to call</Chip> : <Chip kind="pending">Outside calling hours</Chip>}</dd>
+              </dl>
+            ) : <p className="muted">Google’s details aren’t available right now, and nobody has logged a call with this office yet.</p>}
             {details?.mapsUrl ? <a className="btn small" href={details.mapsUrl} target="_blank" rel="noreferrer">Open in Google Maps</a> : null}
             {details ? <p className="muted" style={{ fontSize: 12, margin: 0 }}>{GOOGLE_ATTRIBUTION}</p> : null}
           </Panel>
@@ -83,6 +93,11 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
               <label className="field"><span>Set status (optional; the outcome sets it otherwise)</span>
                 <select className="select" name="status" defaultValue=""><option value="">From the outcome</option>{Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
               <label className="field"><span>Notes</span><textarea className="textarea" name="note" maxLength={2000} /></label>
+              <div className="row" style={{ flexWrap: 'wrap' }}>
+                <label className="field" style={{ flex: '1 1 220px' }}><span>Business name (kept on our records)</span><input className="input" name="known_name" maxLength={160} defaultValue={details?.name || p.known_name || ''} /></label>
+                <label className="field" style={{ flex: '1 1 160px' }}><span>Office phone</span><input className="input" name="contact_phone" maxLength={40} defaultValue={p.contact_phone || details?.phone || ''} /></label>
+              </div>
+              <label className="field"><span>Address</span><input className="input" name="known_address" maxLength={240} defaultValue={details?.address || p.known_address || ''} /></label>
               <div className="row" style={{ flexWrap: 'nowrap' }}>
                 <label className="field" style={{ flex: 1 }}><span>Contact name</span><input className="input" name="contact_name" defaultValue={p.contact_name ?? ''} /></label>
                 <label className="field" style={{ flex: 1 }}><span>Email they gave us</span><input className="input" name="contact_email" type="email" defaultValue={p.contact_email ?? ''} /></label>

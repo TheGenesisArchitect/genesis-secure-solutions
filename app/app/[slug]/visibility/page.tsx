@@ -2,6 +2,7 @@
 // moves the numbers point to. Only real numbers: what isn't connected yet says so and what it needs, never zero.
 // Converted and the posting rhythm come from Leads and the content calendar; Visited from the agency's own Metricool
 // brand (pulled daily); Chosen is the Google rating, read live on each visit and never stored.
+import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import Link from 'next/link';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { ModuleGate } from '@/components/ModuleGate';
@@ -40,6 +41,7 @@ export default async function VisibilityPage({ params }: { params: Promise<{ slu
 
   return (
     <AgencyShell ctx={ctx} title="Visibility">
+      <PlacesPausedNotice audience="agency" />
       <p className="muted" style={{ margin: 0, fontSize: 13 }}>How your market finds you, picks you, visits and becomes a customer. Every number shows where it comes from; anything not connected yet says what it needs.</p>
 
       <section className="vis-loop" aria-label="Found, chosen, visited, converted">

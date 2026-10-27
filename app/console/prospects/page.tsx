@@ -6,6 +6,7 @@ import { Panel, Chip, Empty, Tile } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { getSummary, placesConfigured, GOOGLE_ATTRIBUTION } from '@/lib/places';
+import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import { STATUS_LABEL, OPEN_STATUSES } from '@/lib/prospects';
 
 export const metadata = { title: 'Prospects' };
@@ -22,7 +23,7 @@ export default async function Prospects({ searchParams }: { searchParams: Promis
   const carrier = carriers?.find((c) => c.slug === sp.carrier);
   const page = Math.max(1, Number(sp.page) || 1);
 
-  let q = supabase.from('prospects').select('id, code, place_id, carrier_id, segment, state, status, fit_score, contact_name, next_action_at', { count: 'exact' });
+  let q = supabase.from('prospects').select('id, code, place_id, carrier_id, segment, state, status, fit_score, contact_name, contact_phone, known_name, known_address, next_action_at', { count: 'exact' });
   if (carrier) q = q.eq('carrier_id', carrier.id);
   if (sp.segment === 'captive' || sp.segment === 'independent') q = q.eq('segment', sp.segment);
   if (sp.state && /^[A-Z]{2}$/.test(sp.state)) q = q.eq('state', sp.state);
@@ -42,6 +43,7 @@ export default async function Prospects({ searchParams }: { searchParams: Promis
   return (
     <ConsoleShell title="Prospects" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Prospects' }]}
       actions={<Link className="btn small primary" href="/console/prospects/calls">Call list</Link>}>
+      <PlacesPausedNotice audience="staff" />
       <div className="grid g4">
         <Tile label="Matching" value={<span className="num">{count ?? 0}</span>} hint={sp.status ? STATUS_LABEL[sp.status] : 'Open prospects'} />
       </div>
@@ -60,7 +62,7 @@ export default async function Prospects({ searchParams }: { searchParams: Promis
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.id}>
-                    <td><Link href={`/console/prospects/${r.code}`}>{names[i]?.name || r.contact_name || `Office ${r.code}`}</Link><div className="muted" style={{ fontSize: 12 }}>{names[i]?.address ?? ''}</div></td>
+                    <td><Link href={`/console/prospects/${r.code}`}>{names[i]?.name || r.known_name || r.contact_name || `Office ${r.code}`}</Link><div className="muted" style={{ fontSize: 12 }}>{names[i]?.address || r.known_address || [r.contact_name && r.known_name ? r.contact_name : '', r.contact_phone ?? ''].filter(Boolean).join(' · ')}</div></td>
                     <td>{r.carrier_id ? cname.get(r.carrier_id) : 'Independent'}</td>
                     <td>{r.state ?? '—'}</td>
                     <td><Chip kind={r.status === 'new' ? 'pending' : r.status === 'replied' || r.status === 'consult' ? 'live' : 'info'}>{STATUS_LABEL[r.status]}</Chip></td>

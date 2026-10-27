@@ -53,8 +53,11 @@ export async function runSlice(opts: { deadlineMs?: number; maxRequests?: number
   const queries = carriers.filter((c) => c.scan_enabled && c.query).map((c) => ({ q: c.query!, type: c.model === 'independent' ? 'insurance_agency' : undefined }));
   if (!queries.length) return { run: 0, cells: 0, requests: 0, costCents: 0, found: 0, status: 'idle', note: 'No carriers are switched on for scanning.' };
 
+  // Sweeps stop short of the whole budget: the display reserve is kept for showing names on screen (lib/places.ts).
+  const { placesBudget } = await import('./places');
+  const { sweepLimit, reserve } = await placesBudget();
   const spent = await monthSpendCents();
-  if (spent >= settings.budgetCents) return { run: 0, cells: 0, requests: 0, costCents: 0, found: 0, status: 'budget', note: `Monthly scan budget reached ($${(spent / 100).toFixed(2)}).` };
+  if (spent >= sweepLimit) return { run: 0, cells: 0, requests: 0, costCents: 0, found: 0, status: 'budget', note: `Monthly sweep budget reached ($${(spent / 100).toFixed(2)}; $${(reserve / 100).toFixed(0)} is kept for showing names).` };
 
   const { data: run } = await db.from('scan_runs').insert({}).select('id').single();
   const runId = run!.id as number;
@@ -69,7 +72,7 @@ export async function runSlice(opts: { deadlineMs?: number; maxRequests?: number
       const { data: cells } = await db.from('scan_cells').select('*').eq('status', 'pending').in('state', settings.states).order('depth', { ascending: false }).order('id').limit(5);
       if (!cells?.length) { status = 'done'; break; }
       for (const cell of cells) {
-        if (spent + cost() + cellWorst > settings.budgetCents) { status = 'budget'; break outer; }
+        if (spent + cost() + cellWorst > sweepLimit) { status = 'budget'; break outer; }
         if (requests >= maxReq || Date.now() - t0 > deadline) break outer;
         const rect: Rect = { south: cell.south, west: cell.west, north: cell.north, east: cell.east };
         let full = false;

@@ -3,6 +3,7 @@
 // the partner radar. The Call Desk on top says who to call next and why; the board below tracks every relationship
 // from first call to referring. Each partner's referral link sends leads into Leads, tagged with their name.
 // Names and phones come live from Google Maps (only place IDs are stored), so only the cards on screen look them up.
+import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import Link from 'next/link';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { ModuleGate } from '@/components/ModuleGate';
@@ -65,6 +66,7 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
   }
   return (
     <AgencyShell ctx={ctx} title="Partners">
+      <PlacesPausedNotice audience="agency" />
       <div className="grid g4">
         <Tile label="Mapped near you" value={all.length} hint={`Within ${prof?.service_radius_mi ?? 15} miles, only businesses that fit your lines`} />
         <Tile label="In conversation" value={all.filter((p) => p.status === 'called' || p.status === 'meeting').length} hint={(() => { const v = all.filter((p) => p.status === 'meeting').length; return `${v} visit${v === 1 ? '' : 's'} booked`; })()} />

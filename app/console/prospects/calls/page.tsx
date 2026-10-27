@@ -8,6 +8,7 @@ import { Panel, Chip, Empty } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { getDetails, GOOGLE_ATTRIBUTION } from '@/lib/places';
+import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import { scanSettings } from '@/lib/scanner';
 import { OUTCOMES, officeClock } from '@/lib/prospects';
 import { logProspect } from '@/lib/scan-actions';
@@ -31,7 +32,7 @@ export default async function Calls() {
   const settings = await scanSettings();
   const now = new Date().toISOString();
   const { data: due } = await supabase.from('prospects')
-    .select('id, code, place_id, state, status, fit_score, contact_name, carriers(name)')
+    .select('id, code, place_id, state, status, fit_score, contact_name, contact_phone, known_name, known_address, carriers(name)')
     .in('status', ['new', 'verified', 'contacting'])
     .in('state', settings.states)
     .or(`next_action_at.is.null,next_action_at.lte.${now}`)
@@ -50,6 +51,7 @@ export default async function Calls() {
   ]) : [null, null, null];
   return (
     <ConsoleShell title="Call list" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/prospects', label: 'Prospects' }, { label: 'Call list' }]}>
+      <PlacesPausedNotice audience="staff" />
       <div className="grid g2" style={{ alignItems: 'start' }}>
         <Panel title="Next 10 calls" sub={`Best fit first in ${settings.states.join(', ')}; offices open for calls now come first`}>
           {list.length ? (
@@ -57,15 +59,19 @@ export default async function Calls() {
               {list.map((p, i) => {
                 const d = details[i];
                 return (
-                  <li key={p.id} style={{ gap: 8 }} data-helix-item={d?.name || p.contact_name || `Office ${p.code}`}>
+                  <li key={p.id} style={{ gap: 8 }} data-helix-item={d?.name || p.known_name || p.contact_name || `Office ${p.code}`}>
                     <div className="spread">
-                      <Link href={`/console/prospects/${p.code}`}><b>{d?.name || p.contact_name || `Office ${p.code}`}</b></Link>
+                      <Link href={`/console/prospects/${p.code}`}><b>{d?.name || p.known_name || p.contact_name || `Office ${p.code}`}</b></Link>
                       <span className="row" style={{ gap: 6 }}><Chip kind="info">Fit {p.fit_score}</Chip>{p.clock.callable ? <Chip kind="done">{p.clock.label}</Chip> : <Chip kind="pending">{p.clock.label}</Chip>}</span>
                     </div>
-                    <span className="muted" style={{ fontSize: 13 }}>{(p.carriers as { name?: string } | null)?.name ?? 'Independent'} · {d?.address ?? p.state}</span>
-                    {d?.phone ? <a className="btn small primary" href={`tel:${d.phone}`} style={{ justifySelf: 'start' }}>Call {d.phone}</a> : <span className="muted" style={{ fontSize: 13 }}>No phone listed: open the office for details.</span>}
+                    <span className="muted" style={{ fontSize: 13 }}>{(p.carriers as { name?: string } | null)?.name ?? 'Independent'} · {d?.address || p.known_address || p.state}</span>
+                    {d?.phone || p.contact_phone ? <a className="btn small primary" href={`tel:${d?.phone || p.contact_phone}`} style={{ justifySelf: 'start' }}>Call {d?.phone || p.contact_phone}</a> : <span className="muted" style={{ fontSize: 13 }}>No phone listed: open the office for details.</span>}
                     <ActionForm action={logProspect} helix="call log" helixTitle="Log the call" className="row">
                       <input type="hidden" name="id" value={p.id} />
+                      {/* Logging the call keeps what the team just called: the office's name, address and phone. */}
+                      {d?.name ? <input type="hidden" name="known_name" value={d.name} /> : null}
+                      {d?.address ? <input type="hidden" name="known_address" value={d.address} /> : null}
+                      {d?.phone && !p.contact_phone ? <input type="hidden" name="contact_phone" value={d.phone} /> : null}
                       <select className="select" name="outcome" required defaultValue="" aria-label="Outcome" style={{ flex: 1 }}>
                         <option value="" disabled>Outcome…</option>
                         {OUTCOMES.map(([o, l]) => <option key={o} value={o}>{l}</option>)}

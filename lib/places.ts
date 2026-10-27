@@ -30,14 +30,30 @@ async function meter(sku: Sku) {
 }
 
 /** This month's Google Places spend in cents (all SKUs), and the budget in cents. */
+// Two pots in one monthly budget: sweeps (the national scanner, Competitor Radar) stop at `sweepLimit`, which keeps
+// `reserve` back for showing names on screen; on-screen lookups run until the whole budget is spent. So a big
+// sweep can never blank the dashboards. The reserve is app_settings.places_display_reserve_usd (default $25).
+export const DEFAULT_DISPLAY_RESERVE_USD = 25;
 export const placesBudget = cache(async () => {
   const db = adminDb();
-  const [{ data: spent }, { data: setting }] = await Promise.all([
+  const [{ data: spent }, { data: settings }] = await Promise.all([
     db.rpc('places_month_cents'),
-    db.from('app_settings').select('value').eq('key', 'scan_budget_usd').maybeSingle(),
+    db.from('app_settings').select('key, value').in('key', ['scan_budget_usd', 'places_display_reserve_usd']),
   ]);
-  const budget = Math.round(Number(setting?.value ?? process.env.SCAN_BUDGET_USD ?? 150) * 100);
-  return { spent: Number(spent ?? 0), budget };
+  const get = (k: string) => settings?.find((r) => r.key === k)?.value;
+  const budget = Math.round(Number(get('scan_budget_usd') ?? process.env.SCAN_BUDGET_USD ?? 150) * 100);
+  const reserve = Math.min(budget, Math.round(Number(get('places_display_reserve_usd') ?? DEFAULT_DISPLAY_RESERVE_USD) * 100));
+  return { spent: Number(spent ?? 0), budget, reserve, sweepLimit: budget - reserve };
+});
+
+/** When on-screen Google lookups are paused for the month (budget spent), and when they come back. */
+export const placesPaused = cache(async (): Promise<{ paused: false } | { paused: true; spent: number; budget: number; resumes: string }> => {
+  if (!placesConfigured()) return { paused: false };
+  const b = await placesBudget();
+  if (b.spent < b.budget) return { paused: false };
+  const now = new Date();
+  const resumes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 12)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  return { paused: true, spent: b.spent, budget: b.budget, resumes };
 });
 
 async function call<T>(sku: Sku, path: string, init: { method?: string; body?: unknown; fields: string }): Promise<T> {

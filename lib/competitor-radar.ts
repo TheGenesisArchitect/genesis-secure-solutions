@@ -6,7 +6,7 @@
 // never starts a search that could cross the cap.
 import 'server-only';
 import { adminDb } from './supabase/admin';
-import { COST_CENTS, textSearch, type Rect } from './places';
+import { COST_CENTS, placesBudget, textSearch, type Rect } from './places';
 import type { CarrierRule } from './classify';
 import { competitorTag } from './competitor-tags';
 
@@ -66,9 +66,12 @@ export async function runCompetitorSlice(scanId: string, deadlineMs = 40_000) {
   const queue = [...(s.queue as Job[])];
   let requests = s.requests as number, cost = Number(s.cost_cents), found = s.found as number, status: string = 'running';
   let ownPlace: string | null = s.own_place_id ?? null;
+  // The month's sweep budget too (it keeps a reserve for showing names on screen), not only this sweep's own cap.
+  const month = await placesBudget(), startCost = cost;
   while (queue.length) {
     if (Date.now() - t0 > deadlineMs) break;
     if (cost + PAGES * COST_CENTS.text_search > s.cap_cents) { status = 'budget'; break; } // never start a job that could cross the cap
+    if (month.spent + (cost - startCost) + PAGES * COST_CENTS.text_search > month.sweepLimit) { status = 'budget'; break; }
     const job = queue.shift()!;
     const rows: { tenant_id: string; place_id: string; carrier_id: string | null; carrier: string; segment: string; distance_mi: number; bearing_deg: number; last_seen: string }[] = [];
     const dropped: string[] = [];
