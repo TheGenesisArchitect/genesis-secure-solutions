@@ -166,7 +166,7 @@ try {
   const rp = await tool('read_page', {});
   const form = (rp.forms ?? []).find((f) => /onboarding/i.test(f.key));
   check(!!form && form.lane === 'internal' && ['name', 'slug', 'contact', 'email', 'phone', 'city', 'state'].every((n) => form.fields.some((f) => f.name === n)), `Helix sees the Start onboarding form (${(form?.fields ?? []).map((f) => f.name).join(', ')})`);
-  const fr = await tool('fill_form', { form: form?.key ?? 'Start onboarding', fields: [{ name: 'name', value: 'Barrett Insurance Agency' }, { name: 'slug', value: SLUG }, { name: 'contact', value: 'Tyson Barrett' }, { name: 'email', value: 'tyson@example.com' }, { name: 'city', value: 'Columbus' }, { name: 'package', value: 'Growth' }, { name: 'note', value: 'Growth package; kickoff next week' }] });
+  const fr = await tool('fill_form', { form: form?.key ?? 'Start onboarding', fields: [{ name: 'name', value: 'Barrett Insurance Agency' }, { name: 'slug', value: SLUG }, { name: 'contact', value: 'Tyson Barrett' }, { name: 'email', value: 'tyson@example.com' }, { name: 'city', value: 'Columbus' }, { name: 'package', value: 'Growth' }, { name: 'street', value: '1200 Broadway' }, { name: 'zip', value: '31901' }, { name: 'Lines of business', value: 'auto, home and boat' }, { name: 'note', value: 'Growth package; kickoff next week' }] });
   check(fr.ok === true && (fr.missing ?? []).length === 0, `fill_form fills it live (${JSON.stringify({ filled: fr.filled, missing: fr.missing, unknown: fr.unknown })})`);
   await shot('onboarding-filled');
   check(!(await db.from('tenants').select('id').eq('slug', SLUG).maybeSingle()).data, 'nothing is created before the yes');
@@ -184,6 +184,26 @@ try {
     check(p2.status === 'consult' && p2.tenant_id === t.id && p2.contact_name === 'Tyson Barrett', 'the prospect is linked to the client and in Consult');
     check(await waitFor(async () => (await ev('location.pathname')) === `/console/clients/${SLUG}`, 15000), `and the new client opens (${await ev('location.pathname')})`);
     await shot('onboarding-client');
+    // The office went on the agency profile too (the package's features read it), with the address on the record.
+    const prof = must(await db.from('agency_profiles').select('address, city, state, zip, lines, carrier').eq('tenant_id', t.id).maybeSingle(), 'profile');
+    const rec2 = must(await db.from('agent_records').select('data').eq('tenant_id', t.id).eq('is_current', true).single(), 'record v2');
+    check(prof?.address === '1200 Broadway' && prof.zip === '31901' && JSON.stringify([...(prof.lines ?? [])].sort()) === '["auto","boat","home"]' && /state farm/i.test(prof.carrier ?? '') && /1200 Broadway, Columbus, GA 31901/.test(rec2.data.address ?? ''), `onboarding saved the office: agency profile (${prof?.address}, ${prof?.zip}, ${(prof?.lines ?? []).join('/')}, ${prof?.carrier}) and the address on the record`);
+    // On the client page Helix sees every form, including the agency profile (not an ActionForm) and its lines.
+    check((await ev('window.__live.socks.length')) === 1 && (await ev('window.__live.socks[0].readyState')) === 1, 'the voice session carried on into the new client');
+    const cp = await tool('read_page', {});
+    const pf = (cp.forms ?? []).find((x) => x.key === 'Agency profile');
+    const lineField = pf?.fields.find((x) => x.type === 'choices');
+    check(!!pf && pf.lane === 'internal' && ['address', 'city', 'state', 'zip', 'phone', 'website', 'carrier'].every((n) => pf.fields.some((x) => x.name === n)) && lineField?.label === 'Lines of business' && /Auto/.test(lineField.value) && /Boat/.test(lineField.value), `Helix sees the Agency profile form, lines included (${pf?.fields.map((x) => x.name).join(', ')}; lines: ${lineField?.value})`);
+    const forms = (cp.forms ?? []).map((x) => `${x.key}:${x.lane}`);
+    check(forms.some((x) => /Invite someone:outward/.test(x)), `outward forms stay outward (${forms.join(' | ').slice(0, 300)})`);
+    const pfill = await tool('fill_form', { form: 'Agency profile', fields: [{ name: 'address', value: '1210 Broadway Suite 4' }, { name: 'phone', value: '(706) 555-0199' }, { name: 'Lines of business', value: 'Auto, Home, Boat, RV' }] });
+    check(pfill.ok === true && pfill.unknown.length === 0, `Helix fills the agency's address, phone and lines (${JSON.stringify(pfill.filled)})`);
+    await tool('submit_form', { form: 'Agency profile' });
+    await tool('confirm_action', {});
+    check(await waitFor(async () => (await db.from('agency_profiles').select('address').eq('tenant_id', t.id).single()).data?.address === '1210 Broadway Suite 4', 15000), 'after the yes, the agency profile is saved');
+    const prof2 = must(await db.from('agency_profiles').select('main_phone_e164, lines').eq('tenant_id', t.id).single(), 'profile2');
+    check(prof2.main_phone_e164 === '+17065550199' && (prof2.lines ?? []).includes('rv'), `with the new phone and RV added (${prof2.main_phone_e164}, ${(prof2.lines ?? []).join('/')})`);
+    await shot('client-profile-filled');
     // The package: its features as a 30-day trial, exactly Growth's; the plan and billing untouched.
     const { MODULES, includes } = await import('../lib/programs.ts').catch(() => ({}));
     const grants = must(await db.from('module_grants').select('module_key, until, reason').eq('tenant_id', t.id).is('revoked_at', null), 'grants');

@@ -13,6 +13,9 @@ import { fit } from '@/lib/classify';
 import { scanSettings } from '@/lib/scanner';
 import { STATUS_LABEL, OUTCOMES, CARRIER_HOSTS, officeClock } from '@/lib/prospects';
 import { logProspect, startOnboarding } from '@/lib/scan-actions';
+import { LINES, type LineId } from '@/lib/lines';
+
+const LINE_CHOICES = (Object.keys(LINES) as LineId[]).map((l) => [l, LINES[l].label] as const);
 
 export const dynamic = 'force-dynamic';
 
@@ -100,9 +103,16 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
                   <label className="field" style={{ flex: '1 1 160px' }}><span>Phone</span><input className="input" name="phone" maxLength={40} defaultValue={p.contact_phone || details?.phone || ''} /></label>
                 </div>
                 <div className="row" style={{ flexWrap: 'wrap' }}>
-                  <label className="field" style={{ flex: '1 1 180px' }}><span>City</span><input className="input" name="city" maxLength={80} defaultValue={(details?.address || p.known_address || '').split(',').at(-3)?.trim() ?? ''} /></label>
-                  <label className="field" style={{ flex: '0 1 90px' }}><span>State</span><input className="input" name="state" maxLength={2} defaultValue={p.state ?? ''} /></label>
-                  <label className="field" style={{ flex: '1 1 220px' }}><span>Website</span><input className="input" name="website" maxLength={200} defaultValue={details?.website ?? ''} /></label>
+                  <label className="field" style={{ flex: '2 1 240px' }}><span>Office street address</span><input className="input" name="street" maxLength={160} defaultValue={(details?.address || p.known_address || '').split(',')[0]?.trim() ?? ''} /></label>
+                  <label className="field" style={{ flex: '1 1 160px' }}><span>City</span><input className="input" name="city" maxLength={80} defaultValue={(details?.address || p.known_address || '').split(',').at(-3)?.trim() ?? ''} /></label>
+                  <label className="field" style={{ flex: '0 1 80px' }}><span>State</span><input className="input" name="state" maxLength={2} defaultValue={p.state ?? ''} /></label>
+                  <label className="field" style={{ flex: '0 1 100px' }}><span>ZIP</span><input className="input" name="zip" maxLength={10} defaultValue={(details?.address || p.known_address || '').match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] ?? ''} /></label>
+                </div>
+                <label className="field"><span>Website</span><input className="input" name="website" maxLength={200} defaultValue={details?.website ?? ''} /></label>
+                <div className="field"><span>Lines of business they sell</span>
+                  <div className="row" style={{ gap: 6, flexWrap: 'wrap' }} data-helix-group="Lines of business">
+                    {LINE_CHOICES.map(([l, label]) => <label key={l} className="check"><input type="checkbox" name="lines" value={l} /> {label}</label>)}
+                  </div>
                 </div>
                 <label className="field"><span>Package (its features switch on as a 30-day trial; the website build starts with it)</span>
                   <select className="select" name="package" required defaultValue="">

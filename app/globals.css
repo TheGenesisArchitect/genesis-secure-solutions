@@ -1404,3 +1404,8 @@ button.chip{cursor:pointer}
 /* The full Ask Helix page: the same drawer, wider, so moving in and out of it never restarts the conversation. */
 .helix-drawer.full{width:min(640px,100vw)}
 @media (min-width:1100px){.helix-ask-full{margin-right:640px}}
+
+/* A checkbox shown as a chip (lines of business): the box is there for keyboards and Helix, the chip shows the state. */
+.chip-check{cursor:pointer;position:relative}
+.chip-check input{position:absolute;opacity:0;width:1px;height:1px}
+.chip-check:focus-within{outline:2px solid var(--done);outline-offset:2px}

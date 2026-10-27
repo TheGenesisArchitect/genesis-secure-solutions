@@ -98,6 +98,20 @@ export async function startOnboarding(_: ActionResult, f: FormData): Promise<Act
     const g = await supabase.rpc('grant_modules', { p_tenant: tid, p_keys: keys, p_until: new Date(Date.now() + 30 * 86_400_000).toISOString(), p_reason: `Onboarding: ${label} package (30-day trial until the invoice is paid)` });
     if (g.error) return fail(`The client was created, but its ${label} features couldn’t be switched on: ${g.error.message}`);
   }
+  // The office itself: street, ZIP and lines go on the record (the site config reads them) and on the agency profile,
+  // which places the office on the map for the package's features (partners, radar, visibility).
+  const street = str(f, 'street', 160), zip = str(f, 'zip', 10), lines = f.getAll('lines').map(String).filter((l) => /^[a-z]{2,12}$/.test(l));
+  if (street || zip || lines.length) {
+    const { data: cur } = await supabase.from('agent_records').select('data').eq('tenant_id', tid).eq('is_current', true).maybeSingle();
+    const d = (cur?.data ?? {}) as Record<string, unknown>;
+    const city = str(f, 'city', 80) || String(d.city ?? ''), state = (str(f, 'state', 2) || String(d.state ?? '')).toUpperCase();
+    const address = [street, city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const merged = { ...d, ...(street ? { address } : {}), ...(zip ? { zip } : {}), ...(lines.length ? { lines } : {}) };
+    if (JSON.stringify(merged) !== JSON.stringify(d)) await supabase.rpc('save_agent_record', { p_tenant: tid, p_data: merged, p_note: 'Office address and lines from onboarding' });
+    const { saveAgencyProfile } = await import('./growth-actions');
+    const prof = await saveAgencyProfile(tid as string, { address: street, city, state, zip, lines, radius: 15, licensed: state, carrier: String(d.carrier ?? ''), phone: str(f, 'phone', 40), website: str(f, 'website', 200) });
+    if (prof.err) return fail(`The client was created, but its agency profile didn’t save: ${prof.err}`);
+  }
   // The website starts with the record.
   const admin = adminDb();
   const cfgTitle = 'Website config (draft)';

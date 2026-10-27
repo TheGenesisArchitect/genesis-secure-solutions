@@ -222,7 +222,7 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       return { ok: true, page: pageRef.current };
     }
     // Forms on the page (both surfaces): see them, fill them live, and save an internal one only after a yes.
-    if (ask && name === 'read_page') return { ok: true, ...readPage() };
+    if (ask && name === 'read_page') { await settled(); return { ok: true, ...readPage() }; } // a page still loading shows all its forms
     if (ask && name === 'fill_form') {
       const fields = Array.isArray((args as unknown as { fields?: unknown }).fields) ? ((args as unknown as { fields: { name: string; value: string }[] }).fields) : [];
       // Out of the way so the person watches it fill (voice keeps going).

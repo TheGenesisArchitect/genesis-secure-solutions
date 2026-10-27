@@ -22,7 +22,7 @@ export function AgencyProfilePanel({ tenantId, profile }: { tenantId: string; pr
   const [lines, setLines] = useState<Set<string>>(new Set(profile?.lines ?? []));
   const toggle = (l: string) => setLines((s) => { const n = new Set(s); if (n.has(l)) n.delete(l); else n.add(l); return n; });
   return (
-    <form style={{ display: 'grid', gap: 10 }} onSubmit={async (e) => {
+    <form style={{ display: 'grid', gap: 10 }} data-helix-form="agency profile" data-helix-title="Agency profile" data-helix-lane="internal" onSubmit={async (e) => {
       e.preventDefault(); setBusy(true);
       const f = new FormData(e.currentTarget);
       const g = (k: string) => String(f.get(k) ?? '').trim();
@@ -44,8 +44,9 @@ export function AgencyProfilePanel({ tenantId, profile }: { tenantId: string; pr
       </div>
       <div style={{ display: 'grid', gap: 6 }}>
         <span className="muted" style={{ fontSize: 12 }}>Lines of business: only these are ever marketed, mapped or drafted for this agency.</span>
-        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {(Object.keys(LINES) as LineId[]).map((l) => <button key={l} type="button" className={'chip' + (lines.has(l) ? ' done' : '')} onClick={() => toggle(l)} aria-pressed={lines.has(l)}>{LINES[l].label}</button>)}
+        {/* Real checkboxes (styled as chips), so Helix can see and fill the lines like any other field. */}
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }} data-helix-group="Lines of business">
+          {(Object.keys(LINES) as LineId[]).map((l) => <label key={l} className={'chip chip-check' + (lines.has(l) ? ' done' : '')}><input type="checkbox" name="lines" value={l} checked={lines.has(l)} onChange={() => toggle(l)} />{LINES[l].label}</label>)}
         </div>
       </div>
       <div className="row" style={{ gap: 8 }}>
