@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Chip, STAGES, STAGE_LABEL, PLAN_LABEL, daysSince, type Stage } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
+import { blockersFor } from '@/lib/blockers';
 
 export const metadata = { title: 'Pipeline' };
 
@@ -32,6 +33,8 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
     supabase.from('approvals').select('tenant_id').eq('status', 'pending'),
   ]);
   const ts = tenants.data ?? [];
+  // What each client is waiting on, named (the same words Helix uses).
+  const blocked = await blockersFor(supabase, ts.filter((t) => !t.is_sample).map((t) => t.id as string));
   return (
     <ConsoleShell
       title="Pipeline"
@@ -39,7 +42,7 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
       actions={<Link className="btn small" href={samples ? '/console/pipeline' : '/console/pipeline?samples=1'}>{samples ? 'Hide samples' : 'Include samples'}</Link>}
     >
       <Flash ok={sp.ok} err={sp.err} />
-      <p className="soft">Stages 1 to 4 sell the work; 5 to 8 deliver it from one record. Move a client from its page, and the change is logged.</p>
+      <p className="soft">Stages 1 to 4 sell the work; 5 to 8 deliver it from one record. Clients move on their own when the proposal goes out, the deposit is paid and the checklist is done; the rest you move from the client’s page. Every change is logged.</p>
       <div className="board" role="list">
         {STAGES.map((s) => {
           const inStage = ts.filter((t) => t.stage === s);
@@ -60,7 +63,7 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
                       {t.is_sample ? <Chip kind="sample">Sample</Chip> : null}
                     </div>
                     <small>{t.plan ? PLAN_LABEL[t.plan] : 'Plan not set'} · {d} day{d === 1 ? '' : 's'} in stage</small>
-                    <small style={{ color: pending ? 'var(--warn)' : 'var(--soft)' }}>{nextAction(s, open, pending)}</small>
+                    <small style={{ color: pending || blocked.get(t.id)?.items.length ? 'var(--warn)' : 'var(--soft)' }}>{pending ? nextAction(s, open, pending) : blocked.get(t.id)?.items[0] ?? nextAction(s, open, pending)}</small>
                   </Link>
                 );
               })}

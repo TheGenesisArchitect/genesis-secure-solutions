@@ -8,6 +8,7 @@ import { businessToday } from '@/lib/billing';
 import { finance, monthsBack, receivables, runway } from '@/lib/finance';
 import { prettyPhone } from '@/lib/twilio';
 import { HOUSE_SLUG } from '@/lib/phone-line';
+import { blockersFor } from '@/lib/blockers';
 
 export const canSeeMoney = (role: string | undefined) => role === 'admin' || role === 'account_lead';
 export const DEPARTMENTS: [string, string][] = [['sales', 'Sales'], ['pipeline', 'Pipeline'], ['clients', 'Clients & delivery'], ['finance', 'Finance'], ['studio', 'Studio'], ['operations', 'Operations'], ['general', 'General']];
@@ -85,6 +86,7 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
     ...((lineCalls.data ?? []) as { from_e164: string | null; started_at: string; duration_s: number; status: string; summary: string | null }[]).map((c) => `  - ${et(c.started_at)} | ${prettyPhone(c.from_e164) || 'unknown'} | ${c.status}${c.duration_s ? ` ${Math.round(c.duration_s / 60)} min` : ''}${c.summary ? ` | note: ${c.summary}` : ''}`),
     '',
     'PIPELINE',
+    `- Waiting on (each client in setup and what it's blocked on): ${[...(await blockersFor(db)).values()].filter((b) => b.items.length).map((b) => `${name(b.tenantId)} (${b.stage}): ${b.items.join('; ')}`).join(' | ') || 'nothing blocked'}.`,
     `- Prospects in play (saved names; look one up with prospect_card for live details): ${((inPlay.data ?? []) as { code: string; status: string; state: string | null; contact_name: string | null; known_name: string | null; next_action_at: string | null; carriers: { name?: string } | null }[]).map((p) => `${p.known_name ?? `office ${p.code}`}${p.contact_name ? ` (contact ${p.contact_name})` : ''} ${p.carriers?.name ?? 'independent'} ${p.state ?? ''} ${p.status}${p.next_action_at ? ` next ${p.next_action_at.slice(0, 10)}` : ''}`).join('; ') || 'none'}.`,
     `- Real clients by stage: ${tally(real.map((t) => t.stage)) || 'none'}.`,
     `- Stuck more than 14 days in a setup stage: ${stuck.map((t) => `${t.name} (${t.stage}, ${days(t.stage_since)} days)`).join('; ') || 'none'}.`,
