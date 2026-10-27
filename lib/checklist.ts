@@ -30,7 +30,7 @@ const filled = (v: unknown) => (Array.isArray(v) ? v.length > 0 : typeof v === '
 /** The client's answers live under record.intake; photos are referenced by asset id under record.intake.<key>. */
 export function checklistStatus(record: Record<string, unknown>) {
   const intake = (record.intake ?? {}) as Record<string, unknown>;
-  const items = CHECKLIST.map((i) => ({ ...i, done: filled(intake[i.key]) || (i.key === 'domain' && intake.domainChoice !== 'have') }));
+  const items = CHECKLIST.map((i) => ({ ...i, done: filled(intake[i.key]) }));
   const missing = items.filter((i) => i.required && !i.done);
   return { items, missing, done: missing.length === 0, intake };
 }

@@ -134,6 +134,18 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         attachments: [{ filename: 'invite.ics', content: meetingIcs(m, sender, data.from_name || 'Genovus'), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
       };
     }
+    case 'checklist_ready':
+      return {
+        to,
+        subject: `Thank you, ${data.first}: your setup checklist for ${data.agency}`,
+        ...frame({
+          preheader: 'About ten minutes, and we start building your site.',
+          heading: 'Your deposit is in. Let’s build your site.',
+          body: ['Thank you! Here is your setup checklist: your headshot, office hours, licensed states and a few links. It takes about ten minutes.', 'Everything you enter goes straight onto your site and dashboard. You can come back to this link any time to change it.'],
+          button: { label: 'Open my checklist', url: data.link },
+          foot: 'Questions? Just reply to this email.',
+        }, origin),
+      };
     case 'proposal_ready':
       return {
         to,

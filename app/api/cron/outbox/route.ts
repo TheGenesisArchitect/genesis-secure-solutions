@@ -5,6 +5,7 @@ import { adminDb } from '@/lib/supabase/admin';
 import { emailConfigured, outboxEmail, sendEmail } from '@/lib/email';
 import { cronAuthorized, siteOrigin } from '@/lib/cron';
 import { pushConfigured, sendLeadPush } from '@/lib/push';
+import { sendChecklistLinks } from '@/lib/client-checklist';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,6 +15,8 @@ export async function GET(req: Request) {
   const email = emailConfigured(), push = pushConfigured();
   if (!email && !push) return Response.json({ skipped: 'email and push not configured' });
   const db = adminDb();
+  // Clients whose deposit is paid get their setup checklist link (queued here, sent below with everything else).
+  if (email) await sendChecklistLinks(siteOrigin()).catch((e) => console.error(`[checklist] ${e instanceof Error ? e.message : e}`));
   let q = db.from('outbox').select('id').eq('status', 'pending').lte('send_after', new Date().toISOString());
   if (!email) q = q.eq('template', 'lead_push');
   if (!push) q = q.neq('template', 'lead_push');

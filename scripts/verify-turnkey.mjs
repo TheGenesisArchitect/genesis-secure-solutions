@@ -120,6 +120,54 @@ try {
     await go(`/proposal/${token}`);
     check(!(await ev('document.documentElement.scrollWidth > innerWidth')), 'the proposal fits a phone');
     await shot('proposal-phone');
+
+    // 3. the client's checklist: the link arrives once the deposit is paid; the client fills it; it moves them on
+    const t3 = must(await db.from('tenants').insert({ slug: `${SLUG}-c`, name: 'Verify Checklist Agency', stage: 'intake' }).select('id').single(), 't3');
+    must(await db.from('gates').insert(['photo_rights', 'kickoff'].map((kind) => ({ tenant_id: t3.id, kind }))), 'gates3');
+    must(await db.from('agent_records').insert({ tenant_id: t3.id, version: 1, data: { agencyName: 'Verify Checklist Agency', package: 'growth', email: 'owner@verify-checklist.example', contactName: 'Casey Verify' }, is_current: true, note: 'verify' }), 'record3');
+    const CL = await import('../lib/client-checklist.ts');
+    await CL.sendChecklistLinks(ORIGIN); await CL.sendChecklistLinks(ORIGIN);
+    const cm = must(await db.from('outbox').select('data').eq('tenant_id', t3.id).eq('template', 'checklist_ready'), 'checklist mail');
+    check(cm.length === 1 && /\/welcome\/[A-Za-z0-9_-]+\/checklist$/.test(cm[0].data.link) && cm[0].data.first === 'Casey', `a paid client gets their checklist link by email, once (${cm.length} email)`);
+    const ctoken = cm[0].data.link.split('/welcome/')[1].split('/')[0];
+    const wres = await fetch(`${ORIGIN}/welcome/${ctoken}`, { redirect: 'manual' });
+    const whtml = wres.status === 200 ? await wres.text() : '';
+    const wok = (wres.status === 302 && /\/checklist$/.test(wres.headers.get('location') ?? '')) || (wres.status === 200 && whtml.includes(`/welcome/${ctoken}/checklist`) && /6 things left/.test(whtml));
+    check(wok, `their welcome link leads to the checklist, with what's left (${wres.status})`);
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await go(`/welcome/${ctoken}/checklist`);
+    check(/Casey, a few things for your site/.test(await ev('document.body.innerText')) && /0 of 6 done/.test(await ev('document.body.innerText')), 'the checklist greets them and shows what’s left');
+    const setField = (name, value) => ev(`(() => { const el = document.querySelector('form.ck-form [name="${name}"]'); const set = Object.getOwnPropertyDescriptor(el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set; set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await setField('legalName', 'Verify Checklist Agency, LLC');
+    await setField('hours', 'Mon–Fri 9–6');
+    await setField('licensedStates', 'ga, al');
+    await setField('officialUrl', 'https://www.example.com/agent/casey-verify');
+    await ev(`document.querySelector('form.ck-form input[name=domainChoice][value=register]').click()`);
+    await sleep(300);
+    await setField('domain', 'caseyverify.com');
+    const AD = path.join(os.tmpdir(), 'verify-headshot.png');
+    fs.writeFileSync(AD, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+    const doc = await send('DOM.getDocument', {});
+    const node = await send('DOM.querySelector', { nodeId: doc.result.root.nodeId, selector: 'form.ck-form input[name=headshot]' });
+    await send('DOM.setFileInputFiles', { nodeId: node.result.nodeId, files: [AD] });
+    await ev(`document.querySelector('form.ck-form input[name=rights]').click()`);
+    await shot('checklist-filled');
+    await ev(`document.querySelector('form.ck-form button[type=submit]').click()`);
+    check(await waitFor(async () => /All set/.test((await ev(`document.querySelector('.ck-msg')?.innerText ?? ''`)) ?? ''), 20000), `saving everything says all set (${await ev(`document.querySelector('.ck-msg')?.innerText ?? ''`)})`);
+    const rec3 = must(await db.from('agent_records').select('data, note').eq('tenant_id', t3.id).eq('is_current', true).single(), 'rec3');
+    const head = rec3.data.intake?.headshot ? must(await db.from('assets').select('rights_status, audience, location_kind').eq('id', rec3.data.intake.headshot).single(), 'headshot') : null;
+    const gate = must(await db.from('gates').select('status, evidence').eq('tenant_id', t3.id).eq('kind', 'photo_rights').single(), 'gate');
+    const t3s = must(await db.from('tenants').select('stage, checklist_done_at').eq('id', t3.id).single(), 't3s');
+    check(rec3.note === 'From the client checklist' && rec3.data.intake.licensedStates === 'GA, AL' && rec3.data.intake.domain === 'caseyverify.com' && rec3.data.agencyName === 'Verify Checklist Agency', `their answers land on the record, cleaned (${JSON.stringify(rec3.data.intake)})`);
+    check(head?.rights_status === 'pending' && head.audience === 'client' && head.location_kind === 'blob' && gate.status === 'open' && /confirmed rights/.test(gate.evidence ?? ''), 'the headshot is saved privately with rights pending; their statement is the photo-rights evidence, and the team still clears it');
+    check(!!t3s.checklist_done_at && t3s.stage === 'intake', 'the checklist is done; they stay in Intake until photo rights and kickoff clear');
+    must(await db.from('gates').update({ status: 'cleared' }).eq('tenant_id', t3.id).in('kind', ['photo_rights', 'kickoff']), 'clear3');
+    check(must(await db.from('tenants').select('stage').eq('id', t3.id).single(), 's3').stage === 'build', 'and then move to Build on their own');
+    const badStates = new FormData(); badStates.set('licensedStates', 'Georgia');
+    const r1 = await (await fetch(`${ORIGIN}/api/welcome/${ctoken}/checklist`, { method: 'POST', body: badStates, headers: { origin: ORIGIN } })).json();
+    const r2 = await fetch(`${ORIGIN}/api/welcome/${ctoken}/checklist`, { method: 'POST', body: new FormData(), headers: { origin: 'https://evil.example' } });
+    const r3 = await (await fetch(`${ORIGIN}/api/welcome/notarealtoken12345/checklist`, { method: 'POST', body: new FormData(), headers: { origin: ORIGIN } })).json();
+    check(r1.ok === false && /two-letter/.test(r1.error) && r2.status === 403 && r3.ok === false, 'bad input, another site and a bad link are refused');
   } finally {
     ws.close(); chrome.kill();
     try { execSync(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${PORT} ^| findstr LISTENING') do taskkill /F /T /PID %a`, { shell: 'cmd.exe', stdio: 'ignore' }); } catch {}
