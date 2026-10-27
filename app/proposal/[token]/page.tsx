@@ -47,6 +47,7 @@ export default async function Proposal({ params }: { params: Promise<{ token: st
         <p className="pp-eye">Proposal for {t.name}</p>
         <h1>{first ? `${first}, here’s your ` : 'Your '}<em>{plan.name}</em> package</h1>
         <p className="pp-sum">{plan.summary}</p>
+        {r.trial === 'growth' && pkg === 'launch' ? <p className="pp-trial"><b>Includes a 30-day Growth trial:</b> Ask Helix, your pipeline, calendar, partner map, Competitor Radar, Visibility and monthly content, from day one. Keep Growth after the trial, or stay on Launch.</p> : null}
       </section>
       <section className="pp-grid">
         <div className="pp-card">
@@ -87,6 +88,7 @@ const CSS = `
 .pp-hero h1{font:800 clamp(32px,5.5vw,54px)/1.04 var(--display);margin:0}
 .pp-hero h1 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .pp-sum{color:var(--soft);font-size:17px;max-width:60ch}
+.pp-trial{border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:12px;padding:12px 14px;color:var(--ink);max-width:68ch}
 .pp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
 .pp-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:grid;gap:12px;align-content:start}
 .pp-card h2{font:800 19px var(--display);margin:0}

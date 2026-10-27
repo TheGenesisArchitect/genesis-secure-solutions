@@ -13,6 +13,7 @@ import { fit } from '@/lib/classify';
 import { scanSettings } from '@/lib/scanner';
 import { STATUS_LABEL, OUTCOMES, CARRIER_HOSTS, officeClock } from '@/lib/prospects';
 import { logProspect, startOnboarding } from '@/lib/scan-actions';
+import { ConsultInviteForm } from '@/components/ConsultInviteForm';
 import { LINES, type LineId } from '@/lib/lines';
 
 const LINE_CHOICES = (Object.keys(LINES) as LineId[]).map((l) => [l, LINES[l].label] as const);
@@ -85,6 +86,9 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
           </Panel>
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
+          <Panel title="Consultation" sub="Send a link so they pick the time; the invite goes to everyone" helixItem="Consultation">
+            <ConsultInviteForm label={title.startsWith('Office ') ? (p.contact_name ?? '') : `${p.contact_name ? `${p.contact_name}, ` : ''}${title}`} emails={p.contact_email ?? ''} prospectId={p.id} />
+          </Panel>
           {p.tenant_id ? (
             <Panel title="Onboarding started" sub="This office is a client now">
               <Link className="btn primary" href={`/console/clients/${client?.slug ?? ''}`}>Open the client</Link>
@@ -122,6 +126,7 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
                     <option value="premium">Premium · everything in Growth and more (Optimization Care)</option>
                   </select>
                 </label>
+                <label className="check"><input type="checkbox" name="trial" value="growth" /> Add a 30-day Growth trial (Launch package: Growth’s features for 30 days at the Launch price)</label>
                 <label className="field"><span>What we agreed (optional)</span><input className="input" name="note" maxLength={300} placeholder="e.g. Launch package, kickoff next Tuesday" /></label>
                 <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Start onboarding</button>
               </ActionForm>

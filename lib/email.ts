@@ -134,6 +134,19 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         attachments: [{ filename: 'invite.ics', content: meetingIcs(m, sender, data.from_name || 'Genovus'), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
       };
     }
+    case 'consult_pick':
+      return {
+        to,
+        subject: 'Pick a time for your Genovus consultation',
+        ...frame({
+          preheader: `${data.minutes} minutes, at a time that works for you.`,
+          heading: 'Let’s find a time',
+          body: [`${data.from_name} would like to set up your Genovus consultation: ${data.minutes} minutes on video to walk through your dashboard, your website and the Growth tools together.`, 'Pick any open time that suits you. Everyone on this email gets the calendar invite as soon as one of you books.'],
+          button: { label: 'Pick a time', url: data.link },
+          foot: 'Questions? Just reply to this email.',
+        }, origin),
+        ...(data.from_email ? { replyTo: data.from_email } : {}),
+      };
     case 'monthly_report':
       return {
         to,
