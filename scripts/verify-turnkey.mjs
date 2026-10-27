@@ -49,13 +49,83 @@ try {
   check((await stage()).stage === 'intake', 'kickoff still open: stays in Intake');
   must(await db.from('gates').update({ status: 'waived' }).eq('tenant_id', t.id).eq('kind', 'kickoff'), 'kickoff');
   check((await stage()).stage === 'build', 'photo rights and kickoff cleared → Build');
-  const ev = await events();
-  check(ev.length === 3 && ev.every((e) => e.actor === null && /^Automatic: /.test(e.note)) && ev.map((e) => e.to_stage).join(',') === 'deposit,intake,build', `each move is logged as automatic (${ev.map((e) => `${e.from_stage}→${e.to_stage}`).join(', ')})`);
+  const evs = await events();
+  check(evs.length === 3 && evs.every((e) => e.actor === null && /^Automatic: /.test(e.note)) && evs.map((e) => e.to_stage).join(',') === 'deposit,intake,build', `each move is logged as automatic (${evs.map((e) => `${e.from_stage}→${e.to_stage}`).join(', ')})`);
   must(await db.from('tenants').update({ proposal_sent_at: new Date().toISOString() }).eq('id', t.id), 'resend');
   check((await stage()).stage === 'build' && (await events()).length === 3, 'forward only: a later signal never moves it back');
   const audit = must(await db.from('audit_events').select('action, actor_label').eq('tenant_id', t.id).in('action', ['stage.auto', 'plan.set']), 'audit');
   check(audit.filter((a) => a.action === 'stage.auto').length === 3 && audit.some((a) => a.action === 'plan.set') && audit.every((a) => a.actor_label === 'Genovus (automatic)'), 'and in the audit trail, with the plan change');
   check((await why()).some((x) => /mark it ready for review/.test(x)), `Build names the next human step (${(await why()).join('; ')})`);
+
+  // 2. proposal and deposit: drafted from the package, sent with one tap in Approvals (never in bulk)
+  const t2 = must(await db.from('tenants').insert({ slug: `${SLUG}-p`, name: 'Verify Proposal Agency', stage: 'consult' }).select('id').single(), 't2');
+  must(await db.from('gates').insert(['photo_rights', 'kickoff'].map((kind) => ({ tenant_id: t2.id, kind }))), 'gates2');
+  must(await db.from('agent_records').insert({ tenant_id: t2.id, version: 1, data: { agencyName: 'Verify Proposal Agency', package: 'premium', email: 'Owner@Verify-Proposal.example', contactName: 'Pat Verify' }, is_current: true, note: 'verify' }), 'record2');
+  const P = await import('../lib/proposal.ts');
+  const d1 = await P.ensureDepositDraft(t2.id, 'premium'), d2 = await P.ensureDepositDraft(t2.id, 'premium');
+  const inv = must(await db.from('invoices').select('amount_cents, status, kind').eq('tenant_id', t2.id), 'inv');
+  check(d1 === d2 && inv.length === 1 && inv[0].amount_cents === 350000 && inv[0].status === 'draft', `the deposit is drafted once from the package: Premium setup $5,000 → $3,500 (70%) (${inv.map((i) => `${i.kind} ${i.amount_cents} ${i.status}`).join(', ')})`);
+  const ap = must(await db.from('approvals').insert({ tenant_id: t2.id, subject_kind: 'invoice', approver: 'team', lane: 'queued', title: 'Send the proposal and Premium deposit', body: { action: 'send_proposal', text: 'Premium package. Deposit 70% of setup.', channel: 'Email' } }).select('id').single(), 'approval');
+  const other = must(await db.from('approvals').insert({ tenant_id: t2.id, subject_kind: 'copy', approver: 'team', lane: 'queued', title: 'Verify clean copy', body: { text: 'Your local agent is here to help.' } }).select('id').single(), 'other approval');
+
+  const { spawn, execSync } = await import('node:child_process');
+  const PORT = 3935, ORIGIN = `http://localhost:${PORT}`;
+  process.env.PROPOSAL_LINK_SECRET = 'verify-proposal-secret';
+  const up = async () => { try { return (await fetch(ORIGIN, { redirect: 'manual' })).status > 0; } catch { return false; } };
+  const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: 'ignore', shell: true, env: { ...process.env, MERCURY_API_TOKEN: '', PROPOSAL_LINK_SECRET: 'verify-proposal-secret' } });
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < 120 && !(await up()); i++) await sleep(1000);
+  const admin = must(await db.from('staff').select('user_id').eq('role', 'admin').limit(1).single(), 'admin');
+  const adminEmail = must(await db.auth.admin.getUserById(admin.user_id), 'admin email').user.email;
+  const link = must(await db.auth.admin.generateLink({ type: 'magiclink', email: adminEmail }), 'link');
+  const port = 9571, profile = fs.mkdtempSync(path.join(os.tmpdir(), 'genovus-verify-'));
+  const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+  let list; for (let i = 0; i < 60; i++) { try { list = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if (list.find((x) => x.type === 'page')) break; } catch {} await sleep(250); }
+  const ws = new WebSocket(list.find((x) => x.type === 'page').webSocketDebuggerUrl);
+  let id = 0; const pend = new Map(), on = new Map();
+  ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } else if (m.method) on.get(m.method)?.(m.params); };
+  await new Promise((r) => (ws.onopen = r));
+  const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+  const ev = async (x) => (await send('Runtime.evaluate', { expression: x, awaitPromise: true, returnByValue: true })).result?.result?.value;
+  await send('Page.enable');
+  const go = async (u) => { const l = new Promise((r) => on.set('Page.loadEventFired', r)); await send('Page.navigate', { url: ORIGIN + u }); await l; await sleep(1500); };
+  const shot = async (name) => { const m = (await send('Page.getLayoutMetrics')).result.cssContentSize; const s = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: m.width, height: Math.min(m.height, 3000), scale: 1 } }); fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(s.result.data, 'base64')); };
+  const waitFor = async (fn, ms = 20000) => { for (let i = 0; i < ms / 250; i++) { if (await fn()) return true; await sleep(250); } return false; };
+  try {
+    await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false });
+    await go(`/auth/continue?t=${encodeURIComponent(link.properties.hashed_token)}&next=${encodeURIComponent('/console')}`);
+    await ev(`(() => { const b = [...document.querySelectorAll('button')].find((x) => /Continue/.test(x.textContent)); b && b.click(); })()`);
+    await waitFor(async () => (await ev('location.pathname')) === '/console');
+    await go('/console/approvals');
+    const bulkIds = await ev(`[...document.querySelectorAll('form input[name=id]')].filter((i) => i.closest('form')?.querySelector('button')?.textContent?.includes('Approve all')).map((i) => i.value)`);
+    check(!(bulkIds ?? []).includes(ap.id), 'bulk approve never includes the proposal send');
+    await ev(`(() => { const li = [...document.querySelectorAll('li[data-helix-item]')].find((l) => l.dataset.helixItem === 'Send the proposal and Premium deposit' && l.innerText.includes('Verify Proposal Agency')); li?.querySelector('button[name=decision][value=approved]')?.click(); })()`);
+    check(await waitFor(async () => !!(await db.from('tenants').select('proposal_sent_at').eq('id', t2.id).single()).data?.proposal_sent_at, 25000), 'one tap on Approve sends it');
+    const mail = must(await db.from('outbox').select('to_email, template, data').eq('tenant_id', t2.id).eq('template', 'proposal_ready'), 'mail');
+    const s2 = must(await db.from('tenants').select('stage').eq('id', t2.id).single(), 's2');
+    const apAfter = must(await db.from('approvals').select('status').eq('id', ap.id).single(), 'ap after');
+    check(mail.length === 1 && mail[0].to_email === 'owner@verify-proposal.example' && /\/proposal\//.test(mail[0].data.link) && mail[0].data.package === 'Premium' && mail[0].data.first === 'Pat', `the proposal email goes to the client's email on record, with their link (${mail[0]?.to_email})`);
+    check(s2.stage === 'deposit' && apAfter.status === 'approved', `the approval is done and the client moved to Deposit (${s2.stage})`);
+    const token = new URL(mail[0].data.link).pathname.split('/').pop();
+    await go(`/proposal/${token}`);
+    const page = await ev('document.body.innerText');
+    check(/Pat, here’s your Premium package/.test(page) && page.includes('$3,500') && page.includes('$1,500') && page.includes('$799/mo') && /Optimization Care/.test(page) && /about 14 days/.test(page), 'the proposal shows the package, the 70/30 split ($3,500 now, $1,500 at launch), care and the steps');
+    check(/arrives by email/.test(page), 'with Mercury not connected, it says the deposit invoice follows (no pay button)');
+    const robots = await ev(`document.querySelector('meta[name=robots]')?.content ?? ''`);
+    check(/noindex/.test(robots), 'the proposal is never indexed');
+    await shot('proposal');
+    const bad = await fetch(`${ORIGIN}/proposal/${token.slice(0, -2)}xx`);
+    check(bad.status === 404, `a tampered link shows nothing (${bad.status})`);
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await go(`/proposal/${token}`);
+    check(!(await ev('document.documentElement.scrollWidth > innerWidth')), 'the proposal fits a phone');
+    await shot('proposal-phone');
+  } finally {
+    ws.close(); chrome.kill();
+    try { execSync(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${PORT} ^| findstr LISTENING') do taskkill /F /T /PID %a`, { shell: 'cmd.exe', stdio: 'ignore' }); } catch {}
+    dev.kill();
+    await db.from('approvals').delete().in('id', [ap.id, other.id]);
+  }
 } finally {
   await db.from('tenants').update({ is_sample: true, name: 'Verify turnkey (test)' }).like('slug', 'verify-turnkey-%');
 }

@@ -30,6 +30,16 @@ export async function setGate(_: ActionResult, f: FormData) {
 }
 
 export async function decideApproval(_: ActionResult, f: FormData) {
+  // "Send the proposal and deposit" (a team approval): approving it sends them first; if sending fails, it stays pending.
+  if (str(f, 'decision', 30) === 'approved') {
+    const { data: a } = await (await db()).from('approvals').select('tenant_id, body, status').eq('id', str(f, 'id', 64)).maybeSingle();
+    if (a?.status === 'pending' && (a.body as { action?: string } | null)?.action === 'send_proposal') {
+      const { sendProposal } = await import('./proposal-send');
+      const r = await sendProposal(a.tenant_id as string);
+      if ('err' in r) return fail(r.err);
+      return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: 'approved', p_note: str(f, 'note') || null }, r.ok);
+    }
+  }
   return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: str(f, 'decision', 30), p_note: str(f, 'note') || null },
     str(f, 'decision', 30) === 'approved' ? 'Approved' : 'Changes requested');
 }
@@ -90,8 +100,11 @@ export async function issueWelcomeLink(_: ActionResult, f: FormData): Promise<Ac
 
 /** Approve every listed team item in one go. Each still goes through decide_approval (role check + audit). */
 export async function bulkApprove(_: ActionResult, f: FormData): Promise<ActionResult> {
-  const ids = f.getAll('id').map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 200);
+  let ids = f.getAll('id').map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 200);
   const supabase = await db();
+  // Never in bulk: anything that sends money matters to a client (a proposal and deposit) takes its own tap.
+  const { data: own } = await supabase.from('approvals').select('id').in('id', ids).eq('body->>action', 'send_proposal');
+  ids = ids.filter((x) => !(own ?? []).some((o) => o.id === x));
   let ok = 0;
   const errors = new Set<string>();
   for (const id of ids) {

@@ -20,6 +20,9 @@ import { programOf } from '@/lib/programs';
 import { findClientBySlug } from '@/lib/clients';
 import { MeetingsPanel, type MeetingRow } from '@/components/MeetingsPanel';
 import { businessToday } from '@/lib/billing';
+import { sendProposalAction } from '@/lib/proposal-send';
+import { packageOf, planFor, proposalToken, depositCents } from '@/lib/proposal';
+import { blockersFor } from '@/lib/blockers';
 
 const TABS = [
   ['overview', 'Overview'], ['record', 'Agent record'], ['assets', 'Assets'], ['approvals', 'Approvals'],
@@ -84,6 +87,11 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const g = gates.data ?? [];
   const cleared = g.filter((x) => x.status === 'cleared' || x.status === 'waived').length;
   const paid = (invoices.data ?? []).filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount_cents, 0);
+  // The proposal: from the package on the record; the deposit invoice drafted at onboarding.
+  const pkgId = data.package ? packageOf(data.package) : null;
+  const deposit = (invoices.data ?? []).find((i) => i.kind === 'deposit' && i.status !== 'void');
+  const proposalHref = pkgId ? (() => { const tok = proposalToken(t.id); return tok ? `/proposal/${tok}` : null; })() : null;
+  const waiting = t.kind === 'agency' && !t.is_sample ? (await blockersFor(supabase, [t.id])).get(t.id)?.items ?? [] : [];
   const open = (invoices.data ?? []).filter((i) => i.status === 'open').reduce((s, i) => s + i.amount_cents, 0);
 
   return (
@@ -112,6 +120,20 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <Tile label="Gates cleared" value={<span className="num">{cleared}/{g.length}</span>} hint="Nothing publishes until these clear" />
             <Tile label="Paid to date" value={<span className="num">{money(paid)}</span>} hint={open ? `${money(open)} open` : 'Nothing open'} sample={t.is_sample} />
           </div>
+          {waiting.length ? <div className="notice" role="status"><b>Waiting on:</b> {waiting.join(' · ')}</div> : null}
+          {pkgId ? (
+            <Panel title="Proposal and deposit" sub={`${planFor(pkgId).name} package · deposit ${money(deposit?.amount_cents ?? depositCents(pkgId))} (70% of setup) · ${t.proposal_sent_at ? `sent ${new Date(t.proposal_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}` : 'not sent yet'}${deposit ? ` · deposit ${deposit.status}` : ''}`}>
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                {proposalHref ? <a className="btn small" href={proposalHref} target="_blank" rel="noreferrer">Open the proposal ↗</a> : null}
+                {deposit?.status === 'paid' ? <span className="chip done">Deposit paid</span> : (
+                  <ActionForm action={sendProposalAction} helix="send proposal" helixTitle="Send proposal and deposit" lane="outward" className="row">
+                    <input type="hidden" name="tenant" value={t.id} />
+                    <button className="btn small primary" type="submit">{t.proposal_sent_at ? 'Send the proposal again' : 'Send proposal and deposit'}</button>
+                  </ActionForm>
+                )}
+              </div>
+            </Panel>
+          ) : null}
           <div className="grid g2">
             <Panel title="Lifecycle" sub="Moving a stage is logged and drives the client’s next messages">
               <ActionForm action={moveStage} helix="stage" helixTitle="Move stage" className="row">

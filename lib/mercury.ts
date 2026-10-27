@@ -99,8 +99,10 @@ async function ensureCustomer(tenantId: string): Promise<string> {
   if (t.mercury_customer_id) return t.mercury_customer_id;
   const { data: owners } = await db.from('memberships').select('user_id').eq('tenant_id', tenantId).eq('role', 'owner').limit(1);
   const ownerId = owners?.[0]?.user_id;
-  const email = ownerId ? (await db.auth.admin.getUserById(ownerId)).data.user?.email : null;
-  if (!email) throw new MercuryError('Invite the agency owner first: Mercury needs an email to bill.');
+  // The owner's sign-in email; before they have a dashboard (a new client), the email on their record.
+  const recEmail = (await db.from('agent_records').select('data').eq('tenant_id', tenantId).eq('is_current', true).maybeSingle()).data?.data?.email as string | undefined;
+  const email = (ownerId ? (await db.auth.admin.getUserById(ownerId)).data.user?.email : null) ?? (recEmail && /^[^@s]+@[^@s]+.[^@s]+$/.test(recEmail) ? recEmail : null);
+  if (!email) throw new MercuryError('Add the client’s email to their record (or invite the owner): Mercury needs an email to bill.');
   // Mercury does not enforce unique emails, so match on email before creating (their recommended practice).
   const existing = (await listAll('/ar/customers')).find((c) => String(c.email ?? '').toLowerCase() === email.toLowerCase());
   const id = existing ? String(existing.id) : String((await api<Json>('/ar/customers', { method: 'POST', body: { name: t.name, email } })).id);

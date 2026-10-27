@@ -112,6 +112,15 @@ export async function startOnboarding(_: ActionResult, f: FormData): Promise<Act
     const prof = await saveAgencyProfile(tid as string, { address: street, city, state, zip, lines, radius: 15, licensed: state, carrier: String(d.carrier ?? ''), phone: str(f, 'phone', 40), website: str(f, 'website', 200) });
     if (prof.err) return fail(`The client was created, but its agency profile didn’t save: ${prof.err}`);
   }
+  // The proposal and deposit, drafted from the package and waiting on one tap in Approvals (sending is outward).
+  const { ensureDepositDraft, depositCents, proposalToken } = await import('./proposal');
+  await ensureDepositDraft(tid as string, pkg);
+  const { data: queued } = await supabase.from('approvals').select('id').eq('tenant_id', tid).eq('body->>action', 'send_proposal').limit(1);
+  if (!queued?.length) {
+    await adminDb().from('approvals').insert({ tenant_id: tid, subject_kind: 'invoice', approver: 'team', lane: 'queued',
+      title: `Send the proposal and ${label} deposit`,
+      body: { action: 'send_proposal', text: `${label} package. Deposit $${(depositCents(pkg) / 100).toLocaleString('en-US')} (70% of setup). Sends the proposal link to the client's email${proposalToken(tid as string) ? '' : ''} and opens the deposit in Mercury when it's connected.`, channel: 'Email' } });
+  }
   // The website starts with the record.
   const admin = adminDb();
   const cfgTitle = 'Website config (draft)';

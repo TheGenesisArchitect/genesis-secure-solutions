@@ -134,6 +134,18 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         attachments: [{ filename: 'invite.ics', content: meetingIcs(m, sender, data.from_name || 'Genovus'), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
       };
     }
+    case 'proposal_ready':
+      return {
+        to,
+        subject: `Your Genovus proposal: ${data.package} for ${data.agency}`,
+        ...frame({
+          preheader: 'Your package, the price, and what happens next, on one page.',
+          heading: `Hi ${data.first}, your proposal is ready`,
+          body: [`Here is the ${data.package} package for ${data.agency}: what we build, the price, and each step from today to your site going live.`, 'When you’re ready, pay the 70% deposit from the proposal and we start right away. The balance is due at launch.'],
+          button: { label: 'Open my proposal', url: data.link },
+          foot: 'Questions? Just reply to this email.',
+        }, origin),
+      };
     case 'approval_waiting':
       return {
         to,
