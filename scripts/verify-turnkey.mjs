@@ -99,7 +99,7 @@ try {
     await go('/console/approvals');
     const bulkIds = await ev(`[...document.querySelectorAll('form input[name=id]')].filter((i) => i.closest('form')?.querySelector('button')?.textContent?.includes('Approve all')).map((i) => i.value)`);
     check(!(bulkIds ?? []).includes(ap.id), 'bulk approve never includes the proposal send');
-    await ev(`(() => { const li = [...document.querySelectorAll('li[data-helix-item]')].find((l) => l.dataset.helixItem === 'Send the proposal and Premium deposit' && l.innerText.includes('Verify Proposal Agency')); li?.querySelector('button[name=decision][value=approved]')?.click(); })()`);
+    await ev(`(() => { const f = [...document.querySelectorAll('form')].find((x) => x.querySelector('input[name=id]')?.value === '${ap.id}'); f?.querySelector('button[name=decision][value=approved]')?.click(); })()`);
     check(await waitFor(async () => !!(await db.from('tenants').select('proposal_sent_at').eq('id', t2.id).single()).data?.proposal_sent_at, 25000), 'one tap on Approve sends it');
     const mail = must(await db.from('outbox').select('to_email, template, data').eq('tenant_id', t2.id).eq('template', 'proposal_ready'), 'mail');
     const s2 = must(await db.from('tenants').select('stage').eq('id', t2.id).single(), 's2');
@@ -168,6 +168,95 @@ try {
     const r2 = await fetch(`${ORIGIN}/api/welcome/${ctoken}/checklist`, { method: 'POST', body: new FormData(), headers: { origin: 'https://evil.example' } });
     const r3 = await (await fetch(`${ORIGIN}/api/welcome/notarealtoken12345/checklist`, { method: 'POST', body: new FormData(), headers: { origin: ORIGIN } })).json();
     check(r1.ok === false && /two-letter/.test(r1.error) && r2.status === 403 && r3.ok === false, 'bad input, another site and a bad link are refused');
+
+    // 4. the hosted site: from the record, pages by package, private until launch
+    const mkSite = async (suffix, pkg, lines) => {
+      const tt = must(await db.from('tenants').insert({ slug: `${SLUG}-${suffix}`, name: `Verify ${pkg} Agency`, stage: 'build', plan: pkg }).select('id, slug').single(), `site ${pkg}`);
+      must(await db.from('agent_records').insert({ tenant_id: tt.id, version: 1, data: { agencyName: `Verify ${pkg[0].toUpperCase() + pkg.slice(1)} Insurance`, package: pkg, contactName: 'Sam Verify', email: `owner@verify-${pkg}.example`, phone: '(706) 555-0142', intake: { hours: 'Mon–Fri 9–6', licensedStates: 'GA, AL', legalName: `Verify ${pkg} Insurance, LLC` } }, is_current: true, note: 'verify' }), `rec ${pkg}`);
+      must(await db.from('agency_profiles').insert({ tenant_id: tt.id, address: '1200 Broadway', city: 'Columbus', state: 'GA', zip: '31901', lines, carrier: 'State Farm', main_phone_e164: '+17065550142', google_place_id: 'ChIJverifyPlaceId123', service_radius_mi: 15 }), `prof ${pkg}`);
+      return tt;
+    };
+    const ALL = ['auto', 'home', 'boat', 'rv', 'motorcycle', 'umbrella', 'renters', 'condo', 'life'];
+    const g4 = await mkSite('g', 'growth', ALL), l4 = await mkSite('l', 'launch', ALL), p4 = await mkSite('pr', 'premium', ALL);
+    const { createHmac } = await import('node:crypto');
+    const kOf = (slug) => createHmac('sha256', 'verify-proposal-secret').update(`site:${slug}`).digest('base64url').slice(0, 24);
+    const noKey = await fetch(`${ORIGIN}/s/${g4.slug}`);
+    const badKey = await fetch(`${ORIGIN}/s/${g4.slug}?k=wrongkeywrongkeywrong123`);
+    check(noKey.status === 404 && badKey.status === 404, `before launch the site is private: no key or a wrong key shows nothing (${noKey.status}, ${badKey.status})`);
+    await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false });
+    await go(`/s/${g4.slug}?k=${kOf(g4.slug)}`);
+    const home = await ev('document.body.innerText');
+    const navLinks = await ev(`[...document.querySelectorAll('.ag-nav a')].map((a) => a.textContent)`);
+    const title = await ev('document.title');
+    check(/Insurance help in Columbus, GA/.test(home) && /Sam Verify and the team at Verify Growth Insurance/.test(home) && /Mon–Fri 9–6/.test(home) && /Licensed in GA, AL/.test(home) && /\(706\) 555-0142/.test(home), 'the site is built from the record: name, agent, city, hours, licensed states, phone');
+    check(navLinks.length === 4 && navLinks.join(',') === 'Auto,Home,Boat,RV', `Growth: the home page plus 4 line pages (${navLinks.join(', ')})`);
+    check(/Private preview/.test(home) && /noindex/.test(await ev(`document.querySelector('meta[name=robots]')?.content ?? ''`)) && !/Genovus/.test(title), `a preview ribbon, never indexed, and its own title (“${title}”)`);
+    await shot('site-home');
+    await go(`/s/${g4.slug}/boat-insurance?k=${kOf(g4.slug)}`);
+    check(/Boat insurance in Columbus, GA/.test(await ev('document.body.innerText')), 'a line page in the package opens');
+    const beyond = await fetch(`${ORIGIN}/s/${g4.slug}/umbrella-insurance?k=${kOf(g4.slug)}`);
+    check(beyond.status === 404, `a line beyond the package's pages doesn't (${beyond.status})`);
+    await go(`/s/${l4.slug}?k=${kOf(l4.slug)}`);
+    const lnav = await ev(`document.querySelectorAll('.ag-nav a').length`), lbook = /Book a time/.test(await ev('document.body.innerText'));
+    await go(`/s/${p4.slug}?k=${kOf(p4.slug)}`);
+    const pnav = await ev(`document.querySelectorAll('.ag-nav a').length`);
+    check(lnav === 0 && !lbook && pnav === 7, `Launch: the home page only, no booking; Premium: home + 7 (${lnav}, ${pnav})`);
+    // booking (Growth): open times only, a consult request lands in Leads with consent; bots and bad input stay out
+    const slots = await (await fetch(`${ORIGIN}/api/site/${g4.slug}/slots?k=${kOf(g4.slug)}`)).json();
+    check(slots.slots?.length > 0 && Object.keys(slots).join() === 'slots' && Object.keys(slots.slots[0]).sort().join() === 'iso,label', `booking offers open times and nothing else from the calendar (${slots.slots?.length} times)`);
+    const post = (slug, body, origin = ORIGIN) => fetch(`${ORIGIN}/api/site/${slug}/lead?k=${kOf(slug)}`, { method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify({ ms: 8000, consent: true, ...body }) });
+    const okB = await (await post(g4.slug, { name: 'Robin Booker', phone: '(706) 555-0177', email: 'robin@example.com', topic: 'Boat', slot: slots.slots[0].iso })).json();
+    const lead = (await db.from('leads').select('requested_for, source, medium, consent_text, message, status').eq('tenant_id', g4.id).eq('name', 'Robin Booker').maybeSingle()).data;
+    check(okB.ok && lead && new Date(lead.requested_for).toISOString() === slots.slots[0].iso && lead.source === 'website-preview' && lead.medium === 'booking' && /Verify Growth Insurance may contact me/.test(lead.consent_text) && /^Asked for a consult on/.test(lead.message), `a picked time lands in Leads as a request, with the visitor's consent (${okB.message})`);
+    const taken = await post(g4.slug, { name: 'Taken Slot', phone: '(706) 555-0178', slot: '2020-01-01T15:00:00.000Z' });
+    const noConsent = await post(g4.slug, { name: 'No Consent', phone: '(706) 555-0179', consent: false });
+    const bot = await (await post(g4.slug, { name: 'Bot', phone: '(706) 555-0180', website: 'http://spam' })).json();
+    const fast = await (await post(g4.slug, { name: 'Fast', phone: '(706) 555-0181', ms: 400 })).json();
+    const cross = await post(g4.slug, { name: 'Cross', phone: '(706) 555-0182' }, 'https://evil.example');
+    const strays = (await db.from('leads').select('name').eq('tenant_id', g4.id).in('name', ['Bot', 'Fast', 'Cross', 'No Consent', 'Taken Slot'])).data ?? [];
+    check(taken.status === 409 && noConsent.status === 400 && bot.ok && fast.ok && cross.status === 403 && strays.length === 0, 'a time that isn’t open, no consent, bots and other sites never create a lead');
+    const launchBook = await post(l4.slug, { name: 'Launch Booker', phone: '(706) 555-0183', slot: slots.slots[0].iso });
+    const lb = (await db.from('leads').select('requested_for, medium').eq('tenant_id', l4.id).eq('name', 'Launch Booker').maybeSingle()).data;
+    check(launchBook.status === 200 && lb && lb.requested_for === null && lb.medium === 'callback', 'Launch takes a callback request (booking is a Growth feature)');
+    const rev = await fetch(`${ORIGIN}/s/${g4.slug}/review?k=${kOf(g4.slug)}`, { redirect: 'manual' });
+    check(rev.status === 302 && /writereview\?placeid=ChIJverifyPlaceId123/.test(rev.headers.get('location') ?? ''), 'the review link goes to the office’s own Google listing');
+    const foreign = await fetch(`${ORIGIN}/s/${g4.slug}/photo/${rec3.data.intake.headshot}?k=${kOf(g4.slug)}`);
+    check(foreign.status === 404, 'a site never shows another agency’s photo');
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await go(`/s/${g4.slug}?k=${kOf(g4.slug)}`);
+    check(!(await ev('document.documentElement.scrollWidth > innerWidth')), 'the site fits a phone');
+    await shot('site-phone');
+
+    // 5. Growth, complete: confirm the requested time; review requests; the monthly report
+    await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false });
+    await go(`/app/${g4.slug}/leads`);
+    await ev(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Confirm the time'); b && b.click(); })()`);
+    check(await waitFor(async () => (await db.from('leads').select('status, booked_for').eq('tenant_id', g4.id).eq('name', 'Robin Booker').single()).data?.status === 'booked', 15000), 'the office confirms the requested time in one tap: booked for that time');
+    const won = must(await db.from('leads').insert({ tenant_id: g4.id, name: 'Wren Won', email: 'wren@example.com', status: 'won', source: 'website', consent_text: 'I agree that Verify Growth Insurance may contact me about this request.' }).select('id').single(), 'won lead');
+    const noEmail = must(await db.from('leads').insert({ tenant_id: g4.id, name: 'Nell Noemail', phone: '(706) 555-0190', status: 'won', source: 'website', consent_text: 'I agree that Verify Growth Insurance may contact me about this request.' }).select('id').single(), 'no email lead');
+    await go(`/app/${g4.slug}/leads`);
+    await ev(`(() => { const li = [...document.querySelectorAll('li, article, .card, div')].find((x) => x.innerText?.startsWith('Wren Won')); const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Ask for a Google review'); b && b.click(); })()`);
+    check(await waitFor(async () => !!(await db.from('leads').select('review_requested_at').eq('id', won.id).single()).data?.review_requested_at, 15000), 'one tap asks a won customer for a Google review');
+    const rmail = must(await db.from('outbox').select('to_email, data').eq('tenant_id', g4.id).eq('template', 'review_request'), 'review mail');
+    const again = await db.rpc('request_review', { p_lead: won.id });
+    check(rmail.length === 1 && rmail[0].to_email === 'wren@example.com' && /writereview\?placeid=ChIJverifyPlaceId123/.test(rmail[0].data.link) && !!again.error, 'by email to that customer, to the office’s own listing; once per customer');
+    check(await ev(`![...document.querySelectorAll('button')].some((x) => x.textContent.trim() === 'Ask for a Google review' && x.closest('form')?.querySelector('input[name=id]')?.value === '${noEmail.id}')`), 'a customer without an email isn’t offered the ask');
+    const R = await import('../lib/monthly-report.ts');
+    const now = new Date(); const firstNext = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 2, 16));
+    const wrote = await R.writeMonthlyReports(firstNext, g4.id), again2 = await R.writeMonthlyReports(firstNext, g4.id);
+    const period = R.lastPeriod(firstNext);
+    const snap = (await db.from('kpi_snapshots').select('metrics').eq('tenant_id', g4.id).eq('period', period).maybeSingle()).data;
+    check(wrote === 1 && again2 === 0 && snap?.metrics.leads >= 3 && snap.metrics.policies >= 2 && snap.metrics.reviewsAsked === 1 && !!snap.metrics.improvement, `the month's report is written once, from real numbers, with one improvement (${snap?.metrics.leads} leads, ${snap?.metrics.policies} won; “${snap?.metrics.improvement}”)`);
+    const rap = (await db.from('approvals').select('id, status').eq('tenant_id', g4.id).eq('body->>action', 'send_report').maybeSingle()).data;
+    await go('/console/approvals');
+    await ev(`(() => { const f = [...document.querySelectorAll('form')].find((x) => x.querySelector('input[name=id]')?.value === '${rap.id}'); f?.querySelector('button[name=decision][value=approved]')?.click(); })()`);
+    check(await waitFor(async () => (await db.from('approvals').select('status').eq('id', rap.id).single()).data?.status === 'approved', 60000), 'the team sends it with one tap');
+    const repMail = must(await db.from('outbox').select('to_email, data').eq('tenant_id', g4.id).eq('template', 'monthly_report'), 'report mail');
+    check(repMail.length === 1 && repMail[0].to_email === 'owner@verify-growth.example' && repMail[0].data.improvement === snap.metrics.improvement, 'the owner gets the report email (the email on record before they have a dashboard)');
+    await go(`/app/${g4.slug}/report`);
+    const rep = await ev('document.body.innerText');
+    check(rep.includes(snap.metrics.improvement) && /at a glance/.test(rep) && /Where your leads came from/.test(rep), 'the report page shows the month and the one improvement');
+    await shot('report');
   } finally {
     ws.close(); chrome.kill();
     try { execSync(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${PORT} ^| findstr LISTENING') do taskkill /F /T /PID %a`, { shell: 'cmd.exe', stdio: 'ignore' }); } catch {}
@@ -175,6 +264,8 @@ try {
     await db.from('approvals').delete().in('id', [ap.id, other.id]);
   }
 } finally {
+  const tids = ((await db.from('tenants').select('id').like('slug', 'verify-turnkey-%')).data ?? []).map((x) => x.id);
+  if (tids.length) await db.from('approvals').delete().in('tenant_id', tids).eq('status', 'pending');
   await db.from('tenants').update({ is_sample: true, name: 'Verify turnkey (test)' }).like('slug', 'verify-turnkey-%');
 }
 console.log(failed ? `${failed} failed` : 'all passed');

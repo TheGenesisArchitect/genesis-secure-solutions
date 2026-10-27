@@ -211,8 +211,10 @@ try {
     const days = grants[0] ? (Date.parse(grants[0].until) - Date.now()) / 86_400_000 : 0;
     check(want && JSON.stringify(grants.map((g) => g.module_key).sort()) === JSON.stringify(want) && days > 29 && days < 31 && /Onboarding: Growth/.test(grants[0].reason), `Growth’s features are on as a 30-day trial, exactly the package (${grants.length} modules)`);
     const tt = must(await db.from('tenants').select('plan, care_active').eq('id', t.id).single(), 'plan');
-    const inv = (await db.from('invoices').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id)).count;
-    check(tt.plan == null && !tt.care_active && !inv && rec.data.package === 'growth', 'the plan changes only when the invoice is paid: no plan set, no care billing, no invoice; the package is on the record');
+    const invs = must(await db.from('invoices').select('kind, status, amount_cents').eq('tenant_id', t.id), 'invoices');
+    const prop = must(await db.from('approvals').select('approver, status, body').eq('tenant_id', t.id).eq('body->>action', 'send_proposal'), 'proposal approval');
+    check(tt.plan == null && !tt.care_active && rec.data.package === 'growth' && invs.length === 1 && invs[0].kind === 'deposit' && invs[0].status === 'draft' && invs[0].amount_cents === 175000, `the plan changes only when the deposit is paid: no plan, no care billing; one deposit drafted, not sent (${invs.map((i) => `${i.kind} ${i.status} ${i.amount_cents}`).join(', ')})`);
+    check(prop.length === 1 && prop[0].approver === 'team' && prop[0].status === 'pending', 'the proposal and deposit wait on one tap in Approvals');
     const cfgAsset = (await db.from('assets').select('location, audience').eq('tenant_id', t.id).eq('title', 'Website config (draft)').maybeSingle()).data;
     const task = (await db.from('care_requests').select('detail').eq('tenant_id', t.id).eq('title', 'Build the website').maybeSingle()).data;
     check(cfgAsset?.audience === 'internal' && cfgAsset.location === `/api/clients/${SLUG}/site-config` && /Growth package/.test(task?.detail ?? '') && /carrier/i.test(task?.detail ?? ''), 'the website starts with the record: a draft site config on the client and a “Build the website” task with the launch checklist');

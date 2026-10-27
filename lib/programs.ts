@@ -46,9 +46,9 @@ export const MODULES: ProgramModule[] = [
   { key: 'kpis', label: 'KPI scorecard', tier: 'growth', live: true, path: '/performance', blurb: 'Contact, booked and won rates, time to first call and posts published, every week.' },
   { key: 'content', label: 'Content calendar', tier: 'growth', live: true, path: '/care', blurb: 'Monthly posts drafted for your approval and scheduled for you.' },
   { key: 'calls', label: 'Call tracking', tier: 'growth', option: true, live: true, path: '/leads', blurb: 'Local numbers for your site, Google profile or partners: every call rings your office, lands in Leads tagged with where it came from, and Helix writes the note. A Growth option.' },
-  { key: 'reviews', label: 'Review requests', tier: 'growth', live: false, blurb: 'Mark a lead won and send a ready-made review request in one tap.' },
-  { key: 'report', label: 'Monthly report', tier: 'growth', live: false, blurb: 'What worked this month, the numbers, and the one improvement we’ll make next.' },
-  { key: 'booking', label: 'Online booking', tier: 'growth', live: false, blurb: 'Visitors request a consult time on your site; it lands on your calendar.' },
+  { key: 'reviews', label: 'Review requests', tier: 'growth', live: true, path: '/leads', blurb: 'Mark a lead won and send a ready-made review request in one tap.' },
+  { key: 'report', label: 'Monthly report', tier: 'growth', live: true, path: '/report', blurb: 'What worked this month, the numbers, and the one improvement we’ll make next.' },
+  { key: 'booking', label: 'Online booking', tier: 'growth', live: true, path: '/leads', blurb: 'Visitors request a consult time on your site; it lands on your calendar.' },
   // Premium: run hands-free.
   { key: 'owners', label: 'Lead owners', tier: 'premium', live: false, blurb: 'Assign every lead to a person on your team and see who has what.' },
   { key: 'helix-roles', label: 'Helix on the team', tier: 'premium', live: false, blurb: 'Give Helix a role, a task or a department; it works the brief and reports weekly.' },

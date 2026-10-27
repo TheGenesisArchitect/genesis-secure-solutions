@@ -134,6 +134,29 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         attachments: [{ filename: 'invite.ics', content: meetingIcs(m, sender, data.from_name || 'Genovus'), contentType: `text/calendar; charset=utf-8; method=${cancelled ? 'CANCEL' : 'REQUEST'}` }],
       };
     }
+    case 'monthly_report':
+      return {
+        to,
+        subject: `${data.agency}: your ${data.month} report`,
+        ...frame({
+          preheader: `${data.leads} leads, ${data.booked} booked, ${data.won} won. And one thing to do next.`,
+          heading: `Your ${data.month} at a glance`,
+          body: [`${data.leads} leads, ${data.booked} booked, ${data.won} won.`, `Next month, one thing: ${data.improvement}. ${data.why}`],
+          button: { label: 'See the full report', url: data.link },
+        }, origin),
+      };
+    case 'review_request':
+      return {
+        to,
+        subject: `Thank you from ${data.agency}`,
+        ...frame({
+          preheader: 'A quick favor, only if you have a minute.',
+          heading: `Thank you, ${data.first}`,
+          body: [`Thank you for choosing ${data.agency}. If you have a minute, would you share how it went on Google? It helps neighbors find a local office they can trust.`, 'Honest feedback of any kind is welcome, and it only takes a moment.'],
+          button: { label: 'Leave a Google review', url: data.link },
+          foot: `Sent on behalf of ${data.agency} by Genovus. Reply to this email if you'd rather not hear from us about this.`,
+        }, origin),
+      };
     case 'checklist_ready':
       return {
         to,

@@ -33,6 +33,12 @@ export async function decideApproval(_: ActionResult, f: FormData) {
   // "Send the proposal and deposit" (a team approval): approving it sends them first; if sending fails, it stays pending.
   if (str(f, 'decision', 30) === 'approved') {
     const { data: a } = await (await db()).from('approvals').select('tenant_id, body, status').eq('id', str(f, 'id', 64)).maybeSingle();
+    if (a?.status === 'pending' && (a.body as { action?: string } | null)?.action === 'send_report') {
+      const { sendReport } = await import('./monthly-report');
+      const r = await sendReport(a.tenant_id as string, String((a.body as { period?: string }).period ?? ''), process.env.APP_ORIGIN || 'https://genovus.io');
+      if ('err' in r) return fail(r.err);
+      return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: 'approved', p_note: str(f, 'note') || null }, r.ok);
+    }
     if (a?.status === 'pending' && (a.body as { action?: string } | null)?.action === 'send_proposal') {
       const { sendProposal } = await import('./proposal-send');
       const r = await sendProposal(a.tenant_id as string);
@@ -103,7 +109,7 @@ export async function bulkApprove(_: ActionResult, f: FormData): Promise<ActionR
   let ids = f.getAll('id').map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 200);
   const supabase = await db();
   // Never in bulk: anything that sends money matters to a client (a proposal and deposit) takes its own tap.
-  const { data: own } = await supabase.from('approvals').select('id').in('id', ids).eq('body->>action', 'send_proposal');
+  const { data: own } = await supabase.from('approvals').select('id').in('id', ids).in('body->>action', ['send_proposal', 'send_report']);
   ids = ids.filter((x) => !(own ?? []).some((o) => o.id === x));
   let ok = 0;
   const errors = new Set<string>();
@@ -308,6 +314,23 @@ const LEAD_DONE: Record<string, string> = { new: 'Moved back to new.', contacted
 export async function updateLead(_: ActionResult, f: FormData) {
   const status = str(f, 'status', 12);
   return call('update_lead', { p_id: str(f, 'id', 64), p_status: status, p_note: str(f, 'note', 2000) }, LEAD_DONE[status] ?? 'Saved.');
+}
+
+/** Confirm the consult time a visitor picked on the agency's site (it lands on the calendar as booked). */
+export async function confirmRequestedTime(_: ActionResult, f: FormData) {
+  const id = str(f, 'id', 64);
+  const { data: l } = await (await db()).from('leads').select('requested_for').eq('id', id).maybeSingle();
+  if (!l?.requested_for) return fail('That lead has no requested time.');
+  const when = new Date(l.requested_for).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+  return call('book_lead', { p_id: id, p_when: l.requested_for, p_note: 'Confirmed the time they picked on the website' }, `Booked for ${when}. It’s on your calendar.`);
+}
+
+/** Ask a customer the office won for a Google review, by email (the same ask for every customer, once). */
+export async function askForReview(_: ActionResult, f: FormData) {
+  const supabase = await db();
+  const { data, error } = await supabase.rpc('request_review', { p_lead: str(f, 'id', 64) });
+  revalidatePath('/', 'layout');
+  return error ? fail(error.message) : done(`Review request sent to ${data}.`);
 }
 
 /** Book a consult for a lead: the day and time are the office's (Eastern), passed to Postgres with the zone name. */

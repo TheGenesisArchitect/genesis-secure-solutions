@@ -18,7 +18,7 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
   const t = new Map((tenants ?? []).map((x) => [x.id, x]));
   const team = (data ?? []).filter((a) => a.approver === 'team');
   // Items that passed every rule and sit in the queued lane can be cleared together (the spec staffing model).
-  const clean = team.filter((a) => a.lane === 'queued' && a.body?.action !== 'send_proposal' && (typeof a.body?.text !== 'string' || checkCopy(a.body.text as string, typeof a.body?.field === 'string' ? (a.body.field as string) : undefined).length === 0));
+  const clean = team.filter((a) => a.lane === 'queued' && !['send_proposal', 'send_report'].includes(String(a.body?.action ?? '')) && (typeof a.body?.text !== 'string' || checkCopy(a.body.text as string, typeof a.body?.field === 'string' ? (a.body.field as string) : undefined).length === 0));
   const client = (data ?? []).filter((a) => a.approver === 'client');
   return (
     <ConsoleShell title="Approval queue" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Approval queue' }]}>

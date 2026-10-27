@@ -23,6 +23,7 @@ import { businessToday } from '@/lib/billing';
 import { sendProposalAction } from '@/lib/proposal-send';
 import { packageOf, planFor, proposalToken, depositCents } from '@/lib/proposal';
 import { blockersFor } from '@/lib/blockers';
+import { previewKey } from '@/lib/site';
 
 const TABS = [
   ['overview', 'Overview'], ['record', 'Agent record'], ['assets', 'Assets'], ['approvals', 'Approvals'],
@@ -125,6 +126,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <Panel title="Proposal and deposit" sub={`${planFor(pkgId).name} package · deposit ${money(deposit?.amount_cents ?? depositCents(pkgId))} (70% of setup) · ${t.proposal_sent_at ? `sent ${new Date(t.proposal_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}` : 'not sent yet'}${deposit ? ` · deposit ${deposit.status}` : ''}`}>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                 {proposalHref ? <a className="btn small" href={proposalHref} target="_blank" rel="noreferrer">Open the proposal ↗</a> : null}
+                {previewKey(t.slug) ? <a className="btn small" href={`/s/${t.slug}?k=${previewKey(t.slug)}`} target="_blank" rel="noreferrer">{t.site_live ? 'Open the website ↗' : 'Open the website preview ↗'}</a> : null}
                 {deposit?.status === 'paid' ? <span className="chip done">Deposit paid</span> : (
                   <ActionForm action={sendProposalAction} helix="send proposal" helixTitle="Send proposal and deposit" lane="outward" className="row">
                     <input type="hidden" name="tenant" value={t.id} />

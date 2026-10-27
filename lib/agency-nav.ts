@@ -30,6 +30,7 @@ export function agencyNav(base: string, has: (k: string) => boolean, opts: { isO
         { href: `${base}/approvals`, label: 'Approvals', count: c.pending },
         { href: `${base}/care`, label: has('content') ? 'Care & content' : 'Monthly care', count: c.open },
         { href: `${base}/performance`, label: has('kpis') ? 'Performance & KPIs' : 'Performance' },
+        ...(has('report') ? [{ href: `${base}/report`, label: 'Monthly report' }] : []),
       ],
     },
     {

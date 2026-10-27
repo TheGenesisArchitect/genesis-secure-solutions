@@ -112,6 +112,9 @@ export async function startOnboarding(_: ActionResult, f: FormData): Promise<Act
     const prof = await saveAgencyProfile(tid as string, { address: street, city, state, zip, lines, radius: 15, licensed: state, carrier: String(d.carrier ?? ''), phone: str(f, 'phone', 40), website: str(f, 'website', 200) });
     if (prof.err) return fail(`The client was created, but its agency profile didn’t save: ${prof.err}`);
   }
+  // The office's own Google listing (the prospect the scanner found) gives the site its review link.
+  const { data: pr } = await supabase.from('prospects').select('place_id').eq('tenant_id', tid).maybeSingle();
+  if (pr?.place_id && /^[A-Za-z0-9_-]{10,200}$/.test(pr.place_id)) await adminDb().from('agency_profiles').update({ google_place_id: pr.place_id }).eq('tenant_id', tid);
   // The proposal and deposit, drafted from the package and waiting on one tap in Approvals (sending is outward).
   const { ensureDepositDraft, depositCents, proposalToken } = await import('./proposal');
   await ensureDepositDraft(tid as string, pkg);
@@ -129,9 +132,9 @@ export async function startOnboarding(_: ActionResult, f: FormData): Promise<Act
   const { data: task } = await supabase.from('care_requests').select('id').eq('tenant_id', tid).eq('title', 'Build the website').limit(1);
   if (!task?.length) await supabase.rpc('create_care_request', { p_tenant: tid, p_kind: 'change', p_title: 'Build the website', p_detail: [
     `${label} package · ${careName[pkg]} after launch.`,
-    `1. Start from the agency site template with the draft config: /api/clients/${clientSlug}/site-config`,
-    '2. Fill every TODO; name, address and phone must match the carrier’s official agent profile exactly.',
-    '3. Headshot and hero image (photo rights gate), then deploy to a preview.',
+    `1. The site builds itself from the record: open the preview from the client page (Open the website preview). ${label === 'Launch' ? 'Home page.' : label === 'Growth' ? 'Home + up to 4 line pages, with online booking.' : 'Home + up to 7 line pages, with online booking.'}`,
+    '2. The client’s checklist fills in their headshot, hours, licensed states and carrier page; name, address and phone must match the carrier’s official agent profile exactly.',
+    '3. Polish the copy, clear photo rights, then mark it ready for review.',
     '4. Carrier approval and the client’s approval (gates). Nothing is indexed until both approve the live site.',
   ].join('\n') });
   redirect(`/console/clients/${clientSlug}?ok=${encodeURIComponent(`Onboarding started: ${label} package. Features are on as a 30-day trial, and the website build is underway.`)}`);
