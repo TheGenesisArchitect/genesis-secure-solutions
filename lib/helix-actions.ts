@@ -48,6 +48,12 @@ export const lookupTools = [
   { name: 'open_times', description: 'Open times on the agency calendar for a visit or consult (weekdays 9 to 5 office time). minutes (default 60), days ahead (default 5).', parameters: { type: 'OBJECT', properties: { minutes: { type: 'NUMBER' }, days: { type: 'NUMBER' } } } },
 ];
 
+/** Voice tools for Enterprise prospect lookups (lib/helix-prospects.ts). */
+export const prospectTools = [
+  { name: 'prospect_card', description: 'One prospect office (an agency we are selling Genovus to): name, address, phone and website live from Google, carrier, fit, status, contact, history, next call and its page. Pass the office or person name, or its code.', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, code: { type: 'STRING' } } } },
+  { name: 'prospect_list', description: 'The prospect offices in play, soonest call first. Optional status (contacting, replied, consult, proposal, verified), state (two letters), limit (up to 8).', parameters: { type: 'OBJECT', properties: { status: { type: 'STRING' }, state: { type: 'STRING' }, limit: { type: 'NUMBER' } } } },
+];
+
 /** Voice tool declarations for moving around the screen. */
 export const navTools = (pages: HelixPage[], leads: boolean) => pages.length ? [
   { name: 'go_to', description: 'Open one of the person’s pages. page: an exact page name from PAGES.', parameters: { type: 'OBJECT', properties: { page: { type: 'STRING', enum: pages.map((p) => p.label) } }, required: ['page'] } },

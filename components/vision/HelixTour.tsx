@@ -249,6 +249,9 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     if (ask && thread.act && name === 'undo_last') return thread.act.undo(pageRef.current);
     // Lookups (agency): the partner map, a partner's card or website, open calendar times; results go back to the
     // conversation only (lib/helix-lookups.ts).
+    if (ask && context === 'enterprise' && ['prospect_card', 'prospect_list'].includes(name)) {
+      return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: name, args }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));
+    }
     if (ask && context === 'agency' && ['partner_list', 'partner_card', 'partner_site', 'open_times', 'recall'].includes(name)) {
       return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, tool: name, args }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));
     }

@@ -15,7 +15,8 @@ import { accessFor } from '@/lib/access';
 import { agencyBrief } from '@/lib/helix-agency';
 import { canSeeMoney, enterpriseBrief } from '@/lib/helix-enterprise';
 import { agencyVoice, enterpriseVoice, threadSeed, voiceTools } from '@/lib/helix-voice';
-import { actTools, formRules, formTools, helixPagesFor, lookupTools, navTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
+import { actTools, formRules, formTools, helixPagesFor, lookupTools, navTools, prospectTools, voiceNavRules, type HelixPage } from '@/lib/helix-actions';
+import { prospectLookupRules } from '@/lib/helix-prospects';
 import { lookupRules } from '@/lib/helix-lookups';
 import { actRules } from '@/lib/helix-act';
 import { helixScope, openThread, threadTurns } from '@/lib/helix-thread';
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
     const brief = await enterpriseBrief(await userDb(), { money: canSeeMoney(viewer.staff.role) });
     tenantId = brief.houseId;
     pages = await helixPagesFor(viewer, 'enterprise');
-    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + formRules(true) + (await seed('enterprise')), voiceTools([...navTools(pages, false), ...formTools(true)]), voice);
+    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + formRules(true) + prospectLookupRules(true) + (await seed('enterprise')), voiceTools([...navTools(pages, false), ...formTools(true), ...prospectTools]), voice);
   } else if (context === 'agency') {
     if (!viewer) return Response.json({ error: 'Sign in first.' }, { status: 401 });
     const m = viewer.memberships.find((x) => x.slug === body.slug);

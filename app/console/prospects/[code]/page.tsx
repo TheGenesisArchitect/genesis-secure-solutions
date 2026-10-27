@@ -12,7 +12,7 @@ import { PlacesPausedNotice } from '@/components/PlacesPausedNotice';
 import { fit } from '@/lib/classify';
 import { scanSettings } from '@/lib/scanner';
 import { STATUS_LABEL, OUTCOMES, CARRIER_HOSTS, officeClock } from '@/lib/prospects';
-import { logProspect } from '@/lib/scan-actions';
+import { logProspect, startOnboarding } from '@/lib/scan-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,7 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
     scanSettings(),
     supabase.from('suppression').select('id').eq('place_id', p.place_id).limit(1),
   ]);
+  const { data: client } = p.tenant_id ? await supabase.from('tenants').select('slug').eq('id', p.tenant_id).maybeSingle() : { data: null };
   const carrier = p.carriers as { name: string; slug: string; fit_score: number; fit_reasons: string[] } | null;
   const ownSite = details ? isOwnSite(details.website, CARRIER_HOSTS) : null;
   const f = fit({ carrierFit: carrier?.fit_score ?? 50, carrierReasons: carrier?.fit_reasons ?? [], state: p.state, focusStates: settings.states, hasOwnSite: ownSite, contactKnown: Boolean(p.contact_email || p.contact_name), status: p.status });
@@ -81,6 +82,33 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
           </Panel>
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
+          {p.tenant_id ? (
+            <Panel title="Onboarding started" sub="This office is a client now">
+              <Link className="btn primary" href={`/console/clients/${client?.slug ?? ''}`}>Open the client</Link>
+            </Panel>
+          ) : p.status !== 'opted_out' ? (
+            <Panel title="Start onboarding" sub="Creates the client in Consult with a draft record and the launch checklist. Helix can fill this while you talk." helixItem="Start onboarding">
+              <ActionForm action={startOnboarding} helix="onboarding" helixTitle="Start onboarding" className="form">
+                <input type="hidden" name="id" value={p.id} />
+                <div className="row" style={{ flexWrap: 'wrap' }}>
+                  <label className="field" style={{ flex: '1 1 240px' }}><span>Agency name</span><input className="input" name="name" required maxLength={160} defaultValue={title.startsWith('Office ') ? '' : title} /></label>
+                  <label className="field" style={{ flex: '1 1 200px' }}><span>Client web address (genovus.io/app/…)</span><input className="input" name="slug" required pattern="[a-z0-9][a-z0-9-]{1,48}[a-z0-9]" maxLength={50} defaultValue={title.startsWith('Office ') ? '' : title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)} /></label>
+                </div>
+                <div className="row" style={{ flexWrap: 'wrap' }}>
+                  <label className="field" style={{ flex: '1 1 200px' }}><span>Owner / main contact</span><input className="input" name="contact" maxLength={120} defaultValue={p.contact_name ?? ''} /></label>
+                  <label className="field" style={{ flex: '1 1 220px' }}><span>Their email</span><input className="input" name="email" type="email" maxLength={200} defaultValue={p.contact_email ?? ''} /></label>
+                  <label className="field" style={{ flex: '1 1 160px' }}><span>Phone</span><input className="input" name="phone" maxLength={40} defaultValue={p.contact_phone || details?.phone || ''} /></label>
+                </div>
+                <div className="row" style={{ flexWrap: 'wrap' }}>
+                  <label className="field" style={{ flex: '1 1 180px' }}><span>City</span><input className="input" name="city" maxLength={80} defaultValue={(details?.address || p.known_address || '').split(',').at(-3)?.trim() ?? ''} /></label>
+                  <label className="field" style={{ flex: '0 1 90px' }}><span>State</span><input className="input" name="state" maxLength={2} defaultValue={p.state ?? ''} /></label>
+                  <label className="field" style={{ flex: '1 1 220px' }}><span>Website</span><input className="input" name="website" maxLength={200} defaultValue={details?.website ?? ''} /></label>
+                </div>
+                <label className="field"><span>What we agreed (optional)</span><input className="input" name="note" maxLength={300} placeholder="e.g. Launch package, kickoff next Tuesday" /></label>
+                <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Start onboarding</button>
+              </ActionForm>
+            </Panel>
+          ) : null}
           <Panel title="Log a call or note" sub="Outcomes move the office through the pipeline">
             <ActionForm action={logProspect} helix="call log" helixTitle="Log the call" className="form" resetOnOk>
               <input type="hidden" name="id" value={p.id} />

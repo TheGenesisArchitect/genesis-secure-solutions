@@ -11,6 +11,7 @@ import { HISTORY_TURNS, helixScope, historyOf, openThread, saveTurns, threadTurn
 import { formRules, helixPagesFor, textNavRules } from '@/lib/helix-actions';
 import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
 import { onScreen } from '@/lib/helix-screen';
+import { PROSPECT_LOOKUPS, prospectLookupBlock, prospectLookupRules, runProspectLookup } from '@/lib/helix-prospects';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -31,7 +32,19 @@ export async function POST(req: Request) {
     const history = thread ? historyOf(await threadTurns(supabase, thread.id, HISTORY_TURNS)) : [];
     const brief = await enterpriseBrief(supabase, { money: canSeeMoney(viewer.staff.role) });
     const pages = await helixPagesFor(viewer, 'enterprise');
-    const asked = await askHelix(brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + onScreen(b.screen), history, question, context, ENTERPRISE_SYSTEM);
+    // Helix may look a prospect up first (at most two lookups), with the person's own session; results feed this answer only.
+    let ask = brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + prospectLookupRules(false) + onScreen(b.screen);
+    let asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
+    for (let round = 0; asked.lookup && round < 2; round++) {
+      const tool = asked.lookup.tool as (typeof PROSPECT_LOOKUPS)[number];
+      if (!PROSPECT_LOOKUPS.includes(tool)) break;
+      ask += prospectLookupBlock(tool, asked.lookup.args, await runProspectLookup(supabase, tool, asked.lookup.args));
+      asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
+    }
+    if (asked.lookup) asked = await askHelix(`${ask}
+
+No more lookups: answer now with what you have.`, history, question, context, ENTERPRISE_SYSTEM);
+    asked = { ...asked, lookup: undefined };
     if (brief.memoryIds.length) await adminDb().rpc('touch_memories', { p_ids: brief.memoryIds });
     // Something Helix doesn't know yet becomes a Helix note for the team.
     const reply = await fileGap(asked, { question, tenantId: brief.houseId, where: `${viewer.staff.name} (Enterprise)`, askedBy: viewer.userId });

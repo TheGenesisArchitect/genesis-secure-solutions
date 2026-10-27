@@ -2,6 +2,7 @@
 // Console actions for the scanner and prospects. Staff-only checks run as the signed-in person; the scan
 // itself and settings writes use the service role after that check.
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { db } from './supabase/server';
 import { adminDb } from './supabase/admin';
 import type { ActionResult } from './actions';
@@ -66,4 +67,17 @@ export async function logProspect(_: ActionResult, f: FormData): Promise<ActionR
   });
   revalidatePath('/console/prospects', 'layout');
   return error ? fail(error.message) : done('Saved.');
+}
+
+/** Start onboarding: the prospect becomes a client in Consult with a draft record from what the team confirmed
+ *  (convert_prospect). Admin or account lead. Opens the new client. */
+export async function startOnboarding(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const slug = str(f, 'slug', 64).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  const { error } = await (await db()).rpc('convert_prospect', {
+    p_id: str(f, 'id', 64), p_slug: slug, p_name: str(f, 'name', 160), p_contact: str(f, 'contact', 120) || null, p_email: str(f, 'email', 200) || null,
+    p_phone: str(f, 'phone', 40) || null, p_city: str(f, 'city', 80) || null, p_state: str(f, 'state', 2) || null, p_website: str(f, 'website', 200) || null, p_note: str(f, 'note', 300) || null,
+  });
+  revalidatePath('/', 'layout');
+  if (error) return fail(error.message.includes('duplicate') ? 'That client web address is taken; pick another.' : error.message);
+  redirect(`/console/clients/${slug}?ok=${encodeURIComponent('Onboarding started: the client is in Consult with a draft record')}`);
 }
