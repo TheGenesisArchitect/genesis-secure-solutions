@@ -36,6 +36,10 @@
     {
       "path": "/api/cron/posts",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/visibility",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

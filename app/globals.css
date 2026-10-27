@@ -1369,3 +1369,34 @@ button.chip{cursor:pointer}
 .radar-scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .radar-scroll thead th{position:sticky;top:0;background:var(--surface);z-index:1}
 .linkish{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline}
+
+/* Visibility board: the four-stage loop, Helix's move, the funnel, the chart and what's left to connect. */
+.vis-loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.vis-stage{display:flex;flex-direction:column;gap:5px;padding:18px;color:inherit;text-decoration:none;min-width:0;position:relative}
+.vis-stage+.vis-stage{border-left:1px solid var(--line)}
+.vis-stage:hover{background:var(--raise)}
+.vis-verb{display:flex;justify-content:space-between;align-items:center;gap:6px 8px;flex-wrap:wrap;font:800 15px var(--display)}
+.vis-verb .chip{white-space:nowrap}
+.vis-n{font:800 32px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.vis-q{font-size:13px;color:var(--soft)}
+.vis-d{font:500 12px var(--mono);color:var(--done)}
+.vis-d.down{color:var(--warn)}
+.vis-move{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;padding:18px 20px;border-radius:var(--radius);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 16%,transparent),transparent 65%),var(--surface)}
+.vis-move h2{font:800 20px/1.25 var(--display)}
+.vis-move-body{display:grid;gap:4px;min-width:0}
+.vis-more{margin:6px 0 0;padding-left:18px;font-size:13.5px;display:grid;gap:2px}
+.vis-egg{width:42px;height:52px;border-radius:50% 50% 46% 46%/58% 58% 42% 42%;background:radial-gradient(circle at 34% 28%,#ffe2b8 0 10%,#ffb347 26%,#ff7a1a 58%,#c2410c 100%);box-shadow:0 0 26px rgba(255,122,26,.45)}
+.vis-funnel{display:grid;gap:8px}
+.vis-f{display:grid;grid-template-columns:76px minmax(0,1fr);gap:4px 12px;align-items:center}
+.vis-fl{font-size:13px;color:var(--soft)}
+.vis-fw{height:34px;border-radius:8px;background:var(--grad);color:var(--on-accent);font:800 15px var(--display);display:flex;align-items:center;padding:0 12px;min-width:44px;font-variant-numeric:tabular-nums}
+.vis-fr{grid-column:2;font:500 11.5px var(--mono);color:var(--muted)}
+.vis-chart{margin:0;display:grid;gap:8px}
+.vis-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--soft)}
+.vis-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.vis-connect{display:grid;gap:6px;padding:14px;border:1px dashed var(--line-2);border-radius:12px}
+.vis-todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+.vis-todo>div{display:grid;gap:6px;align-content:start;padding:14px;border-radius:12px;background:var(--raise)}
+.vis-todo>div{min-width:0}
+.vis-todo .chip{justify-self:start;white-space:normal;line-height:1.4;max-width:100%}
+@media (max-width:900px){.vis-loop{grid-template-columns:repeat(2,minmax(0,1fr))}.vis-stage{padding:14px}.vis-n{font-size:26px}.vis-stage:nth-child(3){border-left:0}.vis-stage:nth-child(n+3){border-top:1px solid var(--line)}.vis-move{grid-template-columns:auto minmax(0,1fr)}.vis-move .btn{grid-column:1/-1;justify-self:start}}

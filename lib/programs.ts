@@ -38,6 +38,7 @@ export const MODULES: ProgramModule[] = [
   { key: 'pipeline', label: 'Pipeline', tier: 'growth', live: true, path: '/pipeline', blurb: 'Every lead by stage, from first call to booked to won, with the next step on each.' },
   { key: 'partners', label: 'Partners', tier: 'growth', live: true, path: '/partners', blurb: 'Local businesses whose customers buy what you sell, mapped near your office, with who to call first and a referral link for each.' },
   { key: 'market', label: 'Market', tier: 'growth', live: true, path: '/market', blurb: 'What your market needs this season, who’s out there, and which sources bring leads for less than the $50 vendors charge.' },
+  { key: 'visibility', label: 'Visibility', tier: 'growth', live: true, path: '/visibility', blurb: 'How your market finds you, picks you, visits and becomes a customer, on one board, with the next move each week.' },
   { key: 'radar', label: 'Competitor Radar', tier: 'growth', live: true, path: '/radar', blurb: 'Every insurance office around yours, by carrier, distance and ZIP, with their Google ratings and a tap to see their ads, so your campaigns lead where they aren’t.' },
   { key: 'calendar', label: 'Calendar', tier: 'growth', live: true, path: '/calendar', blurb: 'Your week in one place: follow-ups, booked consults and scheduled posts; subscribe from Google or Apple Calendar.' },
   { key: 'helix', label: 'Ask Helix', tier: 'growth', live: true, path: '/helix', blurb: 'Helix knows your business: who to call today, where leads come from, a follow-up drafted for one tap.' },

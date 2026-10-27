@@ -9,6 +9,7 @@ import { businessToday } from '@/lib/billing';
 import { calendarItems } from '@/lib/agency-calendar';
 import { LINES, lineLabels, momentsNow, partnerCategories } from '@/lib/lines';
 import { prettyPhone } from '@/lib/twilio';
+import { visibility, visibilityLine } from '@/lib/visibility';
 
 export type HelixTurn = { role: 'user' | 'helix'; text: string };
 export type HelixReply = {
@@ -65,8 +66,11 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
   const moments = momentsNow(P?.lines);
   const bySource = L.reduce<Record<string, { n: number; won: number }>>((a, l) => { const k = l.source; a[k] = a[k] ?? { n: 0, won: 0 }; a[k].n++; if (l.status === 'won') a[k].won++; return a; }, {});
   const cost = Object.fromEntries((costs.data ?? []).map((c) => [c.source, c.cents]));
+  // Visibility: the same numbers the board shows, so Helix and the board agree. Never blocks the brief.
+  const visLine = await visibility(db, tenantId, '').then(visibilityLine).catch(() => 'VISIBILITY: not available right now');
   return [
     `AGENCY: ${name} · program ${program} · today ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${today} (America/New_York)${P ? ` · ${P.city ?? ''} ${P.state ?? ''} · carrier ${P.carrier ?? 'n/a'} · licensed ${(P.licensed_states ?? []).join(', ') || 'n/a'}` : ''}`,
+    visLine,
     `LINES THIS AGENCY SELLS: ${lines.join(', ') || 'not set (ask the Genovus team to set them)'}`,
     `MARKET NOW: ${moments.map((m) => `${LINES[m.line].label}: ${m.label}${m.starting ? ' (starting next month)' : ''} (${m.why})`).join(' | ') || 'no seasonal moments for these lines this month'}`,
     `SOURCES this 30 days (leads / won / cost this month): ${Object.entries(bySource).map(([k, v]) => `${k} ${v.n}/${v.won}${cost[k] != null ? ` $${(cost[k] / 100).toFixed(0)} = $${(cost[k] / 100 / Math.max(1, v.n)).toFixed(0)}/lead` : ''}`).join(', ') || 'none'} · benchmark: vendors charge about $50 per shared lead`,
