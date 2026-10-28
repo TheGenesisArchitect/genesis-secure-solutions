@@ -1,7 +1,9 @@
 // Every minute: owner-approved agency posts go to their agency's Metricool brand, and published ones are marked with
-// their live link (lib/post-distribute.ts). Does nothing when nothing is approved and waiting.
+// their live link (lib/post-distribute.ts); live posts get their engagement read every few hours (lib/post-metrics.ts).
+// Does nothing when nothing is approved and waiting.
 import { cronAuthorized } from '@/lib/cron';
 import { sendApprovedPosts, syncAgencyPosts } from '@/lib/post-distribute';
+import { pullPostMetrics } from '@/lib/post-metrics';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -11,7 +13,8 @@ export async function GET(req: Request) {
   try {
     const sent = await sendApprovedPosts(new URL(req.url).origin);
     const synced = await syncAgencyPosts();
-    return Response.json({ sent, synced });
+    const engagement = await pullPostMetrics().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    return Response.json({ sent, synced, engagement });
   } catch (e) {
     console.error(`[posts] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: e instanceof Error ? e.message : 'posting failed' }, { status: 500 });

@@ -5,11 +5,12 @@ import { Panel, Chip, Status, Empty, dateTime } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
 import { createCareRequest, proposePosts } from '@/lib/actions';
 import { businessToday } from '@/lib/billing';
+import { PostEngagement } from '@/components/PostEngagement';
 
 export const metadata = { title: 'Monthly care' };
 
 // Where a post stands once the owner approved it (Metricool's side), in words.
-const SENT: Record<string, string> = { DRAFT: 'In Metricool as a draft for the team to check', SCHEDULED: 'Booked to go out', PENDING: 'Booked to go out', PUBLISHED: 'Posted', NEEDS_TIME: 'Approved after its time: needs a new time', SKIPPED: 'Not connected yet', ERROR: 'Didn’t go out' };
+const SENT: Record<string, string> = { DRAFT: 'In Metricool as a draft for the team to check', SCHEDULED: 'Booked to go out', PENDING: 'Booked to go out', PUBLISHED: 'Live', NEEDS_TIME: 'Approved after its time: needs a new time', SKIPPED: 'Not connected yet', ERROR: 'Didn’t go out' };
 
 const RESPONSE: Record<string, string> = { vip: '2 business days', launch: '2 business days', growth: '1 business day', premium: '4 business hours' };
 
@@ -61,11 +62,11 @@ export default async function AgencyCare({ params, searchParams }: { params: Pro
           ) : <Empty title="No requests yet" />}
         </Panel>
       </div>
-      <Panel title="Content calendar" sub={t?.care_plan ? 'Posts we draft for you each month. You approve each one before it goes out.' : 'Your monthly posts start with your care plan at launch.'}>
+      <Panel id="posts" title="Content calendar" sub={t?.care_plan ? 'Posts we draft for you each month. You approve each one before it goes out.' : 'Your monthly posts start with your care plan at launch.'}>
         {content?.length ? (
           <div className="table-wrap">
             <table className="t">
-              <thead><tr><th>When</th><th>Channel</th><th>Ad</th><th>Post</th><th>Status</th></tr></thead>
+              <thead><tr><th>When</th><th>Channel</th><th>Ad</th><th>Post</th><th>Status</th><th>How it’s doing</th></tr></thead>
               <tbody>
                 {content.map((c) => (
                   <tr key={c.id}>
@@ -73,7 +74,8 @@ export default async function AgencyCare({ params, searchParams }: { params: Pro
                     <td>{c.channel}{c.format === 'story' ? ' story' : ''}</td>
                     <td>{c.asset_id ? <a href={`/api/assets/${c.asset_id}`} target="_blank" rel="noreferrer"><img className="post-thumb" src={`/api/assets/${c.asset_id}`} alt="The ad" loading="lazy" /></a> : <span className="muted">—</span>}</td>
                     <td className="soft">{c.format === 'story' ? <span className="muted">Story: the ad on its own</span> : c.copy}</td>
-                    <td><span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{c.is_sample ? <Chip kind="sample">Sample</Chip> : null}<Status value={c.status} /></span>{c.mc_status && SENT[c.mc_status] ? <span className="muted" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>{SENT[c.mc_status]}{c.post_url ? <> · <a href={c.post_url} target="_blank" rel="noreferrer">View</a></> : null}</span> : null}</td>
+                    <td><span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{c.is_sample ? <Chip kind="sample">Sample</Chip> : null}<Status value={c.status} /></span>{c.mc_status && SENT[c.mc_status] ? <span className="muted" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>{SENT[c.mc_status]}{c.post_url && /^https:\/\//.test(c.post_url) && !/metricool\.com/.test(c.post_url) && c.format !== 'story' ? <> · <a href={c.post_url} target="_blank" rel="noreferrer">View</a></> : null}</span> : null}</td>
+                    <td><PostEngagement p={c} /></td>
                   </tr>
                 ))}
               </tbody>

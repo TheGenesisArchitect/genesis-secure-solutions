@@ -65,7 +65,7 @@ const TYPE: Record<McFormat, string> = { post: 'POST', story: 'STORY', reel: 'RE
 const NY = (d: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(' ', 'T');
 
 /** Schedule one post on one network (the format read back from Metricool itself: instagramData.isAiGenerated etc.). */
-export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; status: string }>> {
+export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; uuid: string | null; status: string }>> {
   const live = metricoolLive();
   const format: McFormat = p.format ?? (p.network === 'instagram' || p.vertical ? 'reel' : 'post');
   const body = {
@@ -83,15 +83,31 @@ export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; 
   const post = ((r.data as { data?: Record<string, unknown> })?.data ?? r.data) as Record<string, unknown>;
   const id = Number(post.id);
   if (!Number.isFinite(id)) return { ok: false, status: r.status, error: 'Metricool did not return a post id.' };
-  return { ok: true, status: r.status, data: { id, status: live ? 'SCHEDULED' : 'DRAFT' } };
+  return { ok: true, status: r.status, data: { id, uuid: post.uuid != null ? String(post.uuid) : null, status: live ? 'SCHEDULED' : 'DRAFT' } };
+}
+
+export type McPostState = { status: string; url: string | null; detail: string | null; networkId: string | null };
+const stateOf = (post: Record<string, unknown>): McPostState => {
+  const pr = ((post.providers as Record<string, unknown>[] | undefined) ?? [])[0] ?? {};
+  const url = Object.entries(pr).find(([k, v]) => /url|link/i.test(k) && typeof v === 'string' && /^https:\/\//.test(v))?.[1] as string | undefined;
+  return { status: String(pr.status ?? 'PENDING'), url: url ?? null, detail: (pr.detailedStatus as string | undefined) ?? null, networkId: pr.id != null ? String(pr.id) : null };
+};
+
+/** A post found again by its lasting uuid (Metricool gives a post a new id each time it is edited, even by hand),
+ *  from the scheduler list around its time. Returns its current id and state. */
+export async function findPost(blogId: string, uuid: string, around: Date): Promise<McResult<{ id: number } & McPostState>> {
+  const d = (n: number) => NY(new Date(around.getTime() + n * 86_400_000));
+  const r = await mc<unknown>('/v2/scheduler/posts', { blogId, query: { start: d(-2), end: d(2), from: d(-2), to: d(2), timezone: 'America/New_York', extendedRange: 'true' } });
+  if (!r.ok) return r;
+  const list = (Array.isArray(r.data) ? r.data : ((r.data as { data?: unknown[] })?.data ?? [])) as Record<string, unknown>[];
+  const post = list.find((p) => String(p.uuid) === uuid);
+  if (!post) return { ok: false, status: 404, error: 'Not in Metricool’s planner around its time.' };
+  return { ok: true, status: r.status, data: { id: Number(post.id), ...stateOf(post) } };
 }
 
 /** Where a post stands on its network: PENDING, PUBLISHED (with the live link when Metricool reports one) or ERROR. */
-export async function postStatus(blogId: string, id: number): Promise<McResult<{ status: string; url: string | null; detail: string | null }>> {
+export async function postStatus(blogId: string, id: number): Promise<McResult<McPostState>> {
   const r = await mc<Record<string, unknown>>(`/v2/scheduler/posts/${id}`, { blogId });
   if (!r.ok) return r;
-  const post = ((r.data as { data?: Record<string, unknown> })?.data ?? r.data) as Record<string, unknown>;
-  const pr = ((post.providers as Record<string, unknown>[] | undefined) ?? [])[0] ?? {};
-  const url = Object.entries(pr).find(([k, v]) => /url|link/i.test(k) && typeof v === 'string' && /^https:\/\//.test(v))?.[1] as string | undefined;
-  return { ok: true, status: r.status, data: { status: String(pr.status ?? 'PENDING'), url: url ?? null, detail: (pr.detailedStatus as string | undefined) ?? null } };
+  return { ok: true, status: r.status, data: stateOf(((r.data as { data?: Record<string, unknown> })?.data ?? r.data) as Record<string, unknown>) };
 }

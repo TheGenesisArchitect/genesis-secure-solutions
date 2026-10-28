@@ -10,6 +10,8 @@ import { businessToday } from '@/lib/billing';
 import { LINES, momentsNow } from '@/lib/lines';
 import { CommandBrief } from '@/components/CommandBrief';
 import { agencyCards } from '@/lib/command-brief';
+import { PostEngagement, NET } from '@/components/PostEngagement';
+import { sumMetrics, type PostMetrics } from '@/lib/post-metrics';
 
 export const metadata = { title: 'Home' };
 export const dynamic = 'force-dynamic';
@@ -58,6 +60,13 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
     for (const s of live.welcome?.steps ?? []) if (!s.done) next.push({ label: s.label, href: live.welcome!.url });
     if (live.social && live.social.done < live.social.total) next.push({ label: `Finish social setup (${live.social.done} of ${live.social.total})`, href: live.social.clientUrl });
   }
+  // Posts: what went live lately (with how it's doing), what's next, and the last 30 days in one line.
+  const [{ data: livePosts }, { data: nextPost }] = await Promise.all([
+    supabase.from('content_items').select('id, channel, format, copy, status, post_url, published_at, metrics').eq('tenant_id', tid).eq('status', 'published').gte('published_at', new Date(Date.now() - 30 * 86_400_000).toISOString()).order('published_at', { ascending: false }).limit(40),
+    supabase.from('content_items').select('channel, format, scheduled_for').eq('tenant_id', tid).eq('status', 'scheduled').gte('scheduled_for', new Date().toISOString()).order('scheduled_for').limit(1).maybeSingle(),
+  ]);
+  const lp = (livePosts ?? []) as { id: string; channel: string; format: string; copy: string; status: string; post_url: string | null; published_at: string; metrics: PostMetrics | null }[];
+  const total = sumMetrics(lp);
   const latest = kpis?.[0];
   const sample = ctx.tenant.isSample;
   // Growth: Helix's morning brief opens the day, with one line on the market (the season for the agency's lines).
@@ -116,6 +125,19 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
           {!launched && !live.welcome && !live.social ? <p className="soft">Your setup guide appears here once your deposit clears.</p> : null}
         </Panel>
       </div>
+      {lp.length || nextPost ? (
+        <Panel id="posts" title="Your posts" sub={lp.length ? `${lp.length} live in the last 30 days${total.posts ? ` · ${total.reach.toLocaleString()} reached · ${total.interactions.toLocaleString()} interactions` : ''}` : 'Your first approved post is booked'} actions={<Link className="btn small" href={`${base}/care#posts`}>All posts</Link>}>
+          <ul className="list">
+            {lp.slice(0, 3).map((p) => (
+              <li key={p.id}>
+                <div className="spread"><b>Live on {NET[p.channel] ?? p.channel}{p.format === 'story' ? ' (story)' : ''}</b><span className="muted" style={{ fontSize: 13 }}>{dateTime(p.published_at)}{p.post_url && /^https:\/\/(www\.)?(facebook|instagram)\.com\//.test(p.post_url) && p.format !== 'story' ? <> · <a href={p.post_url} target="_blank" rel="noreferrer">View</a></> : null}</span></div>
+                <PostEngagement p={p} />
+              </li>
+            ))}
+          </ul>
+          {nextPost ? <p className="soft" style={{ margin: 0 }}>Next up: {NET[nextPost.channel] ?? nextPost.channel} {nextPost.format === 'story' ? 'story' : 'post'}, {dateTime(nextPost.scheduled_for)}. We’ll email you when it’s live.</p> : null}
+        </Panel>
+      ) : null}
       <Panel title="This month’s results" sub={latest ? `Month of ${new Date(latest.period + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : undefined} actions={<Link className="btn small" href={`${base}/performance`}>Performance</Link>}>
         {latest ? <MetricChain m={latest.metrics as Metrics} prev={kpis?.[1]?.metrics as Metrics | undefined} sample={latest.is_sample} /> : ml.length ? (
           <div className="grid g4">

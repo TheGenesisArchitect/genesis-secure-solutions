@@ -6,6 +6,9 @@
 //     its caption, a story as STORY with no caption, the image through a signed link; draft mode leaves the post
 //     "approved"; a post approved hours after its time is held for a new time; live mode books it, then sync marks it
 //     published with its link
+//  3b. a post going live emails the owner once per slot (both networks' links) and pushes each network; a held or
+//     refused post alerts the team; a post edited in Metricool is found again by its uuid; each live post gets its own
+//     engagement (Instagram on the v2 path, Facebook on the older one), a story with none stays "not yet"
 //  4. the signed link serves the ad, and nothing for a bad signature, the video kinds or an internal file
 //  5. the Studio's Metricool posts are unchanged (Instagram Reel; Facebook post unless vertical)
 // Preview database only. Run: node --conditions=react-server --env-file=.env.local scripts/verify-post-schedule.mjs <ad.jpg>
@@ -26,14 +29,26 @@ const must = (r, w) => { if (r.error) throw new Error(`${w}: ${r.error.message}`
 let failed = 0;
 const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); if (!ok) failed++; };
 
-// A stand-in Metricool: records each scheduled post, reports PUBLISHED on status reads.
-const sent = [];
+// A stand-in Metricool: records each scheduled post (with a lasting uuid), reports it PUBLISHED on status reads with
+// its network's own link and id, forgets ids edited away ("gone": found again only by uuid in the planner list), and
+// answers per-post analytics: Instagram on the v2 path, Facebook only on the older /stats path, Instagram stories empty.
+const sent = [], gone = new Set();
+const IG_URL = 'https://www.instagram.com/p/VerifyCode1/', FB_URL = 'https://facebook.com/1234567890/posts/9876543210';
+const provider = (net) => net === 'facebook' ? { network: 'facebook', id: '9876543210', status: 'PUBLISHED', publicUrl: FB_URL } : { network: 'instagram', status: 'PUBLISHED', publicUrl: IG_URL };
 const mock = http.createServer((req, res) => {
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
     const u = new URL(req.url, 'http://x');
     res.setHeader('content-type', 'application/json');
-    if (req.method === 'POST' && u.pathname === '/v2/scheduler/posts') { sent.push({ blogId: u.searchParams.get('blogId'), body: JSON.parse(b) }); return res.end(JSON.stringify({ data: { id: 9000 + sent.length } })); }
-    if (req.method === 'GET' && u.pathname.startsWith('/v2/scheduler/posts/')) return res.end(JSON.stringify({ data: { providers: [{ network: 'instagram', status: 'PUBLISHED', publicUrl: 'https://www.instagram.com/p/verify/' }] } }));
+    if (req.method === 'POST' && u.pathname === '/v2/scheduler/posts') { sent.push({ blogId: u.searchParams.get('blogId'), body: JSON.parse(b) }); return res.end(JSON.stringify({ data: { id: 9000 + sent.length, uuid: `uuid-${9000 + sent.length}` } })); }
+    if (req.method === 'GET' && u.pathname.startsWith('/v2/scheduler/posts/')) {
+      const id = Number(u.pathname.split('/').pop());
+      if (gone.has(id)) { res.statusCode = 404; return res.end(JSON.stringify({ status: 'NOT_FOUND', detail: `Post with id '${id}' not found.` })); }
+      return res.end(JSON.stringify({ data: { providers: [provider(sent[id - 9001]?.body.providers[0].network)] } }));
+    }
+    if (req.method === 'GET' && u.pathname === '/v2/scheduler/posts') return res.end(JSON.stringify({ data: [...gone].map((id) => ({ id: id + 50000, uuid: `uuid-${id}`, providers: [provider(sent[id - 9001]?.body.providers[0].network)] })) }));
+    if (u.pathname === '/v2/analytics/posts/instagram') return res.end(JSON.stringify({ data: [{ postId: '1799', url: 'https://www.instagram.com/p/SomeOther/', likes: 99 }, { postId: '1800', url: IG_URL, likes: 12, comments: 3, saved: 2, shares: 1, reach: 340, views: 500, interactions: 18 }] }));
+    if (u.pathname === '/stats/facebook/posts') return res.end(JSON.stringify([{ postId: '1234567890_9876543210', link: FB_URL, reactions: 7, comments: 1, shares: 2, impressionsUnique: 210, impressions: 300 }]));
+    if (u.pathname === '/v2/analytics/stories/instagram') return res.end(JSON.stringify({ data: [] }));
     res.statusCode = 404; res.end('{}');
   });
 }).listen(MOCK);
@@ -154,7 +169,68 @@ await P.sendApprovedPosts(ORIGIN);
 check((await row(liveId)).status === 'scheduled' && sent.at(-1)?.body.autoPublish === true, 'publish mode: the approved post is booked to go out');
 await P.syncAgencyPosts();
 const done = await row(liveId);
-check(done.status === 'published' && done.post_url === 'https://www.instagram.com/p/verify/', 'when the network posts it, the post is marked published with its live link');
+check(done.status === 'published' && done.post_url === IG_URL, 'when the network posts it, the post is marked published with its live link');
+
+// 3b. progress: the owner hears once per slot, the team hears about trouble, a hand-edited post is found again, and
+// each live post gets its own engagement
+const Q = await import('../lib/post-metrics.ts');
+const E = await import('../lib/email.ts');
+const progress = async (template, after) => must(await db.from('outbox').select('id, to_email, data, dedupe_key, send_after').eq('tenant_id', t.id).eq('template', template).gt('id', after), template);
+const mark0 = await lastMail();
+must(await db.from('push_subscriptions').insert({ user_id: owner.id, endpoint: 'https://push.verify.example/posts-owner', p256dh: 'verify', auth: 'verify' }), 'owner device');
+const slotAt = inDays(6);
+const pair = [];
+for (const channel of ['instagram', 'facebook']) {
+  const id = must(await plan(asOps, { p_channel: channel, p_when: slotAt }), `slot ${channel}`);
+  must(await asOwner.rpc('decide_approval', { p_id: must(await db.from('approvals').select('id').eq('content_item_id', id).single(), 'sa').id, p_decision: 'approved' }), 'approve slot');
+  pair.push(id);
+}
+await P.sendApprovedPosts(ORIGIN);
+const uuids = must(await db.from('content_items').select('mc_uuid').in('id', pair), 'uuids');
+check(uuids.every((x) => /^uuid-\d+$/.test(x.mc_uuid ?? '')), 'each post keeps Metricool’s lasting uuid');
+await P.syncAgencyPosts();
+const live = await progress('post_live', mark0);
+const mine = live.filter((m) => m.data.networks?.includes('Instagram') && m.data.networks?.includes('Facebook'));
+check(live.length === 1 && mine.length === 1 && live[0].to_email === owner.email && live[0].data.instagram_url === IG_URL && live[0].data.facebook_url === FB_URL && Date.parse(live[0].send_after) > Date.now() + 5 * 60_000,
+  `Facebook and Instagram at the same time: ONE email to the owner with both links, sent ten minutes later (${live.length} email, “${live[0]?.data.networks}”)`);
+const pushes = await progress('post_push', mark0);
+check(pushes.length === 2 && pushes.every((p) => p.to_email === 'push'), `one push alert per network to the members’ devices (${pushes.length})`);
+const mail = E.outboxEmail('post_live', owner.email, live[0].data, ORIGIN);
+check(/is live on (Instagram and Facebook|Facebook and Instagram)/.test(mail?.subject ?? '') && mail.html.includes(IG_URL) && mail.html.includes(FB_URL) && !/metricool/i.test(mail.html), `the email names both networks with their own links, never a Metricool page (“${mail?.subject}”)`);
+const pubRows = must(await db.from('content_items').select('post_url, network_post_id, published_at').in('id', pair), 'published rows');
+check(pubRows.every((x) => x.published_at && !/metricool/.test(x.post_url ?? '')) && pubRows.some((x) => x.network_post_id === '9876543210'), 'live posts keep when they went live and the network’s own post id');
+// Edited in Metricool (published by hand): the old id is gone; the post is found again by its uuid.
+const handId = must(await plan(asOps, { p_channel: 'facebook', p_when: inDays(7) }), 'hand post');
+must(await asOwner.rpc('decide_approval', { p_id: must(await db.from('approvals').select('id').eq('content_item_id', handId).single(), 'ha').id, p_decision: 'approved' }), 'approve hand');
+await P.sendApprovedPosts(ORIGIN);
+const handOld = (await row(handId)).mc_post_id;
+gone.add(Number(handOld));
+await P.syncAgencyPosts();
+const hand = await row(handId);
+check(hand.status === 'published' && Number(hand.mc_post_id) === Number(handOld) + 50000 && hand.post_url === FB_URL, `a post edited in Metricool (new id) is found again by its uuid and marked live (${handOld} → ${hand.mc_post_id})`);
+// A story that went live, and engagement
+const st = must(await db.from('content_items').insert({ tenant_id: t.id, channel: 'instagram', copy: 'Verify post story', status: 'scheduled', scheduled_for: inDays(8), asset_id: story.id, format: 'story' }).select('id').single(), 'story row');
+must(await db.from('content_items').update({ status: 'published', mc_status: 'PUBLISHED' }).eq('id', st.id), 'story live');
+const ids = [...pair, handId, st.id];
+must(await db.from('content_items').update({ published_at: new Date(Date.now() - 2 * 3_600_000).toISOString() }).in('id', ids), 'age them');
+const fresh = must(await db.from('content_items').select('id').eq('status', 'published').eq('is_sample', false).not('id', 'in', `(${ids.join(',')})`).gte('published_at', new Date(Date.now() - 30 * 86_400_000).toISOString()), 'others');
+if (fresh.length) must(await db.from('content_items').update({ metrics_at: new Date().toISOString() }).in('id', fresh.map((x) => x.id)), 'park others');
+const pm = await Q.pullPostMetrics();
+const gotM = Object.fromEntries(must(await db.from('content_items').select('id, channel, format, metrics, metrics_at').in('id', ids), 'metrics').map((x) => [x.id, x]));
+const igm = gotM[pair[0]].metrics, fbm = gotM[pair[1]].metrics;
+check(igm?.likes === 12 && igm.comments === 3 && igm.saves === 2 && igm.reach === 340 && igm.interactions === 18, `Instagram: the post’s own likes, comments, saves and reach, matched by its link (${JSON.stringify(igm)})`);
+check(fbm?.likes === 7 && fbm.reach === 210 && fbm.views === 300 && fbm.interactions === 10, `Facebook: reactions, reach and views from the older endpoint when the newer one doesn’t answer (${JSON.stringify(fbm)})`);
+check(gotM[st.id].metrics === null && gotM[st.id].metrics_at, 'a story with no numbers yet stays “not yet” (null), never zero');
+const pull = must(await db.from('visibility_pulls').select('ok, detail').eq('tenant_id', t.id).eq('source', 'metricool-posts').single(), 'pull log');
+check(pull.ok && pull.detail.kept['facebook.post'] === '/stats/facebook/posts' && pull.detail.kept['instagram.post'] === '/v2/analytics/posts/instagram', 'what answered is recorded per network');
+const again = await Q.pullPostMetrics();
+check(again.checked === 0, `read again only after a few hours (${pm.checked} read, then ${again.checked})`);
+// Trouble goes to the team (the late post above was held: NEEDS_TIME), once.
+const team = must(await db.rpc('team_emails', { p_tenant: t.id }), 'team');
+const issues = must(await db.from('outbox').select('to_email, data').eq('template', 'team_post_issue').like('dedupe_key', `postissue:${late}:NEEDS_TIME:%`), 'issues');
+check(team.length ? issues.length === team.length && issues[0].data.status === 'NEEDS_TIME' && issues.every((m) => team.includes(m.to_email)) : issues.length === 0, `a held or refused post alerts the Genovus team (${issues.length} to ${team.length} team members)`);
+must(await db.from('push_subscriptions').delete().eq('endpoint', 'https://push.verify.example/posts-owner'), 'clear device');
+must(await db.from('outbox').delete().eq('tenant_id', t.id).in('template', ['post_live', 'post_push', 'team_post_issue']), 'clear progress mail');
 
 // 4. the signed link
 const { signedMediaUrl } = await import('../lib/media-link.ts');

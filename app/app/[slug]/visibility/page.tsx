@@ -12,6 +12,8 @@ import { db } from '@/lib/supabase/server';
 import { accessFor } from '@/lib/access';
 import { GOOGLE_ATTRIBUTION, getOfficeCard } from '@/lib/places';
 import { visibility, sourceLabel, WINDOW_DAYS } from '@/lib/visibility';
+import { PostEngagement, NET } from '@/components/PostEngagement';
+import { sumMetrics, type PostMetrics } from '@/lib/post-metrics';
 
 export const metadata = { title: 'Visibility' };
 export const dynamic = 'force-dynamic';
@@ -38,6 +40,11 @@ export default async function VisibilityPage({ params }: { params: Promise<{ slu
   const hasFollowers = s.followers.facebook != null || s.followers.instagram != null;
   const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—');
   const top = f.bySource[0];
+  // Each live post's own numbers (read from Metricool for 30 days after it posts), best first.
+  const { data: postRows } = await (await db()).from('content_items').select('id, channel, format, copy, status, post_url, published_at, metrics').eq('tenant_id', ctx.tenant.tenantId).eq('status', 'published').eq('is_sample', false).gte('published_at', new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString()).limit(100);
+  const posts = ((postRows ?? []) as { id: string; channel: string; format: string; copy: string; status: string; post_url: string | null; published_at: string; metrics: PostMetrics | null }[])
+    .sort((a, b) => (b.metrics?.interactions ?? -1) - (a.metrics?.interactions ?? -1) || Date.parse(b.published_at) - Date.parse(a.published_at));
+  const pt = sumMetrics(posts);
 
   return (
     <AgencyShell ctx={ctx} title="Visibility">
@@ -142,6 +149,20 @@ export default async function VisibilityPage({ params }: { params: Promise<{ slu
           </div>
         </Panel>
       </div>
+
+      {posts.length ? (
+        <Panel id="posts" title="How your posts did" sub={`Each post’s own numbers, last ${WINDOW_DAYS} days, best first${pt.posts ? ` · ${pt.reach.toLocaleString()} reached and ${pt.interactions.toLocaleString()} interactions across ${pt.posts} post${pt.posts === 1 ? '' : 's'}` : ''}`}>
+          <ul className="list">
+            {posts.slice(0, 6).map((p) => (
+              <li key={p.id}>
+                <div className="spread"><b>{NET[p.channel] ?? p.channel}{p.format === 'story' ? ' story' : ''} · {when(p.published_at)}</b>{p.post_url && p.format !== 'story' && /^https:\/\/(www\.)?(facebook|instagram)\.com\//.test(p.post_url) ? <a className="btn small" href={p.post_url} target="_blank" rel="noreferrer">View</a> : null}</div>
+                {p.format !== 'story' && p.copy ? <span className="soft" style={{ fontSize: 13 }}>{p.copy.length > 110 ? `${p.copy.slice(0, 110)}…` : p.copy}</span> : null}
+                <PostEngagement p={p} />
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       <Panel id="found" title="Still to connect" sub="Each one adds a piece of the picture. Until then, the board leaves it blank.">
         <div className="vis-todo">

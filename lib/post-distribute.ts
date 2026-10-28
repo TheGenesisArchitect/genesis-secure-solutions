@@ -5,7 +5,7 @@
 // A post approved after its planned time has passed is held for a new time instead of going out late.
 import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
-import { metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
+import { findPost, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 import { signedMediaUrl } from '@/lib/media-link';
 
 type Item = { id: string; tenant_id: string; channel: string; copy: string; format: 'post' | 'story'; asset_id: string; scheduled_for: string | null };
@@ -39,7 +39,7 @@ export async function sendApprovedPosts(origin: string): Promise<{ sent: number;
     if (!media) { out.failed++; continue; }
     const r = await schedulePost({ blogId, network: i.channel, text: i.copy, mediaUrl: media, when, vertical: i.format === 'story', aiGenerated: false, format: i.format });
     if (r.ok) {
-      await mark(i.id, { mc_post_id: r.data.id, mc_status: r.data.status, mc_error: null, ...(r.data.status === 'SCHEDULED' ? { status: 'scheduled', scheduled_for: when.toISOString() } : {}) });
+      await mark(i.id, { mc_post_id: r.data.id, mc_uuid: r.data.uuid, mc_status: r.data.status, mc_error: null, ...(r.data.status === 'SCHEDULED' ? { status: 'scheduled', scheduled_for: when.toISOString() } : {}) });
       out.sent++;
     } else { await mark(i.id, { mc_status: 'ERROR', mc_error: r.error.slice(0, 500) }); out.failed++; }
   }
@@ -51,7 +51,7 @@ export async function syncAgencyPosts(): Promise<{ checked: number; published: n
   const out = { checked: 0, published: 0, failed: 0 };
   if (!metricoolConfigured()) return out;
   const db = adminDb();
-  const { data } = await db.from('content_items').select('id, tenant_id, mc_post_id, mc_status').eq('status', 'scheduled').not('mc_post_id', 'is', null).in('mc_status', ['SCHEDULED', 'PENDING']).limit(25);
+  const { data } = await db.from('content_items').select('id, tenant_id, mc_post_id, mc_uuid, mc_status, scheduled_for').eq('status', 'scheduled').not('mc_post_id', 'is', null).in('mc_status', ['SCHEDULED', 'PENDING']).limit(25);
   if (!data?.length) return out;
   const { data: ts } = await db.from('tenants').select('id, metricool_blog_id').in('id', [...new Set(data.map((p) => p.tenant_id as string))]);
   const brand = new Map((ts ?? []).map((t) => [t.id as string, t.metricool_blog_id as string | null]));
@@ -59,11 +59,19 @@ export async function syncAgencyPosts(): Promise<{ checked: number; published: n
     const blogId = brand.get(p.tenant_id as string);
     if (!blogId) continue;
     out.checked++;
-    const r = await postStatus(blogId, Number(p.mc_post_id));
+    let r = await postStatus(blogId, Number(p.mc_post_id));
+    let newId: number | null = null;
+    // Edited in Metricool (even published by hand): the old id is gone, so find the post again by its uuid.
+    if (!r.ok && r.status === 404 && p.mc_uuid) {
+      const f = await findPost(blogId, String(p.mc_uuid), new Date(String(p.scheduled_for ?? Date.now())));
+      if (f.ok) { newId = f.data.id; r = { ok: true, status: f.status, data: f.data }; }
+    }
     if (!r.ok) continue;
-    if (r.data.status === 'PUBLISHED') { await db.from('content_items').update({ status: 'published', mc_status: 'PUBLISHED', post_url: r.data.url ?? `https://app.metricool.com/planner?blogId=${blogId}` }).eq('id', p.id); out.published++; }
-    else if (r.data.status === 'ERROR') { await db.from('content_items').update({ mc_status: 'ERROR', mc_error: r.data.detail ?? 'Metricool reported an error' }).eq('id', p.id); out.failed++; }
-    else if (r.data.status !== p.mc_status) await db.from('content_items').update({ mc_status: r.data.status }).eq('id', p.id);
+    const moved = newId && newId !== Number(p.mc_post_id) ? { mc_post_id: newId } : {};
+    // Only the network's own link ever reaches the agency (never a Metricool page they can't open).
+    if (r.data.status === 'PUBLISHED') { await db.from('content_items').update({ ...moved, status: 'published', mc_status: 'PUBLISHED', post_url: r.data.url, network_post_id: r.data.networkId }).eq('id', p.id); out.published++; }
+    else if (r.data.status === 'ERROR') { await db.from('content_items').update({ ...moved, mc_status: 'ERROR', mc_error: r.data.detail ?? 'Metricool reported an error' }).eq('id', p.id); out.failed++; }
+    else if (r.data.status !== p.mc_status || newId) await db.from('content_items').update({ ...moved, mc_status: r.data.status }).eq('id', p.id);
   }
   return out;
 }

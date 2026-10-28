@@ -253,6 +253,36 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         subject: `New ${data.kind === 'carrier' ? 'carrier' : 'agency'} inquiry: ${data.org}`,
         ...frame({ preheader: `${data.name} at ${data.org}`, heading: `New inquiry from ${data.org}`, body: [`${data.name} asked to talk${data.kind === 'carrier' ? ' about a pilot' : ' about their agency'}. We promised a reply within one business day.`], button: { label: 'Open inquiries', url: `${origin}/console/inquiries` } }, origin),
       };
+    case 'post_live': {
+      // A post went live (Facebook and Instagram at the same time share one email). Only the networks' own links.
+      const story = data.format === 'story';
+      const links = (['facebook', 'instagram'] as const).filter((n) => /^https:\/\//.test(data[`${n}_url`] ?? '')).map((n) => `${n === 'facebook' ? 'Facebook' : 'Instagram'}: ${data[`${n}_url`]}`);
+      return {
+        to,
+        subject: `Your ${story ? 'story' : 'post'} is live on ${data.networks}`,
+        ...frame({
+          preheader: story ? 'Live for the next 24 hours.' : 'Your approved post just went out. We’re tracking how it does.',
+          heading: `Your ${story ? 'story' : 'post'} is live on ${data.networks}`,
+          body: [
+            story ? `The story you approved for ${data.agency} is up now, for the next 24 hours.` : `The post you approved for ${data.agency} just went out${data.copy ? `: “${data.copy}”` : '.'}`,
+            ...(story ? [] : links),
+            'We track its reach, likes, comments and shares for the next 30 days. You’ll see them on your dashboard next to the post, and in your monthly report.',
+          ],
+          button: { label: 'See my posts', url: `${origin}/app/${data.slug}/care#posts` },
+        }, origin),
+      };
+    }
+    case 'team_post_issue':
+      return {
+        to,
+        subject: `${data.status === 'NEEDS_TIME' ? 'Post needs a new time' : 'Post didn’t go out'}: ${data.agency} (${data.networks})`,
+        ...frame({
+          preheader: data.error || data.status,
+          heading: data.status === 'NEEDS_TIME' ? `${data.agency}: a post needs a new time` : `${data.agency}: Metricool refused a post`,
+          body: [`The ${data.networks} ${data.format === 'story' ? 'story' : 'post'} planned for ${data.when} ${data.status === 'NEEDS_TIME' ? 'was approved after its time, so it is held.' : 'did not go out.'}`, ...(data.error ? [`Metricool said: ${data.error}`] : []), 'Fix it from the agency’s content calendar. The owner has not been told.'],
+          button: { label: 'Open the content calendar', url: `${origin}/app/${data.slug}/care` },
+        }, origin),
+      };
     case 'team_care':
       return {
         to,

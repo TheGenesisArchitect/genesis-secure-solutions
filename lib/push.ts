@@ -48,3 +48,17 @@ export async function sendLeadPush(db: SupabaseClient, tenantId: string, d: Reco
     tag: `lead-${String(d.lead).slice(0, 27)}`,
   });
 }
+
+/** The templates the outbox run sends as push alerts (to_email 'push'), not as email. */
+export const PUSH_TEMPLATES = ['lead_push', 'post_push'];
+
+/** A post went live: to every subscribed device of the agency's members; tap to see it on the dashboard. */
+export async function sendPostPush(db: SupabaseClient, tenantId: string, d: Record<string, string>) {
+  const { data: members } = await db.from('memberships').select('user_id').eq('tenant_id', tenantId);
+  return pushTo(db, (members ?? []).map((m) => m.user_id), {
+    title: `Your ${d.format === 'story' ? 'story' : 'post'} is live on ${d.networks}`,
+    body: d.format === 'story' ? 'Live for the next 24 hours. We’ll track who sees it.' : 'Tap to see it. We’ll track likes, comments and reach on your dashboard.',
+    url: `/app/${d.slug}/care#posts`,
+    tag: `post-${String(d.item).slice(0, 27)}`,
+  });
+}
