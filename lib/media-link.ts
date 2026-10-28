@@ -7,13 +7,16 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 const SECRET = () => process.env.MEDIA_LINK_SECRET || process.env.CRON_SECRET || '';
 export type SignedKind = 'final' | 'render' | 'asset';
 const EXT: Record<SignedKind, string> = { final: 'mp4', render: 'mp4', asset: 'jpg' };
+// Crons run on the deployment's own *.vercel.app address, which sits behind Vercel's sign-in: Metricool can't fetch
+// from it, so links always use the public site.
+const PUBLIC = (origin: string) => (/\.vercel\.app$/i.test(new URL(origin).hostname) ? (process.env.APP_ORIGIN || 'https://genovus.io') : origin).replace(/\/$/, '');
 const sign = (kind: string, id: string, exp: number) => createHmac('sha256', SECRET()).update(`${kind}:${id}:${exp}`).digest('base64url');
 
 /** A link valid until `until` (default 7 days): long enough for a post scheduled ahead to be fetched. */
 export function signedMediaUrl(origin: string, kind: SignedKind, id: string, until = Date.now() + 7 * 86_400_000): string | null {
   if (!SECRET()) return null;
   const exp = Math.floor(until / 1000);
-  return `${origin}/api/media/signed/${kind}/${id}.${EXT[kind]}?exp=${exp}&sig=${sign(kind, id, exp)}`;
+  return `${PUBLIC(origin)}/api/media/signed/${kind}/${id}.${EXT[kind]}?exp=${exp}&sig=${sign(kind, id, exp)}`;
 }
 
 export function verifyMediaSig(kind: string, id: string, exp: string | null, sig: string | null): boolean {

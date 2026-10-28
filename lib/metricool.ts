@@ -30,7 +30,8 @@ export async function mc<T = unknown>(path: string, opts: { blogId?: string; met
     try { data = JSON.parse(text); } catch {}
     if (!r.ok) {
       const d = data as { detail?: string; message?: string; title?: string } | string;
-      return { ok: false, status: r.status, error: typeof d === 'string' ? d.slice(0, 300) : (d.detail ?? d.message ?? d.title ?? `HTTP ${r.status}`) };
+      const why = typeof d === 'string' ? d : (d?.detail || d?.message || d?.title);
+      return { ok: false, status: r.status, error: (typeof why === 'string' && why ? why : JSON.stringify(why ?? `HTTP ${r.status}`)).slice(0, 300) };
     }
     return { ok: true, status: r.status, data: data as T };
   } catch (e) {
