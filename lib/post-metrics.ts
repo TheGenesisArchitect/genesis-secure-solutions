@@ -75,21 +75,25 @@ export async function pullPostMetrics(now = Date.now()): Promise<{ checked: numb
     if (!blogId) continue;
     const from = new Date(Math.min(...list.map((i) => Date.parse(i.published_at))) - DAY), to = new Date(now + DAY);
     const l = log.get(tenantId) ?? { kept: {}, errors: [], rows: 0 };
-    let rows: Record<string, unknown>[] | null = null;
+    // Each endpoint in turn until every post is found: one that answers with nothing for these posts doesn't stop
+    // the next from being asked.
+    const rows: Record<string, unknown>[] = [];
+    const found = (i: Item) => { const tk = tokensOf(i); return tk.length > 0 && rows.some((row) => matches(row, tk)); };
     for (const ep of ENDPOINTS[kind]) {
+      if (list.every(found)) break;
       const r = await mc<unknown>(ep.path, { blogId, query: ep.query(from, to) });
       if (!r.ok) { if (r.status !== 404) l.errors.push(`${kind} ${ep.path}: ${r.error}`.slice(0, 200)); continue; }
       const got = (Array.isArray(r.data) ? r.data : ((r.data as { data?: unknown })?.data ?? [])) as unknown;
       if (!Array.isArray(got)) continue;
-      rows = got as Record<string, unknown>[];
-      l.kept[kind] = ep.path; l.rows += rows.length; out.tried[kind] = ep.path;
-      break;
+      rows.push(...(got as Record<string, unknown>[]));
+      l.rows += got.length;
+      if (got.length || !l.kept[kind]) { l.kept[kind] = ep.path; out.tried[kind] = ep.path; }
     }
     log.set(tenantId, l);
     for (const i of list) {
       out.checked++;
       const tokens = tokensOf(i);
-      const hit = rows && tokens.length ? rows.find((row) => matches(row, tokens)) : undefined;
+      const hit = tokens.length ? rows.find((row) => matches(row, tokens)) : undefined;
       const m = hit ? metricsOf(hit) : null;
       const found = m && Object.keys(m).length ? m : null;
       await db.from('content_items').update({ metrics_at: new Date(now).toISOString(), ...(found ? { metrics: found } : {}) }).eq('id', i.id);

@@ -31,7 +31,7 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
 
 // A stand-in Metricool: records each scheduled post (with a lasting uuid), reports it PUBLISHED on status reads with
 // its network's own link and id, forgets ids edited away ("gone": found again only by uuid in the planner list), and
-// answers per-post analytics: Instagram on the v2 path, Facebook only on the older /stats path, Instagram stories empty.
+// answers per-post analytics: Instagram on the v2 path, Facebook's newer path answering empty (as it does in production) and the older /stats path with the numbers, Instagram stories empty.
 const sent = [], gone = new Set();
 const IG_URL = 'https://www.instagram.com/p/VerifyCode1/', FB_URL = 'https://facebook.com/1234567890/posts/9876543210';
 const provider = (net) => net === 'facebook' ? { network: 'facebook', id: '9876543210', status: 'PUBLISHED', publicUrl: FB_URL } : { network: 'instagram', status: 'PUBLISHED', publicUrl: IG_URL };
@@ -47,6 +47,7 @@ const mock = http.createServer((req, res) => {
     }
     if (req.method === 'GET' && u.pathname === '/v2/scheduler/posts') return res.end(JSON.stringify({ data: [...gone].map((id) => ({ id: id + 50000, uuid: `uuid-${id}`, providers: [provider(sent[id - 9001]?.body.providers[0].network)] })) }));
     if (u.pathname === '/v2/analytics/posts/instagram') return res.end(JSON.stringify({ data: [{ postId: '1799', url: 'https://www.instagram.com/p/SomeOther/', likes: 99 }, { postId: '1800', url: IG_URL, likes: 12, comments: 3, saved: 2, shares: 1, reach: 340, views: 500, interactions: 18 }] }));
+    if (u.pathname === '/v2/analytics/posts/facebook') return res.end(JSON.stringify({ data: [] }));
     if (u.pathname === '/stats/facebook/posts') return res.end(JSON.stringify([{ postId: '1234567890_9876543210', link: FB_URL, reactions: 7, comments: 1, shares: 2, impressionsUnique: 210, impressions: 300 }]));
     if (u.pathname === '/v2/analytics/stories/instagram') return res.end(JSON.stringify({ data: [] }));
     res.statusCode = 404; res.end('{}');
@@ -219,7 +220,7 @@ const pm = await Q.pullPostMetrics();
 const gotM = Object.fromEntries(must(await db.from('content_items').select('id, channel, format, metrics, metrics_at').in('id', ids), 'metrics').map((x) => [x.id, x]));
 const igm = gotM[pair[0]].metrics, fbm = gotM[pair[1]].metrics;
 check(igm?.likes === 12 && igm.comments === 3 && igm.saves === 2 && igm.reach === 340 && igm.interactions === 18, `Instagram: the post’s own likes, comments, saves and reach, matched by its link (${JSON.stringify(igm)})`);
-check(fbm?.likes === 7 && fbm.reach === 210 && fbm.views === 300 && fbm.interactions === 10, `Facebook: reactions, reach and views from the older endpoint when the newer one doesn’t answer (${JSON.stringify(fbm)})`);
+check(fbm?.likes === 7 && fbm.reach === 210 && fbm.views === 300 && fbm.interactions === 10, `Facebook: reactions, reach and views from the older endpoint when the newer one answers empty (${JSON.stringify(fbm)})`);
 check(gotM[st.id].metrics === null && gotM[st.id].metrics_at, 'a story with no numbers yet stays “not yet” (null), never zero');
 const pull = must(await db.from('visibility_pulls').select('ok, detail').eq('tenant_id', t.id).eq('source', 'metricool-posts').single(), 'pull log');
 check(pull.ok && pull.detail.kept['facebook.post'] === '/stats/facebook/posts' && pull.detail.kept['instagram.post'] === '/v2/analytics/posts/instagram', 'what answered is recorded per network');
