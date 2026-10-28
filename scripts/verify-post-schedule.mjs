@@ -138,7 +138,7 @@ const row = async (id) => must(await db.from('content_items').select('status, mc
 const ig = sent.find((s) => s.body.providers[0].network === 'instagram'), fb = sent.find((s) => s.body.providers[0].network === 'facebook');
 check(sent.length === 2 && sent.every((s) => s.blogId === BLOG), `only the two owner-approved posts go out, both on the agency’s own brand (${sent.length} sent: ${JSON.stringify(r)})`);
 check(ig?.body.instagramData.type === 'POST' && !('showReelOnFeed' in ig.body.instagramData) && ig.body.instagramData.isAiGenerated === false && /local Columbus agent/.test(ig.body.text ?? ''), 'Instagram gets a feed image post with its caption (not a Reel)');
-check(fb?.body.facebookData.type === 'STORY' && !('text' in fb.body), 'Facebook gets the story with no caption');
+check(fb?.body.facebookData.type === 'STORY' && fb.body.text === '', 'Facebook gets the story with an empty caption (Metricool requires the field)');
 const media = new URL(ig?.body.media?.[0] ?? 'https://x/');
 check(media.origin === ORIGIN && media.pathname === `/api/media/signed/asset/${ad.id}.jpg` && media.searchParams.get('sig'), 'the image goes through a signed, expiring link');
 check(ig?.body.draft === true && ig.body.autoPublish === false && (await row(feed.data)).status === 'approved' && (await row(feed.data)).mc_status === 'DRAFT', 'draft mode: a Metricool draft, and the post stays “approved”, not booked');

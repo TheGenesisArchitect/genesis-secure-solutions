@@ -69,8 +69,8 @@ export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; 
   const live = metricoolLive();
   const format: McFormat = p.format ?? (p.network === 'instagram' || p.vertical ? 'reel' : 'post');
   const body = {
-    // A story has no caption of its own; sending one alone is refused.
-    ...(format === 'story' ? {} : { text: p.text }),
+    // A story has no caption of its own, but Metricool refuses a post without the text field: send it empty.
+    text: format === 'story' ? '' : p.text,
     publicationDate: { dateTime: NY(p.when), timezone: 'America/New_York' },
     providers: [{ network: p.network }],
     autoPublish: live, draft: !live,
