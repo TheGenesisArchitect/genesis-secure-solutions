@@ -29,7 +29,7 @@ export function Hero({ doors }: { doors: Doors }) {
           One agent record becomes a carrier-aware website, connected profiles and tracked leads, approved before anything goes public. Then Genovus runs it every month.
         </p>
         <div className="row reveal" style={{ animationDelay: '.9s' }}>
-          <Link href="/start" className="btn primary">Start with your agency</Link>
+          <Link href="/book" className="btn primary">Book a consultation</Link>
           <Link href="/partners" className="btn">For carriers and networks</Link>
           <a href="#story" className="btn ghost">See how it works ↓</a>
         </div>

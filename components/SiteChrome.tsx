@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { doors } from '@/lib/surfaces';
 import { Wordmark } from './Wordmark';
+import { SocialLinks } from './SocialLinks';
 
 export async function SiteChrome({ children }: { children: React.ReactNode }) {
   const d = await doors();
@@ -19,6 +20,7 @@ export async function SiteChrome({ children }: { children: React.ReactNode }) {
             <Link href="/#how">How it works</Link>
             <Link href="/#packages">Packages</Link>
             <Link href="/partners">Carriers</Link>
+            <SocialLinks size={17} className="in-nav" />
             <details className="login-menu">
               <summary className="btn small ghost" style={{ color: 'var(--ink)' }}>Log in</summary>
               <div className="eco-list" style={{ left: 'auto', right: 0 }}>
@@ -27,13 +29,14 @@ export async function SiteChrome({ children }: { children: React.ReactNode }) {
                 <a href={d.team}><span><b style={{ color: 'var(--ink)' }}>Genovus team</b><br /><span className="muted" style={{ fontSize: 12 }}>Enterprise console</span></span></a>
               </div>
             </details>
-            <Link href="/start" className="btn small primary">Get started</Link>
+            <Link href="/book" className="btn small primary"><span className="wide-only">Book a consultation</span><span className="narrow-only">Book a call</span></Link>
           </nav>
         </div>
       </header>
       {children}
       <footer className="site-foot">
         <div className="wrapx in">
+          <span className="foot-follow"><Link href="/book" className="btn small primary">Book a consultation</Link><span className="follow-group"><span>Follow Genovus</span><SocialLinks size={20} /></span></span>
           <span>Genovus is a Genesis Secure Solutions brand.</span>
           <span>Genovus does not quote, bind or give insurance advice. Quotes and policy service stay with each carrier’s approved channels.</span>
           <span>

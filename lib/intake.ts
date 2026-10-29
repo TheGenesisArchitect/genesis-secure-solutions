@@ -1,6 +1,7 @@
 'use server';
 // Public intake from the website. Validates every field, drops bots (honeypot + time check), limits each
-// address to a few submissions an hour, stores the exact consent text shown, and lands in the console.
+// address to a few submissions an hour, stores the exact consent text shown, and lands in the console. Then the
+// person picks a time for a first conversation (/book/<token>) instead of waiting a day for a reply.
 // Uses the service role because the person is not signed in; nothing here reads data back to them.
 import { createHash } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
@@ -8,6 +9,7 @@ import { redirect } from 'next/navigation';
 import { adminDb } from './supabase/admin';
 import { supabaseConfigured } from './supabase/env';
 import { CONSENT_TEXT } from '@/data/consent';
+import { consultToken } from './consult';
 
 type Ref = { c?: string; src?: string; p?: string; l?: string };
 function readRef(raw: string | undefined): Ref {
@@ -28,7 +30,7 @@ const s = (f: FormData, k: string, max: number) => String(f.get(k) ?? '').trim()
 export async function submitInquiry(f: FormData) {
   const kind = s(f, 'kind', 10) === 'carrier' ? 'carrier' : 'agency';
   const backTo = s(f, 'back', 60);
-  const page = /^\/for\/[a-z-]{2,30}$/.test(backTo) ? backTo : kind === 'carrier' ? '/partners' : '/start';
+  const page = /^\/for\/[a-z-]{2,30}$/.test(backTo) || backTo === '/book' ? backTo : kind === 'carrier' ? '/partners' : '/start';
   const fail = (m: string) => redirect(`${page}?err=${encodeURIComponent(m)}`);
 
   // Bots fill the hidden field, or submit faster than a person can read the form.
@@ -72,5 +74,9 @@ export async function submitInquiry(f: FormData) {
     await db.from('prospects').update({ status: 'replied', next_action_at: null }).eq('id', prospectId).in('status', ['new', 'verified', 'contacting']);
     await db.from('prospect_events').insert({ prospect_id: prospectId, kind: 'reply', outcome: 'inquiry', note: `Sent an inquiry from the website (${org})` });
   }
-  redirect(`/thanks?k=${kind}`);
+  // Straight on to the open times: a 30-minute first conversation on the Genovus calendar (migration 0086).
+  // If the invitation can't be made, the request still stands and the team replies as before.
+  const { data: inviteId } = await db.rpc('create_public_consult', { p_inquiry: data!.id, p_label: `${name}, ${org}`.slice(0, 120), p_email: email, p_prospect: prospectId });
+  const token = inviteId ? consultToken(String(inviteId)) : null;
+  redirect(token ? `/book/${token}` : `/thanks?k=${kind}`);
 }

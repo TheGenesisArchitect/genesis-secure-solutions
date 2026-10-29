@@ -1,5 +1,5 @@
 // The two website intake forms (agency, carrier/network). Plain HTML forms posting to a server action,
-// so they work without JavaScript. The hidden "website" field and start time catch bots.
+// so they work without JavaScript. The hidden "website" field and start time catch bots. Both go on to pick a time.
 import { submitInquiry } from '@/lib/intake';
 import { CONSENT_TEXT } from '@/data/consent';
 import { PLANS } from '@/data/offers';
@@ -30,8 +30,11 @@ const CARRIER: Field[] = [
   { name: 'goals', label: 'What would a successful pilot show?', type: 'textarea', placeholder: 'Faster agency launches, consistent approved wording, visibility across offices…' },
 ];
 
-export function IntakeForm({ kind, defaults, back }: { kind: 'agency' | 'carrier'; defaults?: Record<string, string>; back?: string }) {
-  const fields = kind === 'agency' ? AGENCY : CARRIER;
+/** `short`: the booking form on /book: just who you are; the rest comes up on the call. */
+const SHORT = ['name', 'org', 'email', 'phone', 'carrier'];
+
+export function IntakeForm({ kind, defaults, back, short }: { kind: 'agency' | 'carrier'; defaults?: Record<string, string>; back?: string; short?: boolean }) {
+  const fields = kind === 'agency' ? (short ? AGENCY.filter((f) => SHORT.includes(f.name)) : AGENCY) : CARRIER;
   return (
     <form action={submitInquiry} className="form-card">
       <input type="hidden" name="kind" value={kind} />
@@ -58,7 +61,7 @@ export function IntakeForm({ kind, defaults, back }: { kind: 'agency' | 'carrier
         <input type="checkbox" name="consent" value="yes" required style={{ marginTop: 4 }} />
         <span>{CONSENT_TEXT} See our <a href="/privacy" target="_blank">privacy policy</a>.</span>
       </label>
-      <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>{kind === 'agency' ? 'Request my consult' : 'Start the pilot conversation'}</button>
+      <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>{kind === 'agency' ? 'See open times' : 'See open times for a pilot call'}</button>
     </form>
   );
 }

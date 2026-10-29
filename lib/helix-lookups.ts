@@ -117,6 +117,8 @@ async function partnerSite(db: SupabaseClient, tenantId: string, a: Args) {
 export async function openTimes(db: SupabaseClient, tenantId: string, a: Args) {
   const minutes = Math.max(15, Math.min(180, Number(a.minutes) || 60));
   const days = Math.max(1, Math.min(10, Number(a.days) || 5));
+  // Helix suggests two a day, two hours apart; a booking page (lib/consult.ts) offers the whole open day.
+  const perDayMax = Math.max(1, Math.min(16, Number(a.perDay) || 2)), gap = a.perDay ? 0 : 90, cap = Math.max(1, Math.min(120, Number(a.max) || 8));
   const today = businessToday();
   const add = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
   const items = await calendarItems(db, tenantId, today, add(today, days + 7));
@@ -131,16 +133,16 @@ export async function openTimes(db: SupabaseClient, tenantId: string, a: Args) {
     if (wd === 0 || wd === 6) continue;
     workdays++;
     let perDay = 0;
-    for (let m = 9 * 60; m + minutes <= 17 * 60 && perDay < 2; m += 30) {
+    for (let m = 9 * 60; m + minutes <= 17 * 60 && perDay < perDayMax; m += 30) {
       const time = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
       const s = new Date(easternIso(day, time)).getTime(), e = s + minutes * 60_000;
       if (s < soonest || busy.some(([b0, b1]) => s < b1 && e > b0)) continue;
       slots.push({ day, time, label: et(new Date(s).toISOString()) });
       perDay++;
-      m += 90; // the second suggestion that day is at least two hours after the first
+      m += gap; // Helix's second suggestion that day is at least two hours after the first
     }
   }
-  return { minutes, slots: slots.slice(0, 8), booked: items.filter((i) => i.kind !== 'post' && dayOf(i.start) >= today).slice(0, 12).map((i) => `${et(i.start)} ${i.title}`) };
+  return { minutes, slots: slots.slice(0, cap), booked: items.filter((i) => i.kind !== 'post' && dayOf(i.start) >= today).slice(0, 12).map((i) => `${et(i.start)} ${i.title}`) };
 }
 
 /** Helix Knows: what the agency did and said in a window (default the last 7 days): partner activity (calls, visits,

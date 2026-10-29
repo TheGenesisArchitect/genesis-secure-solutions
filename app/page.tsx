@@ -7,6 +7,7 @@ import { doors } from '@/lib/surfaces';
 import { Hero } from '@/components/site/Hero';
 import { Story } from '@/components/site/Story';
 import { FilmEndCard } from '@/components/site/FilmEndCard';
+import { SOCIALS } from '@/data/socials';
 
 export const metadata = { title: { absolute: 'Genovus · The right technology inside every agency' } };
 
@@ -39,11 +40,24 @@ const TRUST = [
   ['We never give insurance advice', 'No quoting, binding or policy advice. Quote buttons hand off to the carrier.'],
 ];
 
+// Who Genovus is, for search engines: the brand, its site and its social profiles (sameAs).
+const ORG = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Genovus',
+  url: 'https://genovus.io',
+  logo: 'https://genovus.io/brand/genovus/genovus-app-icon.png',
+  parentOrganization: { '@type': 'Organization', name: 'Genesis Secure Solutions' },
+  email: 'hello@genovus.io',
+  sameAs: SOCIALS.map((x) => x.url),
+};
+
 export default async function Home() {
   const d = await doors();
   return (
     <SiteChrome>
       <main>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG).replace(/</g, '\\u003c') }} />
         <Hero doors={d} />
         <Story />
 
@@ -159,7 +173,8 @@ export default async function Home() {
             <h2 style={{ font: '800 clamp(22px,3vw,32px)/1.15 var(--display)' }}>Put the right technology inside your agency.</h2>
             <p className="soft">Agencies start with a short call about the office and its goals. Carriers and networks start with a 90-day pilot sized to them.</p>
             <div className="row">
-              <Link href="/start" className="btn primary">Start with your agency</Link>
+              <Link href="/book" className="btn primary">Book a consultation</Link>
+              <Link href="/start" className="btn">Tell us about your agency</Link>
               <Link href="/partners" className="btn">Plan a pilot</Link>
             </div>
           </div>

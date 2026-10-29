@@ -17,7 +17,7 @@ export default async function Start({ searchParams }: { searchParams: Promise<{ 
       <main className="wrapx sec" style={{ paddingTop: 48 }}>
         <div className="eyebrow">For agencies</div>
         <h1 style={{ font: '800 clamp(30px,4.6vw,52px)/1.05 var(--display)', letterSpacing: '-.02em', maxWidth: '18ch' }}>Start with your agency.</h1>
-        <p className="lede">Tell us about your office. A real person replies within one business day to book a short consult. No obligation and no passwords, ever.</p>
+        <p className="lede">Tell us about your office, then pick a time for a 30-minute call. No obligation and no passwords, ever.</p>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))', alignItems: 'start' }}>
           <div style={{ display: 'grid', gap: 14 }}>
             {sp.err ? <div className="notice err" role="alert">{sp.err}</div> : null}

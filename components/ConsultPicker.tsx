@@ -1,25 +1,36 @@
 'use client';
-// The open times for a consultation, grouped by day; one tap picks, a second confirms.
+// The open times for a consultation: pick a day, then a time; a second tap confirms.
 import { useState } from 'react';
 
-export function ConsultPicker({ token, slots }: { token: string; slots: { iso: string; label: string }[] }) {
+export function ConsultPicker({ token, slots, help = 'Reply to the email and we’ll find one.' }: { token: string; slots: { iso: string; label: string }[]; help?: string }) {
   const [pick, setPick] = useState<string | null>(null);
+  const [day, setDay] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   if (msg?.ok) return <div className="ck-msg ok" role="status"><b>Booked.</b> {msg.text}</div>;
-  if (!slots.length) return <div className="ck-msg err">No open times in the next two weeks. Reply to the email and we’ll find one.</div>;
+  if (!slots.length) return <div className="ck-msg err">No open times in the next two weeks. {help}</div>;
   const days = new Map<string, { iso: string; label: string }[]>();
   for (const s of slots) { const d = s.label.split(',').slice(0, 2).join(','); days.set(d, [...(days.get(d) ?? []), s]); }
+  const list = [...days];
+  const [dayLabel, times] = list[Math.min(day, list.length - 1)];
   return (
     <div className="ck-form">
-      {[...days].map(([day, list]) => (
-        <div key={day} className="ck-item">
-          <b>{day}</b>
-          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-            {list.map((s) => <button key={s.iso} type="button" className={'btn' + (pick === s.iso ? ' primary' : '')} aria-pressed={pick === s.iso} onClick={() => setPick(s.iso)}>{s.label.split(', ').at(-1)}</button>)}
-          </div>
+      <div className="ck-days" role="tablist" aria-label="Days">
+        {list.map(([d, ts], i) => {
+          const [wd, md] = d.split(', ');
+          return (
+            <button key={d} type="button" role="tab" aria-selected={i === day} className={'ck-day' + (i === day ? ' on' : '')} onClick={() => setDay(i)}>
+              <small>{wd}</small><b>{md}</b><small>{ts.length} open</small>
+            </button>
+          );
+        })}
+      </div>
+      <div className="ck-item">
+        <b>{dayLabel}</b>
+        <div className="ck-times">
+          {times.map((s) => <button key={s.iso} type="button" className={'btn' + (pick === s.iso ? ' primary' : '')} aria-pressed={pick === s.iso} onClick={() => setPick(s.iso)}>{s.label.split(', ').at(-1)}</button>)}
         </div>
-      ))}
+      </div>
       {msg && !msg.ok ? <p className="ck-msg err" role="alert">{msg.text}</p> : null}
       <button className="btn primary" type="button" disabled={!pick || busy} onClick={async () => {
         setBusy(true);

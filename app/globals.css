@@ -1432,3 +1432,25 @@ button.chip{cursor:pointer}
 .ck-msg{margin:0;padding:12px 14px;border-radius:12px;border:1px solid var(--line-2)}
 .ck-msg.ok{border-color:color-mix(in srgb,var(--done) 50%,transparent);color:var(--ink)}
 .ck-msg.err{border-color:color-mix(in srgb,var(--bad) 55%,transparent);color:var(--ink)}
+
+/* Genovus social links (components/SocialLinks.tsx): header on desktop, footer everywhere. */
+.socials{display:inline-flex;align-items:center;gap:2px}
+.socials a{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:8px;color:var(--soft)}
+.site-nav nav .socials a{padding:0}
+.socials a:hover,.socials a:focus-visible{color:var(--ink);background:var(--raise)}
+.foot-follow{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;flex-basis:100%;color:var(--soft)}
+.foot-follow .btn{color:var(--on-accent);margin-right:8px}
+@media (max-width:900px){.site-nav .socials.in-nav{display:none}}
+/* The pick-a-time confirm stays in reach while the open times scroll (components/ConsultPicker.tsx). */
+.ck-form > .btn.primary:last-child{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.follow-group{display:inline-flex;align-items:center;gap:6px}
+.site-nav .narrow-only{display:none}
+@media (max-width:480px){.site-nav .wide-only{display:none}.site-nav .narrow-only{display:inline}}
+.ck-days{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.ck-day{flex:none;display:grid;justify-items:center;gap:2px;min-width:76px;padding:10px 8px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.ck-day small{color:var(--muted);font-size:11px}
+.ck-day b{font-size:15px}
+.ck-day.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ck-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+/* .sec's vertical padding shorthand was zeroing .wrapx's side gutter on the form pages (/book, /start, /partners). */
+.wrapx.sec{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
