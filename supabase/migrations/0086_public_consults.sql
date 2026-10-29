@@ -1,6 +1,6 @@
 -- Book a consultation from genovus.io: a prospect fills the short form (lib/intake.ts) and goes straight to the
 -- open times. Those invitations come from the website rather than a team member, so they carry the inquiry and,
--- when booked, the team is invited too (app_settings consult_team_emails, else every admin). Every booking gets the
+-- when booked, the team is invited too (app_settings consult_team_emails, else every admin with a real address). Every booking gets the
 -- standing video room when one is set (app_settings consult_video_url).
 
 alter table consult_invites add column if not exists inquiry_id uuid references inquiries on delete set null;
@@ -39,7 +39,8 @@ begin
   if ci.created_by is null then
     select event_attendees(value) into team from app_settings where key = 'consult_team_emails';
     if coalesce(cardinality(team), 0) = 0 then
-      select coalesce(array_agg(distinct lower(u.email)), '{}') into team from staff s join auth.users u on u.id = s.user_id where s.role = 'admin' and u.email is not null;
+      select coalesce(array_agg(distinct lower(u.email)), '{}') into team from staff s join auth.users u on u.id = s.user_id where s.role = 'admin' and u.email is not null
+        and u.email !~* '(@example\.(com|org|net)$|\.example$|^walkthrough-|^verify-|\+test@)';
     end if;
     who := who || array(select x from unnest(team) x where not (x = any(who)));
     if me is null and cardinality(team) > 0 then me := team[1]; end if;

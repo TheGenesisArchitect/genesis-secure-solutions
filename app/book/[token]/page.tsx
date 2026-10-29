@@ -21,7 +21,9 @@ export default async function Book({ params }: { params: Promise<{ token: string
         <p className="ck-eye">{first ? `Thanks, ${inv.label.split(',')[0].split(' ')[0]}` : inv.label}</p>
         <h1>{first ? 'Pick a time to talk' : 'Pick a time for your Genovus consultation'}</h1>
         <p className="ck-sub">
-          {first
+          {first && inv.carrier
+            ? `${inv.minutes} minutes on video with the Genovus team: your network, what a pilot would show, and how it would run. No obligation. Times are Eastern.`
+            : first
             ? `${inv.minutes} minutes on video with the Genovus team. We’ll learn about your office and show you what Genovus would set up for it. No obligation. Times are Eastern.`
             : `${inv.minutes} minutes on video. We’ll walk through your dashboard, your website and the Growth tools together. Times are Eastern.`}
         </p>

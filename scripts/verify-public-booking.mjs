@@ -82,6 +82,8 @@ try {
   const text = await ev('document.body.innerText');
   const times = await ev(`document.querySelectorAll('.ck-form button[aria-pressed]').length`);
   check(/Pick a time to talk/.test(text) && /30 minutes on video/.test(text) && /Thanks, Dana/i.test(text) && times > 0, `the page greets them and shows ${times} open times`);
+  const todayMd = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+  check((await ev("document.querySelector('.ck-day b')?.textContent")) !== todayMd, 'website bookings start the next business day, never today');
   check(!(await ev('document.documentElement.scrollWidth > innerWidth')), 'the time picker fits a phone');
   await shot('book-times', true);
   await ev(`document.querySelector('.ck-form button[aria-pressed]').click()`); await sleep(300);
