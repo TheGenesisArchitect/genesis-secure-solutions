@@ -8,6 +8,7 @@ import { Hero } from '@/components/site/Hero';
 import { Story } from '@/components/site/Story';
 import { FilmEndCard } from '@/components/site/FilmEndCard';
 import { SOCIALS } from '@/data/socials';
+import { Proof } from '@/components/site/Proof';
 
 export const metadata = { title: { absolute: 'Genovus · The right technology inside every agency' } };
 
@@ -159,6 +160,8 @@ export default async function Home() {
             </div>
           </div>
         </section>
+
+        <Proof />
 
         <section className="wrapx sec">
           <div className="eyebrow">Trust</div>

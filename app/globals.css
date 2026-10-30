@@ -1454,3 +1454,19 @@ button.chip{cursor:pointer}
 .ck-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
 /* .sec's vertical padding shorthand was zeroing .wrapx's side gutter on the form pages (/book, /start, /partners). */
 .wrapx.sec{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* The consult guide (console/consults/[id]): numbered discovery steps and tap-to-open objections. */
+.guide-steps{margin:0;padding-left:22px;display:grid;gap:12px;list-style:decimal}
+.guide-steps li{display:grid;gap:3px;font-size:14px}
+.guide-steps li::marker{color:var(--accent,#ff6a2b);font-weight:700}
+.guide-objections{display:grid;gap:8px}
+.guide-objections details{border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.guide-objections summary{cursor:pointer;font-weight:700;font-size:14px;min-height:28px;display:flex;align-items:center}
+.guide-objections p{margin:8px 0 0;font-size:14px}
+
+/* Proof (components/site/Proof.tsx): approved client words only; hidden when there are none. */
+.proof-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.proof-card{margin:0;padding:22px;border:1px solid var(--line);border-radius:16px;background:var(--panel,transparent);display:grid;gap:12px}
+.proof-card blockquote{margin:0;font-size:17px;line-height:1.5}
+.proof-card figcaption{font-size:14px;color:var(--muted)}
+.proof.compact{margin-top:24px}

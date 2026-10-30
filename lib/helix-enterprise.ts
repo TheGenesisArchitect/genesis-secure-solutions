@@ -9,6 +9,8 @@ import { finance, monthsBack, receivables, runway } from '@/lib/finance';
 import { prettyPhone } from '@/lib/twilio';
 import { HOUSE_SLUG } from '@/lib/phone-line';
 import { blockersFor } from '@/lib/blockers';
+import { guideText } from '@/data/consult-guide';
+import { topObjections } from '@/lib/sales-kpis';
 
 export const canSeeMoney = (role: string | undefined) => role === 'admin' || role === 'account_lead';
 export const DEPARTMENTS: [string, string][] = [['sales', 'Sales'], ['pipeline', 'Pipeline'], ['clients', 'Clients & delivery'], ['finance', 'Finance'], ['studio', 'Studio'], ['operations', 'Operations'], ['general', 'General']];
@@ -35,6 +37,7 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
     .map((c) => ({ ...c, ev: Array.isArray(c.event) ? c.event[0] : c.event, inq: Array.isArray(c.inquiry) ? c.inquiry[0] : c.inquiry }))
     .filter((c) => c.ev?.status === 'scheduled' && Date.parse(c.ev.starts_at) > Date.now() && Date.parse(c.ev.starts_at) < Date.now() + 7 * 86_400_000)
     .sort((x, y) => Date.parse(x.ev!.starts_at) - Date.parse(y.ev!.starts_at));
+  const objections = await topObjections(db);
   const inPlay = await db.from('prospects').select('code, status, state, contact_name, known_name, next_action_at, carriers(name)').in('status', ['contacting', 'replied', 'consult', 'proposal']).order('next_action_at', { ascending: true, nullsFirst: false }).limit(12);
   const [counts, due, inq, camps, tenants, gates, appr, care, grants, leads, studioSpent, studioBudget, episodes, places, radar, memory, lineCalls, snapshots] = await Promise.all([
     db.rpc('prospect_counts'),
@@ -86,6 +89,7 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
     'SALES',
     `- Prospect funnel (all scanned offices): ${funnel || 'none yet'}. Engaged by state (replied/consult/proposal/won): ${byState || 'none'}.`,
     `- Calls due on the Call list now: ${due.count ?? 0}.`,
+    `- Objections heard on calls and consultations, last 90 days: ${objections.map((o) => `${o.label} ${o.count}`).join('; ') || 'none recorded yet'}.`,
     `- Inquiries last 30 days: ${I.length} (by status: ${tally(I.map((i) => i.status)) || 'none'}; by campaign: ${tally(I.map((i) => campName(i.campaign_id))) || 'none'}; by source: ${tally(I.map((i) => i.source ?? 'direct')) || 'none'}).`,
     `- Campaigns: ${(camps.data ?? []).map((c) => `${c.name} (${c.channel}, ${c.status}${c.budget_cents ? `, budget ${$(c.budget_cents)}` : ''})`).join('; ') || 'none'}.`,
     `- Genovus line calls, last 30 days (${(lineCalls.data ?? []).length}):`,
@@ -132,6 +136,7 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
     lines.push('', 'FINANCE: not available to this viewer (only an admin or account lead sees money).');
   }
 
+  lines.push('', guideText());
   lines.push('', `WHAT HELIX KNOWS (kept by the team; ${M.length}):`, ...(M.length ? M.map((m) => `- [${m.department}/${m.kind}] ${m.text}`) : ['- nothing kept yet']));
   return { text: lines.join('\n'), memoryIds: M.map((m) => m.id), houseId };
 }

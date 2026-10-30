@@ -82,3 +82,22 @@ export async function pointSiteDomain(f: FormData) {
   revalidatePath('/console/setup');
   back('ok', `${domain} now points at Genovus. SSL is issued automatically once DNS spreads (minutes to an hour).`);
 }
+
+/** The consultation settings (migration 0086 reads the first two when someone books on genovus.io):
+ *  the standing video room, who on the team is invited, and the mailing address that sales follow-up emails carry. */
+export async function saveConsultSettings(f: FormData) {
+  const v = await admin();
+  const video = String(f.get('video') ?? '').trim().slice(0, 300);
+  const team = String(f.get('team') ?? '').split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const address = String(f.get('address') ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (video && !/^https:\/\/[^\s]+$/.test(video)) back('err', 'The video room needs to be a full https:// link.');
+  if (team.length > 6 || team.some((e) => !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(e))) back('err', 'List up to six valid team emails.');
+  if (address && address.length < 10) back('err', 'Enter the full mailing address (street, city, state, ZIP).');
+  const at = new Date().toISOString();
+  const rows = [['consult_video_url', video], ['consult_team_emails', team.join(', ')], ['business_postal_address', address]] as const;
+  const { error } = await adminDb().from('app_settings').upsert(rows.map(([key, value]) => ({ key, value, updated_at: at })));
+  if (error) back('err', error.message);
+  await audit(v, 'settings.consult', 'consultations', { video: Boolean(video), team, address: Boolean(address) });
+  revalidatePath('/console/setup');
+  back('ok', 'Consultation settings saved.');
+}

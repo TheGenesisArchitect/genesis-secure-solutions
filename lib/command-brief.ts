@@ -99,11 +99,23 @@ export async function enterpriseCards(db: SupabaseClient): Promise<BriefCard[]> 
     db.from('studio_posts').select('id', { count: 'exact', head: true }).eq('status', 'draft'),
   ]);
   const cards: BriefCard[] = [];
-  // Consultations that have happened and aren't marked yet: one tap feeds show rate and close rate (/console/growth).
-  const past = await db.from('consult_invites').select('id, label, event:calendar_events!consult_invites_event_id_fkey(starts_at, ends_at, status)').not('booked_at', 'is', null).is('outcome', null).gte('expires_at', new Date(Date.now() - 30 * 86_400_000).toISOString());
+  // Consultations in the next 24 hours: open the consult guide, or have Helix prep you. Ones that have happened and
+  // aren't marked yet: one tap feeds show rate and close rate (/console/growth).
+  const past = await db.from('consult_invites').select('id, label, inquiry:inquiries(details), event:calendar_events!consult_invites_event_id_fkey(starts_at, ends_at, status)').not('booked_at', 'is', null).is('outcome', null).gte('expires_at', new Date(Date.now() - 30 * 86_400_000).toISOString());
   for (const c of (past.data ?? []) as { id: string; label: string; event: { starts_at: string; ends_at: string; status: string } | { starts_at: string; ends_at: string; status: string }[] | null }[]) {
     const ev = Array.isArray(c.event) ? c.event[0] : c.event;
-    if (!ev || ev.status !== 'scheduled' || Date.parse(ev.ends_at) > Date.now()) continue;
+    if (!ev || ev.status !== 'scheduled') continue;
+    if (Date.parse(ev.ends_at) > Date.now()) {
+      if (Date.parse(ev.starts_at) > Date.now() + 86_400_000) continue;
+      const inq = (c as unknown as { inquiry: { details: Record<string, string> | null } | { details: Record<string, string> | null }[] | null }).inquiry;
+      const goal = (Array.isArray(inq) ? inq[0] : inq)?.details?.goals;
+      const at = new Date(ev.starts_at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+      cards.push({ id: `consult-soon:${c.id}`, lane: 'Sales', tone: 'today', title: `Consult with ${c.label.split(',')[0]} ${at}`, why: goal ? `They want: ${String(goal).slice(0, 140)}` : `${c.label} · open the guide before the call`, actions: [
+        { kind: 'link', label: 'Open the guide', href: `/console/consults/${c.id}`, primary: true },
+        { kind: 'helix', label: 'Prep me', question: `Prep me for my consultation with ${c.label}: what to cover, which qualifying questions matter most, and the objection they're likeliest to raise.`, context: `consult ${c.label}, ${at}${goal ? `, wants: ${String(goal).slice(0, 140)}` : ''}` },
+      ] });
+      continue;
+    }
     const body = (outcome: string) => ({ invite: c.id, outcome });
     cards.push({ id: `consult:${c.id}`, lane: 'Sales', tone: 'today', title: `How did the consult with ${c.label.split(',')[0]} go?`, why: `${c.label} · ${new Date(ev.starts_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })}. One tap keeps show and close rates honest.`, actions: [
       { kind: 'record', label: 'They showed', path: '/api/consult-outcome', body: body('showed'), primary: true },

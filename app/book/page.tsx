@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { SiteChrome } from '@/components/SiteChrome';
 import { IntakeForm } from '@/components/IntakeForm';
+import { Proof } from '@/components/site/Proof';
 
 export const metadata = { title: 'Book a consultation', description: 'A 30-minute video call with the Genovus team about your agency. Pick a time that suits you.' };
 
@@ -35,6 +36,7 @@ export default async function BookConsult({ searchParams }: { searchParams: Prom
             ))}
           </ol>
         </div>
+        <Proof compact />
       </main>
     </SiteChrome>
   );

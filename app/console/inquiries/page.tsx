@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ActionForm } from '@/components/ActionForm';
 import { ConsoleShell, Flash } from '@/components/ConsoleShell';
 import { Panel, Chip, Status, Empty, dateTime } from '@/components/ui';
@@ -15,6 +16,9 @@ export default async function Inquiries({ searchParams }: { searchParams: Promis
   const supabase = await db();
   const { data } = await supabase.from('inquiries').select('*').order('created_at', { ascending: false }).limit(200);
   const rows = data ?? [];
+  // Each website booking's consultation (create_public_consult): its time and the page with the consult guide.
+  const { data: cs } = rows.length ? await supabase.from('consult_invites').select('id, inquiry_id, outcome, event:calendar_events!consult_invites_event_id_fkey(starts_at, status)').in('inquiry_id', rows.map((r) => r.id)) : { data: [] };
+  const consultFor = new Map((cs ?? []).map((c) => [c.inquiry_id as string, { id: c.id as string, outcome: c.outcome as string | null, ev: (Array.isArray(c.event) ? c.event[0] : c.event) as { starts_at: string; status: string } | null }]));
   return (
     <ConsoleShell title="Inquiries" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Inquiries' }]}>
       <Flash ok={sp.ok} err={sp.err} />
@@ -33,6 +37,12 @@ export default async function Inquiries({ searchParams }: { searchParams: Promis
             {Object.entries((i.details ?? {}) as Record<string, string>).filter(([, v]) => v).flatMap(([k, v]) => [<dt key={k}>{LABEL[k] ?? k}</dt>, <dd key={k + 'v'}>{String(v)}</dd>])}
             <dt>Consent</dt><dd className="muted" style={{ fontSize: 13 }}>{i.consent_text}</dd>
           </dl>
+          {consultFor.get(i.id) ? (() => { const c = consultFor.get(i.id)!; return (
+            <div className="notice spread" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <span>{c.ev ? `Consultation ${c.ev.status === 'cancelled' ? 'cancelled' : dateTime(c.ev.starts_at)}${c.outcome ? ` · ${c.outcome.replace('_', '-')}` : ''}` : 'Consultation link ready; no time picked yet'}</span>
+              <Link className="btn small primary" href={`/console/consults/${c.id}`}>{c.ev ? 'Open the consult guide' : 'Open'}</Link>
+            </div>
+          ); })() : null}
           <div className="row">
             {i.status !== 'converted' ? (
               <ActionForm action={setInquiryStatus} helix="status" helixTitle="Inquiry status" className="row">

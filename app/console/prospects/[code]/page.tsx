@@ -15,6 +15,7 @@ import { STATUS_LABEL, OUTCOMES, CARRIER_HOSTS, officeClock } from '@/lib/prospe
 import { logProspect, startOnboarding } from '@/lib/scan-actions';
 import { ConsultInviteForm } from '@/components/ConsultInviteForm';
 import { LINES, type LineId } from '@/lib/lines';
+import { OBJECTION_KEYS, OBJECTION_LABEL } from '@/data/consult-guide';
 
 const LINE_CHOICES = (Object.keys(LINES) as LineId[]).map((l) => [l, LINES[l].label] as const);
 
@@ -26,12 +27,13 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
   const supabase = await db();
   const { data: p } = await supabase.from('prospects').select('*, carriers(name, slug, fit_score, fit_reasons)').eq('code', code).maybeSingle();
   if (!p) notFound();
-  const [details, { data: events }, { data: campaigns }, settings, { data: suppressed }] = await Promise.all([
+  const [details, { data: events }, { data: campaigns }, settings, { data: suppressed }, { data: consults }] = await Promise.all([
     getDetails(p.place_id),
     supabase.from('prospect_events').select('*').eq('prospect_id', p.id).order('at', { ascending: false }).limit(50),
     supabase.from('campaigns').select('slug, name, segment, channel').in('status', ['live', 'draft']).order('created_at', { ascending: false }),
     scanSettings(),
     supabase.from('suppression').select('id').eq('place_id', p.place_id).limit(1),
+    supabase.from('consult_invites').select('id, booked_at, outcome, event:calendar_events!consult_invites_event_id_fkey(starts_at)').eq('prospect_id', p.id).order('created_at', { ascending: false }).limit(5),
   ]);
   const { data: client } = p.tenant_id ? await supabase.from('tenants').select('slug').eq('id', p.tenant_id).maybeSingle() : { data: null };
   const carrier = p.carriers as { name: string; slug: string; fit_score: number; fit_reasons: string[] } | null;
@@ -87,6 +89,16 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
           <Panel title="Consultation" sub="Send a link so they pick the time; the invite goes to everyone" helixItem="Consultation">
+            {(consults ?? []).length ? (
+              <ul className="list" style={{ marginBottom: 8 }}>
+                {(consults ?? []).map((c) => { const ev = (Array.isArray(c.event) ? c.event[0] : c.event) as { starts_at: string } | null; return (
+                  <li key={c.id} className="spread" style={{ fontSize: 14 }}>
+                    <span>{ev ? new Date(ev.starts_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET' : 'Link sent, no time picked yet'}{c.outcome ? ` · ${c.outcome.replace('_', '-')}` : ''}</span>
+                    <Link className="btn small" href={`/console/consults/${c.id}`}>{ev ? 'Open the guide' : 'Open'}</Link>
+                  </li>
+                ); })}
+              </ul>
+            ) : null}
             <ConsultInviteForm label={title.startsWith('Office ') ? (p.contact_name ?? '') : `${p.contact_name ? `${p.contact_name}, ` : ''}${title}`} emails={p.contact_email ?? ''} prospectId={p.id} />
           </Panel>
           {p.tenant_id ? (
@@ -143,6 +155,8 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
               </div>
               <label className="field"><span>Set status (optional; the outcome sets it otherwise)</span>
                 <select className="select" name="status" defaultValue=""><option value="">From the outcome</option>{Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+              <label className="field"><span>Objection they raised (optional; the top ones become content)</span>
+                <select className="select" name="objection" defaultValue=""><option value="">None recorded</option>{OBJECTION_KEYS.map((k) => <option key={k} value={k}>{OBJECTION_LABEL[k]}</option>)}</select></label>
               <label className="field"><span>Notes</span><textarea className="textarea" name="note" maxLength={2000} /></label>
               <div className="row" style={{ flexWrap: 'wrap' }}>
                 <label className="field" style={{ flex: '1 1 220px' }}><span>Business name (kept on our records)</span><input className="input" name="known_name" maxLength={160} defaultValue={details?.name || p.known_name || ''} /></label>
@@ -161,7 +175,7 @@ export default async function Prospect({ params }: { params: Promise<{ code: str
             <ul className="list">
               {(events ?? []).map((e) => (
                 <li key={e.id} style={{ fontSize: 13 }}>
-                  <div className="spread"><b>{e.kind}{e.outcome ? ` · ${OUTCOMES.find(([o]) => o === e.outcome)?.[1] ?? e.outcome}` : ''}</b><span className="muted">{new Date(e.at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })}</span></div>
+                  <div className="spread"><b>{e.kind}{e.outcome ? ` · ${OUTCOMES.find(([o]) => o === e.outcome)?.[1] ?? e.outcome}` : ''}{e.objection ? ` · ${OBJECTION_LABEL[e.objection as keyof typeof OBJECTION_LABEL] ?? e.objection}` : ''}</b><span className="muted">{new Date(e.at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })}</span></div>
                   {e.note ? <span className="soft">{e.note}</span> : null}
                 </li>
               ))}

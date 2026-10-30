@@ -5,7 +5,9 @@ import { MercuryPanel } from '@/components/MercuryPanel';
 import { ionosConfigured, type DnsRecord } from '@/lib/ionos';
 import { resendConfigured } from '@/lib/resend-domains';
 import { emailPlan, sitePlan, SITE_DOMAINS, type Plan } from '@/lib/dns-plan';
-import { registerEmailDomain, publishEmailRecords, verifyEmailDomain, pointSiteDomain } from '@/lib/setup-actions';
+import { registerEmailDomain, publishEmailRecords, verifyEmailDomain, pointSiteDomain, saveConsultSettings } from '@/lib/setup-actions';
+import { CONSULT_SETTING_KEYS } from '@/lib/consult';
+import { adminDb } from '@/lib/supabase/admin';
 
 export const metadata = { title: 'Domains, email & billing' };
 export const dynamic = 'force-dynamic';
@@ -60,6 +62,8 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
     }
   }
   const verified = email?.resend?.status === 'verified';
+  const { data: cset } = await adminDb().from('app_settings').select('key, value').in('key', [...CONSULT_SETTING_KEYS]);
+  const setting = (k: string) => cset?.find((r) => r.key === k)?.value ?? '';
   return (
     <ConsoleShell title="Domains & email" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Domains & email' }]}>
       <Flash ok={sp.ok} err={sp.err} />
@@ -74,6 +78,16 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
       {error ? <div className="notice err">{error}</div> : null}
 
       <MercuryPanel />
+
+      <Panel title="Consultations" sub="Used when someone books on genovus.io: the video room on every invite, who on the team is invited, and the mailing address sales follow-ups carry" helixItem="Consultation settings"
+        actions={setting('consult_video_url') ? <Chip kind="done">Video room set</Chip> : <Chip kind="pending">No video room</Chip>}>
+        <form action={saveConsultSettings} className="form">
+          <label className="field"><span>Standing video room (Zoom, Google Meet or Teams link). Empty: invites say the link will follow.</span><input className="input" name="video" type="url" maxLength={300} placeholder="https://meet.google.com/…" defaultValue={setting('consult_video_url')} /></label>
+          <label className="field"><span>Team invited to website bookings (up to six emails). Empty: every admin.</span><input className="input" name="team" maxLength={400} placeholder="you@genovus.io" defaultValue={setting('consult_team_emails')} /></label>
+          <label className="field"><span>Business mailing address (required on sales follow-up emails)</span><input className="input" name="address" maxLength={200} placeholder="Street, City, ST ZIP" defaultValue={setting('business_postal_address')} /></label>
+          <button className="btn primary small" type="submit" style={{ justifySelf: 'start' }}>Save</button>
+        </form>
+      </Panel>
 
       <Panel
         title="Sending email as hello@genovus.io"

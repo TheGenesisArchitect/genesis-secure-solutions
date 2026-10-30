@@ -1,7 +1,7 @@
 // Growth & financials: Genovus as its own client. Revenue from paid invoices and live care plans, spend from
 // the expense ledger (+ the scanner's Google cost), and the KPIs that follow: CAC, payback, margin, MRR.
 import Link from 'next/link';
-import { salesFunnel } from '@/lib/sales-kpis';
+import { salesFunnel, topObjections } from '@/lib/sales-kpis';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { ActionForm } from '@/components/ActionForm';
 import { RevenueChart } from '@/components/RevenueChart';
@@ -42,6 +42,7 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
   const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
   const scanCost = google.reduce((a, s) => a + s.est_cost_cents, 0);
   const converted = (inquiries ?? []).filter((q) => q.status === 'converted').length;
+  const objections = await topObjections(supabase);
   const sf = salesFunnel({ consults: (consults ?? []).map((c) => ({ ...c, ends_at: (Array.isArray(c.event) ? c.event[0] : c.event)?.ends_at ?? null })), inquiries: f.inquiries, newClients: f.newClients, acquisitionCents: f.acquisition, cashCents: f.revenue });
   const owed = receivables(openInv ?? [], tenants ?? []);
   const cashRow = (cash as { cents: number; updated_at: string }[] | null)?.[0] ?? null;
@@ -68,6 +69,13 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
         <Tile label="Close rate" value={pct(sf.closeRate)} hint="New clients ÷ consults that showed" />
         <Tile label="Cost per booked call" value={sf.costPerBooked == null ? '—' : money(sf.costPerBooked)} hint={sf.cashPerLead == null ? 'Acquisition spend ÷ booked consults' : `Cash per inquiry ${money(sf.cashPerLead)}`} />
       </div>
+      <Panel title="What stops people saying yes" sub="Objections recorded on consultations and prospect calls, last 90 days. Turn the top three into posts, emails and ads." helixItem="Top objections">
+        {objections.length ? (
+          <ul className="list">
+            {objections.slice(0, 6).map((o, i) => <li key={o.key} className="spread" style={{ fontSize: 14 }}><span>{i < 3 ? <b>{o.label}</b> : o.label}</span><span className="num">{o.count}</span></li>)}
+          </ul>
+        ) : <p className="muted" style={{ margin: 0 }}>None recorded yet. After each consultation, pick the main objection on its page (or on a prospect’s call log).</p>}
+      </Panel>
       {canMoney ? (
         <div className="grid g4">
           <Tile label="Owed to us" value={money(owed.cents)} hint={owed.count ? `${owed.count} open invoice${owed.count > 1 ? 's' : ''} · oldest ${owed.oldestDays} days` : 'Nothing outstanding'} />

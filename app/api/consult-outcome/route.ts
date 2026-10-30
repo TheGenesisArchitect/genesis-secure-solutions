@@ -1,10 +1,10 @@
-// How a booked consultation went, from the Command Brief card: POST { invite, outcome } (staff only; migration 0088).
+// How a booked consultation went, from the Command Brief card or the consultation page: POST { invite, outcome } (staff only; migration 0088).
 import { getViewer } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-const SAID = { showed: 'Marked as showed.', no_show: 'Marked as a no-show. Follow up from Inquiries.', rescheduled: 'Marked as rescheduled.' } as const;
+const SAID = { showed: 'Marked as showed.', no_show: 'Marked as a no-show.', rescheduled: 'Marked as rescheduled.' } as const;
 
 export async function POST(req: Request) {
   const origin = req.headers.get('origin');

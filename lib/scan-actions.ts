@@ -57,13 +57,15 @@ export async function logProspect(_: ActionResult, f: FormData): Promise<ActionR
   const outcome = str(f, 'outcome', 40);
   const { OUTCOMES } = await import('./prospects');
   const status = str(f, 'status', 20) || OUTCOMES.find(([o]) => o === outcome)?.[2] || null;
-  if (!outcome && !status && !str(f, 'note') && !str(f, 'contact_name') && !str(f, 'contact_email')) return fail('Pick an outcome or add a note.');
+  const objection = str(f, 'objection', 20);
+  if (!outcome && !status && !objection && !str(f, 'note') && !str(f, 'contact_name') && !str(f, 'contact_email')) return fail('Pick an outcome or add a note.');
   const { error } = await (await db()).rpc('log_prospect', {
     p_id: str(f, 'id', 64), p_kind: outcome ? 'call' : 'note', p_outcome: outcome, p_note: str(f, 'note', 2000), p_status: status,
     p_next: /^\d{4}-\d{2}-\d{2}$/.test(next) ? `${next}T14:00:00Z` : null,
     p_contact_name: str(f, 'contact_name', 120) || null, p_contact_email: str(f, 'contact_email', 200) || null, p_contact_phone: str(f, 'contact_phone', 40) || null,
     // The business name and address the team confirmed on the call stay on Genovus's own record (shown when Google is paused).
     p_known_name: str(f, 'known_name', 160) || null, p_known_address: str(f, 'known_address', 240) || null,
+    p_objection: objection || null,
   });
   revalidatePath('/console/prospects', 'layout');
   return error ? fail(error.message) : done('Saved.');

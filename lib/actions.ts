@@ -72,6 +72,13 @@ export async function convertInquiry(_: ActionResult, f: FormData): Promise<Acti
   redirect(`/console/clients/${slug}?ok=${encodeURIComponent('Client created in Consult with a draft record')}`);
 }
 
+/** What came up on a consultation (the objection key from data/consult-guide.ts and a call note; migration 0089). */
+export async function saveConsultNotes(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const r = await call('set_consult_notes', { p_invite: str(f, 'invite', 64), p_objection: str(f, 'objection', 20) || null, p_note: str(f, 'note', 2000) || null }, 'Saved to the consultation.');
+  revalidatePath('/console/consults', 'layout');
+  return r;
+}
+
 export async function saveRecord(_: ActionResult, f: FormData) {
   let data: unknown;
   try {

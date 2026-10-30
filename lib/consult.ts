@@ -26,6 +26,9 @@ export function consultFrom(token: string): string | null {
   return want.length === got.length && timingSafeEqual(want, got) ? id : null;
 }
 
+/** The consultation settings an admin sets in Setup (app_settings; lib/setup-actions.ts saveConsultSettings). */
+export const CONSULT_SETTING_KEYS = ['consult_video_url', 'consult_team_emails', 'business_postal_address'] as const;
+
 export type Invite = { id: string; label: string; minutes: number; emails: string[]; expired: boolean; bookedAt: string | null; eventStart: string | null; houseId: string; firstCall: boolean; carrier: boolean };
 export async function inviteFor(token: string): Promise<Invite | null> {
   const id = consultFrom(token);
