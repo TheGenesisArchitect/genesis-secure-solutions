@@ -29,6 +29,12 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
   const { data: house } = await db.from('tenants').select('id').eq('slug', HOUSE_SLUG).maybeSingle();
   const houseId = (house?.id as string | undefined) ?? null;
 
+  // Consultations booked in the next week, with what each person said they want from the call (Scale Up: prepare for their #1 goal).
+  const consults = await db.from('consult_invites').select('label, minutes, event:calendar_events!consult_invites_event_id_fkey(starts_at, status), inquiry:inquiries(details)').not('booked_at', 'is', null).gte('expires_at', new Date(Date.now() - 14 * 86_400_000).toISOString());
+  const soon = ((consults.data ?? []) as { label: string; event: { starts_at: string; status: string } | { starts_at: string; status: string }[] | null; inquiry: { details: Record<string, string> | null } | { details: Record<string, string> | null }[] | null }[])
+    .map((c) => ({ ...c, ev: Array.isArray(c.event) ? c.event[0] : c.event, inq: Array.isArray(c.inquiry) ? c.inquiry[0] : c.inquiry }))
+    .filter((c) => c.ev?.status === 'scheduled' && Date.parse(c.ev.starts_at) > Date.now() && Date.parse(c.ev.starts_at) < Date.now() + 7 * 86_400_000)
+    .sort((x, y) => Date.parse(x.ev!.starts_at) - Date.parse(y.ev!.starts_at));
   const inPlay = await db.from('prospects').select('code, status, state, contact_name, known_name, next_action_at, carriers(name)').in('status', ['contacting', 'replied', 'consult', 'proposal']).order('next_action_at', { ascending: true, nullsFirst: false }).limit(12);
   const [counts, due, inq, camps, tenants, gates, appr, care, grants, leads, studioSpent, studioBudget, episodes, places, radar, memory, lineCalls, snapshots] = await Promise.all([
     db.rpc('prospect_counts'),
@@ -87,6 +93,7 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
     '',
     'PIPELINE',
     `- Waiting on (each client in setup and what it's blocked on): ${[...(await blockersFor(db)).values()].filter((b) => b.items.length).map((b) => `${name(b.tenantId)} (${b.stage}): ${b.items.join('; ')}`).join(' | ') || 'nothing blocked'}.`,
+    `- Consultations booked, next 7 days: ${soon.map((c) => `${c.label} on ${new Date(c.ev!.starts_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET${c.inq?.details?.goals ? ` (wants: ${String(c.inq.details.goals).slice(0, 140)})` : ''}`).join('; ') || 'none'}.`,
     `- Prospects in play (saved names; look one up with prospect_card for live details): ${((inPlay.data ?? []) as { code: string; status: string; state: string | null; contact_name: string | null; known_name: string | null; next_action_at: string | null; carriers: { name?: string } | null }[]).map((p) => `${p.known_name ?? `office ${p.code}`}${p.contact_name ? ` (contact ${p.contact_name})` : ''} ${p.carriers?.name ?? 'independent'} ${p.state ?? ''} ${p.status}${p.next_action_at ? ` next ${p.next_action_at.slice(0, 10)}` : ''}`).join('; ') || 'none'}.`,
     `- Real clients by stage: ${tally(real.map((t) => t.stage)) || 'none'}.`,
     `- Stuck more than 14 days in a setup stage: ${stuck.map((t) => `${t.name} (${t.stage}, ${days(t.stage_since)} days)`).join('; ') || 'none'}.`,

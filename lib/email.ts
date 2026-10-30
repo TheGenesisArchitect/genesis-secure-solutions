@@ -147,6 +147,47 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         }, origin),
         ...(data.from_email ? { replyTo: data.from_email } : {}),
       };
+    // A consultation booked on genovus.io: the confirmation (a diagnostic, not a pitch), then reminders a day and an
+    // hour before (lib/consult-reminders.ts). The calendar invite itself is meeting_invite.
+    case 'consult_confirm':
+    case 'consult_reminder': {
+      const link = /^https?:\/\//.test(data.place ?? '') ? data.place : '';
+      const join = link ? { label: 'Join the call', url: link } : undefined;
+      if (template === 'consult_confirm')
+        return {
+          to,
+          subject: `You’re booked: ${data.when} (Eastern)`,
+          ...frame({
+            preheader: 'What to expect on our call, and one question for you.',
+            heading: `You’re booked, ${data.first}`,
+            body: [
+              `Our ${data.minutes}-minute call is ${data.when} (Eastern). The calendar invite is in a separate email${link ? ', and the video link is below' : ''}.`,
+              'This isn’t a sales pitch. We’ll look at where your office is today, where you want it to be, and what Genovus would set up to close that gap: your website, your profiles and how leads reach you.',
+              'One favor: reply with the #1 thing you want from this call, so we come prepared.',
+              `Want a head start? The 78-second Genovus film shows the platform with a real agency’s screens: ${origin}/film`,
+            ],
+            button: join,
+            foot: 'Need a different time? Reply to this email or to the calendar invite.',
+          }, origin),
+          replyTo: data.reply_to || undefined,
+        };
+      const soon = data.lead === '1h';
+      return {
+        to,
+        subject: soon ? `In an hour: your Genovus consultation` : `Tomorrow: your Genovus consultation at ${data.time}`,
+        ...frame({
+          preheader: soon ? `${data.when} (Eastern)` : 'A quick reminder, with the link.',
+          heading: soon ? 'See you in an hour' : 'See you tomorrow',
+          body: [
+            `${data.when} (Eastern), ${data.minutes} minutes on video.${link ? '' : ' The video link is on your calendar invite.'}`,
+            soon ? 'Bring one thing: the result you most want from your marketing this year.' : 'We’ll cover where your office is today, what’s getting in the way, and what we’d set up. Come with questions.',
+          ],
+          button: join,
+          foot: 'Can’t make it? Reply to this email and we’ll find another time.',
+        }, origin),
+        replyTo: data.reply_to || undefined,
+      };
+    }
     case 'monthly_report':
       return {
         to,

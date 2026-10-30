@@ -11,7 +11,9 @@ export type BriefAction =
   | { kind: 'tel'; label: string; href: string; primary?: boolean; done?: boolean }
   | { kind: 'link'; label: string; href: string; primary?: boolean }
   | { kind: 'helix'; label: string; question: string; context?: string; primary?: boolean }
-  | { kind: 'act'; label: string; action: 'mark_lead'; args: Record<string, string>; primary?: boolean };
+  | { kind: 'act'; label: string; action: 'mark_lead'; args: Record<string, string>; primary?: boolean }
+  // Records something internal with one tap (no confirm card): POST body to path; the card checks off.
+  | { kind: 'record'; label: string; path: string; body: Record<string, string>; primary?: boolean };
 export type BriefCard = { id: string; lane: string; tone: 'urgent' | 'today' | 'idea'; title: string; why: string; actions: BriefAction[] };
 
 const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -97,6 +99,18 @@ export async function enterpriseCards(db: SupabaseClient): Promise<BriefCard[]> 
     db.from('studio_posts').select('id', { count: 'exact', head: true }).eq('status', 'draft'),
   ]);
   const cards: BriefCard[] = [];
+  // Consultations that have happened and aren't marked yet: one tap feeds show rate and close rate (/console/growth).
+  const past = await db.from('consult_invites').select('id, label, event:calendar_events!consult_invites_event_id_fkey(starts_at, ends_at, status)').not('booked_at', 'is', null).is('outcome', null).gte('expires_at', new Date(Date.now() - 30 * 86_400_000).toISOString());
+  for (const c of (past.data ?? []) as { id: string; label: string; event: { starts_at: string; ends_at: string; status: string } | { starts_at: string; ends_at: string; status: string }[] | null }[]) {
+    const ev = Array.isArray(c.event) ? c.event[0] : c.event;
+    if (!ev || ev.status !== 'scheduled' || Date.parse(ev.ends_at) > Date.now()) continue;
+    const body = (outcome: string) => ({ invite: c.id, outcome });
+    cards.push({ id: `consult:${c.id}`, lane: 'Sales', tone: 'today', title: `How did the consult with ${c.label.split(',')[0]} go?`, why: `${c.label} · ${new Date(ev.starts_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })}. One tap keeps show and close rates honest.`, actions: [
+      { kind: 'record', label: 'They showed', path: '/api/consult-outcome', body: body('showed'), primary: true },
+      { kind: 'record', label: 'No-show', path: '/api/consult-outcome', body: body('no_show') },
+      { kind: 'record', label: 'Rescheduled', path: '/api/consult-outcome', body: body('rescheduled') },
+    ] });
+  }
   for (const q of inq.data ?? []) {
     const who = q.org || q.name || 'a new inquiry';
     cards.push({ id: `inquiry:${q.id}`, lane: 'Sales', tone: 'urgent', title: `Reply to ${who}`, why: `${q.kind === 'carrier' ? 'Carrier' : 'Agency'} inquiry · ${ago(q.created_at)}`, actions: [

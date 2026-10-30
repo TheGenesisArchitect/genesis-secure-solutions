@@ -4,6 +4,7 @@ import { Panel, Tile, Chip, Status, Empty, Bar, STAGES, STAGE_LABEL, money, date
 import { db } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/session';
 import { CommandBrief } from '@/components/CommandBrief';
+import { LeadAlerts } from '@/components/LeadAlerts';
 import { enterpriseCards } from '@/lib/command-brief';
 import { canSeeMoney, cfoLine } from '@/lib/helix-enterprise';
 import { businessToday } from '@/lib/billing';
@@ -58,6 +59,7 @@ export default async function ConsoleHome({ searchParams }: { searchParams: Prom
       }
     >
       <Flash ok={sp.ok} err={sp.err} />
+      <LeadAlerts compact team />
       <CommandBrief surface="enterprise" initial={(cached?.body as { answer: string } | undefined) ?? null} money={cfo} cards={await enterpriseCards(supabase)} sources="From sales, pipeline, clients, Studio and spend" />
       {samples ? <div className="notice sample">Sample clients are included. Their numbers are illustrative and marked Sample.</div> : null}
       <div className="grid g4">

@@ -32,6 +32,13 @@ export async function emailPlan(domain: string): Promise<{ plan: Plan; resend: R
     if (match) plan.ok.push(match);
     else plan.add.push(want);
   }
+  // DMARC on the sending domain's organisational domain (Scale Up workbook: DKIM, then DMARC starting at "none" to
+  // monitor). Any existing DMARC policy is left as it is.
+  const org = domain.split('.').slice(-2).join('.');
+  const dmarcName = `_dmarc.${org}`;
+  const dmarc = (org === zone.name ? have : await records((await zoneFor(org))?.id ?? zone.id)).find((h) => h.name === dmarcName && h.type === 'TXT' && /v=DMARC1/i.test(h.content));
+  if (dmarc) plan.ok.push(dmarc);
+  else plan.add.push({ name: dmarcName, type: 'TXT', content: 'v=DMARC1; p=none' });
   return { plan, resend };
 }
 

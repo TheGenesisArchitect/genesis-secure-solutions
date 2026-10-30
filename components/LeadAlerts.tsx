@@ -8,7 +8,8 @@ const KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
 const bytes = (b64: string) => { const s = atob((b64 + '='.repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
 const device = () => { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android phone' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows PC' : 'This device'; };
 
-export function LeadAlerts({ compact }: { compact?: boolean }) {
+/** `team`: the Genovus console version: new inquiries and website bookings for Genovus itself. */
+export function LeadAlerts({ compact, team }: { compact?: boolean; team?: boolean }) {
   const [state, setState] = useState<State>('loading');
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -44,9 +45,10 @@ export function LeadAlerts({ compact }: { compact?: boolean }) {
   if (state === 'loading' || state === 'unsupported') return null;
   return (
     <div className={'lead-alerts' + (compact ? ' compact' : '')} data-tour="lead-alerts">
-      {state === 'on' ? <span><b>New-lead alerts are on</b> for this {device().toLowerCase()}. Tap an alert to call.</span>
+      {state === 'on' ? <span><b>{team ? 'Inquiry alerts are on' : 'New-lead alerts are on'}</b> for this {device().toLowerCase()}. {team ? 'Tap one to reply.' : 'Tap an alert to call.'}</span>
         : state === 'install' ? <span><b>Get new-lead alerts on this iPhone:</b> tap Share, then <b>Add to Home Screen</b>, and open Genovus from there.</span>
         : state === 'blocked' ? <span><b>Alerts are blocked</b> for genovus.io in this browser’s settings. Allow notifications there to turn them on.</span>
+        : team ? <span><b>Know the moment an agency reaches out.</b> New inquiries and website bookings on this device, so you reply in minutes.</span>
         : <span><b>Know the moment a lead comes in.</b> An alert on this device; tap it to call while it’s fresh.</span>}
       {state === 'off' || state === 'busy' ? <button className="btn small primary" type="button" disabled={state === 'busy'} onClick={turnOn}>Alert me on this device</button> : null}
       {state === 'on' ? <button className="btn small ghost" type="button" onClick={turnOff}>Turn off</button> : null}

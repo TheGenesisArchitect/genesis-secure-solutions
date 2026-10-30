@@ -50,7 +50,13 @@ export async function sendLeadPush(db: SupabaseClient, tenantId: string, d: Reco
 }
 
 /** The templates the outbox run sends as push alerts (to_email 'push'), not as email. */
-export const PUSH_TEMPLATES = ['lead_push', 'post_push'];
+export const PUSH_TEMPLATES = ['lead_push', 'post_push', 'team_push'];
+
+/** Genovus's own leads (a new inquiry, a consultation booked on genovus.io): to the team's devices. */
+export async function sendTeamPush(db: SupabaseClient, d: Record<string, string>) {
+  const { data: team } = await db.from('staff').select('user_id').in('role', ['admin', 'account_lead']);
+  return pushTo(db, (team ?? []).map((t) => t.user_id), { title: d.title, body: d.body, url: d.url || '/console', tag: d.tag });
+}
 
 /** A post went live: to every subscribed device of the agency's members; tap to see it on the dashboard. */
 export async function sendPostPush(db: SupabaseClient, tenantId: string, d: Record<string, string>) {

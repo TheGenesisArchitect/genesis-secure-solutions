@@ -1,6 +1,7 @@
 // Growth & financials: Genovus as its own client. Revenue from paid invoices and live care plans, spend from
 // the expense ledger (+ the scanner's Google cost), and the KPIs that follow: CAC, payback, margin, MRR.
 import Link from 'next/link';
+import { salesFunnel } from '@/lib/sales-kpis';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { ActionForm } from '@/components/ActionForm';
 import { RevenueChart } from '@/components/RevenueChart';
@@ -25,7 +26,7 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
   const since = window[0] + '-01';
   const supabase = await db();
   const canMoney = v.staff.role === 'admin' || v.staff.role === 'account_lead';
-  const [{ data: invoices }, { data: tenants }, { data: expenses }, { data: scans }, { data: inquiries }, { data: campaigns }, { data: openInv }, { data: cash }] = await Promise.all([
+  const [{ data: invoices }, { data: tenants }, { data: expenses }, { data: scans }, { data: inquiries }, { data: campaigns }, { data: openInv }, { data: cash }, { data: consults }] = await Promise.all([
     supabase.from('invoices').select('tenant_id, kind, amount_cents, status, paid_at').eq('status', 'paid'),
     supabase.from('tenants').select('id, kind, is_sample, care_active, care_rate_cents'),
     supabase.from('expenses').select('id, spent_on, category, vendor, amount_cents, recurring, note, campaign_id').gte('spent_on', since).order('spent_on', { ascending: false }),
@@ -34,12 +35,14 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
     supabase.from('campaigns').select('id, name').order('created_at', { ascending: false }),
     supabase.from('invoices').select('tenant_id, amount_cents, created_at').eq('status', 'open'),
     canMoney ? supabase.rpc('cash_on_hand') : Promise.resolve({ data: null }),
+    supabase.from('consult_invites').select('booked_at, outcome, inquiry_id, event:calendar_events!consult_invites_event_id_fkey(ends_at)').gte('booked_at', since),
   ]);
   const google = (scans ?? []).map((u) => ({ started_at: u.day, est_cost_cents: Math.round(Number(u.cost_cents)) }));
   const f = finance({ invoices: invoices ?? [], tenants: tenants ?? [], expenses: expenses ?? [], scans: google, inquiries: inquiries ?? [], window });
   const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
   const scanCost = google.reduce((a, s) => a + s.est_cost_cents, 0);
   const converted = (inquiries ?? []).filter((q) => q.status === 'converted').length;
+  const sf = salesFunnel({ consults: (consults ?? []).map((c) => ({ ...c, ends_at: (Array.isArray(c.event) ? c.event[0] : c.event)?.ends_at ?? null })), inquiries: f.inquiries, newClients: f.newClients, acquisitionCents: f.acquisition, cashCents: f.revenue });
   const owed = receivables(openInv ?? [], tenants ?? []);
   const cashRow = (cash as { cents: number; updated_at: string }[] | null)?.[0] ?? null;
   const run = runway(cashRow ? Number(cashRow.cents) : null, f.series);
@@ -58,6 +61,12 @@ export default async function Growth({ searchParams }: { searchParams: Promise<{
         <Tile label="CAC" value={f.cac == null ? '—' : money(f.cac)} hint="Acquisition spend ÷ new clients" />
         <Tile label="Payback" value={f.payback == null ? '—' : f.payback === 0 ? 'At setup' : `${f.payback.toFixed(1)} mo`} hint={f.avgSetup != null ? `Avg setup ${money(f.avgSetup)}; then care` : 'Months of care to repay CAC'} />
         <Tile label="Cost per inquiry" value={f.costPerInquiry == null ? '—' : money(f.costPerInquiry)} hint={`${f.inquiries} inquiries · ${converted} converted`} />
+      </div>
+      <div className="grid g4" data-helix-item="Sales funnel">
+        <Tile label="Booked consults" value={<span className="num">{sf.booked}</span>} hint={`${pct(sf.bookRate)} of inquiries booked${sf.unmarked > 0 ? ` · ${sf.unmarked} not marked yet` : ''}`} />
+        <Tile label="Show rate" value={pct(sf.showRate)} hint={`${sf.shown} showed · ${sf.noShow} no-show`} />
+        <Tile label="Close rate" value={pct(sf.closeRate)} hint="New clients ÷ consults that showed" />
+        <Tile label="Cost per booked call" value={sf.costPerBooked == null ? '—' : money(sf.costPerBooked)} hint={sf.cashPerLead == null ? 'Acquisition spend ÷ booked consults' : `Cash per inquiry ${money(sf.cashPerLead)}`} />
       </div>
       {canMoney ? (
         <div className="grid g4">

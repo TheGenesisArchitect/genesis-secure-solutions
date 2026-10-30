@@ -1,11 +1,13 @@
 // Every minute: send due outbox emails. Rows are claimed before sending so two runs never send twice;
 // failures retry with backoff and give up after five attempts. Each send is recorded in the audit log.
-// Push alerts (templates lead_push, post_push) go out the same way, to the agency members' devices, even where email isn't set up.
+// Push alerts (lead_push, post_push to the agency members' devices; team_push to the Genovus team's) go out the same
+// way, even where email isn't set up.
 import { adminDb } from '@/lib/supabase/admin';
 import { emailConfigured, outboxEmail, sendEmail } from '@/lib/email';
 import { cronAuthorized, siteOrigin } from '@/lib/cron';
-import { PUSH_TEMPLATES, pushConfigured, sendLeadPush, sendPostPush } from '@/lib/push';
+import { PUSH_TEMPLATES, pushConfigured, sendLeadPush, sendPostPush, sendTeamPush } from '@/lib/push';
 import { sendChecklistLinks } from '@/lib/client-checklist';
+import { queueConsultReminders } from '@/lib/consult-reminders';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -17,6 +19,8 @@ export async function GET(req: Request) {
   const db = adminDb();
   // Clients whose deposit is paid get their setup checklist link (queued here, sent below with everything else).
   if (email) await sendChecklistLinks(siteOrigin()).catch((e) => console.error(`[checklist] ${e instanceof Error ? e.message : e}`));
+  // Consultation reminders a day and an hour before (lib/consult-reminders.ts), queued here and sent below.
+  if (email) await queueConsultReminders(db).catch((e) => console.error(`[consult-reminders] ${e instanceof Error ? e.message : e}`));
   let q = db.from('outbox').select('id').eq('status', 'pending').lte('send_after', new Date().toISOString());
   if (!email) q = q.in('template', PUSH_TEMPLATES);
   if (!push) q = q.not('template', 'in', `(${PUSH_TEMPLATES.join(',')})`);
@@ -28,7 +32,8 @@ export async function GET(req: Request) {
   let sent = 0, failed = 0;
   for (const row of claimed ?? []) {
     if (PUSH_TEMPLATES.includes(row.template)) {
-      const p = row.template === 'post_push' ? await sendPostPush(db, row.tenant_id, row.data as Record<string, string>) : await sendLeadPush(db, row.tenant_id, row.data as Record<string, string>);
+      const d = row.data as Record<string, string>;
+      const p = row.template === 'post_push' ? await sendPostPush(db, row.tenant_id, d) : row.template === 'team_push' ? await sendTeamPush(db, d) : await sendLeadPush(db, row.tenant_id, d);
       await db.from('outbox').update({ status: p.sent ? 'sent' : 'skipped', attempts: row.attempts + 1, sent_at: new Date().toISOString(), last_error: p.sent ? null : `no device took it (${p.gone} gone, ${p.failed} failed)` }).eq('id', row.id);
       if (p.sent) await db.from('audit_events').insert({ tenant_id: row.tenant_id, actor: null, actor_label: 'outbox', action: 'push.sent', subject: row.template, after: { devices: p.sent, outbox: row.id }, prev_hash: '', hash: '' });
       sent += p.sent ? 1 : 0;

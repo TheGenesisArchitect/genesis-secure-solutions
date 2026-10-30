@@ -31,10 +31,12 @@ const CARRIER: Field[] = [
 ];
 
 /** `short`: the booking form on /book: just who you are; the rest comes up on the call. */
-const SHORT = ['name', 'org', 'email', 'phone', 'carrier'];
+const SHORT = ['name', 'org', 'email', 'phone', 'carrier', 'goals'];
+// On /book the open question is about the call itself (Scale Up: ask their #1 goal before the call). Optional.
+const SHORT_GOAL: Field = { name: 'goals', label: 'What’s the #1 thing you want from this call? (optional)', type: 'textarea', placeholder: 'More quote requests, a better website, help with Google, getting started as a new agency…' };
 
 export function IntakeForm({ kind, defaults, back, short }: { kind: 'agency' | 'carrier'; defaults?: Record<string, string>; back?: string; short?: boolean }) {
-  const fields = kind === 'agency' ? (short ? AGENCY.filter((f) => SHORT.includes(f.name)) : AGENCY) : CARRIER;
+  const fields = kind === 'agency' ? (short ? AGENCY.filter((f) => SHORT.includes(f.name)).map((f) => (f.name === 'goals' ? SHORT_GOAL : f)) : AGENCY) : CARRIER;
   return (
     <form action={submitInquiry} className="form-card">
       <input type="hidden" name="kind" value={kind} />

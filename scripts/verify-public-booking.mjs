@@ -67,7 +67,7 @@ try {
 
   // 2. /book on a phone
   await go('/book');
-  check(await ev(`document.querySelectorAll('form.form-card input:not([type=hidden]):not([type=checkbox]):not([name=website])').length`) === 5, 'the booking form asks five things (name, agency, email, phone, carrier)');
+  check(await ev(`document.querySelectorAll('form.form-card input:not([type=hidden]):not([type=checkbox]):not([name=website])').length`) === 5 && await ev(`!!document.querySelector('form.form-card textarea[name=goals]')`), 'the booking form asks five things plus one optional question about the call');
   check(!(await ev('document.documentElement.scrollWidth > innerWidth')), '/book fits a phone');
   await shot('book-form', true);
   const email = `dana@${DOMAIN}`;

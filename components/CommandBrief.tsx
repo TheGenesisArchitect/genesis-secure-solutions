@@ -53,6 +53,12 @@ export function CommandBrief({ surface, slug, tenantId, initial, cards, pulse, m
     if (a.kind === 'tel') { window.location.href = a.href; markDone(card.id); return; }
     if (a.kind === 'link') { void goViaMenu(a.href, () => router.push(a.href)); return; }
     if (a.kind === 'helix') { helixAsk({ question: a.question, context: a.context ?? card.title }); return; }
+    if (a.kind === 'record') {
+      const r = await fetch(a.path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(a.body) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'Couldn’t reach Genovus.' }));
+      toast(r.ok ? { ok: r.message ?? 'Saved.' } : { err: r.error ?? 'Couldn’t save that.' });
+      if (r.ok) { markDone(card.id); router.refresh(); }
+      return;
+    }
     if (a.kind === 'act' && act) { window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'open' } })); const p = await act.propose(a.action, a.args); if (!p.ok) toast({ err: p.error }); }
   };
   const addSuggested = async (i: number, id: string) => {
