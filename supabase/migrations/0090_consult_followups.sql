@@ -92,7 +92,7 @@ revoke all on function send_consult_followup(uuid, text, text, text, jsonb) from
 grant execute on function send_consult_followup(uuid, text, text, text, jsonb) to authenticated;
 
 -- Stop: the team's button (staff) or the person's own link (the server, after checking the signed link). Asking to
--- stop also puts their address on the suppression list, so no Genovus outreach reaches them again.
+-- stop also puts their address on the suppression list (checked by these follow-ups and the scanner's outreach).
 create or replace function stop_consult_followups(p_invite uuid, p_reason text)
 returns void language plpgsql security definer set search_path = public as $$
 declare ci consult_invites; a text; theirs boolean := coalesce(auth.role(), '') = 'service_role';

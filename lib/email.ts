@@ -39,7 +39,7 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** One branded frame for every email: mark, heading, body, an optional button and code, and a quiet footer. */
-function frame(o: { preheader: string; heading: string; body: string[]; button?: { label: string; url: string }; code?: string; foot?: string }, origin: string) {
+function frame(o: { preheader: string; heading: string; body: string[]; button?: { label: string; url: string }; code?: string; foot?: string; footLink?: { label: string; url: string } }, origin: string) {
   const btn = o.button
     ? `<tr><td style="padding:8px 0 4px"><a href="${esc(o.button.url)}" style="display:inline-block;background:#ff6a2b;background-image:linear-gradient(90deg,#ff5a20,#ffa31a);color:#160803;font:700 15px/1 Arial,sans-serif;text-decoration:none;padding:14px 22px;border-radius:999px">${esc(o.button.label)}</a></td></tr>`
     : '';
@@ -55,9 +55,9 @@ function frame(o: { preheader: string; heading: string; body: string[]; button?:
 <tr><td style="font:800 22px/1.25 Arial,sans-serif;color:#121419;padding-bottom:10px">${esc(o.heading)}</td></tr>
 ${o.body.map((p) => `<tr><td style="font:15px/1.55 Arial,sans-serif;color:#3a3e47;padding-bottom:10px">${esc(p)}</td></tr>`).join('')}
 ${btn}${code}
-<tr><td style="font:12px/1.5 Arial,sans-serif;color:#8b909a;padding-top:20px;border-top:1px solid #eee">${esc(o.foot ?? 'Genovus, a Genesis Secure Solutions brand. Reply to this email to reach a person on our team.')}</td></tr>
+<tr><td style="font:12px/1.5 Arial,sans-serif;color:#8b909a;padding-top:20px;border-top:1px solid #eee">${esc(o.foot ?? 'Genovus, a Genesis Secure Solutions brand. Reply to this email to reach a person on our team.')}${o.footLink ? ` <a href="${esc(o.footLink.url)}" style="color:#8b909a;text-decoration:underline">${esc(o.footLink.label)}</a>` : ''}</td></tr>
 </table></td></tr></table></body></html>`;
-  const text = [o.heading, '', ...o.body, ...(o.button ? ['', `${o.button.label}: ${o.button.url}`] : []), ...(o.code ? ['', `Code: ${o.code}`] : []), '', o.foot ?? 'Genovus, a Genesis Secure Solutions brand.'].join('\n');
+  const text = [o.heading, '', ...o.body, ...(o.button ? ['', `${o.button.label}: ${o.button.url}`] : []), ...(o.code ? ['', `Code: ${o.code}`] : []), '', o.foot ?? 'Genovus, a Genesis Secure Solutions brand.', ...(o.footLink ? [`${o.footLink.label}: ${o.footLink.url}`] : [])].join('\n');
   return { html, text };
 }
 
@@ -202,7 +202,8 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           heading: data.subject,
           body: paras,
           button: btn,
-          foot: `Genovus, a Genesis Secure Solutions brand · ${data.address}. Reply to reach a person on our team. Don’t want these follow-ups? Stop them here: ${data.stop_url}`,
+          foot: `Genovus, a Genesis Secure Solutions brand · ${data.address}. Reply to reach a person on our team. Don’t want these follow-ups?`,
+          footLink: { label: 'Stop them here', url: data.stop_url },
         }, origin),
         replyTo: data.reply_to || undefined,
         ...(data.unsubscribe_url ? { headers: { 'List-Unsubscribe': `<${data.unsubscribe_url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),

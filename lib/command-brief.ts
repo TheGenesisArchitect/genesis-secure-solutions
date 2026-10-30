@@ -125,7 +125,7 @@ export async function enterpriseCards(db: SupabaseClient): Promise<BriefCard[]> 
     ] });
   }
   // Follow-ups due after a first consultation (migration 0090): a person reads the draft and sends it on the page.
-  const marked = await db.from('consult_invites').select('id').in('outcome', ['showed', 'no_show']).is('followups_stopped_at', null).or('inquiry_id.not.is.null,prospect_id.not.is.null').gte('booked_at', new Date(Date.now() - 45 * 86_400_000).toISOString()).limit(20);
+  const marked = await db.from('consult_invites').select('id').in('outcome', ['showed', 'no_show']).is('followups_stopped_at', null).not('inquiry_id', 'is', null).gte('booked_at', new Date(Date.now() - 45 * 86_400_000).toISOString()).limit(20);
   for (const m of marked.data ?? []) {
     const s = await followupState(db, m.id as string);
     if (!s?.next?.due || s.blocked) continue;

@@ -38,6 +38,7 @@ check(drafts.length === 7 && !/guarantee/i.test(words) && copyWarnings(words).le
 check(drafts.find((x) => x.s === 's1').d.body.includes('“More Google reviews”') && drafts.filter((x) => x.s.startsWith('n')).every((x) => x.d.button?.url), 'day 1 names their #1 goal; every no-show step carries a pick-a-time button');
 const mail = outboxEmail('consult_followup', 'sam@x.example', { subject: 'Thanks for the call, Sam', body: 'Para one.\n\nPara two.', address: '100 Verify St, Columbus, GA 31909', stop_url: 'https://genovus.io/followups/stop/t', unsubscribe_url: 'https://genovus.io/api/followups/stop/t', reply_to: 'me@genovus.io', button_label: 'Pick a new time', button_url: 'https://genovus.io/book/x' }, 'https://genovus.io');
 check(mail.subject === 'Thanks for the call, Sam' && /100 Verify St/.test(mail.text) && /followups\/stop\/t/.test(mail.text) && /Para two\./.test(mail.html) && /Pick a new time/.test(mail.html) && mail.replyTo === 'me@genovus.io', 'the email carries the message, the button, our mailing address and a stop link; replies go to the sender');
+check(mail.html.includes('<a href="https://genovus.io/followups/stop/t"'), 'the stop link is a real link in the footer');
 check(mail.headers?.['List-Unsubscribe'] === '<https://genovus.io/api/followups/stop/t>' && mail.headers?.['List-Unsubscribe-Post'] === 'List-Unsubscribe=One-Click', 'and one-click unsubscribe headers');
 
 const house = must(await db.from('tenants').select('id').eq('slug', 'genovus').single(), 'house');
@@ -154,6 +155,22 @@ try {
   await db.from('inquiries').update({ tenant_id: anyTenant.id }).eq('id', uma.inq);
   check(/client now|deposit is paid/.test(await block(uma.ci) ?? ''), 'becoming a client (or paying the deposit) stops it');
   await db.from('inquiries').update({ tenant_id: null }).eq('id', uma.inq);
+  // a prospect-only consultation (a link the team sent) never gets a sales follow-up
+  const pr = (await db.from('prospects').select('id').is('tenant_id', null).limit(1).maybeSingle()).data;
+  if (pr) {
+    const end = new Date(Date.now() - 26 * H);
+    const pev = must(await db.from('calendar_events').insert({ tenant_id: house.id, title: 'Genovus consultation: Pia', starts_at: new Date(+end - 30 * 60_000).toISOString(), ends_at: end.toISOString(), attendees: [`pia@${DOMAIN}`], host: 'genovus', status: 'scheduled' }).select('id').single(), 'pev'); made.events.push(pev.id);
+    const pci = must(await db.from('consult_invites').insert({ tenant_id: house.id, label: 'Pia Verify, Pia Verify Agency', emails: [`pia@${DOMAIN}`], minutes: 30, event_id: pev.id, prospect_id: pr.id, booked_at: new Date(+end - 3 * 24 * H).toISOString(), outcome: 'no_show' }).select('id').single(), 'pci'); made.invites.push(pci.id);
+    check(/booked on genovus.io/.test(await block(pci.id) ?? ''), 'a consultation the team sent to a prospect never gets a sales follow-up');
+  }
+  // a marked consultation whose calendar event was deleted doesn't break the Overview or its page
+  const gus = await seed('Gus', 26 * H, 'showed', '');
+  await db.from('calendar_events').delete().eq('id', made.events.at(-1));
+  await go('/console');
+  const overviewOk = await waitFor(async () => /Done today/i.test(await text()), 30000);
+  check(overviewOk && !(await ev('[...document.querySelectorAll("nextjs-portal")].some((n) => /Runtime Error|Unhandled/.test(n.shadowRoot?.textContent ?? ""))')) && !/Follow up with (Pia|Gus)/.test(await text()), 'with a deleted event, the Overview still renders, and neither prospect nor event-less consults get a card');
+  await go(`/console/consults/${gus.ci}`);
+  check(/How did it go|The call/.test(await text()) && !/Runtime Error/.test(await text()), 'and its consult page still opens');
 } finally {
   ws.close(); chrome.kill();
   try { execSync(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${PORT} ^| findstr LISTENING') do taskkill /F /T /PID %a`, { shell: 'cmd.exe', stdio: 'ignore' }); } catch {}

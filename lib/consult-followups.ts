@@ -30,11 +30,12 @@ export async function followupState(db: SupabaseClient, invite: string): Promise
   const ends = one(c.event as One<{ ends_at: string }>)?.ends_at;
   const inq = one(c.inquiry as One<{ org: string; details: Record<string, string> | null }>);
   const pr = one(c.prospect as One<{ known_name: string | null }>);
-  const steps = stepsFor(c.outcome).map((s) => {
+  // No event (deleted; event_id is set null): nothing is scheduled, so there's nothing to follow up on.
+  const steps = (ends ? stepsFor(c.outcome) : []).map((s) => {
     const done = (sent ?? []).find((x) => x.step === s.step);
-    return { step: s.step, label: s.label, dueAt: new Date(Date.parse(ends ?? '') + s.day * DAY).toISOString(), sent: done ? { at: done.sent_at as string, subject: done.subject as string } : null };
+    return { step: s.step, label: s.label, dueAt: new Date(Date.parse(ends!) + s.day * DAY).toISOString(), sent: done ? { at: done.sent_at as string, subject: done.subject as string } : null };
   });
-  const n = ends ? steps.find((s) => !s.sent) : undefined;
+  const n = steps.find((s) => !s.sent);
   const label = c.label as string;
   return {
     invite, label, first: label.split(/[ ,]/)[0], org: inq?.org || pr?.known_name || label.split(',').slice(1).join(',').trim() || 'your agency',
@@ -44,14 +45,14 @@ export async function followupState(db: SupabaseClient, invite: string): Promise
   };
 }
 
-/** A fresh pick-a-time link for a no-show: the open one if there is one, else a new invitation (same inquiry). */
+/** A fresh pick-a-time link for a no-show (website bookings only): the open one if there is one, else a new
+ *  invitation on the same inquiry, so the booking page and reminders keep the first-call wording. */
 export async function rebookLink(invite: string, origin: string): Promise<string | null> {
   const db = adminDb();
   const { data: c } = await db.from('consult_invites').select('id, label, emails, inquiry_id, prospect_id').eq('id', invite).maybeSingle();
   if (!c) return null;
-  const match = c.inquiry_id ? { inquiry_id: c.inquiry_id } : c.prospect_id ? { prospect_id: c.prospect_id } : null;
-  if (!match) return null;
-  const { data: open } = await db.from('consult_invites').select('id').match(match).neq('id', c.id).is('booked_at', null).gt('expires_at', new Date(Date.now() + 3 * DAY).toISOString()).order('created_at', { ascending: false }).limit(1);
+  if (!c.inquiry_id) return null;
+  const { data: open } = await db.from('consult_invites').select('id').eq('inquiry_id', c.inquiry_id).neq('id', c.id).is('booked_at', null).gt('expires_at', new Date(Date.now() + 3 * DAY).toISOString()).order('created_at', { ascending: false }).limit(1);
   let id = open?.[0]?.id as string | undefined;
   if (!id) {
     const r = await db.rpc('create_public_consult', { p_inquiry: c.inquiry_id, p_label: c.label, p_email: (c.emails as string[])[0], p_prospect: c.prospect_id });
