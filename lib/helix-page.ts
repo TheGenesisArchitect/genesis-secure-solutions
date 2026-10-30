@@ -91,6 +91,9 @@ export function readPage(): PageMap {
   // first (fill_form still matches options by their text), and only then drop what still doesn't fit.
   const size = () => JSON.stringify({ ...map, cards: [] }).length;
   if (size() > 4400) map.forms = map.forms.map((f) => (f.item || !declared.has(f) ? { ...f, fields: f.fields.map((x) => ({ name: x.name, label: x.label, type: x.type, required: x.required, value: '' })) } : f));
+  // Next, dropdowns keep their option values without the descriptions ("think" for "think (Needs to think about it)"),
+  // in place so declared forms stay declared: a whole form is never dropped while words can go instead.
+  if (size() > 4400) for (const f of map.forms) for (const x of f.fields) if (x.options && x.type !== 'choices') x.options = x.options.map((o) => o.replace(/ \(.*\)$/, ''));
   // Still too big: drop repeated row forms (keeping one of each kind) before any of the page's own forms.
   // A form repeated down a list (one per row, named or not) counts as repeated; forms nobody declared for Helix go
   // before declared ones, so a page's own actions ("Run the scan now") are never pushed out by a long table.
