@@ -40,7 +40,8 @@ export async function welcomeData(tenantId: string, slug: string) {
     db.from('tenants').select('name, stage, site_live').eq('id', tenantId).single(),
     db.from('agent_records').select('data').eq('tenant_id', tenantId).eq('is_current', true).maybeSingle(),
     db.from('invoices').select('status, amount_cents, due_date').eq('tenant_id', tenantId).eq('kind', 'deposit').neq('status', 'void').order('created_at').limit(1).maybeSingle(),
-    db.from('assets').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('kind', 'image').neq('audience', 'internal'),
+    // Only the carrier starter promos copied in (lib/welcome-actions.ts), never their own photos.
+    db.from('assets').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('kind', 'image').neq('audience', 'internal').ilike('notes', 'Carrier starter promo%'),
     kickoffFor(tenantId),
   ]);
   const record = (rec?.data ?? {}) as Record<string, unknown>;
@@ -69,6 +70,8 @@ export async function welcomeData(tenantId: string, slug: string) {
 /** What Helix knows about a new client's onboarding (empty once they're live): their plan and terms, the deposit,
  *  the kickoff, and every welcome-form item with its answer or "missing", so Helix can help fill it in. */
 export async function welcomeBrief(tenantId: string, slug: string): Promise<string[]> {
+  const { data: st } = await adminDb().from('tenants').select('stage').eq('id', tenantId).maybeSingle();
+  if (!st || st.stage === 'care') return [];
   const w = await welcomeData(tenantId, slug).catch(() => null);
   if (!w || w.stage === 'care') return [];
   const usd = (c: number) => `$${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
@@ -77,6 +80,6 @@ export async function welcomeBrief(tenantId: string, slug: string): Promise<stri
     `KICKOFF: ${w.kickoff ? `${etWhen(w.kickoff.starts)} Eastern, ${w.kickoff.confirmed ? 'confirmed' : 'not confirmed yet (they can confirm or pick another time on the Welcome page)'}` : 'not on the calendar yet'}. The kickoff answers questions, closes what's left on the welcome form, covers creative (photos, tone, which line pages) and the carrier-approved promo library, and walks them through the dashboard and sign-in.`,
     `WELCOME FORM (${w.progress.filled} of ${w.progress.total} answered; needed to build: ${w.status.missing.map((m) => m.label).join(', ') || 'all in'}). Help them fill it: suggest wording from what's on file, never invent facts about their business (license, hours, carrier details); ask them. Each section is its own form with a Save button:`,
     ...w.status.items.map((i) => `- [${i.section}] ${i.label}${i.required ? ' (needed)' : ''}: ${i.done ? (i.kind === 'photo' ? 'uploaded' : String(w.status.intake[i.key]).slice(0, 120)) : 'missing'} (${i.help})`),
-    `ON FILE FROM THE CONSULT: ${['agencyName', 'contactName', 'address', 'phone', 'email', 'carrier', 'website'].map((k) => (w.record[k] ? `${k} ${String(w.record[k])}` : '')).filter(Boolean).join(' · ')}. PROMO LIBRARY: ${w.library} carrier-approved image(s) in their Library.`,
+    `ON FILE FROM THE CONSULT: ${['agencyName', 'contactName', 'address', 'phone', 'email', 'carrier', 'website'].map((k) => (w.record[k] ? `${k} ${String(w.record[k])}` : '')).filter(Boolean).join(' · ')}. PROMO LIBRARY: ${w.library} carrier starter promo(s) copied into their Library (from another agency with the same carrier; theirs to keep, change or drop).`,
   ];
 }

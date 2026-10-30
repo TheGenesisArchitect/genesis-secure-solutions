@@ -58,6 +58,9 @@ must(await db.from('memberships').insert({ tenant_id: t.id, user_id: owner.id, r
 // The tentative kickoff Helix put on their calendar, invite already sent.
 const kickDay = nextWorkday(2), kickStart = eastern(kickDay, '11:00');
 const ev = must(await db.from('calendar_events').insert({ tenant_id: t.id, title: 'Genovus kickoff call', starts_at: kickStart.toISOString(), ends_at: new Date(+kickStart + 30 * 60_000).toISOString(), location: 'https://meet.example/verify', attendees: [ownerEmail, adminEmail], host: 'genovus', created_by: admin.user_id, invited_at: new Date().toISOString(), invited_sequence: 0, created_at: new Date(Date.now() - 2 * 24 * H).toISOString(), updated_at: new Date(Date.now() - 2 * 24 * H).toISOString() }).select('id').single(), 'kickoff');
+// The agency's own meeting with a customer, earlier that week and also called a kickoff: never the Genovus kickoff.
+const smithStart = eastern(nextWorkday(1), '10:00');
+const smith = must(await db.from('calendar_events').insert({ tenant_id: t.id, title: 'Kickoff with the Smith family', starts_at: smithStart.toISOString(), ends_at: new Date(+smithStart + 60 * 60_000).toISOString(), attendees: [`smith-${RUN}@${DOMAIN}`], host: 'agency', created_by: owner.id, created_at: new Date(Date.now() - 2 * 24 * H).toISOString(), updated_at: new Date(Date.now() - 2 * 24 * H).toISOString() }).select('id').single(), 'agency meeting');
 // Another GEICO agency with a promo in its Library (a public image, so no file storage is needed here).
 const src = must(await db.from('tenants').insert({ slug: `verify-welcome-src-${RUN}`, name: 'Verify Source GEICO Agency', stage: 'care', plan: 'growth' }).select('id').single(), 'source');
 made.tenants.push(src.id);
@@ -116,7 +119,7 @@ try {
   check(/^(GEN\S*\s*\|\s*)?Welcome \| Home/.test(nav ?? ''),`the menu leads with Welcome (${nav})`);
   const page = await text();
   check(/Growth/.test(page) && /\$2,500/.test(page) && /\$1,750/.test(page) && /\$750/.test(page) && /Growth Care · \$399\/mo/.test(page) && /due /.test(page), 'the page shows the Growth plan: setup, the 70% deposit and its due date, the 30% at launch, then care');
-  check(/Your kickoff call/i.test(page) && /Please confirm/i.test(page) && /11:00 AM/.test(page), 'the tentative kickoff is there to confirm');
+  check(/Your kickoff call/i.test(page) && /Please confirm/i.test(page) && /11:00 AM/.test(page) && !/10:00 AM/.test(page), 'the tentative kickoff is there to confirm (not the agency’s own Smith family meeting)');
   check(/meet Helix/i.test(page) && /best part of your dashboard/.test(page) && (await ev_(`!!document.querySelector('.wl-helix button')`)), 'Ask Helix is up front, with starter questions');
   check(/On file from your consult/.test(page) && (/Open your preview/.test(page) || !process.env.SITE_PREVIEW_SECRET) && /promo library/i.test(page), 'it shows what’s on file, the preview and the promo library');
   await shot('welcome-page', true);
@@ -214,6 +217,9 @@ try {
   const n2 = await queueKickoffReminders(db, start - 23.5 * H);
   const rems = (await db.from('outbox').select('to_email, data').eq('template', 'consult_reminder').like('dedupe_key', `remind:${ev.id}:%`)).data ?? [];
   check(n1 >= 1 && n2 === 0 && rems.length === 1 && rems[0].to_email === ownerEmail && rems[0].data.kind === 'kickoff' && rems[0].data.lead === '24h', `a day before, one kickoff reminder goes to the owner and not the team, once (${rems.map((r) => r.to_email).join(', ')})`);
+  const n3 = await queueKickoffReminders(db, +smithStart - 23.5 * H);
+  const smithRem = (await db.from('outbox').select('id').like('dedupe_key', `remind:${smith.id}:%`)).data ?? [];
+  check(smithRem.length === 0, `the agency’s own “Kickoff with the Smith family” gets no Genovus reminder (${n3} queued for others)`);
 } finally {
   ws.close(); chrome.kill();
   try { execSync(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${PORT} ^| findstr LISTENING') do taskkill /F /T /PID %a`, { shell: 'cmd.exe', stdio: 'ignore' }); } catch {}
