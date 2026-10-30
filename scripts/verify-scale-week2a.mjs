@@ -83,7 +83,9 @@ try {
   await go('/');
   const homeProof = await ev('!!document.querySelector("[data-proof]")');
   await go('/book');
-  check(!homeProof && !(await ev('!!document.querySelector("[data-proof]")')), 'with no approved quote, the proof section is hidden on the homepage and /book');
+  const want = liveProof().length > 0, bookProof = await ev('!!document.querySelector("[data-proof]")');
+  check(homeProof === want && bookProof === want, want ? 'the approved quote shows on the homepage and /book' : 'with no approved quote, the proof section is hidden on the homepage and /book');
+  if (want) await shot('proof-book');
 
   // 2. the Brief card and the consult page
   const soon = await seed('Quinn', 3 * H, 'Get our Google profile ranking for auto quotes');

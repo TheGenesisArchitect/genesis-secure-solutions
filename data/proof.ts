@@ -12,7 +12,14 @@ export type ProofItem = {
   approvedBy: string;       // who on the client side approved it
 };
 
-export const PROOF: ProofItem[] = [];
+export const PROOF: ProofItem[] = [
+  {
+    // Shared with Anthony on 2026-10-29 for genovus.io; one spelling fix ("banding" → "branding").
+    quote: 'Genovus is amazing. It’s giving me and my team an opportunity to do what we do best, and that is help our clients get the coverage they need while the system runs itself. The agency website now has our carrier branding and the look is incredibly professional. We get follow-ups and KPIs that improve our ads campaigns and client follow-ups. Every agency needs Genovus.',
+    name: 'Mendez Hollis', role: 'Agency owner', agency: 'JAVA Agency', place: 'Columbus, GA',
+    approvedOn: '2026-10-29', approvedBy: 'Mendez Hollis',
+  },
+];
 
 /** The Genovus Google Business Profile review link (set once the profile exists). Empty hides the review button. */
 export const GOOGLE_REVIEW_URL = '';
