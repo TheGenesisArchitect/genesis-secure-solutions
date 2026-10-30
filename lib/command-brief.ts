@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { businessToday } from './billing';
 import { momentsNow, LINES, partnerCategories } from './lines';
 import { STAGE_LABEL, type Stage } from '@/components/ui';
+import { followupState } from './consult-followups';
 
 export type BriefAction =
   | { kind: 'tel'; label: string; href: string; primary?: boolean; done?: boolean }
@@ -121,6 +122,15 @@ export async function enterpriseCards(db: SupabaseClient): Promise<BriefCard[]> 
       { kind: 'record', label: 'They showed', path: '/api/consult-outcome', body: body('showed'), primary: true },
       { kind: 'record', label: 'No-show', path: '/api/consult-outcome', body: body('no_show') },
       { kind: 'record', label: 'Rescheduled', path: '/api/consult-outcome', body: body('rescheduled') },
+    ] });
+  }
+  // Follow-ups due after a first consultation (migration 0090): a person reads the draft and sends it on the page.
+  const marked = await db.from('consult_invites').select('id').in('outcome', ['showed', 'no_show']).is('followups_stopped_at', null).or('inquiry_id.not.is.null,prospect_id.not.is.null').gte('booked_at', new Date(Date.now() - 45 * 86_400_000).toISOString()).limit(20);
+  for (const m of marked.data ?? []) {
+    const s = await followupState(db, m.id as string);
+    if (!s?.next?.due || s.blocked) continue;
+    cards.push({ id: `followup:${s.invite}:${s.next.step}`, lane: 'Sales', tone: 'today', title: `Follow up with ${s.first}`, why: `${s.label} · ${s.outcome === 'no_show' ? 'missed the call' : 'showed, hasn’t started'} · ${s.next.label}`, actions: [
+      { kind: 'link', label: 'Review and send', href: `/console/consults/${s.invite}#follow-up`, primary: true },
     ] });
   }
   for (const q of inq.data ?? []) {

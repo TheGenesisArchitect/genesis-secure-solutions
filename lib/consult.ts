@@ -26,6 +26,16 @@ export function consultFrom(token: string): string | null {
   return want.length === got.length && timingSafeEqual(want, got) ? id : null;
 }
 
+// The person's own stop link on follow-up emails (migration 0090): the same secret, its own purpose.
+const stopSig = (id: string) => createHmac('sha256', SECRET()).update(`followup-stop:${id}`).digest('base64url').slice(0, 24);
+export const followupStopToken = (id: string) => (SECRET() ? `${id}.${stopSig(id)}` : null);
+export function followupStopFrom(token: string): string | null {
+  const [id, s] = token.split('.');
+  if (!SECRET() || !id || !s || !/^[0-9a-f-]{36}$/.test(id)) return null;
+  const want = Buffer.from(stopSig(id)), got = Buffer.from(s);
+  return want.length === got.length && timingSafeEqual(want, got) ? id : null;
+}
+
 /** The consultation settings an admin sets in Setup (app_settings; lib/setup-actions.ts saveConsultSettings). */
 export const CONSULT_SETTING_KEYS = ['consult_video_url', 'consult_team_emails', 'business_postal_address'] as const;
 

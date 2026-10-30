@@ -11,7 +11,7 @@ const FROM = () => process.env.EMAIL_FROM || 'Genovus <hello@genovus.io>';
 const REPLY_TO = () => process.env.EMAIL_REPLY_TO || 'hello@genovus.io';
 
 export type Attachment = { filename: string; content: string; contentType: string };
-export type Mail = { to: string; subject: string; html: string; text: string; attachments?: Attachment[]; replyTo?: string };
+export type Mail = { to: string; subject: string; html: string; text: string; attachments?: Attachment[]; replyTo?: string; headers?: Record<string, string> };
 
 export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (!emailConfigured()) return { ok: false, error: 'email not configured' };
@@ -21,6 +21,7 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
       headers: { Authorization: `Bearer ${RESEND_KEY()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: FROM(), to: [m.to], reply_to: m.replyTo || REPLY_TO(), subject: m.subject, html: m.html, text: m.text,
+        ...(m.headers ? { headers: m.headers } : {}),
         ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString('base64'), content_type: a.contentType })) } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
@@ -186,6 +187,25 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           foot: 'Can’t make it? Reply to this email and we’ll find another time.',
         }, origin),
         replyTo: data.reply_to || undefined,
+      };
+    }
+    // A follow-up after a first consultation, written (or edited) and sent by a person on the team (migration 0090).
+    // It carries the business mailing address and a one-click way to stop.
+    case 'consult_followup': {
+      const paras = String(data.body ?? '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+      const btn = /^https?:\/\//.test(data.button_url ?? '') && data.button_label ? { label: data.button_label, url: data.button_url } : undefined;
+      return {
+        to,
+        subject: data.subject,
+        ...frame({
+          preheader: paras[1] ?? paras[0] ?? '',
+          heading: data.subject,
+          body: paras,
+          button: btn,
+          foot: `Genovus, a Genesis Secure Solutions brand · ${data.address}. Reply to reach a person on our team. Don’t want these follow-ups? Stop them here: ${data.stop_url}`,
+        }, origin),
+        replyTo: data.reply_to || undefined,
+        ...(data.unsubscribe_url ? { headers: { 'List-Unsubscribe': `<${data.unsubscribe_url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
       };
     }
     case 'monthly_report':

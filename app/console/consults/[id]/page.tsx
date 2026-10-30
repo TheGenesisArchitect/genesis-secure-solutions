@@ -11,6 +11,8 @@ import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { saveConsultNotes } from '@/lib/actions';
 import { DISCOVERY, PREQUAL, OBJECTIONS, OBJECTION_LABEL, OBJECTION_KEYS } from '@/data/consult-guide';
+import { followupState, draftFor, postalAddress } from '@/lib/consult-followups';
+import { sendFollowup, stopFollowups } from '@/lib/followup-actions';
 
 export const metadata = { title: 'Consultation' };
 export const dynamic = 'force-dynamic';
@@ -25,7 +27,8 @@ export default async function Consult({ params }: { params: Promise<{ id: string
   await requireStaff();
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const { data: c } = await (await db()).from('consult_invites')
+  const supabase = await db();
+  const { data: c } = await supabase.from('consult_invites')
     .select('id, label, emails, minutes, booked_at, outcome, objection, call_note, created_by, event:calendar_events!consult_invites_event_id_fkey(starts_at, ends_at, status, location), inquiry:inquiries(id, kind, org, name, phone, details, status), prospect:prospects(code, known_name, state, segment, carriers(name))')
     .eq('id', id).maybeSingle();
   if (!c) notFound();
@@ -37,6 +40,12 @@ export default async function Consult({ params }: { params: Promise<{ id: string
   const details = Object.entries(inq?.details ?? {}).filter(([k, v]) => v && k !== 'goals');
   const goal = inq?.details?.goals;
   const title = `Consultation: ${c.label}`;
+  // Follow-up (migration 0090): first consultations only, once the outcome is marked.
+  const fu = c.booked_at ? await followupState(supabase, c.id) : null;
+  const origin = process.env.APP_ORIGIN || 'https://genovus.io';
+  const draft = fu?.next ? draftFor(fu, fu.next.step, origin) : null;
+  const address = fu?.next && !fu.blocked ? await postalAddress() : '';
+  const day = (iso: string) => new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
   return (
     <ConsoleShell title={title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/inquiries', label: 'Inquiries' }, { label: c.label }]}>
       <div className="grid g2" style={{ alignItems: 'start' }}>
@@ -72,6 +81,44 @@ export default async function Consult({ params }: { params: Promise<{ id: string
                 <label className="field"><span>Call note (their answers to the qualifying questions, next step)</span><textarea className="textarea" name="note" maxLength={2000} defaultValue={c.call_note ?? ''} /></label>
                 <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Save</button>
               </ActionForm>
+            </Panel>
+          ) : null}
+          {fu && (fu.steps.length || fu.stopped) ? (
+            <Panel id="follow-up" title="Follow-up" sub={fu.outcome === 'no_show' ? 'For a no-show: a new time, twice more, then stop' : 'They showed: a short sequence until they start or say no'} helixItem="Follow-up"
+              actions={fu.stopped ? <Chip kind="pending">Stopped</Chip> : fu.blocked ? <Chip kind="pending">Paused</Chip> : fu.next ? <Chip kind={fu.next.due ? 'info' : 'pending'}>{fu.next.due ? 'Next one is due' : `Next ${day(fu.next.dueAt)}`}</Chip> : <Chip kind="done">All sent</Chip>}>
+              <ul className="list">
+                {fu.steps.map((s) => (
+                  <li key={s.step} className="spread" style={{ fontSize: 14 }}>
+                    <span>{s.label}{s.sent ? <span className="muted"> · “{s.sent.subject}”</span> : null}</span>
+                    <span className="muted">{s.sent ? `Sent ${day(s.sent.at)}` : `Due ${day(s.dueAt)}`}</span>
+                  </li>
+                ))}
+              </ul>
+              {fu.blocked && !/Mark how the call went/.test(fu.blocked) ? <div className="notice"><b>No more follow-ups:</b> {fu.blocked}</div> : null}
+              {fu.next && !fu.blocked && draft ? (
+                fu.next.due ? (
+                  address ? (
+                    <ActionForm action={sendFollowup} helix="follow-up" helixTitle="Send the follow-up" confirm={`Send this email to ${fu.emails.join(', ')}?`} className="form">
+                      <input type="hidden" name="invite" value={c.id} />
+                      <input type="hidden" name="step" value={fu.next.step} />
+                      <span className="muted" style={{ fontSize: 13 }}>{fu.next.label} · to {fu.emails.join(', ')} · read it, make it yours, then send</span>
+                      <label className="field"><span>Subject</span><input className="input" name="subject" required maxLength={140} defaultValue={draft.subject} /></label>
+                      <label className="field"><span>Message</span><textarea className="textarea" name="body" required maxLength={3000} rows={10} defaultValue={draft.body} /></label>
+                      {draft.button ? <span className="muted" style={{ fontSize: 13 }}>Adds a “{draft.button.label}” button{fu.next.step.startsWith('n') ? ' with a fresh link to their own booking page' : ''}.</span> : null}
+                      <span className="muted" style={{ fontSize: 13 }}>Replies come to you. The footer carries our mailing address and a link to stop these emails.</span>
+                      <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>Send</button>
+                    </ActionForm>
+                  ) : <div className="notice">Follow-up emails must carry the business mailing address. <Link href="/console/setup">Add it in Setup → Consultations</Link>, then come back to send.</div>
+                ) : (
+                  <details><summary className="muted" style={{ cursor: 'pointer', fontSize: 14 }}>Preview the next one ({fu.next.label}, due {day(fu.next.dueAt)})</summary><p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}><b>{draft.subject}</b>{'\n\n'}{draft.body}</p></details>
+                )
+              ) : null}
+              {!fu.stopped && !fu.blocked && fu.next ? (
+                <ActionForm action={stopFollowups} helix="stop follow-ups" helixTitle="Stop follow-ups" className="row">
+                  <input type="hidden" name="invite" value={c.id} />
+                  <button className="btn small ghost" type="submit">Stop follow-ups for them</button>
+                </ActionForm>
+              ) : null}
             </Panel>
           ) : null}
         </div>
