@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     if (PUSH_TEMPLATES.includes(row.template)) {
       const d = row.data as Record<string, string>;
       const p = row.template === 'post_push' ? await sendPostPush(db, row.tenant_id, d) : row.template === 'team_push' ? await sendTeamPush(db, d) : await sendLeadPush(db, row.tenant_id, d);
-      await db.from('outbox').update({ status: p.sent ? 'sent' : 'skipped', attempts: row.attempts + 1, sent_at: new Date().toISOString(), last_error: p.sent ? null : `no device took it (${p.gone} gone, ${p.failed} failed)` }).eq('id', row.id);
+      await db.from('outbox').update({ status: p.sent ? 'sent' : 'skipped', attempts: row.attempts + 1, sent_at: new Date().toISOString(), last_error: p.sent ? null : p.devices ? `no device took it (${p.gone} gone, ${p.failed} failed): ${p.errors.join('; ')}`.slice(0, 500) : 'no devices have alerts turned on' }).eq('id', row.id);
       if (p.sent) await db.from('audit_events').insert({ tenant_id: row.tenant_id, actor: null, actor_label: 'outbox', action: 'push.sent', subject: row.template, after: { devices: p.sent, outbox: row.id }, prev_hash: '', hash: '' });
       sent += p.sent ? 1 : 0;
       continue;

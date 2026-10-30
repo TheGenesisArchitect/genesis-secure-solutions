@@ -17,12 +17,13 @@ function setup() {
 export type PushMessage = { title: string; body: string; url: string; tag?: string };
 
 /** Send one alert to every device of these people. Devices the push service says are gone are removed. */
-export async function pushTo(db: SupabaseClient, userIds: string[], msg: PushMessage): Promise<{ sent: number; gone: number; failed: number }> {
+export async function pushTo(db: SupabaseClient, userIds: string[], msg: PushMessage): Promise<{ sent: number; gone: number; failed: number; devices: number; errors: string[] }> {
   setup();
-  const out = { sent: 0, gone: 0, failed: 0 };
+  const out = { sent: 0, gone: 0, failed: 0, devices: 0, errors: [] as string[] };
   if (!ready || !userIds.length) return out;
   const { data: subs } = await db.from('push_subscriptions').select('id, endpoint, p256dh, auth, failures').in('user_id', userIds);
   const payload = JSON.stringify(msg);
+  out.devices = (subs ?? []).length;
   for (const s of subs ?? []) {
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600, urgency: 'high', topic: msg.tag?.slice(0, 32) });
@@ -30,6 +31,10 @@ export async function pushTo(db: SupabaseClient, userIds: string[], msg: PushMes
       await db.from('push_subscriptions').update({ last_ok_at: new Date().toISOString(), failures: 0 }).eq('id', s.id);
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode ?? 0;
+      // Why the push service refused it (kept so a failed alert says why: an expired device, a rejected key...).
+      const why = `${code || 'error'} ${String((e as { body?: string }).body || (e instanceof Error ? e.message : '')).replace(/\s+/g, ' ').slice(0, 120)}`.trim();
+      out.errors.push(`${new URL(s.endpoint).host}: ${why}`);
+      console.error(`[push] ${new URL(s.endpoint).host} refused: ${why}`);
       if (code === 404 || code === 410 || s.failures >= 9) { out.gone++; await db.from('push_subscriptions').delete().eq('id', s.id); }
       else { out.failed++; await db.from('push_subscriptions').update({ failures: s.failures + 1 }).eq('id', s.id); }
     }
