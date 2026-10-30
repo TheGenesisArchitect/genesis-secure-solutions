@@ -34,3 +34,28 @@ export async function queueConsultReminders(db: SupabaseClient, now = Date.now()
   }
   return queued;
 }
+
+/** Kickoff calls (any meeting titled "kickoff", migration 0092): the same day-before and hour-before reminders, to
+ *  the client's people on the invite (the team has the invite). Rescheduling gets fresh ones (keyed by start). */
+export async function queueKickoffReminders(db: SupabaseClient, now = Date.now()) {
+  const { data: evs } = await db.from('calendar_events').select('id, tenant_id, title, starts_at, ends_at, location, attendees, created_at, updated_at')
+    .eq('status', 'scheduled').ilike('title', '%kick%off%').gte('starts_at', new Date(now).toISOString()).lte('starts_at', new Date(now + 25 * H).toISOString());
+  if (!evs?.length) return 0;
+  const { data: staff } = await db.from('staff').select('user_id');
+  const staffEmails = new Set<string>();
+  for (const s of staff ?? []) { const { data: u } = await db.auth.admin.getUserById(s.user_id as string); if (u.user?.email) staffEmails.add(u.user.email.toLowerCase()); }
+  let queued = 0;
+  for (const ev of evs) {
+    const start = Date.parse(ev.starts_at), set = Date.parse(ev.updated_at ?? ev.created_at);
+    const to = (ev.attendees as string[]).map((a) => a.toLowerCase()).filter((a) => !staffEmails.has(a));
+    if (!to.length) continue;
+    for (const l of LEADS) {
+      if (start - now > l.before || start - now < (l.lead === '24h' ? 3 * H : 0) || start - set < l.bookedBy) continue;
+      const data = { kind: 'kickoff', lead: l.lead, first: '', when: consultWhen(ev.starts_at), time: et(ev.starts_at, { hour: 'numeric', minute: '2-digit' }), day: et(ev.starts_at, { weekday: 'long' }), first_call: 'false', minutes: String(Math.round((Date.parse(ev.ends_at) - start) / 60_000)), place: ev.location ?? '' };
+      const rows = to.map((a) => ({ tenant_id: ev.tenant_id, to_email: a, template: 'consult_reminder', data, dedupe_key: `remind:${ev.id}:${start}:${l.lead}:${a}` }));
+      const { data: ins } = await db.from('outbox').upsert(rows, { onConflict: 'dedupe_key', ignoreDuplicates: true }).select('id');
+      queued += ins?.length ?? 0;
+    }
+  }
+  return queued;
+}

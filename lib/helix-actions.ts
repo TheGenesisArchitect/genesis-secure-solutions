@@ -16,7 +16,7 @@ export async function helixPagesFor(viewer: Viewer, surface: 'agency' | 'enterpr
   if (!t) return [];
   const access = await accessFor(t.id, t.plan);
   const m = viewer.memberships.find((x) => x.tenantId === t.id);
-  return helixPages(agencyNav(`/app/${t.slug}`, (k) => access.has(k), { isOwner: !m || m.role === 'owner', programTitle: '' }));
+  return helixPages(agencyNav(`/app/${t.slug}`, (k) => access.has(k), { isOwner: !m || m.role === 'owner', welcome: true, programTitle: '' }));
 }
 
 /** The navigation rules for typed Helix: it may add "go" to its JSON reply. */

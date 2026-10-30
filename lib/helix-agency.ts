@@ -70,9 +70,13 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
   const cost = Object.fromEntries((costs.data ?? []).map((c) => [c.source, c.cents]));
   // Visibility: the same numbers the board shows, so Helix and the board agree. Never blocks the brief.
   const visLine = await visibility(db, tenantId, '').then(visibilityLine).catch(() => 'VISIBILITY: not available right now');
+  // A new client's onboarding (their Welcome page): plan, kickoff and welcome form, so Helix can help fill it in.
+  const { data: tslug } = await db.from('tenants').select('slug').eq('id', tenantId).maybeSingle();
+  const welcome = tslug?.slug ? await import('./welcome').then((m) => m.welcomeBrief(tenantId, tslug.slug as string)).catch(() => []) : [];
   return [
     `AGENCY: ${name} · program ${program} · today ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${today} (America/New_York)${P ? ` · ${P.city ?? ''} ${P.state ?? ''} · carrier ${P.carrier ?? 'n/a'} · licensed ${(P.licensed_states ?? []).join(', ') || 'n/a'}` : ''}`,
     visLine,
+    ...welcome,
     `LINES THIS AGENCY SELLS: ${lines.join(', ') || 'not set (ask the Genovus team to set them)'}`,
     `MARKET NOW: ${moments.map((m) => `${LINES[m.line].label}: ${m.label}${m.starting ? ' (starting next month)' : ''} (${m.why})`).join(' | ') || 'no seasonal moments for these lines this month'}`,
     `SOURCES this 30 days (leads / won / cost this month): ${Object.entries(bySource).map(([k, v]) => `${k} ${v.n}/${v.won}${cost[k] != null ? ` $${(cost[k] / 100).toFixed(0)} = $${(cost[k] / 100 / Math.max(1, v.n)).toFixed(0)}/lead` : ''}`).join(', ') || 'none'} · benchmark: vendors charge about $50 per shared lead`,

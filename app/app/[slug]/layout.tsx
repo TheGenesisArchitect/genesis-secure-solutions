@@ -19,7 +19,7 @@ export default async function AgencyLayout({ children, params }: LayoutProps<'/a
   const access = tenant ? await accessFor(tenant.tenantId, tenant.plan) : null;
   const helix = access?.has('helix') ?? false;
   // The menu's own page names, so Helix always knows which page the person is on.
-  const pages = access ? navPages(agencyNav(`/app/${slug}`, (k) => access.has(k), { isOwner: true, programTitle: '' })) : [];
+  const pages = access ? navPages(agencyNav(`/app/${slug}`, (k) => access.has(k), { isOwner: true, welcome: true, programTitle: '' })) : [];
   return (
     <HelixThreadProvider surface={tenant && helix ? 'agency' : undefined} slug={slug}>
       {children}

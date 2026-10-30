@@ -173,9 +173,25 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           replyTo: data.reply_to || undefined,
         };
       const soon = data.lead === '1h';
+      const kick = data.kind === 'kickoff';
+      const what = kick ? 'kickoff call' : 'consultation';
+      if (kick) return {
+        to,
+        subject: soon ? 'In an hour: your Genovus kickoff call' : `Reminder: your Genovus kickoff call, ${data.day} at ${data.time}`,
+        ...frame({
+          preheader: soon ? `${data.when} (Eastern)` : 'Your form, your questions and your dashboard.',
+          heading: soon ? 'See you in an hour' : `See you ${data.day}`,
+          body: [
+            `${data.when} (Eastern), ${data.minutes} minutes on video.${link ? '' : ' The video link is in your calendar invite.'}`,
+            'We’ll answer your questions, finish your welcome form together, go over creative and your carrier-approved promos, and walk you through your dashboard. Have your phone handy to sign in.',
+          ],
+          button: join,
+          foot: 'Need another time? Pick one on your Welcome page, or reply to this email.',
+        }, origin),
+      };
       return {
         to,
-        subject: soon ? `In an hour: your Genovus consultation` : `Reminder: your Genovus consultation, ${data.day} at ${data.time}`,
+        subject: soon ? `In an hour: your Genovus ${what}` : `Reminder: your Genovus ${what}, ${data.day} at ${data.time}`,
         ...frame({
           preheader: soon ? `${data.when} (Eastern)` : 'A quick reminder, with the link.',
           heading: soon ? 'See you in an hour' : `See you ${data.day}`,
@@ -189,6 +205,27 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         replyTo: data.reply_to || undefined,
       };
     }
+    // A new client's welcome, sent on a person's tap from the client page (lib/welcome-actions.ts): their package and
+    // terms, the deposit, the kickoff, and their Welcome page with Ask Helix. Transactional: a plan they chose.
+    case 'client_welcome':
+      return {
+        to,
+        subject: `Welcome to Genovus, ${data.first}: your ${data.package} plan${data.kickoff ? ' and kickoff' : ''}`,
+        ...frame({
+          preheader: data.kickoff ? `Kickoff ${data.kickoff} (Eastern). Your welcome form and Ask Helix are ready.` : 'Your welcome form and Ask Helix are ready.',
+          heading: `Welcome, ${data.first}`,
+          body: [
+            `Thank you for choosing Genovus for ${data.agency}. Here’s everything in one place.`,
+            `Your plan: ${data.package}. ${data.paid === 'true' ? `Your ${data.deposit} deposit is paid. Thank you.` : `Deposit ${data.deposit} (70% of setup)${data.due ? `, due ${data.due}` : ''}.`} ${data.balance} at launch${data.care ? `, then ${data.care}` : ''}.`,
+            data.kickoff ? `Your kickoff call: ${data.kickoff} (Eastern)${data.confirmed === 'true' ? '' : '. Please confirm it, or pick a time that works better, on your Welcome page'}. We’ll answer your questions, close any gaps on your form, go over creative and your carrier-approved promos, and walk you through your dashboard.` : 'We’ll set your kickoff call with you; it will show on your Welcome page.',
+            'Before the kickoff: fill in your welcome form as best you can (about 15 minutes). Leave anything you’re unsure of; we finish it together on the call. Your site preview builds from your answers.',
+            'Stuck on anything? Ask Helix, the assistant in your dashboard. It knows your plan, can see your form and can fill it in with you. Tap the egg button, then talk or type.',
+          ],
+          button: { label: 'Open your Welcome page', url: data.link },
+          foot: `Reply to this email to reach a person on our team.${data.address ? ` Genovus, a Genesis Secure Solutions brand · ${data.address}.` : ''}`,
+        }, origin),
+        replyTo: data.reply_to || undefined,
+      };
     // A follow-up after a first consultation, written (or edited) and sent by a person on the team (migration 0090).
     // It carries the business mailing address and a one-click way to stop.
     case 'consult_followup': {

@@ -18,6 +18,7 @@ export const HELIX_EVT = EVT;
 export const helixAsk = (a: Ask) => window.dispatchEvent(new CustomEvent<Ask>(EVT, { detail: a }));
 
 const PAGE: { match: RegExp; name: string; suggest: string[] }[] = [
+  { match: /\/welcome$/, name: 'Welcome', suggest: ['Help me fill in my office details', 'What’s included in my plan?', 'How do I prepare for my kickoff?'] },
   { match: /\/leads$/, name: 'Leads', suggest: ['Who should I call first?', 'Which calls did we miss?', 'Draft a reply to my newest lead'] },
   { match: /\/pipeline$/, name: 'Pipeline', suggest: ['Who’s stalling in my pipeline?', 'Which consults are coming up?', 'Draft a nudge for my oldest contacted lead'] },
   { match: /\/calendar$/, name: 'Calendar', suggest: ['Plan my week', 'What’s on my calendar today?', 'Where can I fit partner visits?'] },

@@ -2,7 +2,7 @@
 // dashboard, filled in their own words and saved to their record. Private link; never indexed.
 import { notFound } from 'next/navigation';
 import { tenantForToken } from '@/lib/client-checklist';
-import { checklistStatus } from '@/lib/checklist';
+import { checklistStatus, LINE_OPTIONS } from '@/lib/checklist';
 import { ChecklistForm } from '@/components/ChecklistForm';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export default async function Checklist({ params }: { params: Promise<{ token: s
         <h1>{first ? `${first}, a few things` : 'A few things'} for your site</h1>
         <p className="ck-sub">About ten minutes. Everything here goes straight onto your site and dashboard, and you can come back to this link any time to change it.</p>
       </section>
-      <ChecklistForm token={token} items={s.items.map(({ key, label, help, kind, required, options, done }) => ({ key, label, help, kind, required, options, done }))} values={values} />
+      <ChecklistForm token={token} items={s.items.map(({ key, label, help, kind, required, options, done }) => ({ key, label, help, kind, required, options: kind === 'lines' ? LINE_OPTIONS : options, done }))} values={values} />
     </main>
   );
 }

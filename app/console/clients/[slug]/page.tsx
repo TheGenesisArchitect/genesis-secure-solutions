@@ -24,6 +24,8 @@ import { sendProposalAction } from '@/lib/proposal-send';
 import { packageOf, planFor, proposalToken, depositCents } from '@/lib/proposal';
 import { blockersFor } from '@/lib/blockers';
 import { previewKey } from '@/lib/site';
+import { Suspense } from 'react';
+import { WelcomeConsole } from '@/components/WelcomeConsole';
 
 const TABS = [
   ['overview', 'Overview'], ['record', 'Agent record'], ['assets', 'Assets'], ['approvals', 'Approvals'],
@@ -136,6 +138,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               </div>
             </Panel>
           ) : null}
+          {pkgId && t.kind === 'agency' && t.stage !== 'care' ? <Suspense fallback={null}><WelcomeConsole tenantId={t.id} slug={t.slug} sentAt={(audit.data ?? []).find((x) => x.action === 'welcome.sent')?.at ?? null} /></Suspense> : null}
           <div className="grid g2">
             <Panel title="Lifecycle" sub="Moving a stage is logged and drives the client’s next messages">
               <ActionForm action={moveStage} helix="stage" helixTitle="Move stage" className="row">

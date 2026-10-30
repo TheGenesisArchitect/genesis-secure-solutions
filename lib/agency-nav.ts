@@ -4,11 +4,13 @@ import type { NavSection } from '@/components/Shell';
 
 type Count = Promise<number> | undefined;
 
-export function agencyNav(base: string, has: (k: string) => boolean, opts: { isOwner: boolean; programTitle: string; staffSlug?: string; counts?: { fresh?: Count; due?: Count; pending?: Count; open?: Count } }): NavSection[] {
+export function agencyNav(base: string, has: (k: string) => boolean, opts: { isOwner: boolean; welcome?: boolean; programTitle: string; staffSlug?: string; counts?: { fresh?: Count; due?: Count; pending?: Count; open?: Count } }): NavSection[] {
   const c = opts.counts ?? {};
   return [
     {
       items: [
+        // A new client's first stop until they're live: their package, welcome form, kickoff and preview.
+        ...(opts.welcome ? [{ href: `${base}/welcome`, label: 'Welcome', icon: 'helix' }] : []),
         { href: base, label: 'Home', exact: true },
         { href: `${base}/leads`, label: 'Leads', icon: 'inbox', count: c.fresh },
         ...(has('pipeline') ? [{ href: `${base}/pipeline`, label: 'Pipeline', icon: 'pipeline' }] : []),

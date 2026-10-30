@@ -32,7 +32,10 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
   // One shell: what shows is what this agency can open (its program plus any grant or trial from Genovus). The same
   // list feeds Ctrl+K and Helix's "go to" (lib/agency-nav.ts).
   const trialNote = access.trial ? ` · trial ${access.trial.days} day${access.trial.days === 1 ? '' : 's'} left` : '';
-  const nav = agencyNav(base, (k) => access.has(k), { isOwner, programTitle: `Your program · ${PROGRAM_NAME[program]}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open } });
+  // New clients (not yet live) get the Welcome page first in the menu.
+  const { data: st } = await supabase.from('tenants').select('stage').eq('id', tenant.tenantId).maybeSingle();
+  const welcome = !tenant.isSample && !!st?.stage && st.stage !== 'care';
+  const nav = agencyNav(base, (k) => access.has(k), { isOwner, welcome, programTitle: `Your program · ${PROGRAM_NAME[program]}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open } });
   return (
     <Shell
       searchClients

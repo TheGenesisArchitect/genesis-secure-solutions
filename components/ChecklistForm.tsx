@@ -3,7 +3,7 @@
 // that keeps what's filled and says what's left. Posts to /api/welcome/<token>/checklist.
 import { useMemo, useState } from 'react';
 
-type Item = { key: string; label: string; help: string; kind: 'text' | 'textarea' | 'url' | 'states' | 'choice' | 'photo'; required: boolean; options?: [string, string][]; done: boolean };
+type Item = { key: string; label: string; help: string; kind: 'text' | 'textarea' | 'url' | 'states' | 'choice' | 'photo' | 'lines'; required: boolean; options?: [string, string][]; done: boolean };
 
 export function ChecklistForm({ token, items, values }: { token: string; items: Item[]; values: Record<string, string> }) {
   const [busy, setBusy] = useState(false);
@@ -34,6 +34,11 @@ export function ChecklistForm({ token, items, values }: { token: string; items: 
             : i.kind === 'choice' ? (
               <div className="ck-choices" role="radiogroup" aria-label={i.label}>
                 {(i.options ?? []).map(([v, l]) => <label key={v} className="check"><input type="radio" name={i.key} value={v} defaultChecked={values[i.key] === v} onChange={() => i.key === 'domainChoice' && setDomainChoice(v)} /> {l}</label>)}
+              </div>
+            ) : i.kind === 'lines' ? (
+              <div className="ck-choices" aria-label={i.label}>
+                <input type="hidden" name={`${i.key}__shown`} value="1" />
+                {(i.options ?? []).map(([v, l]) => <label key={v} className="check"><input type="checkbox" name={i.key} value={v} defaultChecked={(values[i.key] ?? '').split(/,\s*/).includes(v)} /> {l}</label>)}
               </div>
             ) : i.kind === 'photo' ? (
               <>

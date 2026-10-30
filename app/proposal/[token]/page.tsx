@@ -30,8 +30,8 @@ export default async function Proposal({ params }: { params: Promise<{ token: st
   const paid = dep?.status === 'paid';
   const days = DAYS[pkg];
   const steps: [string, string][] = [
-    ['Today', 'Pay the deposit. Your setup checklist arrives right after.'],
-    ['Days 1–3', 'Send us your headshot, hours and details from your checklist (about 10 minutes).'],
+    ['Today', 'Your welcome email brings your Welcome page: your form, your kickoff call and Ask Helix. Pay the deposit by its due date.'],
+    ['Before the kickoff', 'Fill in your welcome form as best you can (about 15 minutes); the kickoff closes the rest.'],
     [`Days 2–${days - 4}`, `We build your site from your record${plan.id === 'launch' ? '' : `: up to ${plan.id === 'growth' ? 5 : 8} pages`}. You see a live preview as it fills in.`],
     [`Days ${days - 3}–${days - 1}`, 'Your carrier reviews the copy; you approve the site and your first month of posts.'],
     [`Day ${days}`, `You go live. ${plan.careName} starts.`],

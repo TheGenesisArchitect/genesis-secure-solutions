@@ -7,7 +7,7 @@ import { emailConfigured, outboxEmail, sendEmail } from '@/lib/email';
 import { cronAuthorized, siteOrigin } from '@/lib/cron';
 import { PUSH_TEMPLATES, pushConfigured, sendLeadPush, sendPostPush, sendTeamPush } from '@/lib/push';
 import { sendChecklistLinks } from '@/lib/client-checklist';
-import { queueConsultReminders } from '@/lib/consult-reminders';
+import { queueConsultReminders, queueKickoffReminders } from '@/lib/consult-reminders';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -21,6 +21,7 @@ export async function GET(req: Request) {
   if (email) await sendChecklistLinks(siteOrigin()).catch((e) => console.error(`[checklist] ${e instanceof Error ? e.message : e}`));
   // Consultation reminders a day and an hour before (lib/consult-reminders.ts), queued here and sent below.
   if (email) await queueConsultReminders(db).catch((e) => console.error(`[consult-reminders] ${e instanceof Error ? e.message : e}`));
+  if (email) await queueKickoffReminders(db).catch((e) => console.error(`[kickoff-reminders] ${e instanceof Error ? e.message : e}`));
   let q = db.from('outbox').select('id').eq('status', 'pending').lte('send_after', new Date().toISOString());
   if (!email) q = q.in('template', PUSH_TEMPLATES);
   if (!push) q = q.not('template', 'in', `(${PUSH_TEMPLATES.join(',')})`);

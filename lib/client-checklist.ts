@@ -4,11 +4,12 @@
 //    their record, once. The email is transactional: they paid and are waiting for it.
 //  - saveChecklist: their answers onto their record (a new version), photos into private storage as their assets
 //    (photo rights pending until the team clears them), and "done" when every required item is in.
+//  - saveIntake: the same save for a signed-in member on the dashboard's welcome page (the caller checks membership).
 import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { adminDb } from './supabase/admin';
-import { CHECKLIST, checklistStatus } from './checklist';
+import { CHECKLIST, LINE_OPTIONS, LINE_PAGES, checklistStatus } from './checklist';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/;
 const hash = (t: string) => createHash('sha256').update(t).digest('hex');
@@ -59,9 +60,19 @@ const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 
 const MAX_PHOTO = 8 * 1024 * 1024;
 const STATES = /^[A-Z]{2}(\s*,\s*[A-Z]{2})*$/;
 
-export async function saveChecklist(token: string, form: FormData): Promise<{ ok: true; done: boolean; missing: string[] } | { ok: false; error: string }> {
+export type IntakeResult = { ok: true; done: boolean; missing: string[] } | { ok: false; error: string };
+
+export async function saveChecklist(token: string, form: FormData): Promise<IntakeResult> {
   const who = await tenantForToken(token);
   if (!who) return { ok: false, error: 'This link isn’t valid anymore. Ask us for a new one.' };
+  return saveIntake(who.tenantId, who.record, form);
+}
+
+const EMAILS = /^[^@\s,]+@[^@\s,]+\.[^@\s,]+(\s*,\s*[^@\s,]+@[^@\s,]+\.[^@\s,]+)*$/;
+
+/** Only the fields present in the form are saved (each welcome section saves on its own); blanks are left as they were. */
+export async function saveIntake(tenantId: string, record: Record<string, unknown>, form: FormData): Promise<IntakeResult> {
+  const who = { tenantId, record };
   const db = adminDb();
   // A few saves an hour is plenty for a person; more is a script.
   const { count } = await db.from('agent_records').select('id', { count: 'exact', head: true }).eq('tenant_id', who.tenantId).eq('note', 'From the client checklist').gte('created_at', new Date(Date.now() - 3_600_000).toISOString());
@@ -77,10 +88,20 @@ export async function saveChecklist(token: string, form: FormData): Promise<{ ok
       if (item.key === 'headshot' && form.get('rights') !== 'yes') return { ok: false, error: 'Please confirm you have the rights to use your headshot.' };
       const key = `assets/${who.tenantId}/intake/${item.key}-${Date.now()}.${ext}`;
       await put(key, Buffer.from(await f.arrayBuffer()), { access: 'private', contentType: f.type, addRandomSuffix: false });
-      const title = item.key === 'headshot' ? 'Headshot (from your checklist)' : 'Logo (from your checklist)';
+      const title = item.key === 'headshot' ? 'Headshot (from your checklist)' : item.key === 'logo' ? 'Logo (from your checklist)' : 'Office photo (from your checklist)';
       const { data: a, error } = await db.from('assets').upsert({ tenant_id: who.tenantId, kind: item.key === 'logo' ? 'brand' : 'image', title, location_kind: 'blob', location: key, audience: 'client', rights_status: 'pending', notes: 'Uploaded by the client from their checklist.' }, { onConflict: 'tenant_id,title' }).select('id').single();
       if (error) return { ok: false, error: 'The photo couldn’t be saved. Please try again.' };
       intake[item.key] = a.id;
+      continue;
+    }
+    if (item.kind === 'lines') {
+      // Checkboxes: a section that shows them sends a marker, so unticking every box saves as "none".
+      if (!form.has(`${item.key}__shown`)) continue;
+      const known = new Set(LINE_OPTIONS.map(([k]) => k));
+      const picked = [...new Set(form.getAll(item.key).map(String).filter((k) => known.has(k)))];
+      const most = LINE_PAGES[String(who.record.package ?? 'launch')] ?? 0;
+      if (most && picked.length > most) return { ok: false, error: `${item.label}: your package builds up to ${most} line pages. Pick your top ${most}.` };
+      intake[item.key] = picked.join(', ');
       continue;
     }
     const raw = form.get(item.key);
@@ -88,6 +109,8 @@ export async function saveChecklist(token: string, form: FormData): Promise<{ ok
     let v = raw.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, item.max ?? 300);
     if (!v) continue;
     if (item.kind === 'states') { v = v.toUpperCase().replace(/\s+/g, ' '); if (!STATES.test(v)) return { ok: false, error: `${item.label}: use two-letter codes, like GA, AL.` }; }
+    if (item.kind === 'url' && /^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(v)) v = `https://${v}`;
+    if (item.key === 'alertEmails' && !EMAILS.test(v)) return { ok: false, error: `${item.label}: emails separated by commas, like you@office.com, team@office.com.` };
     if (item.kind === 'url' && !/^https:\/\/[^\s]+\.[^\s]+/.test(v)) return { ok: false, error: `${item.label}: please paste the full link, starting with https://` };
     if (item.kind === 'choice' && !(item.options ?? []).some(([o]) => o === v)) continue;
     intake[item.key] = v;
