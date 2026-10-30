@@ -16,7 +16,7 @@ const LEADS = [
 
 export async function queueConsultReminders(db: SupabaseClient, now = Date.now()) {
   const { data: rows } = await db.from('consult_invites')
-    .select('id, tenant_id, label, emails, minutes, booked_at, event:calendar_events!consult_invites_event_id_fkey(id, starts_at, status, location)')
+    .select('id, tenant_id, label, emails, minutes, booked_at, inquiry_id, event:calendar_events!consult_invites_event_id_fkey(id, starts_at, status, location)')
     .not('booked_at', 'is', null)
     .gte('expires_at', new Date(now - 30 * 24 * H).toISOString());
   let queued = 0;
@@ -26,7 +26,7 @@ export async function queueConsultReminders(db: SupabaseClient, now = Date.now()
     const start = Date.parse(ev.starts_at), booked = Date.parse(r.booked_at as string);
     for (const l of LEADS) {
       if (start - now > l.before || start - now < (l.lead === '24h' ? 3 * H : 0) || start - booked < l.bookedBy) continue;
-      const data = { lead: l.lead, first: String(r.label).split(/[ ,]/)[0], when: consultWhen(ev.starts_at), time: et(ev.starts_at, { hour: 'numeric', minute: '2-digit' }), minutes: String(r.minutes), place: ev.location ?? '' };
+      const data = { lead: l.lead, first: String(r.label).split(/[ ,]/)[0], when: consultWhen(ev.starts_at), time: et(ev.starts_at, { hour: 'numeric', minute: '2-digit' }), day: et(ev.starts_at, { weekday: 'long' }), first_call: String(Boolean(r.inquiry_id)), minutes: String(r.minutes), place: ev.location ?? '' };
       const rows2 = (r.emails as string[]).map((to) => ({ tenant_id: r.tenant_id, to_email: to, template: 'consult_reminder', data, dedupe_key: `remind:${ev.id}:${start}:${l.lead}:${to}` }));
       const { data: ins } = await db.from('outbox').upsert(rows2, { onConflict: 'dedupe_key', ignoreDuplicates: true }).select('id');
       queued += ins?.length ?? 0;

@@ -101,9 +101,9 @@ try {
   const mc = outboxEmail('consult_confirm', email, { first: 'Riley', when: 'Monday, November 2 at 10:00 AM', minutes: '30', place: 'https://meet.google.com/verify-room' }, ORIGIN);
   const m1 = outboxEmail('consult_reminder', a.email, { ...ra[0].data }, ORIGIN);
   const m2 = outboxEmail('consult_reminder', b.email, { ...rb[0].data, place: '' }, ORIGIN);
-  check(/You’re booked/.test(mc.subject) && /isn’t a sales pitch/.test(mc.text ?? mc.html) && /meet\.google\.com\/verify-room/.test(mc.html) && /\/film/.test(mc.html), 'the confirmation frames a diagnostic, asks their #1 goal, has the video link and the film');
-  check(/^Tomorrow: your Genovus consultation at /.test(m1.subject) && /Join the call/.test(m1.html), `the day-before reminder (${m1.subject})`);
-  check(m2.subject === 'In an hour: your Genovus consultation' && !/Join the call/.test(m2.html) && /calendar invite/.test(m2.html), 'the hour-before reminder; without a room link it points to the invite');
+  check(/You’re booked/.test(mc.subject) && /isn’t a sales pitch/.test(mc.text ?? mc.html) && /meet\.google\.com\/verify-room/.test(mc.html) && /\/film/.test(mc.html) && /sample agency/.test(mc.html) && !/real agency/.test(mc.html), 'the confirmation frames a diagnostic, asks their #1 goal, has the video link and the film');
+  check(/^Reminder: your Genovus consultation, [A-Z][a-z]+day at /.test(m1.subject) && /Join the call/.test(m1.html), `the day-before reminder (${m1.subject})`);
+  check(m2.subject === 'In an hour: your Genovus consultation' && !/Join the call/.test(m2.html) && /send the video link before the call/.test(m2.html), 'the hour-before reminder; without a room link it promises one before the call');
   fs.writeFileSync(path.join(OUT, 'consult-confirm.html'), mc.html); fs.writeFileSync(path.join(OUT, 'consult-reminder-24h.html'), m1.html);
 
   // 4. how did it go → the funnel
