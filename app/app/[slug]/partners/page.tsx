@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { ModuleGate } from '@/components/ModuleGate';
 import { PartnerActions } from '@/components/PartnerActions';
+import { partnerCampaign } from '@/lib/partner-link';
 import { HelixAskButton } from '@/components/HelixDrawer';
 import { Panel, Chip, Tile, Empty } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
@@ -50,7 +51,8 @@ export default async function Partners({ params }: { params: Promise<{ slug: str
   const working = all.filter((p) => p.status !== 'new' && p.status !== 'not_now');
   const [deskInfo, boardInfo] = await Promise.all([Promise.all(desk.map((p) => getDetails(p.place_id))), Promise.all(working.slice(0, 40).map((p) => (p.known_name ? Promise.resolve({ name: p.known_name, address: '' }) : getSummary(p.place_id))))]);
   const nameOf = new Map(working.slice(0, 40).map((p, i) => [p.id, boardInfo[i]?.name ?? null]));
-  const refLink = (code: string) => prof?.website ? `${prof.website}/?utm_source=partner&utm_campaign=${code}` : null;
+  // Signed, so only links handed out here give a partner credit (lib/partner-link.ts).
+  const refLink = (code: string) => { const c = partnerCampaign(ctx.tenant.tenantId, code); return prof?.website && c ? `${prof.website}/?utm_source=partner&utm_campaign=${c}` : null; };
   const byLine = (Object.keys(LINES) as LineId[]).filter((l) => (prof?.lines ?? []).includes(l)).map((l) => ({ l, n: all.filter((p) => p.line === l).length }));
   const partnersNow = all.filter((p) => p.status === 'partner' || p.status === 'referring').length;
   const totalReferred = Object.values(referred).reduce((a, b) => a + b, 0);

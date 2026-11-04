@@ -10,6 +10,7 @@ import { adminDb } from './supabase/admin';
 import { supabaseConfigured } from './supabase/env';
 import { CONSENT_TEXT } from '@/data/consent';
 import { consultToken } from './consult';
+import { turnstileOk } from './turnstile';
 
 type Ref = { c?: string; src?: string; p?: string; l?: string };
 function readRef(raw: string | undefined): Ref {
@@ -53,6 +54,7 @@ export async function submitInquiry(f: FormData) {
   const h = await headers();
   const ip = (h.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
   const ipHash = createHash('sha256').update(`genovus-intake|${ip}`).digest('hex').slice(0, 32);
+  if (!(await turnstileOk(String(f.get('cf-turnstile-response') ?? ''), ip))) fail('Please complete the check above the button and try again.');
   const db = adminDb();
   const { count } = await db.from('inquiries').select('id', { count: 'exact', head: true }).eq('ip_hash', ipHash).gte('created_at', new Date(Date.now() - 3_600_000).toISOString());
   if ((count ?? 0) >= 5) fail('We already have several requests from you this hour. We will be in touch soon.');

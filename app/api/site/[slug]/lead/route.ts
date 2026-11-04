@@ -6,6 +6,9 @@ import { siteFor } from '@/lib/site-access';
 import { adminDb } from '@/lib/supabase/admin';
 import { openTimes } from '@/lib/helix-lookups';
 import { easternIso } from '@/lib/agency-calendar';
+import { createHash } from 'node:crypto';
+import { cleanAttribution, tagLead } from '@/lib/attribution';
+import { turnstileOk } from '@/lib/turnstile';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +29,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (phone && phone.replace(/\D/g, '').length < 10) return Response.json({ ok: false, error: 'Please check the phone number.' }, { status: 400 });
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Response.json({ ok: false, error: 'Please check the email.' }, { status: 400 });
   if (b.consent !== true) return Response.json({ ok: false, error: 'Please tick the box so the office may contact you.' }, { status: 400 });
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  if (!(await turnstileOk(str('cf-turnstile-response', 2048), ip))) return Response.json({ ok: false, error: 'Please complete the check above the Send button and try again.' }, { status: 400 });
   const d = site.d, db = adminDb();
-  // A few requests an hour from the same phone or email is plenty.
+  // A few requests an hour from the same phone, email or connection is plenty. Each is its own exact match.
   const since = new Date(Date.now() - 3_600_000).toISOString();
-  const { count } = await db.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', d.tenantId).gte('created_at', since).or([phone ? `phone.eq.${phone}` : '', email ? `email.eq.${email}` : ''].filter(Boolean).join(','));
-  if ((count ?? 0) >= 3) return Response.json({ ok: true, message: 'Thanks! The office already has your request and will be in touch.' });
+  const ipHash = createHash('sha256').update(`genovus-site-lead|${ip}`).digest('hex').slice(0, 32);
+  const recent = (col: string, v: string) => db.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', d.tenantId).gte('created_at', since).eq(col, v);
+  const counts = await Promise.all([phone ? recent('phone', phone) : null, email ? recent('email', email) : null].map((q) => q ?? Promise.resolve({ count: 0 })));
+  if (counts.some((c) => (c.count ?? 0) >= 3)) return Response.json({ ok: true, message: 'Thanks! The office already has your request and will be in touch.' });
+  const { count: fromIp } = await recent('attribution->>ip_hash', ipHash);
+  if ((fromIp ?? 0) >= 5) return Response.json({ ok: false, error: 'We already have several requests from you this hour. Please call the office.' }, { status: 429 });
   // A consult time must be one the office actually has open right now.
   let requested: string | null = null;
   const slot = str('slot', 40);
@@ -45,10 +54,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   // The requested time leads the message, so the office's new-lead alert shows it.
   const asked = requested ? `Asked for a consult on ${new Date(requested).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} (Eastern). Confirm it in Leads.` : '';
   const message = [asked, str('message', 1000)].filter(Boolean).join('\n\n');
+  // The visit's first-touch tags (components/site/SiteAttribution.tsx). Untagged visits stay "website".
+  const attr = cleanAttribution(b.attribution);
+  const tag = tagLead(d.tenantId, attr, 'website');
   const { error } = await db.rpc('site_lead', {
     p_tenant: d.tenantId, p_ext_id: `site:${crypto.randomUUID()}`, p_name: name, p_email: email || null, p_phone: phone || null, p_topic: topic || null,
-    p_message: message || null, p_source: d.live ? 'website' : 'website-preview', p_medium: requested ? 'booking' : 'callback', p_campaign: null,
-    p_attribution: { page: req.headers.get('referer') ?? null }, p_consent: consent, p_requested_for: requested,
+    p_message: message || null, p_source: d.live ? tag.source : 'website-preview', p_medium: requested ? 'booking' : 'callback', p_campaign: tag.campaign || null,
+    p_attribution: { ...attr, page: req.headers.get('referer') ?? null, ip_hash: ipHash }, p_consent: consent, p_requested_for: requested,
   });
   if (error) return Response.json({ ok: false, error: 'We couldn’t send that. Please call the office instead.' }, { status: 500 });
   const when = requested ? new Date(requested).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : null;

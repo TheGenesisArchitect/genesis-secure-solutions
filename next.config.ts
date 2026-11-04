@@ -5,7 +5,9 @@ import type { NextConfig } from 'next';
 // those are allowed from this origin only; nothing loads from other sites except images over https.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // Cloudflare Turnstile, the bot check on the public forms (its script, and the frame it draws in).
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+  "frame-src 'self' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob:",

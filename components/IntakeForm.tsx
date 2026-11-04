@@ -3,6 +3,7 @@
 import { submitInquiry } from '@/lib/intake';
 import { CONSENT_TEXT } from '@/data/consent';
 import { PLANS } from '@/data/offers';
+import { Turnstile } from './Turnstile';
 
 type Field = { name: string; label: string; type?: 'text' | 'email' | 'tel' | 'textarea' | 'select'; required?: boolean; options?: [string, string][]; placeholder?: string; auto?: string };
 
@@ -63,6 +64,7 @@ export function IntakeForm({ kind, defaults, back, short }: { kind: 'agency' | '
         <input type="checkbox" name="consent" value="yes" required style={{ marginTop: 4 }} />
         <span>{CONSENT_TEXT} See our <a href="/privacy" target="_blank">privacy policy</a>.</span>
       </label>
+      <Turnstile />
       <button className="btn primary" type="submit" style={{ justifySelf: 'start' }}>{kind === 'agency' ? 'See open times' : 'See open times for a pilot call'}</button>
     </form>
   );

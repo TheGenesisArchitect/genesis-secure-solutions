@@ -1,24 +1,15 @@
 // An agency's website hands Genovus each callback, server to server, with the agency's lead key (Authorization:
-// Bearer). The key decides the agency; the visit's tracking tags decide the source shown in the dashboard. The
-// site emails the lead first, so a failure here never costs the agency a lead. Retries are safe (ext id).
+// Bearer). The key decides the agency; the visit's tracking tags decide the source shown in the dashboard (a partner
+// gets credit only from a signed link, lib/attribution.ts). Each agency takes at most 30 leads a minute and 500 a
+// day through its keys, so a leaked key can't flood the office. Retries are safe (ext id).
 import { createHash } from 'node:crypto';
 import { adminDb } from '@/lib/supabase/admin';
+import { cleanAttribution, tagLead } from '@/lib/attribution';
 
 export const dynamic = 'force-dynamic';
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-
-/** Where the visit came from, in words an agent recognizes: the campaign's source, else the click ID, else the referring site. */
-function sourceOf(a: Record<string, string>): string {
-  if (a.utm_source) return a.utm_source.toLowerCase();
-  if (a.fbclid) return 'facebook';
-  if (a.gclid) return 'google';
-  const ref = host(a.referrer ?? '');
-  if (/facebook\.com|fb\.com|instagram\.com/.test(ref)) return ref.includes('instagram') ? 'instagram' : 'facebook';
-  if (/google\./.test(ref)) return 'google';
-  return ref || 'direct';
-}
+const PER_MINUTE = 30, PER_DAY = 500;
 
 export async function POST(req: Request) {
   const key = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
@@ -29,13 +20,21 @@ export async function POST(req: Request) {
   const name = str(b.name, 120), email = str(b.email, 150), phone = str(b.phone, 40), consent = str(b.consent, 500);
   if (name.length < 1 || (!email && !phone)) return Response.json({ error: 'A lead needs a name and an email or phone.' }, { status: 400 });
   if (consent.length < 10) return Response.json({ error: 'Send the consent wording the visitor agreed to.' }, { status: 400 });
-  const raw = (b.attribution && typeof b.attribution === 'object' ? b.attribution : {}) as Record<string, unknown>;
-  const attribution: Record<string, string> = {};
-  for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'referrer', 'landing']) { const v = str(raw[k], 300); if (v) attribution[k] = v; }
   const keyHash = createHash('sha256').update(key).digest('hex');
-  const { data, error } = await adminDb().rpc('ingest_lead', {
+  const db = adminDb();
+  const { data: k } = await db.from('lead_keys').select('tenant_id').eq('key_hash', keyHash).is('revoked_at', null).maybeSingle();
+  if (!k) return Response.json({ error: 'Unknown lead key.' }, { status: 401 });
+  const recent = (ms: number) => db.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', k.tenant_id).gte('created_at', new Date(Date.now() - ms).toISOString());
+  const [{ count: minute }, { count: day }] = await Promise.all([recent(60_000), recent(86_400_000)]);
+  if ((minute ?? 0) >= PER_MINUTE || (day ?? 0) >= PER_DAY) {
+    console.error(`[leads] rate limit for tenant ${k.tenant_id}: ${minute} this minute, ${day} today`);
+    return Response.json({ error: 'Too many leads right now. Try again shortly.' }, { status: 429, headers: { 'retry-after': '60' } });
+  }
+  const attribution = cleanAttribution(b.attribution);
+  const { source, campaign } = tagLead(k.tenant_id, attribution);
+  const { data, error } = await db.rpc('ingest_lead', {
     p_key_hash: keyHash, p_ext_id: str(b.id, 120), p_name: name, p_email: email, p_phone: phone, p_topic: str(b.topic, 120), p_message: str(b.message, 2000),
-    p_source: sourceOf(attribution), p_medium: attribution.utm_medium ?? '', p_campaign: attribution.utm_campaign ?? '', p_attribution: attribution, p_consent: consent,
+    p_source: source, p_medium: attribution.utm_medium ?? '', p_campaign: campaign, p_attribution: attribution, p_consent: consent,
   });
   if (error) {
     const unknownKey = /unknown lead key/.test(error.message);

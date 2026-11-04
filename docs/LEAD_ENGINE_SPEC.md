@@ -9,7 +9,7 @@ The rules in CLAUDE.md apply to every line here:
 - leads keep their consent record
 
 **Status:** spec only.
-- P0 ships on Anthony's word. The Command Brief time fix shipped with this spec.
+- P0 shipped 2026-11-03. Turnstile stays off until its keys are set.
 - P1 and P2 wait on decisions 3–6 on the R&D page.
 - P3 waits on GEICO's written lead and marketing rules.
 
@@ -72,10 +72,10 @@ The engine reads all three before every outward step.
 | # | Defect | Fix | Verify |
 |---|---|---|---|
 | 0.1 | Command Brief day window and Studio post time hardcoded `-04:00`, an hour off after daylight saving ended | **Shipped:** `easternAt()` in `lib/billing.ts`, used in `lib/command-brief.ts` and `lib/actions.ts` `studioSavePost` | `verify-command-brief.mjs` fixture is now DST-aware; unit cases across both changes |
-| 0.2 | Anyone can fake partner credit with `utm_source=partner&utm_campaign=<ref_code>` (0039 `link_partner_lead`) | Partner links carry `ref=<ref_code>.<sig>`, where `sig` is the first 10 hex characters of HMAC-SHA256(`PARTNER_LINK_SECRET`, tenant ∥ ref_code). The ingest route and site route check it server-side and pass `p_partner_ok`. The trigger links only when it is true. Old unsigned links still record the UTM but don't flip partner status. Add an FK `leads.partner_id → partner_targets(id) on delete set null`. | A forged code is not linked; a signed one is linked once |
-| 0.3 | Hosted sites (`/s/[slug]`) drop UTM, gclid and fbclid, so partner credit and ad attribution are lost | `components/RefCapture`-style first-touch cookie `gv_src` on `/s/[slug]`, stored on the first visit (utm_*, gclid, fbclid, msclkid, ref, landing page). The site lead route reads it into `p_source/p_medium/p_campaign/p_attribution`, using the same derivation as `/api/leads/ingest` (`deriveSource`, shared from `lib/attribution.ts`). | A lead from `?utm_source=facebook&fbclid=x` keeps both |
-| 0.4 | `/api/leads/ingest` has no per-key limit; the site route limits by phone/email only, and builds a PostgREST `.or()` string from raw input | Per-key limit of 30/min and 500/day in a Postgres function `lead_rate_ok(key_id)`, backed by a `lead_rate` counter table (service role only). Site route: limit per IP hash too, and replace the `.or()` string with two `.eq()` count queries. | The 31st call in a minute gets 429; payloads with `,` or `)` can't widen the filter |
-| 0.5 | No bot check on any form | Cloudflare Turnstile (free) on the hosted site form, `/book` and the JAVA site callback. The token is checked server-side (`TURNSTILE_SECRET_KEY`). When the env is missing, preview passes it through and production rejects. | Missing or bad token → 400; good token → lead |
+| 0.2 | Anyone could fake partner credit with `utm_source=partner&utm_campaign=<ref_code>` (0039 `link_partner_lead`) | **Shipped:** partner links carry `utm_campaign=<ref_code>.<sig>`, where sig is the first 10 hex of HMAC-SHA256(`PARTNER_LINK_SECRET` or `CRON_SECRET`, `partner:<tenant>:<ref>`) (`lib/partner-link.ts`). Both capture paths verify it (`lib/attribution.ts` `tagLead`) and pass the bare ref code only when it's valid; otherwise the source becomes `partner-unverified` and no partner is credited. The signature rides in utm_campaign because every path, JAVA's own site included, already keeps that field. No secret means no links and no credit. The `leads.partner_id` FK is deferred to the P1 migration. | `verify-lead-p0.mjs`: forged and bare codes credit no one; a signed one links once and moves the partner to referring |
+| 0.3 | Hosted sites (`/s/[slug]`) dropped UTM, gclid and fbclid | **Shipped:** `components/site/SiteAttribution.tsx` keeps the visit's first-touch tags in sessionStorage per site; the contact form sends them; the site route stores them in `attribution` and derives source and campaign with the same `tagLead` as the lead API. Untagged visits stay `website`; preview sites stay `website-preview`; `medium` keeps callback/booking. | A hosted lead keeps utm_source, fbclid and campaign |
+| 0.4 | `/api/leads/ingest` had no limit; the site route limited by phone/email only, through a PostgREST `.or()` string built from raw input | **Shipped:** the lead API looks up the key's agency first and allows 30 leads a minute and 500 a day **per agency** (429 with retry-after). The site route counts phone and email with separate `.eq()` queries, and allows 5 requests an hour per connection (`attribution.ip_hash`, a salted hash, never the address). No migration. | The 31st call in a minute gets 429; a phone with filter characters can't widen the check; the 6th request from one connection gets 429 |
+| 0.5 | No bot check on any form | **Shipped, switched off:** Cloudflare Turnstile on the hosted-site form and `/book`'s intake (`components/Turnstile.tsx`, `lib/turnstile.ts`), with the CSP opened for `challenges.cloudflare.com`. It turns on only when both `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are set; then a missing or bad token is refused, and if Cloudflare can't be reached the form goes through (logged). The JAVA site's callback is deferred: it is a client's live site and has no keys yet. | With the test keys: no token gets 400; the test token goes through |
 
 ## 4. P1: speed to lead, consent, verify, score (2 weeks, no ad spend)
 
@@ -331,7 +331,7 @@ Budget shifts happen only inside an approved standing rule. The cap is set and r
 | Item | Env | Cost |
 |---|---|---|
 | Turnstile | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | free |
-| Partner link signing | `PARTNER_LINK_SECRET` | — |
+| Partner link signing | `PARTNER_LINK_SECRET` (falls back to `CRON_SECRET`) | — |
 | Twilio Lookup | existing `TWILIO_*` | $0.008 a lookup |
 | TrustedForm | `TRUSTEDFORM_API_KEY` | about $0.15 a retained cert, $10/mo minimum |
 | Census | `CENSUS_API_KEY` | free |
@@ -344,7 +344,7 @@ Budget shifts happen only inside an approved standing rule. The cap is set and r
 
 ## 10. Order and gates
 
-1. **P0 (this week):** 0.1 shipped. 0.2–0.5 on Anthony's word.
+1. **P0:** shipped 2026-11-03. Turnstile waits for its keys.
 2. **P1:** after decisions 3 (approve P1/P2), 4 (standing rules) and 6 (credit window).
 3. **P2:** alongside P1. Partner rewards stay off until counsel confirms the state caps (decision 7).
 4. **P3:** only after GEICO's written lead and marketing rules (decision 1). One agency, $300 cap.
