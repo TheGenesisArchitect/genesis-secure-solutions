@@ -3,7 +3,7 @@
 // brief is the summary above them; these are what you can do about it.
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { businessToday } from './billing';
+import { businessToday, easternAt } from './billing';
 import { momentsNow, LINES, partnerCategories } from './lines';
 import { STAGE_LABEL, type Stage } from '@/components/ui';
 import { followupState } from './consult-followups';
@@ -26,7 +26,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export async function agencyCards(db: SupabaseClient, tenantId: string, slug: string, opts: { isOwner: boolean; has: (k: string) => boolean }): Promise<BriefCard[]> {
   const base = `/app/${slug}`;
   const today = businessToday();
-  const dayStart = new Date(`${today}T00:00:00-04:00`).toISOString(), dayEnd = new Date(`${today}T23:59:59-04:00`).toISOString();
+  const dayStart = easternAt(`${today}T00:00:00`).toISOString(), dayEnd = easternAt(`${today}T23:59:59`).toISOString();
   const [fresh, missed, consults, due, approvals, care, prof, partners] = await Promise.all([
     db.from('leads').select('id, name, phone, topic, source, channel, created_at').eq('tenant_id', tenantId).eq('status', 'new').order('created_at', { ascending: false }).limit(4),
     db.from('calls').select('id, from_e164, started_at, lead_id').eq('tenant_id', tenantId).eq('status', 'missed').gte('started_at', new Date(Date.now() - 86_400_000).toISOString()).order('started_at', { ascending: false }).limit(3),

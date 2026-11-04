@@ -44,10 +44,11 @@ const clean = async () => {
   await db.from('outbox').delete().eq('tenant_id', t.id).in('template', ['lead_new', 'lead_push']);
 };
 await clean();
+const eastern = (day, hhmm) => { for (const off of ['-04:00', '-05:00']) { const d = new Date(`${day}T${hhmm}:00${off}`); if (d.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }) === hhmm) return d; } throw new Error('tz'); };
 const consent = 'I agree that Test Agency may contact me about this request.';
 must(await db.from('leads').insert([
   { tenant_id: t.id, ext_id: 'cb-1', name: 'Rosa Brief', phone: '(706) 555-0161', topic: 'Auto', source: 'website', consent_text: consent, consent_at: new Date().toISOString(), status: 'new', channel: 'form' },
-  { tenant_id: t.id, ext_id: 'cb-2', name: 'Theo Consult', phone: '(706) 555-0162', topic: 'Boat', source: 'google', consent_text: consent, consent_at: new Date().toISOString(), status: 'booked', channel: 'form', booked_for: new Date(`${today}T14:00:00-04:00`).toISOString(), first_contact_at: new Date().toISOString() },
+  { tenant_id: t.id, ext_id: 'cb-2', name: 'Theo Consult', phone: '(706) 555-0162', topic: 'Boat', source: 'google', consent_text: consent, consent_at: new Date().toISOString(), status: 'booked', channel: 'form', booked_for: eastern(today, "14:00").toISOString(), first_contact_at: new Date().toISOString() },
 ]), 'brief leads');
 must(await db.from('follow_ups').insert({ tenant_id: t.id, who: 'Marcus Lee', reason: 'Verify brief: homeowners quote', due_on: today, due_at: '10:30' }), 'follow-up');
 

@@ -4,6 +4,16 @@ import { PLANS } from '@/data/offers';
 /** Today as YYYY-MM-DD in the business time zone (Eastern), so evening saves are not dated tomorrow. */
 export const businessToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
+/** An Eastern wall-clock time ("YYYY-MM-DDTHH:MM" or with ":SS") as an instant, on the right side of daylight saving. */
+export function easternAt(local: string): Date {
+  const want = local.length === 16 ? `${local}:00` : local;
+  for (const off of ['-04:00', '-05:00']) {
+    const d = new Date(`${want}${off}`);
+    if (d.toLocaleString('sv-SE', { timeZone: 'America/New_York' }) === want.replace('T', ' ')) return d;
+  }
+  return new Date(`${want}-05:00`); // a time the spring change skips
+}
+
 export const careName: Record<string, string> = { launch: 'Essential Care', vip: 'Essential Care', growth: 'Growth Care', premium: 'Optimization Care' };
 export const careRate: Record<string, number> = { launch: 24_900, vip: 24_900, growth: 39_900, premium: 79_900 };
 export const monthEnd = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));

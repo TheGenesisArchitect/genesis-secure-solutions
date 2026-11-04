@@ -6,7 +6,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { db } from './supabase/server';
-import { quoteUpgrade, careName, careRate, monthEnd, daysInMonth, businessToday } from './billing';
+import { quoteUpgrade, careName, careRate, monthEnd, daysInMonth, businessToday, easternAt } from './billing';
 
 export type ActionResult = { ok?: string; err?: string; sticky?: boolean; at: number } | null;
 
@@ -434,7 +434,7 @@ export async function studioSetEpisode(_: ActionResult, f: FormData) {
 
 export async function studioSavePost(_: ActionResult, f: FormData) {
   const when = str(f, 'when', 30);
-  return call('studio_save_post', { p_id: str(f, 'id', 64), p_caption: str(f, 'caption', 2200), p_title: str(f, 'title', 100), p_scheduled: when ? new Date(`${when}:00-04:00`).toISOString() : null }, 'Post saved (back to draft for approval).');
+  return call('studio_save_post', { p_id: str(f, 'id', 64), p_caption: str(f, 'caption', 2200), p_title: str(f, 'title', 100), p_scheduled: when ? easternAt(when).toISOString() : null }, 'Post saved (back to draft for approval).');
 }
 
 export async function studioApprovePost(_: ActionResult, f: FormData) {
