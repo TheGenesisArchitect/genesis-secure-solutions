@@ -794,11 +794,14 @@ form[data-pending] button[type=submit],form[data-pending] button:not([type]){opa
 @media (max-width:760px){.board{grid-template-columns:repeat(5,minmax(240px,82vw))}}
 
 /* Agency calendar week */
-.week{display:grid;gap:10px;grid-template-columns:repeat(7,minmax(0,1fr))}
+/* Seven days across when there is room; on a laptop with the menu open the days wrap into rows (each at least 170px)
+   instead of squeezing cards until their chips and links run out of them. */
+.week{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
 .week-day{display:grid;gap:8px;align-content:start;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);min-height:140px;min-width:0}
 .week-day.today{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
 .week-day header{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px}
-.cal-item{display:grid;gap:3px;padding:8px;border-radius:9px;background:var(--raise);border:1px solid var(--line);min-width:0}
+.cal-item{display:grid;gap:3px;padding:8px;border-radius:9px;background:var(--raise);border:1px solid var(--line);min-width:0;overflow-wrap:anywhere}
+.cal-item>.row{flex-wrap:wrap;row-gap:4px}
 .cal-item.consult{border-color:color-mix(in srgb,var(--done) 55%,var(--line))}
 @media (max-width:900px){.week{grid-template-columns:1fr}.week-day{min-height:0}}
 

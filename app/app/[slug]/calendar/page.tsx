@@ -2,6 +2,7 @@
 // partner visits, day by day, with a private link to subscribe from Google or Apple Calendar. The team (or Helix, with a
 // yes) adds and cancels events here.
 import Link from 'next/link';
+import { MeetingPlace } from '@/components/MeetingPlace';
 import { headers } from 'next/headers';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { ModuleGate } from '@/components/ModuleGate';
@@ -74,9 +75,9 @@ export default async function Calendar({ params, searchParams }: { params: Promi
               {mine.length ? mine.map((i) => (
                 <div key={i.id} className={`cal-item ${i.kind}`} data-helix-item={i.kind === 'event' ? i.title : undefined}>
                   <span className="row" style={{ gap: 6 }}><Chip kind={KIND[i.kind][1]}>{KIND[i.kind][0]}</Chip><span className="muted" style={{ fontSize: 12 }}>{i.allDay ? 'Any time' : i.end ? `${time(i.start)} – ${time(i.end)}` : time(i.start)}</span>{i.host === 'genovus' ? <Chip kind="done">With Genovus</Chip> : null}</span>
-                  <b style={{ fontSize: 14 }}>{i.title}</b>
-                  {i.location ? <span className="muted" style={{ fontSize: 12 }}>{i.location}</span> : null}
-                  {i.detail ? <span className="muted" style={{ fontSize: 12 }}>{i.detail}</span> : null}
+                  <b style={{ fontSize: 14, overflowWrap: 'anywhere' }}>{i.title}</b>
+                  {i.location ? <MeetingPlace location={i.location} /> : null}
+                  {i.detail ? <span className="muted" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{i.detail}</span> : null}
                   {i.kind === 'event' && i.eventId ? (
                     <ActionForm action={cancelEvent} helix="cancel event" helixTitle={`Cancel ${i.title}`}>
                       <input type="hidden" name="id" value={i.eventId} />
@@ -95,8 +96,8 @@ export default async function Calendar({ params, searchParams }: { params: Promi
           <label className="field"><span>What</span><input className="input" name="title" required maxLength={160} placeholder="e.g. Carrier setup with Genovus" autoComplete="off" /></label>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <label className="field" style={{ flex: 2, minWidth: 150 }}><span>Day</span><input className="input" type="date" name="day" required defaultValue={today} /></label>
-            <label className="field" style={{ flex: 1, minWidth: 110 }}><span>Starts</span><input className="input" type="time" name="start" required defaultValue="10:00" /></label>
-            <label className="field" style={{ flex: 1, minWidth: 110 }}><span>Ends</span><input className="input" type="time" name="end" defaultValue="11:00" /></label>
+            <label className="field" style={{ flex: 1, minWidth: 140 }}><span>Starts</span><input className="input" type="time" name="start" required defaultValue="10:00" /></label>
+            <label className="field" style={{ flex: 1, minWidth: 140 }}><span>Ends</span><input className="input" type="time" name="end" defaultValue="11:00" /></label>
           </div>
           <label className="field"><span>Where <span className="muted">(optional)</span></span><input className="input" name="location" maxLength={200} placeholder="The office, a video link, an address" autoComplete="off" /></label>
           <label className="field"><span>Notes <span className="muted">(optional)</span></span><input className="input" name="notes" maxLength={1000} placeholder="What to bring or prepare" autoComplete="off" /></label>

@@ -2,6 +2,7 @@
 // internal (Helix may save it after a yes); sending is outward, so Helix only fills it and a person taps Send.
 import { ActionForm } from '@/components/ActionForm';
 import { Chip, Empty } from '@/components/ui';
+import { MeetingPlace } from '@/components/MeetingPlace';
 import { addEvent, cancelEvent, sendEventInvite } from '@/lib/actions';
 
 export type MeetingRow = { id: string; title: string; starts_at: string; ends_at: string; location: string | null; attendees: string[]; status: string; sequence: number; invited_at: string | null; invited_sequence: number | null };
@@ -22,8 +23,9 @@ export function MeetingsPanel({ tenantId, agency, today, attendees, rows }: { te
               <li key={m.id} data-helix-item={m.title} style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ display: 'grid', gap: 2, minWidth: 0, flex: 1 }}>
                   <b>{m.title}</b>
-                  <span className="muted" style={{ fontSize: 13 }}>{when(m.starts_at, m.ends_at)}{m.location ? ` · ${m.location}` : ''}</span>
-                  <span className="muted" style={{ fontSize: 12 }}>{m.attendees.length ? m.attendees.join(', ') : 'Nobody to invite yet'}</span>
+                  <span className="muted" style={{ fontSize: 13 }}>{when(m.starts_at, m.ends_at)}</span>
+                  {m.location ? <MeetingPlace location={m.location} size={13} /> : null}
+                  <span className="muted" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{m.attendees.length ? m.attendees.join(', ') : 'Nobody to invite yet'}</span>
                 </span>
                 <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                   {cancelled ? <Chip kind="blocked">Cancelled</Chip> : null}
