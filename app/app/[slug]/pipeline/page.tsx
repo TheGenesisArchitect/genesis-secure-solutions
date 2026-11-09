@@ -15,8 +15,8 @@ export const metadata = { title: 'Pipeline' };
 export const dynamic = 'force-dynamic';
 
 type Lead = { id: string; name: string; phone: string | null; email: string | null; topic: string | null; source: string; campaign: string | null; status: string; note: string | null; booked_for: string | null; created_at: string; updated_at: string };
-const STAGES = [['new', 'New', 'Call while it’s fresh'], ['contacted', 'Contacted', 'Book the consult'], ['booked', 'Booked', 'Meet, then mark won or lost'], ['won', 'Won', 'Ask for a review']] as const;
-const NEXT: Record<string, [string, string]> = { new: ['contacted', 'Contacted'], contacted: ['booked', 'Booked'], booked: ['won', 'Won'] };
+const STAGES = [['new', 'New', 'Call while it’s fresh'], ['contacted', 'Contacted', 'Book the consult'], ['booked', 'Booked', 'Meet, then quote'], ['quoted', 'Quoted', 'Follow up, then mark bound or lost'], ['won', 'Bound', 'Ask for a review']] as const;
+const NEXT: Record<string, [string, string]> = { new: ['contacted', 'Contacted'], contacted: ['booked', 'Booked'], booked: ['quoted', 'Quoted'], quoted: ['won', 'Bound'] };
 const SOURCE: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', direct: 'Direct' };
 const age = (iso: string) => { const h = (Date.now() - new Date(iso).getTime()) / 3_600_000; return h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`; };
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
@@ -36,7 +36,7 @@ export default async function Pipeline({ params }: { params: Promise<{ slug: str
   const won = leads.filter((l) => l.status === 'won').length;
   return (
     <AgencyShell ctx={ctx} title="Pipeline" actions={<Link className="btn small" href={`/app/${slug}/leads`}>List view</Link>}>
-      <p className="muted" style={{ margin: 0, fontSize: 13 }}>{total} active and recent leads · {won} won in the last 60 days{lost.length ? ` · ${lost.length} lost` : ''}. Nothing is sent to a lead from here.</p>
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>{total} active and recent leads · {won} bound in the last 60 days{lost.length ? ` · ${lost.length} lost` : ''}. Nothing is sent to a lead from here.</p>
       <div className="board">
         {STAGES.map(([key, label, hint]) => {
           const col = leads.filter((l) => l.status === key);

@@ -317,7 +317,7 @@ export async function handOffHelixNote(_: ActionResult, f: FormData) {
 }
 
 // ---------- Follow-ups (agency reminders) ----------
-const LEAD_DONE: Record<string, string> = { new: 'Moved back to new.', contacted: 'Marked contacted.', booked: 'Marked booked.', won: 'Marked won. Nice.', lost: 'Marked lost.' };
+const LEAD_DONE: Record<string, string> = { new: 'Moved back to new.', contacted: 'Marked contacted.', booked: 'Marked booked.', quoted: 'Marked quoted.', won: 'Marked bound. Nice.', lost: 'Marked lost.' };
 export async function updateLead(_: ActionResult, f: FormData) {
   const status = str(f, 'status', 12);
   return call('update_lead', { p_id: str(f, 'id', 64), p_status: status, p_note: str(f, 'note', 2000) }, LEAD_DONE[status] ?? 'Saved.');
@@ -330,6 +330,26 @@ export async function confirmRequestedTime(_: ActionResult, f: FormData) {
   if (!l?.requested_for) return fail('That lead has no requested time.');
   const when = new Date(l.requested_for).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
   return call('book_lead', { p_id: id, p_when: l.requested_for, p_note: 'Confirmed the time they picked on the website' }, `Booked for ${when}. It’s on your calendar.`);
+}
+
+/** How a lead ended up: quoted, bound (stored as won) with premium and lines, or lost with the reason and their renewal
+ * date (which puts call tasks 45, 30 and 15 days before it on the calendar). */
+export async function recordOutcome(_: ActionResult, f: FormData) {
+  const status = str(f, 'status', 10);
+  const dollars = Number(str(f, 'premium', 12).replace(/[$,\s]/g, ''));
+  const p = {
+    premium_cents: Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null,
+    lines: f.getAll('lines').map(String).slice(0, 10),
+    lost_reason: str(f, 'reason', 20) || null,
+    x_date: str(f, 'x_date', 10) || null,
+    note: str(f, 'note', 2000) || null,
+  };
+  const supabase = await db();
+  const { data, error } = await supabase.rpc('record_outcome', { p_id: str(f, 'id', 64), p_status: status, p });
+  revalidatePath('/', 'layout');
+  if (error) return fail(error.message);
+  const tasks = Number(data ?? 0);
+  return done(status === 'won' ? 'Marked bound. Nice.' : status === 'quoted' ? 'Marked quoted.' : `Marked lost.${tasks ? ` ${tasks} renewal call${tasks === 1 ? '' : 's'} on the calendar.` : ''}`);
 }
 
 /** The person asked the office to stop: every consent they gave this agency is revoked (the engine won't reach them). */

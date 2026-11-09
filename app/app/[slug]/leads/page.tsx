@@ -8,7 +8,8 @@ import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { Panel, Chip, Empty, Tile } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
 import { businessToday } from '@/lib/billing';
-import { addFollowUp, updateLead, confirmRequestedTime, askForReview, revokeLeadConsent } from '@/lib/actions';
+import { addFollowUp, updateLead, confirmRequestedTime, askForReview, revokeLeadConsent, recordOutcome } from '@/lib/actions';
+import { LINES, lineIds } from '@/lib/lines';
 import { accessFor } from '@/lib/access';
 import { HelixAskButton } from '@/components/HelixDrawer';
 import { prettyPhone } from '@/lib/twilio';
@@ -19,8 +20,10 @@ export const dynamic = 'force-dynamic';
 type Call = { id: string; lead_id: string | null; started_at: string; duration_s: number; status: string; recording_sid: string | null; summary: string | null };
 type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null; asks?: number; last_asked_at?: string | null; contact_id?: string | null; score?: number | null; score_reasons?: string[]; out_of_line?: boolean };
 
-const STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['booked', 'Booked'], ['won', 'Won'], ['lost', 'Lost']] as const;
-const STATUS_KIND: Record<string, string> = { new: 'pending', contacted: 'info', booked: 'info', won: 'done', lost: '' };
+// 'won' is stored for old rows and the review ask, and shown as Bound (migration 0097).
+const STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['booked', 'Booked'], ['quoted', 'Quoted'], ['won', 'Bound'], ['lost', 'Lost']] as const;
+const STATUS_KIND: Record<string, string> = { new: 'pending', contacted: 'info', booked: 'info', quoted: 'info', won: 'done', lost: '' };
+const LOST_REASONS = [['price', 'Price'], ['coverage', 'Coverage'], ['carrier_declined', 'Carrier declined'], ['no_response', 'Never reached them'], ['went_elsewhere', 'Went elsewhere'], ['not_eligible', 'Not eligible'], ['other', 'Other']] as const;
 const SOURCE: Record<string, string> = { website: 'Website', 'google-profile': 'Google profile', partner: 'Partner', facebook: 'Facebook', instagram: 'Instagram', google: 'Google', direct: 'Direct', email: 'Email', tiktok: 'TikTok', youtube: 'YouTube' };
 const sourceLabel = (s: string) => SOURCE[s] ?? s;
 const ago = (iso: string, tz = 'America/New_York') => {
@@ -40,7 +43,8 @@ export default async function Leads({ params, searchParams }: { params: Promise<
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const access = await accessFor(ctx.tenant.tenantId, ctx.tenant.plan);
   // Times in the agency's own zone (an Alabama office is Central).
-  const tz = (await supabase.from('agency_profiles').select('timezone').eq('tenant_id', ctx.tenant.tenantId).maybeSingle()).data?.timezone ?? 'America/New_York';
+  const profile = (await supabase.from('agency_profiles').select('timezone, lines').eq('tenant_id', ctx.tenant.tenantId).maybeSingle()).data;
+  const tz = profile?.timezone ?? 'America/New_York';
   const [{ data: rows }, { data: month }, { data: callRows }, { data: stopRows }] = await Promise.all([
     (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at, contact_id, score, score_reasons, out_of_line').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
     supabase.from('leads').select('source, status, created_at, first_contact_at').eq('tenant_id', ctx.tenant.tenantId).gte('created_at', since).limit(2000),
@@ -48,6 +52,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
     supabase.from('lead_consents').select('lead_id, received_at, revoked_at').eq('tenant_id', ctx.tenant.tenantId).order('received_at', { ascending: false }).limit(3000),
   ]);
   const leads = (rows ?? []) as Lead[];
+  const myLines = lineIds(profile?.lines);
   // People who asked the office to stop: a revocation with no consent given after it, across all of the person's
   // leads (the same rule as consent_allows, migration 0094).
   const personOf = new Map(leads.map((l) => [l.id, l.contact_id ?? l.id]));
@@ -78,7 +83,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
         <Tile label="Waiting for a first call" value={<span className="num">{fresh}</span>} hint={fresh ? 'Reach out while it’s fresh' : 'Everyone has been contacted'} />
         <Tile label="Leads, last 30 days" value={<span className="num">{m.length}</span>} hint={bySource[0] ? `Most from ${sourceLabel(bySource[0][0])}` : 'From your website'} />
         <Tile label="Time to first call" value={median == null ? '—' : median < 60 ? `${Math.round(median)} min` : `${(median / 60).toFixed(1)} h`} hint="Median, last 30 days" />
-        {calls.length ? <Tile label="Calls this week" value={<span className="num">{callsWeek.length}</span>} hint={`${callsWeek.filter((c) => c.status === 'missed').length} missed: each is a callback in Today`} /> : <Tile label="Won, last 30 days" value={<span className="num">{won}</span>} hint="Marked won by your office" />}
+        {calls.length ? <Tile label="Calls this week" value={<span className="num">{callsWeek.length}</span>} hint={`${callsWeek.filter((c) => c.status === 'missed').length} missed: each is a callback in Today`} /> : <Tile label="Bound, last 30 days" value={<span className="num">{won}</span>} hint="Marked bound by your office" />}
       </div>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
         <Link className={'chip lead-filter' + (!filter ? ' info' : '')} href={base}>All</Link>
@@ -130,9 +135,31 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                   {helix ? <HelixAskButton label="What should I ask?" question={`What should I ask ${l.name} on the first call? Give me a short intake checklist for their line.`} context={`lead ${l.name}, ${l.topic ?? 'no topic'}`} /> : null}
                 </div>
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                  {STATUS.filter(([k]) => k !== l.status && k !== 'new').map(([k, label]) => (
+                  {STATUS.filter(([k]) => k !== l.status && k !== 'new' && k !== 'won' && k !== 'lost').map(([k, label]) => (
                     <ActionForm key={k} action={updateLead}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="status" value={k} /><button className="btn small ghost" type="submit">{label}</button></ActionForm>
                   ))}
+                  {l.status !== 'won' ? (
+                    <details className="lead-outcome">
+                      <summary className="btn small ghost">Bound</summary>
+                      <ActionForm action={recordOutcome} className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+                        <input type="hidden" name="id" value={l.id} /><input type="hidden" name="status" value="won" />
+                        <label className="field" style={{ minWidth: 0 }}><span>Annual premium (optional)</span><input className="input" name="premium" inputMode="decimal" placeholder="$1,450" style={{ maxWidth: 140 }} /></label>
+                        {myLines.length ? <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>{myLines.map((id) => <label key={id} className="row" style={{ gap: 4, fontSize: 13 }}><input type="checkbox" name="lines" value={id} />{LINES[id].label}</label>)}</span> : null}
+                        <button className="btn small primary" type="submit">Mark bound</button>
+                      </ActionForm>
+                    </details>
+                  ) : null}
+                  {l.status !== 'lost' && l.status !== 'won' ? (
+                    <details className="lead-outcome">
+                      <summary className="btn small ghost">Lost</summary>
+                      <ActionForm action={recordOutcome} className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+                        <input type="hidden" name="id" value={l.id} /><input type="hidden" name="status" value="lost" />
+                        <label className="field" style={{ minWidth: 0 }}><span>Why</span><select className="select" name="reason" defaultValue="price">{LOST_REASONS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></label>
+                        <label className="field" style={{ minWidth: 0 }}><span>When does their current policy renew? (optional)</span><input className="input" type="date" name="x_date" /></label>
+                        <button className="btn small" type="submit">Mark lost</button>
+                      </ActionForm>
+                    </details>
+                  ) : null}
                   <ActionForm action={addFollowUp}>
                     <input type="hidden" name="tenant" value={ctx.tenant.tenantId} /><input type="hidden" name="who" value={l.name} /><input type="hidden" name="reason" value={l.topic ? `Lead: ${l.topic}` : 'Lead from the website'} /><input type="hidden" name="due" value={tomorrowOf(today)} /><input type="hidden" name="at" value="09:30" />
                     <button className="btn small ghost" type="submit">Follow up tomorrow</button>
