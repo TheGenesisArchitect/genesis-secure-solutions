@@ -47,7 +47,7 @@ export async function sendLeadPush(db: SupabaseClient, tenantId: string, d: Reco
   const { data: members } = await db.from('memberships').select('user_id').eq('tenant_id', tenantId);
   const what = [d.topic, d.channel === 'call' ? 'called the office' : d.source ? `via ${d.source}` : ''].filter(Boolean).join(' · ');
   return pushTo(db, (members ?? []).map((m) => m.user_id), {
-    title: `New lead · ${d.name}`,
+    title: `${d.repeat === 'true' ? 'Asked again' : 'New lead'} · ${d.name}`,
     body: `${what ? `${what} · ` : ''}Tap to call while it’s fresh.`,
     url: `/app/${d.slug}/today?lead=${d.lead}`,
     tag: `lead-${String(d.lead).slice(0, 27)}`,

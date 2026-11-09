@@ -93,11 +93,13 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
   switch (template) {
     case 'lead_new': {
       // A new lead: who, how to reach them, what they want and where they found the agency. Call within minutes.
-      const how = data.channel === 'call' ? 'called the office' : data.channel === 'partner' ? 'came from a referral partner' : 'asked for a callback';
+      // A person who asks again within 30 days joins their open lead (migration 0094): same alert, "asked again".
+      const again = data.repeat === 'true';
+      const how = again ? `asked again${Number(data.asks) > 2 ? ` (${data.asks} times now)` : ''}` : data.channel === 'call' ? 'called the office' : data.channel === 'partner' ? 'came from a referral partner' : 'asked for a callback';
       const team = data.team === 'true';
       return {
         to,
-        subject: `New lead for ${data.agency}: ${data.name}${data.topic ? ` (${data.topic})` : ''}`,
+        subject: `${again ? 'Asked again' : 'New lead'} for ${data.agency}: ${data.name}${data.topic ? ` (${data.topic})` : ''}`,
         ...frame({
           preheader: `${data.name} ${how}${data.phone ? `: ${data.phone}` : ''}. The sooner you call, the likelier they book.`,
           heading: `${data.name} ${how}`,
@@ -107,7 +109,7 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
             ...(data.topic ? [`About: ${data.topic}`] : []),
             ...(data.message ? [`“${data.message}”`] : []),
             `Found you through: ${data.source}.`,
-            'The sooner you call, the likelier they are to book. It is waiting in your Leads with its consent on record.',
+            again ? 'They are still waiting to hear from you. It is the same lead in your Leads, with this request added.' : 'The sooner you call, the likelier they are to book. It is waiting in your Leads with its consent on record.',
           ],
           button: { label: 'Open the lead', url: `${origin}/app/${data.slug}/leads` },
         }, origin),

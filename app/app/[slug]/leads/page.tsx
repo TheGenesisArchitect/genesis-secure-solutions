@@ -8,7 +8,7 @@ import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { Panel, Chip, Empty, Tile } from '@/components/ui';
 import { db } from '@/lib/supabase/server';
 import { businessToday } from '@/lib/billing';
-import { addFollowUp, updateLead, confirmRequestedTime, askForReview } from '@/lib/actions';
+import { addFollowUp, updateLead, confirmRequestedTime, askForReview, revokeLeadConsent } from '@/lib/actions';
 import { accessFor } from '@/lib/access';
 import { HelixAskButton } from '@/components/HelixDrawer';
 import { prettyPhone } from '@/lib/twilio';
@@ -17,7 +17,7 @@ export const metadata = { title: 'Leads' };
 export const dynamic = 'force-dynamic';
 
 type Call = { id: string; lead_id: string | null; started_at: string; duration_s: number; status: string; recording_sid: string | null; summary: string | null };
-type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null };
+type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null; asks?: number; last_asked_at?: string | null };
 
 const STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['booked', 'Booked'], ['won', 'Won'], ['lost', 'Lost']] as const;
 const STATUS_KIND: Record<string, string> = { new: 'pending', contacted: 'info', booked: 'info', won: 'done', lost: '' };
@@ -39,11 +39,14 @@ export default async function Leads({ params, searchParams }: { params: Promise<
   const supabase = await db();
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const access = await accessFor(ctx.tenant.tenantId, ctx.tenant.plan);
-  const [{ data: rows }, { data: month }, { data: callRows }] = await Promise.all([
-    (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
+  const [{ data: rows }, { data: month }, { data: callRows }, { data: stopRows }] = await Promise.all([
+    (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
     supabase.from('leads').select('source, status, created_at, first_contact_at').eq('tenant_id', ctx.tenant.tenantId).gte('created_at', since).limit(2000),
     supabase.from('calls').select('id, lead_id, started_at, duration_s, status, recording_sid, summary').eq('tenant_id', ctx.tenant.tenantId).gte('started_at', since).order('started_at', { ascending: false }).limit(500),
+    supabase.from('lead_consents').select('lead_id').eq('tenant_id', ctx.tenant.tenantId).not('revoked_at', 'is', null).limit(2000),
   ]);
+  // People who asked the office to stop (every consent they gave this agency is revoked).
+  const stopped = new Set((stopRows ?? []).map((r) => r.lead_id as string));
   const calls = (callRows ?? []) as Call[];
   const callsOf = (id: string) => calls.filter((c) => c.lead_id === id);
   const weekAgo = Date.now() - 7 * 86_400_000;
@@ -80,10 +83,12 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                   <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <b style={{ fontSize: 16 }}>{l.name}</b>
                     <Chip kind={STATUS_KIND[l.status]}>{STATUS.find(([k]) => k === l.status)?.[1] ?? l.status}</Chip>
+                    {(l.asks ?? 1) > 1 ? <Chip kind="pending">{`Asked ${l.asks} times`}</Chip> : null}
+                    {stopped.has(l.id) ? <Chip kind="bad">Asked us to stop</Chip> : null}
                     {l.channel === 'call' ? <Chip kind="pending">Call</Chip> : l.channel === 'partner' ? <Chip kind="done">Partner referral</Chip> : null}
                     <Chip kind="info">{sourceLabel(l.source)}{l.campaign && l.channel !== 'partner' ? ` · ${l.campaign}` : ''}</Chip>
                   </span>
-                  <span className="muted" style={{ fontSize: 13 }}>{ago(l.created_at)}</span>
+                  <span className="muted" style={{ fontSize: 13 }}>{ago(l.created_at)}{l.last_asked_at ? ` · asked again ${ago(l.last_asked_at)}` : ''}</span>
                 </div>
                 {l.topic ? <span style={{ fontWeight: 600 }}>{l.topic}</span> : null}
                 {l.message ? <p className="soft" style={{ margin: 0, fontSize: 14 }}>{l.message}</p> : null}
@@ -120,7 +125,12 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                   </ActionForm>
                 </div>
                 {l.note ? <span className="muted" style={{ fontSize: 13 }}>Note: {l.note}</span> : null}
-                <span className="muted" style={{ fontSize: 11.5 }}>Consent: “{l.consent_text}”</span>
+                <span className="row muted" style={{ fontSize: 11.5, gap: 8, flexWrap: 'wrap' }}>
+                  <span>Consent: “{l.consent_text}”</span>
+                  {stopped.has(l.id) ? <span>Revoked: Genovus won’t reach out to them for this office.</span> : (
+                    <ActionForm action={revokeLeadConsent} helix="stop contact" helixTitle={`Record that ${l.name} asked to stop`}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="via" value="call" /><button className="btn small ghost" type="submit" style={{ fontSize: 11.5 }}>They asked us to stop</button></ActionForm>
+                  )}
+                </span>
               </li>
             ))}
           </ul>

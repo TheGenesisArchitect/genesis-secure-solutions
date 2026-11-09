@@ -332,6 +332,13 @@ export async function confirmRequestedTime(_: ActionResult, f: FormData) {
   return call('book_lead', { p_id: id, p_when: l.requested_for, p_note: 'Confirmed the time they picked on the website' }, `Booked for ${when}. It’s on your calendar.`);
 }
 
+/** The person asked the office to stop: every consent they gave this agency is revoked (the engine won't reach them). */
+export async function revokeLeadConsent(_: ActionResult, f: FormData) {
+  const via = str(f, 'via', 12);
+  return call('revoke_lead_consent', { p_lead: str(f, 'id', 64), p_via: ['stop', 'unsubscribe', 'call', 'email', 'staff', 'other'].includes(via) ? via : 'other' },
+    'Recorded. Genovus won’t reach out to them again for this office.');
+}
+
 /** Ask a customer the office won for a Google review, by email (the same ask for every customer, once). */
 export async function askForReview(_: ActionResult, f: FormData) {
   const supabase = await db();

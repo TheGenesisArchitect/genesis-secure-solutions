@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic';
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const PER_MINUTE = 30, PER_DAY = 500;
+const CHANNELS = ['call', 'email', 'autodial_ai', 'sms'];
+const channelsOf = (v: unknown) => (Array.isArray(v) && v.length ? v.filter((c): c is string => CHANNELS.includes(c)) : ['call', 'email']);
 
 export async function POST(req: Request) {
   const key = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
@@ -35,6 +37,9 @@ export async function POST(req: Request) {
   const { data, error } = await db.rpc('ingest_lead', {
     p_key_hash: keyHash, p_ext_id: str(b.id, 120), p_name: name, p_email: email, p_phone: phone, p_topic: str(b.topic, 120), p_message: str(b.message, 2000),
     p_source: source, p_medium: attribution.utm_medium ?? '', p_campaign: campaign, p_attribution: attribution, p_consent: consent,
+    // The consent ledger (migration 0094): the channels the visitor's wording covered (a callback about their request:
+    // call and email unless the site says otherwise) and the page it was given on.
+    p_channels: channelsOf(b.channels), p_meta: { page_url: attribution.landing ?? attribution.referrer ?? null },
   });
   if (error) {
     const unknownKey = /unknown lead key/.test(error.message);

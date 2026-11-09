@@ -61,6 +61,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     p_tenant: d.tenantId, p_ext_id: `site:${crypto.randomUUID()}`, p_name: name, p_email: email || null, p_phone: phone || null, p_topic: topic || null,
     p_message: message || null, p_source: d.live ? tag.source : 'website-preview', p_medium: requested ? 'booking' : 'callback', p_campaign: tag.campaign || null,
     p_attribution: { ...attr, page: req.headers.get('referer') ?? null, ip_hash: ipHash }, p_consent: consent, p_requested_for: requested,
+    // The consent ledger (migration 0094): who was named, where, and from which connection (hashed).
+    p_channels: ['call', 'email'], p_meta: { seller: d.agency, page_url: req.headers.get('referer')?.slice(0, 500) ?? null, ip_hash: ipHash, user_agent: req.headers.get('user-agent')?.slice(0, 300) ?? null },
   });
   if (error) return Response.json({ ok: false, error: 'We couldn’t send that. Please call the office instead.' }, { status: 500 });
   const when = requested ? new Date(requested).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : null;
