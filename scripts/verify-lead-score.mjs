@@ -3,7 +3,7 @@
 //  1. an in-line lead from a licensed state's area code, with a working email and a picked time, scores with its reasons
 //  2. a request only for a line the agency doesn't write scores 0 and is flagged
 //  3. an email domain that takes no mail is noted, never deleted
-//  4. asking again rescores the lead (+5); a second run with nothing new changes nothing
+//  4. asking again rescores the lead (+5, 80 to 85); a second run with nothing new changes nothing
 //  5. with LEAD_LOOKUP_ON=1 the carrier's answer replaces the well-formed check (+20, the line type kept)
 //   node --env-file=.env.local scripts/verify-lead-score.mjs
 import { spawn, execSync } from 'node:child_process';
@@ -65,9 +65,9 @@ try {
   const [st, body] = await run();
   check(st === 200 && body.checks?.scored >= 3 && body.checks.lookups === 0, `the minute's run scores new leads, no lookups while it's off (${st} ${JSON.stringify(body)})`);
   const la = await lead(a.id);
-  check(la.score === 70 && la.verified === true && la.score_reasons.some((r) => /\+30 asks about Auto/.test(r)) && la.score_reasons.some((r) => /\+20 GA area code/.test(r))
+  check(la.score === 80 && la.verified === true && la.score_reasons.some((r) => /\+30 asks about Auto/.test(r)) && la.score_reasons.some((r) => /\+20 GA area code/.test(r))
     && la.score_reasons.some((r) => /\+10 email domain takes mail/.test(r)) && la.score_reasons.some((r) => /\+10 picked a time/.test(r)) && la.score_reasons.some((r) => /\+10 phone number is well-formed/.test(r)),
-    `in line, GA area code, working email, picked time: 70 (${la.score}: ${la.score_reasons.join(' | ')})`);
+    `in line, GA area code, well-formed phone, working email, picked time: 80 (${la.score}: ${la.score_reasons.join(' | ')})`);
   const lb = await lead(b.id);
   check(lb.score === 0 && lb.out_of_line === true && lb.score_reasons.some((r) => /Outside your lines: Boat/.test(r)), `a boat-only request scores 0 and is flagged (${lb.score_reasons.join(' | ')})`);
   const lc = await lead(c.id);
@@ -79,7 +79,7 @@ try {
   await run();
   const la2 = await lead(a.id);
   const evs = must(await db.from('lead_events').select('data').eq('lead_id', a.id).eq('kind', 'score'), 'score events');
-  check(la2.score === 75 && la2.score_reasons.some((r) => /\+5 asked 2 times/.test(r)) && evs.length === 2, `asking again rescores it to 75 (${la2.score}, ${evs.length} score events)`);
+  check(la2.score === 85 && la2.score_reasons.some((r) => /\+5 asked 2 times/.test(r)) && evs.length === 2, `asking again rescores it to 85 (${la2.score}, ${evs.length} score events)`);
   await run();
   const evs2 = must(await db.from('lead_events').select('id').eq('lead_id', a.id).eq('kind', 'score'), 'score events');
   check(evs2.length === 2 && (await lead(a.id)).scored_at === la2.scored_at, 'a run with nothing new changes nothing');

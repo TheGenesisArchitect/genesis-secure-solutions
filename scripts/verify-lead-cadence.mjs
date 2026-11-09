@@ -66,11 +66,14 @@ try {
   check(ran >= 1 && s2.status === 'done' && task?.priority === true && task.lead_id === a.id && /Call C4 Steps again: no contact yet \(2nd try\)/.test(task.reason), `the 2-hour step is a priority task on Today ("${task?.reason}")`);
   check(must(await db.from('outbox').select('id').eq('tenant_id', t.id).eq('to_email', 'c4.steps@gmail.com'), 'out').length === outBefore, 'and nothing is queued to the lead');
 
-  // 3. contact stops the rest
+  // 3. contact stops the rest (whatever was still pending: the email step may already be done in office hours)
+  const pending = (await steps(a.id)).filter((s) => s.status === 'pending').map((s) => s.step);
   must(await me.rpc('update_lead', { p_id: a.id, p_status: 'contacted', p_note: null }), 'contacted');
   const after = await steps(a.id);
   const task2 = must(await db.from('follow_ups').select('status').eq('id', s2.follow_up_id).single(), 'task2');
-  check(after.filter((s) => s.status === 'pending').length === 0 && after.filter((s) => s.status === 'stopped').length === 4 && task2.status === 'done', 'contact stops the rest and closes the step task');
+  const tasksOpen = must(await db.from('follow_ups').select('id').eq('lead_id', a.id).eq('status', 'open'), 'open tasks');
+  check(pending.length >= 3 && after.filter((s) => s.status === 'pending').length === 0 && after.filter((s) => s.status === 'stopped').map((s) => s.step).join() === pending.join() && task2.status === 'done' && tasksOpen.length === 0,
+    `contact stops the rest (steps ${pending.join(', ')}) and closes every step task`);
 
   // 4. consent
   const [cb] = must(await db.from('lead_consents').select('id').eq('lead_id', b.id), 'consent b');
