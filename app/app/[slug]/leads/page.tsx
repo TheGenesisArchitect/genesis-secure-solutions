@@ -17,7 +17,7 @@ export const metadata = { title: 'Leads' };
 export const dynamic = 'force-dynamic';
 
 type Call = { id: string; lead_id: string | null; started_at: string; duration_s: number; status: string; recording_sid: string | null; summary: string | null };
-type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null; asks?: number; last_asked_at?: string | null };
+type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null; asks?: number; last_asked_at?: string | null; contact_id?: string | null };
 
 const STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['booked', 'Booked'], ['won', 'Won'], ['lost', 'Lost']] as const;
 const STATUS_KIND: Record<string, string> = { new: 'pending', contacted: 'info', booked: 'info', won: 'done', lost: '' };
@@ -40,19 +40,28 @@ export default async function Leads({ params, searchParams }: { params: Promise<
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const access = await accessFor(ctx.tenant.tenantId, ctx.tenant.plan);
   const [{ data: rows }, { data: month }, { data: callRows }, { data: stopRows }] = await Promise.all([
-    (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
+    (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at, contact_id').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
     supabase.from('leads').select('source, status, created_at, first_contact_at').eq('tenant_id', ctx.tenant.tenantId).gte('created_at', since).limit(2000),
     supabase.from('calls').select('id, lead_id, started_at, duration_s, status, recording_sid, summary').eq('tenant_id', ctx.tenant.tenantId).gte('started_at', since).order('started_at', { ascending: false }).limit(500),
-    supabase.from('lead_consents').select('lead_id').eq('tenant_id', ctx.tenant.tenantId).not('revoked_at', 'is', null).limit(2000),
+    supabase.from('lead_consents').select('lead_id, received_at, revoked_at').eq('tenant_id', ctx.tenant.tenantId).order('received_at', { ascending: false }).limit(3000),
   ]);
-  // People who asked the office to stop (every consent they gave this agency is revoked).
-  const stopped = new Set((stopRows ?? []).map((r) => r.lead_id as string));
+  const leads = (rows ?? []) as Lead[];
+  // People who asked the office to stop: a revocation with no consent given after it, across all of the person's
+  // leads (the same rule as consent_allows, migration 0094).
+  const personOf = new Map(leads.map((l) => [l.id, l.contact_id ?? l.id]));
+  const lastStop = new Map<string, number>(), lastYes = new Map<string, number>();
+  for (const c of (stopRows ?? []) as { lead_id: string; received_at: string; revoked_at: string | null }[]) {
+    const who = personOf.get(c.lead_id);
+    if (!who) continue;
+    lastYes.set(who, Math.max(lastYes.get(who) ?? 0, new Date(c.received_at).getTime()));
+    if (c.revoked_at) lastStop.set(who, Math.max(lastStop.get(who) ?? 0, new Date(c.revoked_at).getTime()));
+  }
+  const stopped = { has: (id: string) => { const who = personOf.get(id) ?? id, stop = lastStop.get(who) ?? 0; return stop > 0 && stop >= (lastYes.get(who) ?? 0); } };
   const calls = (callRows ?? []) as Call[];
   const callsOf = (id: string) => calls.filter((c) => c.lead_id === id);
   const weekAgo = Date.now() - 7 * 86_400_000;
   const callsWeek = calls.filter((c) => new Date(c.started_at).getTime() > weekAgo);
   const helix = access.has('helix');
-  const leads = (rows ?? []) as Lead[];
   const m = (month ?? []) as Pick<Lead, 'source' | 'status' | 'created_at' | 'first_contact_at'>[];
   const fresh = m.filter((l) => l.status === 'new').length;
   const bySource = Object.entries(m.reduce<Record<string, number>>((acc, l) => ({ ...acc, [l.source]: (acc[l.source] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]);
@@ -128,7 +137,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                 <span className="row muted" style={{ fontSize: 11.5, gap: 8, flexWrap: 'wrap' }}>
                   <span>Consent: “{l.consent_text}”</span>
                   {stopped.has(l.id) ? <span>Revoked: Genovus won’t reach out to them for this office.</span> : (
-                    <ActionForm action={revokeLeadConsent} helix="stop contact" helixTitle={`Record that ${l.name} asked to stop`}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="via" value="call" /><button className="btn small ghost" type="submit" style={{ fontSize: 11.5 }}>They asked us to stop</button></ActionForm>
+                    <ActionForm action={revokeLeadConsent} confirm={`Record that ${l.name} asked the office to stop? Genovus won’t reach out to them for this office unless they ask again.`} helix="stop contact" helixTitle={`Record that ${l.name} asked to stop`}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="via" value="call" /><button className="btn small ghost" type="submit" style={{ fontSize: 11.5 }}>They asked us to stop</button></ActionForm>
                   )}
                 </span>
               </li>

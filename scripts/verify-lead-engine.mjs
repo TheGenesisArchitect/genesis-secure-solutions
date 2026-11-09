@@ -92,6 +92,9 @@ try {
   check(!!twice.error, 'a revocation is added once and never changed');
   check(!(await allows(lead, 'call')) && !(await allows(second.id, 'email')), 'revoking one consent stops every channel on all of the person’s leads');
 
+  const back = must(await site({ name: 'P1 Repeat', phone: PH, ext: 'site:p1-back' }), 'ask again after stop');
+  check(back.repeat === true && await allows(back.id, 'call') && await allows(lead, 'email'), 'asking again after a stop is new consent: they can be reached again');
+
   // 5. calls
   must(await db.from('tracking_numbers').insert({ tenant_id: t.id, e164: NUM, twilio_sid: 'PNp1verify0000000000000000000000', label: 'P1 line', source: 'website', forward_to: '+17065550300', record: false }), 'number');
   const other = must(await site({ name: 'P1 Caller Known', phone: PH2 }), 'known');

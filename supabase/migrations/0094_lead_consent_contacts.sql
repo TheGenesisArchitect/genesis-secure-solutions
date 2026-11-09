@@ -7,9 +7,10 @@
 --  * A person who asks again within 30 days joins their open lead (lead_events 'repeat', asks + 1, "asked again"
 --    alert at most once a day) instead of making a new one. A retried delivery (same ext id) stays a no-op.
 --  * ingest_call matches callers through the contact instead of its own 30-day phone match.
+--  * Any other insert still gets its contact (before insert) and its consent row from consent_text (at commit).
 --  * consent_allows(lead, channel): the one gate the engine checks before any touch. A revocation on any of the
---    person's leads revokes every channel for this agency (the FCC revoke-all rule, 2027-01-31). SMS is never allowed
---    here until A2P 10DLC.
+--    person's leads revokes every channel for this agency (the FCC revoke-all rule, 2027-01-31) until they give
+--    consent again. SMS is never allowed here until A2P 10DLC.
 --  * leads.partner_id gets its foreign key (deferred from P0).
 -- ingest_lead and site_lead keep their arguments (new ones have defaults), so the release before this one keeps working.
 
@@ -150,8 +151,9 @@ begin
 end $$;
 revoke all on function record_consent(uuid, uuid, text, text[], jsonb) from public, anon, authenticated;
 
--- May the engine reach this lead on this channel? Needs a consent naming the channel and no revocation on any of the
--- person's leads with this agency. SMS: never, until A2P 10DLC is registered (CLAUDE.md).
+-- May the engine reach this lead on this channel? Needs a consent naming the channel, given after the person's latest
+-- revocation with this agency (a stop covers every channel and every earlier lead; asking again later is new consent).
+-- SMS: never, until A2P 10DLC is registered (CLAUDE.md).
 create or replace function consent_allows(p_lead uuid, p_channel text)
 returns boolean language sql stable security definer set search_path = public as $$
   with l as (select id, tenant_id, contact_id from leads where id = p_lead),
@@ -160,8 +162,8 @@ returns boolean language sql stable security definer set search_path = public as
     where c.tenant_id = l.tenant_id and (c.lead_id = l.id or (l.contact_id is not null and c.lead_id in (select id from leads where contact_id = l.contact_id)))
   )
   select p_channel in ('call','autodial_ai','email')
-    and not exists (select 1 from mine where revoked_at is not null)
-    and exists (select 1 from mine where p_channel = any(channels))
+    and exists (select 1 from mine where p_channel = any(channels)
+      and received_at > coalesce((select max(revoked_at) from mine), '-infinity'::timestamptz))
 $$;
 revoke all on function consent_allows(uuid, text) from public, anon, authenticated;
 grant execute on function consent_allows(uuid, text) to service_role;
@@ -359,6 +361,29 @@ begin
 end $$;
 revoke execute on function ingest_call(text, text, text, text, int, text, int) from public, anon, authenticated;
 grant execute on function ingest_call(text, text, text, text, int, text, int) to service_role;
+
+-- ---------- Every lead, however it arrives, gets its contact and its consent row ----------
+-- The capture paths above do both with the full context; these catch any other insert (seeds, tests, later paths).
+create or replace function lead_fill_contact() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.contact_id is null then new.contact_id := lead_contact(new.tenant_id, new.phone, new.email); end if;
+  return new;
+end $$;
+drop trigger if exists leads_contact on leads;
+create trigger leads_contact before insert on leads for each row execute function lead_fill_contact();
+
+-- At commit: a lead with no consent row gets one from its consent_text (a call: no marketing consent).
+create or replace function lead_consent_fallback() returns trigger language plpgsql security definer set search_path = public as $$
+declare l leads;
+begin
+  select * into l from leads where id = new.id;
+  if l.id is null or exists (select 1 from lead_consents where lead_id = l.id) or length(trim(coalesce(l.consent_text, ''))) < 10 then return null; end if;
+  perform record_consent(l.tenant_id, l.id, case when l.channel = 'call' then 'Inbound call; no marketing consent.' else l.consent_text end,
+    case when l.channel = 'call' then '{}'::text[] else '{call,email}'::text[] end, jsonb_build_object('ip_hash', l.attribution->>'ip_hash'));
+  return null;
+end $$;
+drop trigger if exists leads_consent_row on leads;
+create constraint trigger leads_consent_row after insert on leads deferrable initially deferred for each row execute function lead_consent_fallback();
 
 -- ---------- Partner credit: the foreign key deferred from P0 ----------
 update leads set partner_id = null where partner_id is not null and not exists (select 1 from partner_targets p where p.id = leads.partner_id);
