@@ -20,6 +20,14 @@ export async function kickoffFor(tenantId: string): Promise<Kickoff | null> {
   return { id: e.id as string, title: e.title as string, starts: e.starts_at as string, ends: e.ends_at as string, location: (e.location as string) ?? null, confirmed: Boolean(e.confirmed_at), onHouse: e.tenant_id === t?.id };
 }
 
+/** The agency's most recent kickoff that has already happened (kickoff_event only returns upcoming ones), so a
+ *  passed kickoff reads "was Mon Nov 2", not "not on the calendar yet". */
+export async function pastKickoff(tenantId: string): Promise<string | null> {
+  const { data } = await adminDb().from('calendar_events').select('starts_at').eq('tenant_id', tenantId).eq('status', 'scheduled')
+    .ilike('title', '%kick%off%').lt('ends_at', new Date(Date.now() - 2 * 3_600_000).toISOString()).order('starts_at', { ascending: false }).limit(1).maybeSingle();
+  return (data?.starts_at as string) ?? null;
+}
+
 /** Open Genovus team times for the kickoff's length over the next week (the house calendar's free half hours). */
 export async function kickoffSlots(k: Kickoff): Promise<{ iso: string; label: string }[]> {
   const db = adminDb();
@@ -72,12 +80,12 @@ export async function welcomeData(tenantId: string, slug: string) {
 export async function welcomeBrief(tenantId: string, slug: string): Promise<string[]> {
   const { data: st } = await adminDb().from('tenants').select('stage').eq('id', tenantId).maybeSingle();
   if (!st || st.stage === 'care') return [];
-  const w = await welcomeData(tenantId, slug).catch(() => null);
+  const [w, past] = await Promise.all([welcomeData(tenantId, slug).catch(() => null), pastKickoff(tenantId).catch(() => null)]);
   if (!w || w.stage === 'care') return [];
   const usd = (c: number) => `$${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
   return [
     `WELCOME (this agency is onboarding; their Welcome page is /app/${slug}/welcome): plan ${w.plan.name}: setup ${usd(w.plan.setupCents ?? 0)}; deposit ${usd(w.deposit.cents)} (70%)${w.deposit.paid ? ' paid' : w.deposit.due ? ` due ${w.deposit.due}` : ''}; ${usd(w.balanceCents)} at launch; then ${w.plan.careName ?? 'care'} ${usd(w.plan.careCents ?? 0)}/mo. Includes: ${w.plan.includes.join('; ')}. Support: Helix any time, or reply to any Genovus email for a person. Nothing goes public until the client and their carrier approve it. Never promise dates, results or prices beyond these.`,
-    `KICKOFF: ${w.kickoff ? `${etWhen(w.kickoff.starts)} Eastern, ${w.kickoff.confirmed ? 'confirmed' : 'not confirmed yet (they can confirm or pick another time on the Welcome page)'}` : 'not on the calendar yet'}. The kickoff answers questions, closes what's left on the welcome form, covers creative (photos, tone, which line pages) and the carrier-approved promo library, and walks them through the dashboard and sign-in.`,
+    `KICKOFF: ${w.kickoff ? `${etWhen(w.kickoff.starts)} Eastern, ${w.kickoff.confirmed ? 'confirmed' : 'not confirmed yet (they can confirm or pick another time on the Welcome page)'}` : past ? `held ${etWhen(past)} Eastern (the team marks it done; if they need another session, they can ask here or reply to any Genovus email)` : 'not on the calendar yet'}. The kickoff answers questions, closes what's left on the welcome form, covers creative (photos, tone, which line pages) and the carrier-approved promo library, and walks them through the dashboard and sign-in.`,
     `WELCOME FORM (${w.progress.filled} of ${w.progress.total} answered; needed to build: ${w.status.missing.map((m) => m.label).join(', ') || 'all in'}). Help them fill it: suggest wording from what's on file, never invent facts about their business (license, hours, carrier details); ask them. Each section is its own form with a Save button:`,
     ...w.status.items.map((i) => `- [${i.section}] ${i.label}${i.required ? ' (needed)' : ''}: ${i.done ? (i.kind === 'photo' ? 'uploaded' : String(w.status.intake[i.key]).slice(0, 120)) : 'missing'} (${i.help})`),
     `ON FILE FROM THE CONSULT: ${['agencyName', 'contactName', 'address', 'phone', 'email', 'carrier', 'website'].map((k) => (w.record[k] ? `${k} ${String(w.record[k])}` : '')).filter(Boolean).join(' · ')}. PROMO LIBRARY: ${w.library} carrier starter promo(s) copied into their Library (from another agency with the same carrier; theirs to keep, change or drop).`,

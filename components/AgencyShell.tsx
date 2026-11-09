@@ -35,7 +35,10 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
   // New clients (not yet live) get the Welcome page first in the menu.
   const { data: st } = await supabase.from('tenants').select('stage').eq('id', tenant.tenantId).maybeSingle();
   const welcome = !tenant.isSample && !!st?.stage && st.stage !== 'care';
-  const nav = agencyNav(base, (k) => access.has(k), { isOwner, welcome, programTitle: `Your program · ${PROGRAM_NAME[program]}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open } });
+  // Before the deposit there is no plan on the agency yet: name the package from their proposal, not Launch.
+  const proposed = !tenant.plan && welcome ? await supabase.from('agent_records').select('data').eq('tenant_id', tenant.tenantId).eq('is_current', true).maybeSingle().then((r) => (r.data?.data as { package?: string } | null)?.package, () => undefined) : undefined;
+  const programLabel = proposed && proposed in PROGRAM_NAME ? PROGRAM_NAME[proposed as keyof typeof PROGRAM_NAME] : PROGRAM_NAME[program];
+  const nav = agencyNav(base, (k) => access.has(k), { isOwner, welcome, programTitle: `Your program · ${programLabel}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open } });
   return (
     <Shell
       searchClients

@@ -6,7 +6,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { AgencyShell, agencyContext } from '@/components/AgencyShell';
 import { Bar } from '@/components/ui';
-import { welcomeData, etWhen } from '@/lib/welcome';
+import { welcomeData, etWhen, pastKickoff } from '@/lib/welcome';
 import { SECTIONS, LINE_OPTIONS, LINE_PAGES } from '@/lib/checklist';
 import { accessFor } from '@/lib/access';
 import { WelcomeSection, KickoffCard, HelixWelcome } from '@/components/Welcome';
@@ -20,7 +20,7 @@ const dueLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('e
 export default async function Welcome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = await agencyContext(slug);
-  const [w, access] = await Promise.all([welcomeData(ctx.tenant.tenantId, slug), accessFor(ctx.tenant.tenantId, ctx.tenant.plan)]);
+  const [w, access, past] = await Promise.all([welcomeData(ctx.tenant.tenantId, slug), accessFor(ctx.tenant.tenantId, ctx.tenant.plan), pastKickoff(ctx.tenant.tenantId).catch(() => null)]);
   const values = Object.fromEntries(Object.entries(w.status.intake).map(([k, v]) => [k, typeof v === 'string' ? v : v ? 'saved' : '']));
   const lines = Array.isArray(w.record.lines) ? (w.record.lines as string[]) : [];
   // The office's own lines first (what they told us on the consult); the rest stay available.
@@ -59,6 +59,7 @@ export default async function Welcome({ params }: { params: Promise<{ slug: stri
 
         <aside className="wl-side">
           {w.kickoff ? <KickoffCard slug={slug} when={etWhen(w.kickoff.starts)} minutes={kickMinutes} confirmed={w.kickoff.confirmed} location={w.kickoff.location} />
+            : past ? <div className="wl-kick"><p className="eyebrow">Your kickoff call</p><p className="soft" style={{ fontSize: 14 }}>Held {etWhen(past)} Eastern. Keep filling in the form; anything left we close together. Need another session? Ask Helix or reply to any Genovus email.</p></div>
             : <div className="wl-kick"><p className="eyebrow">Your kickoff call</p><p className="soft" style={{ fontSize: 14 }}>We’re setting the time with you. It shows here as soon as it’s on the calendar.</p></div>}
 
           <div className="wl-card">

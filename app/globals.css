@@ -1525,3 +1525,6 @@ button.chip{cursor:pointer}
 .lead-outcome[open]>summary{border-color:var(--accent,currentColor)}
 .lead-outcome[open]{display:block;flex-basis:100%}
 .lead-outcome[open]>form{margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px}
+/* Setup page (app/app/[slug]/setup): what the build still needs, and the kickoff and deposit facts. */
+.setup-missing{margin:0;padding-left:18px;display:grid;gap:2px;font-size:14px}
+.setup-facts{display:grid;gap:14px}.setup-facts>div{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}.setup-facts .muted:first-child{font-size:12px;text-transform:uppercase;letter-spacing:.06em}
