@@ -8,7 +8,7 @@ The rules in CLAUDE.md apply to every line here:
 - no texting before A2P 10DLC
 - leads keep their consent record
 
-**Status:** spec only.
+**Status:**
 - P0 shipped 2026-11-03. Turnstile stays off until its keys are set.
 - P1 built 2026-11-09 in five slices (migrations 0094–0097 and the scoreboard); see §4.10 for what differs from this plan. It ships once its verify scripts pass on preview.
 - P2 waits on decisions 4 and 7 on the R&D page.
