@@ -87,8 +87,11 @@ try {
   must(await db.from('leads').update({ status: 'lost' }).eq('id', lead), 'close');
   const second = must(await site({ name: 'P1 Repeat', phone: PH }), 'after lost');
   check(second.id && second.id !== lead && !second.repeat, 'after the lead is closed, a new ask is a new lead');
-  must(await db.from('lead_consents').update({ revoked_at: new Date().toISOString(), revoked_via: 'stop' }).eq('id', c1.id), 'revoke');
-  const twice = await db.from('lead_consents').update({ revoked_at: new Date(Date.now() + 1000).toISOString() }).eq('id', c1.id);
+  // Revoke just after the person's latest consent, by the database's clock (this computer's clock may lag it).
+  const latest = must(await db.from('lead_consents').select('received_at').eq('tenant_id', t.id).in('lead_id', [lead, second.id]).order('received_at', { ascending: false }).limit(1), 'latest')[0];
+  const stopAt = new Date(new Date(latest.received_at).getTime() + 1).toISOString();
+  must(await db.from('lead_consents').update({ revoked_at: stopAt, revoked_via: 'stop' }).eq('id', c1.id), 'revoke');
+  const twice = await db.from('lead_consents').update({ revoked_at: new Date(new Date(stopAt).getTime() + 1000).toISOString() }).eq('id', c1.id);
   check(!!twice.error, 'a revocation is added once and never changed');
   check(!(await allows(lead, 'call')) && !(await allows(second.id, 'email')), 'revoking one consent stops every channel on all of the person’s leads');
 

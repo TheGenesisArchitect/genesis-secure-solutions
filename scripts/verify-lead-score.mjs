@@ -48,6 +48,7 @@ const start = (extra) => {
 const stop = (p) => { try { execSync(`taskkill /pid ${p.pid} /T /F`, { stdio: 'ignore' }); } catch { p.kill(); } };
 let dev = start({ LEAD_LOOKUP_ON: '' });
 for (let i = 0; i < 120 && !(await up()); i++) await sleep(1000);
+if (!(await up())) throw new Error(`the dev server on port ${PORT} didn't start: stop any other "next dev" for this project (a check that reuses port 3911 may have left one running)`);
 
 const site = (o) => db.rpc('site_lead', {
   p_tenant: t.id, p_ext_id: `site:${randomUUID()}`, p_name: o.name, p_email: o.email ?? null, p_phone: o.phone ?? null, p_topic: o.topic ?? null,
@@ -89,6 +90,7 @@ try {
   for (let i = 0; i < 30 && (await up()); i++) await sleep(500);
   dev = start({ LEAD_LOOKUP_ON: '1', TWILIO_ACCOUNT_SID: 'ACverify', TWILIO_AUTH_TOKEN: 'verify', TWILIO_LOOKUP_BASE: `http://localhost:${STUB}` });
   for (let i = 0; i < 120 && !(await up()); i++) await sleep(1000);
+if (!(await up())) throw new Error(`the dev server on port ${PORT} didn't start: stop any other "next dev" for this project (a check that reuses port 3911 may have left one running)`);
   const d = must(await site({ name: 'S2 Lookup', phone: '7065550313', topic: 'Home' }), 'd');
   const [, body2] = await run();
   const ld = await lead(d.id);

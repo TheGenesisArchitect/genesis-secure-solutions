@@ -44,6 +44,7 @@ const env = { ...process.env, CRON_SECRET: SECRET, PARTNER_LINK_SECRET: '', SITE
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' };
 const dev = spawn('npx', ['next', 'dev', '-p', String(PORT)], { stdio: 'ignore', shell: true, env });
 for (let i = 0; i < 120 && !(await up()); i++) await sleep(1000);
+if (!(await up())) throw new Error(`the dev server on port ${PORT} didn't start: stop any other "next dev" for this project (a check that reuses port 3911 may have left one running)`);
 
 const ingest = (body) => fetch(`${ORIGIN}/api/leads/ingest`, { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ consent: 'I agree that Test Agency may contact me about this request.', ...body }) });
 const lead = async (ext) => must(await db.from('leads').select('id, source, campaign, partner_id, channel, attribution').eq('tenant_id', t.id).eq('ext_id', ext).maybeSingle(), 'lead');
