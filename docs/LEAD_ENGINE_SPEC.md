@@ -10,7 +10,8 @@ The rules in CLAUDE.md apply to every line here:
 
 **Status:** spec only.
 - P0 shipped 2026-11-03. Turnstile stays off until its keys are set.
-- P1 and P2 wait on decisions 3–6 on the R&D page.
+- P1 built 2026-11-09 in five slices (migrations 0094–0097 and the scoreboard); see §4.10 for what differs from this plan. It ships once its verify scripts pass on preview.
+- P2 waits on decisions 4 and 7 on the R&D page.
 - P3 waits on GEICO's written lead and marketing rules.
 
 ## 1. Goal and the one flow
@@ -193,6 +194,27 @@ The cadence stops on contact, booking, lost or revoke. Texting steps exist in th
 - Mark lost with a renewal date makes 3 nurture follow-ups.
 - Scoreboard numbers match seeded rows.
 - **Regression:** verify-command-brief, verify-public-booking, verify-consult, verify-turnkey, verify-welcome-kickoff.
+
+### 4.10 As built (2026-11-09)
+| Slice | Migration / files | Verify |
+|---|---|---|
+| 1. Consent ledger, contacts, asking again | 0094, `lib/lead-consent.ts` | `verify-lead-engine.mjs` |
+| 2. Checks and score | 0095, `lib/lead-checks.ts`, `lib/lead-score.ts`, `lib/area-codes.ts`, `/api/cron/leads` | `verify-lead-score.mjs` |
+| 3. Owner, 5-minute timer, time zones | 0096 | `verify-lead-timer.mjs` |
+| 4. Cadence and outcomes | 0097 | `verify-lead-cadence.mjs` |
+| 5. Scoreboard | `lib/lead-scoreboard.ts`, Performance | `verify-lead-scoreboard.mjs` |
+
+**Where it differs from §4.1–4.9:**
+- **Normalizing** happens in SQL (`norm_phone`, `norm_email`), not libphonenumber, so call leads (`ingest_call`, pure SQL) match too. All tenants are US.
+- **Consent rows** are append-only except a revocation and the TrustedForm certificate, each added once. A row is deleted only with its lead. A stop covers every channel and every earlier lead until the person gives consent again (asks again). The site form and the lead API record `call` and `email` (the API can narrow it, never add AI calls or texts). Existing leads were backfilled the same way; calls record no marketing consent.
+- **Any other insert** (seeds, tests) still gets its contact (before insert) and its consent row (at commit).
+- **Status:** `quoted` is added; `won` stays the stored value and is shown as **Bound**, because the review ask, Helix and reports read `won`.
+- **Twilio Lookup** is off unless `LEAD_LOOKUP_ON=1` (at most 20 a run). Without it a well-formed phone scores +10, not +20.
+- **Area:** the area code's state (GA, AL, FL in `lib/area-codes.ts`). Radius needs an address, which forms don't collect yet. An unknown area code never counts against a lead.
+- **Routing:** round robin among owners. `lead_rules` and the route rule wait for the first standing rule (P2 review asks). With no rules, every outward step is a tap.
+- **Cadence** steps become priority tasks on Today, including the email steps (a person sends, with Helix's draft). There are no texting rows at all, rather than disabled ones.
+- **Round-out cards**, the enterprise scoreboard and the PII trim of `outbox.data` move to P2.
+- **The agency calendar** (open times, the site's booking) is still Eastern. Every current client is Eastern; it moves with the calendar.
 
 ## 5. P2: owned demand (2 weeks)
 

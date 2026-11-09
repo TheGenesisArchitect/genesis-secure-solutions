@@ -23,6 +23,17 @@ export type WhatsNew = {
 
 export const WHATS_NEW: WhatsNew[] = [
   {
+    id: 'lead-engine-p1-2026-11-09', date: '2026-11-09', surfaces: ['agency'],
+    title: 'Every lead scored, timed and followed',
+    line: 'Each lead gets a score with its reasons, a 5-minute first-call timer in your office hours, and follow-up steps until someone reaches them.',
+    tour: [
+      { page: 'leads', at: '.lead-list .lead', caption: 'The score and why, “Asked 2 times” when someone asks again (it stays one lead), and Quoted, Bound or Lost with the reason and their renewal date.' },
+      { page: 'today', at: '.today-now', caption: 'Best-scored first. Nobody reached in 5 minutes? The team is alerted; at 15 it turns red here.' },
+      { page: 'performance', caption: 'The lead scoreboard: by source, how fast you reach people, how many you quote and bind, and what each policy cost.' },
+    ],
+    tryIt: { page: 'leads', at: '.lead-list .lead', caption: 'Open a lead and mark how it went.' },
+  },
+  {
     id: 'lead-alerts-2026-10-15', date: '2026-10-15', surfaces: ['agency'],
     title: 'New-lead alerts on your phone',
     line: 'Know the moment a lead comes in. Tap the alert and Today opens with that lead, ready to call.',
