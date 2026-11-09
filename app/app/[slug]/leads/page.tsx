@@ -23,12 +23,12 @@ const STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['booked', 'Booked']
 const STATUS_KIND: Record<string, string> = { new: 'pending', contacted: 'info', booked: 'info', won: 'done', lost: '' };
 const SOURCE: Record<string, string> = { website: 'Website', 'google-profile': 'Google profile', partner: 'Partner', facebook: 'Facebook', instagram: 'Instagram', google: 'Google', direct: 'Direct', email: 'Email', tiktok: 'TikTok', youtube: 'YouTube' };
 const sourceLabel = (s: string) => SOURCE[s] ?? s;
-const ago = (iso: string) => {
+const ago = (iso: string, tz = 'America/New_York') => {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
   if (m < 60) return `${Math.max(1, m)} min ago`;
   const h = Math.round(m / 60);
   if (h < 24) return `${h} h ago`;
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz });
 };
 const tomorrowOf = (d: string) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
 
@@ -39,6 +39,8 @@ export default async function Leads({ params, searchParams }: { params: Promise<
   const supabase = await db();
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const access = await accessFor(ctx.tenant.tenantId, ctx.tenant.plan);
+  // Times in the agency's own zone (an Alabama office is Central).
+  const tz = (await supabase.from('agency_profiles').select('timezone').eq('tenant_id', ctx.tenant.tenantId).maybeSingle()).data?.timezone ?? 'America/New_York';
   const [{ data: rows }, { data: month }, { data: callRows }, { data: stopRows }] = await Promise.all([
     (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at, contact_id, score, score_reasons, out_of_line').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
     supabase.from('leads').select('source, status, created_at, first_contact_at').eq('tenant_id', ctx.tenant.tenantId).gte('created_at', since).limit(2000),
@@ -99,24 +101,24 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                     {l.channel === 'call' ? <Chip kind="pending">Call</Chip> : l.channel === 'partner' ? <Chip kind="done">Partner referral</Chip> : null}
                     <Chip kind="info">{sourceLabel(l.source)}{l.campaign && l.channel !== 'partner' ? ` · ${l.campaign}` : ''}</Chip>
                   </span>
-                  <span className="muted" style={{ fontSize: 13 }}>{ago(l.created_at)}{l.last_asked_at ? ` · asked again ${ago(l.last_asked_at)}` : ''}</span>
+                  <span className="muted" style={{ fontSize: 13 }}>{ago(l.created_at, tz)}{l.last_asked_at ? ` · asked again ${ago(l.last_asked_at, tz)}` : ''}</span>
                 </div>
                 {l.topic ? <span style={{ fontWeight: 600 }}>{l.topic}</span> : null}
                 {l.message ? <p className="soft" style={{ margin: 0, fontSize: 14 }}>{l.message}</p> : null}
                 {l.score_reasons?.length ? <span className="muted" style={{ fontSize: 12 }}>Why this score: {l.score_reasons.join(' · ')}. It only sets the order; every lead is worth a call.</span> : null}
                 {l.requested_for && !l.booked_for ? (
                   <div className="notice" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span><b>Asked for a time on your website:</b> {new Date(l.requested_for).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })}</span>
+                    <span><b>Asked for a time on your website:</b> {new Date(l.requested_for).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz })}</span>
                     <ActionForm action={confirmRequestedTime} helix="confirm time" helixTitle={`Confirm ${l.name}'s time`}><input type="hidden" name="id" value={l.id} /><button className="btn small primary" type="submit">Confirm the time</button></ActionForm>
                   </div>
                 ) : null}
                 {l.status === 'won' ? (
-                  l.review_requested_at ? <span className="muted" style={{ fontSize: 13 }}>Review requested {new Date(l.review_requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}</span>
+                  l.review_requested_at ? <span className="muted" style={{ fontSize: 13 }}>Review requested {new Date(l.review_requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz })}</span>
                     : l.email ? <ActionForm action={askForReview} helix="review request" helixTitle={`Ask ${l.name} for a review`} lane="outward"><input type="hidden" name="id" value={l.id} /><button className="btn small" type="submit">Ask for a Google review</button></ActionForm> : null
                 ) : null}
                 {callsOf(l.id).map((c) => (
                   <div key={c.id} className="lead-call">
-                    <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Chip kind={c.status === 'missed' ? 'bad' : 'done'}>{c.status === 'missed' ? 'Missed: call back' : 'Answered'}</Chip><span className="muted" style={{ fontSize: 12 }}>{ago(c.started_at)}{c.duration_s ? ` · ${Math.max(1, Math.round(c.duration_s / 60))} min` : ''}</span></span>
+                    <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Chip kind={c.status === 'missed' ? 'bad' : 'done'}>{c.status === 'missed' ? 'Missed: call back' : 'Answered'}</Chip><span className="muted" style={{ fontSize: 12 }}>{ago(c.started_at, tz)}{c.duration_s ? ` · ${Math.max(1, Math.round(c.duration_s / 60))} min` : ''}</span></span>
                     {c.summary ? <span style={{ fontSize: 14 }}><b>Helix’s note:</b> {c.summary}</span> : null}
                     {c.recording_sid ? <audio controls preload="none" src={`/api/voice/recording/${c.id}`} style={{ width: '100%', maxWidth: 420, height: 34 }} /> : null}
                   </div>
@@ -124,7 +126,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                   {l.phone ? <a className="btn small primary" href={`tel:${l.phone.replace(/[^\d+]/g, '')}`}>Call {l.phone.startsWith('+') ? prettyPhone(l.phone) : l.phone}</a> : null}
                   {l.email ? <a className="btn small" href={`mailto:${l.email}`}>{l.email}</a> : null}
-                  {helix ? <HelixAskButton label="Draft a reply" question={`Draft a ${l.email && !l.phone ? 'short email' : 'short text'} to ${l.name} about their request.`} context={`lead ${l.name}, ${l.topic ?? 'no topic'}, from ${sourceLabel(l.source)}, status ${l.status}, arrived ${ago(l.created_at)}${l.message ? `, message: ${l.message.slice(0, 200)}` : ''}${callsOf(l.id)[0]?.summary ? `, call note: ${callsOf(l.id)[0].summary}` : ''}`} /> : null}
+                  {helix ? <HelixAskButton label="Draft a reply" question={`Draft a ${l.email && !l.phone ? 'short email' : 'short text'} to ${l.name} about their request.`} context={`lead ${l.name}, ${l.topic ?? 'no topic'}, from ${sourceLabel(l.source)}, status ${l.status}, arrived ${ago(l.created_at, tz)}${l.message ? `, message: ${l.message.slice(0, 200)}` : ''}${callsOf(l.id)[0]?.summary ? `, call note: ${callsOf(l.id)[0].summary}` : ''}`} /> : null}
                   {helix ? <HelixAskButton label="What should I ask?" question={`What should I ask ${l.name} on the first call? Give me a short intake checklist for their line.`} context={`lead ${l.name}, ${l.topic ?? 'no topic'}`} /> : null}
                 </div>
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>

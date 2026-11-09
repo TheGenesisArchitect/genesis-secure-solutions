@@ -115,6 +115,27 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         }, origin),
       };
     }
+    case 'lead_waiting': {
+      // The first-call timer (migration 0096): a lead nobody has reached 5 minutes in (to the rest of the team), then
+      // 15 minutes in (to the owners). It stops the moment anyone marks a contact.
+      const team = data.team === 'true';
+      const owners = data.level === '2';
+      return {
+        to,
+        subject: `${data.name} has waited ${data.waiting} minutes for a call (${data.agency})`,
+        ...frame({
+          preheader: `${data.name}${data.topic ? ` (${data.topic})` : ''} hasn't been reached yet. A call in the first few minutes is the likeliest to book.`,
+          heading: `${data.name} is still waiting`,
+          body: [
+            ...(team ? [`${data.agency} has no owner signed in yet, so this came to the Genovus team. Pass it on.`] : []),
+            owners ? `Nobody at ${data.agency} has reached them in ${data.waiting} minutes. It's red on Today until someone does.` : `The first person on it hasn't marked a contact yet. If you can, call now.`,
+            [data.phone && `Phone: ${data.phone}`, data.topic && `About: ${data.topic}`].filter(Boolean).join(' · '),
+            'Mark it contacted (or booked) in Leads once you reach them, and these reminders stop.',
+          ],
+          button: { label: 'Open Today', url: `${origin}/app/${data.slug}/today?lead=${data.lead}` },
+        }, origin),
+      };
+    }
     case 'meeting_invite': {
       // A meeting invite (or its cancellation) from the Genovus team, with the event attached for one-tap Yes / No.
       const cancelled = data.status === 'cancelled';

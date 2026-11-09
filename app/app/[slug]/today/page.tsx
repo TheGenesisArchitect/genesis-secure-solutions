@@ -41,13 +41,16 @@ export default async function Today({ params, searchParams }: { params: Promise<
   const today = businessToday();
   const tomorrow = addDays(today, 1);
   const supabase = await db();
-  const [{ data }, { data: leadRows }] = await Promise.all([
+  const [{ data }, { data: leadRows }, { data: redRows }] = await Promise.all([
     supabase.from('follow_ups').select('id, who, reason, due_on, due_at, priority').eq('tenant_id', tid).eq('status', 'open').lte('due_on', addDays(today, 14)).order('due_on').order('due_at', { nullsFirst: false }).limit(200),
     // Every lead nobody has contacted yet: the calls to make first, the best-scored on top (lib/lead-score.ts).
     supabase.from('leads').select('id, name, phone, topic, source, channel, created_at').eq('tenant_id', tid).eq('status', 'new').order('score', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(25),
+    // Leads nobody reached in 15 minutes (the first-call timer, migration 0096): red, and first in the list.
+    supabase.from('lead_timers').select('lead_id, started_at').eq('tenant_id', tid).eq('level', 2).is('done_at', null).limit(50),
   ]);
   const open = (data ?? []) as F[];
-  const fresh = (leadRows ?? []) as L[];
+  const red = new Map((redRows ?? []).map((r) => [r.lead_id as string, r.started_at as string]));
+  const fresh = ((leadRows ?? []) as L[]).sort((a, b) => Number(red.has(b.id)) - Number(red.has(a.id)));
   const calls = open.filter((f) => f.due_on === tomorrow);
   const notes = calls.filter((f) => f.reason);
   // A missed call's call-back is due the same day, so it joins the priorities right away.
@@ -71,8 +74,8 @@ export default async function Today({ params, searchParams }: { params: Promise<
           {fresh.length ? (
             <ul className="today-list leads">
               {fresh.map((l) => (
-                <li key={l.id} data-helix-item={l.name} data-lead-id={l.id}>
-                  <span className="today-time">{ago(l.created_at)}</span>
+                <li key={l.id} data-helix-item={l.name} data-lead-id={l.id} data-waiting={red.has(l.id) ? 'red' : undefined}>
+                  <span className="today-time" style={red.has(l.id) ? { color: 'var(--bad)', fontWeight: 700 } : undefined}>{red.has(l.id) ? `Waiting ${ago(red.get(l.id)!).replace(' ago', '')}` : ago(l.created_at)}</span>
                   <span className="today-lead"><b>{l.name}</b><small>{[l.topic, l.channel === 'call' ? 'called the office' : l.channel === 'partner' ? 'referral partner' : `via ${l.source}`].filter(Boolean).join(' · ')}</small></span>
                   <span className="row" style={{ gap: 6 }}>
                     {l.phone ? <a className="btn small primary" href={`tel:${telOf(l.phone)}`}>Call {l.phone.startsWith('+') ? prettyPhone(l.phone) : l.phone}</a> : <Link className="btn small" href={`${base}/leads`}>Email</Link>}
