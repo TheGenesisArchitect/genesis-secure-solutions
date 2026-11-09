@@ -17,7 +17,7 @@ export const metadata = { title: 'Leads' };
 export const dynamic = 'force-dynamic';
 
 type Call = { id: string; lead_id: string | null; started_at: string; duration_s: number; status: string; recording_sid: string | null; summary: string | null };
-type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null; asks?: number; last_asked_at?: string | null; contact_id?: string | null };
+type Lead = { id: string; channel: string; name: string; email: string | null; phone: string | null; topic: string | null; message: string | null; source: string; medium: string | null; campaign: string | null; consent_text: string; status: string; first_contact_at: string | null; note: string | null; created_at: string; requested_for?: string | null; booked_for?: string | null; review_requested_at?: string | null; asks?: number; last_asked_at?: string | null; contact_id?: string | null; score?: number | null; score_reasons?: string[]; out_of_line?: boolean };
 
 const STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['booked', 'Booked'], ['won', 'Won'], ['lost', 'Lost']] as const;
 const STATUS_KIND: Record<string, string> = { new: 'pending', contacted: 'info', booked: 'info', won: 'done', lost: '' };
@@ -40,7 +40,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const access = await accessFor(ctx.tenant.tenantId, ctx.tenant.plan);
   const [{ data: rows }, { data: month }, { data: callRows }, { data: stopRows }] = await Promise.all([
-    (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at, contact_id').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
+    (() => { let q = supabase.from('leads').select('id, channel, name, email, phone, topic, message, source, medium, campaign, consent_text, status, first_contact_at, note, created_at, requested_for, booked_for, review_requested_at, asks, last_asked_at, contact_id, score, score_reasons, out_of_line').eq('tenant_id', ctx.tenant.tenantId); if (filter && STATUS.some(([k]) => k === filter)) q = q.eq('status', filter); return q.order('created_at', { ascending: false }).limit(200); })(),
     supabase.from('leads').select('source, status, created_at, first_contact_at').eq('tenant_id', ctx.tenant.tenantId).gte('created_at', since).limit(2000),
     supabase.from('calls').select('id, lead_id, started_at, duration_s, status, recording_sid, summary').eq('tenant_id', ctx.tenant.tenantId).gte('started_at', since).order('started_at', { ascending: false }).limit(500),
     supabase.from('lead_consents').select('lead_id, received_at, revoked_at').eq('tenant_id', ctx.tenant.tenantId).order('received_at', { ascending: false }).limit(3000),
@@ -92,6 +92,8 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                   <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <b style={{ fontSize: 16 }}>{l.name}</b>
                     <Chip kind={STATUS_KIND[l.status]}>{STATUS.find(([k]) => k === l.status)?.[1] ?? l.status}</Chip>
+                    {l.score != null ? <Chip kind={l.score >= 60 ? 'done' : l.score >= 30 ? 'info' : ''}>{`Score ${l.score}`}</Chip> : null}
+                    {l.out_of_line ? <Chip kind="bad">Outside your lines</Chip> : null}
                     {(l.asks ?? 1) > 1 ? <Chip kind="pending">{`Asked ${l.asks} times`}</Chip> : null}
                     {stopped.has(l.id) ? <Chip kind="bad">Asked us to stop</Chip> : null}
                     {l.channel === 'call' ? <Chip kind="pending">Call</Chip> : l.channel === 'partner' ? <Chip kind="done">Partner referral</Chip> : null}
@@ -101,6 +103,7 @@ export default async function Leads({ params, searchParams }: { params: Promise<
                 </div>
                 {l.topic ? <span style={{ fontWeight: 600 }}>{l.topic}</span> : null}
                 {l.message ? <p className="soft" style={{ margin: 0, fontSize: 14 }}>{l.message}</p> : null}
+                {l.score_reasons?.length ? <span className="muted" style={{ fontSize: 12 }}>Why this score: {l.score_reasons.join(' · ')}. It only sets the order; every lead is worth a call.</span> : null}
                 {l.requested_for && !l.booked_for ? (
                   <div className="notice" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span><b>Asked for a time on your website:</b> {new Date(l.requested_for).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })}</span>

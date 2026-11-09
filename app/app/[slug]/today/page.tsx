@@ -43,8 +43,8 @@ export default async function Today({ params, searchParams }: { params: Promise<
   const supabase = await db();
   const [{ data }, { data: leadRows }] = await Promise.all([
     supabase.from('follow_ups').select('id, who, reason, due_on, due_at, priority').eq('tenant_id', tid).eq('status', 'open').lte('due_on', addDays(today, 14)).order('due_on').order('due_at', { nullsFirst: false }).limit(200),
-    // Every lead nobody has contacted yet: the calls to make first.
-    supabase.from('leads').select('id, name, phone, topic, source, channel, created_at').eq('tenant_id', tid).eq('status', 'new').order('created_at', { ascending: false }).limit(25),
+    // Every lead nobody has contacted yet: the calls to make first, the best-scored on top (lib/lead-score.ts).
+    supabase.from('leads').select('id, name, phone, topic, source, channel, created_at').eq('tenant_id', tid).eq('status', 'new').order('score', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(25),
   ]);
   const open = (data ?? []) as F[];
   const fresh = (leadRows ?? []) as L[];

@@ -40,6 +40,10 @@
     {
       "path": "/api/cron/visibility",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/leads",
+      "schedule": "* * * * *"
     }
   ]
 }

@@ -54,6 +54,24 @@ export async function releaseNumber(sid: string) {
   await api(`/IncomingPhoneNumbers/${encodeURIComponent(sid)}.json`, { method: 'DELETE' }).catch((e) => { if (!/HTTP 204|not found/i.test(String(e))) throw e; });
 }
 
+/** Twilio Lookup v2 line type ($0.008 a lookup): is the number in service, and is it mobile, landline or VoIP?
+ * ok is null when Twilio couldn't answer (try again later); a landline is fine for calls. */
+export async function lookupLineType(e164: string): Promise<{ ok: boolean | null; type?: string; error?: string }> {
+  if (!twilioConfigured()) return { ok: null, error: 'twilio not configured' };
+  const base = (process.env.TWILIO_LOOKUP_BASE || 'https://lookups.twilio.com').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/v2/PhoneNumbers/${encodeURIComponent(e164)}?Fields=line_type_intelligence`, {
+      headers: { authorization: auth() }, signal: AbortSignal.timeout(8_000), cache: 'no-store',
+    });
+    if (!res.ok) return { ok: res.status === 404 ? false : null, error: `HTTP ${res.status}` };
+    const j = (await res.json()) as { valid?: boolean; line_type_intelligence?: { type?: string | null } | null };
+    const type = j.line_type_intelligence?.type ?? undefined;
+    return { ok: j.valid === true && type !== 'invalid', type };
+  } catch (e) {
+    return { ok: null, error: e instanceof Error ? e.message : 'lookup failed' };
+  }
+}
+
 export async function deleteRecording(sid: string) {
   await api(`/Recordings/${encodeURIComponent(sid)}.json`, { method: 'DELETE' }).catch(() => {});
 }
