@@ -40,6 +40,8 @@ const clean = async () => {
   await db.from('helix_briefs').delete().eq('tenant_id', t.id).eq('day', today);
   await db.from('helix_briefs').delete().eq('tenant_id', house.id).eq('day', today);
   await db.from('follow_ups').delete().eq('tenant_id', t.id).like('reason', 'Verify brief%');
+  // Lead follow-up steps (migration 0097) left by other checks' leads would come first in the follow-ups card.
+  await db.from('follow_ups').delete().eq('tenant_id', t.id).eq('status', 'open').not('lead_id', 'is', null);
   await db.from('helix_threads').delete().eq('tenant_id', t.id);
   await db.from('outbox').delete().eq('tenant_id', t.id).in('template', ['lead_new', 'lead_push']);
 };
