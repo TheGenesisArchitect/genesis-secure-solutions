@@ -34,8 +34,24 @@ async function domainTakesMail(domain: string): Promise<{ ok: boolean | null; wh
       try { return (await withTimeout(dns.resolve4(domain), 4000)).length ? { ok: true, why: 'address record' } : { ok: false, why: 'no mail records' }; }
       catch { return { ok: false, why: 'no mail records' }; }
     }
-    return { ok: null, why: code ?? 'dns error' };
+    // The server's own resolver couldn't answer: ask public DNS over HTTPS instead (free, no key).
+    return doh(domain).catch(() => ({ ok: null, why: code ?? 'dns error' }));
   }
+}
+
+/** The same question over Cloudflare's DNS-over-HTTPS: MX first, an address record when there is no MX. */
+async function doh(domain: string): Promise<{ ok: boolean | null; why: string }> {
+  const ask = async (type: string) => {
+    const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=${type}`, { headers: { accept: 'application/dns-json' }, signal: AbortSignal.timeout(4000), cache: 'no-store' });
+    return (await r.json()) as { Status: number; Answer?: { type: number; data: string }[] };
+  };
+  const mx = await ask('MX');
+  if (mx.Status === 3) return { ok: false, why: 'no such domain' };
+  if (mx.Status !== 0) return { ok: null, why: `dns status ${mx.Status}` };
+  const hosts = (mx.Answer ?? []).filter((a) => a.type === 15).map((a) => a.data.split(' ')[1] ?? '');
+  if (hosts.length) return hosts.some((h) => h && h !== '.') ? { ok: true, why: 'mx' } : { ok: false, why: 'null mx' };
+  const a = await ask('A');
+  return (a.Answer ?? []).some((x) => x.type === 1) ? { ok: true, why: 'address record' } : { ok: false, why: 'no mail records' };
 }
 
 type Row = { id: string; tenant_id: string; phone: string | null; email: string | null; topic: string | null; message: string | null; asks: number | null;
