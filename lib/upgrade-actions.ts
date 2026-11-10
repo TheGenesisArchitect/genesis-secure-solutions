@@ -104,7 +104,13 @@ export async function pullSearchNow(_: ActionResult, f: FormData): Promise<Actio
   if (!t?.search_console_site) return fail('Save the property first.');
   const r = await pullSearch(str(f, 'tenant', 64), t.search_console_site as string);
   revalidatePath('/console', 'layout');
-  return r.ok ? done(`Pulled ${r.rows} days of search numbers; ${r.inspected} of ${r.pages} pages checked in Google.`) : fail(`Google said: ${r.errors[0] ?? 'no numbers yet'}. Check the service account is added to this property.`);
+  if (r.ok) return done(`Pulled ${r.rows} days of search numbers; ${r.inspected} of ${r.pages} pages checked in Google.`);
+  const e = r.errors[0] ?? 'no numbers yet';
+  const { searchConsoleUser } = await import('./search-console');
+  // Google's most common answer, in plain words: this exact property hasn't added Genovus's account.
+  if (/sufficient permission/i.test(e)) return fail(`Google hasn’t let Genovus into ${t.search_console_site} yet. In Search Console, pick that exact property (top left), then Settings → Users and permissions → Add user → ${searchConsoleUser()} (Restricted). If the client’s site is listed under a different property, save that one here instead.`);
+  if (/has not been used|is disabled|accessNotConfigured/i.test(e)) return fail('The Search Console API isn’t turned on for Genovus’s Google Cloud project: APIs & Services → Library → Google Search Console API → Enable. Then pull again in a few minutes.');
+  return fail(`Google said: ${e}`);
 }
 
 // ---------- Agency side ----------

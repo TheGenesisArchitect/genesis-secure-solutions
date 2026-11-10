@@ -148,8 +148,9 @@ export default async function ClientUpgrades({ params }: { params: Promise<{ slu
               <Tile label="Shown in searches" value={<span className="num">{fmt(search.impressions.now)}</span>} hint="Last 28 days with data" />
               <Tile label="Clicks" value={<span className="num">{fmt(search.clicks.now)}</span>} hint="Last 28 days with data" />
               <Tile label="Pages in Google" value={<span className="num">{search.pages ? `${search.pages.indexed} of ${search.pages.total}` : '—'}</span>} hint="From the site’s sitemap" />
-              <Tile label="Last pull" value={search.pulledAt ? dateTime(search.pulledAt) : '—'} hint={search.error ?? 'Once a day'} />
+              <Tile label="Last pull" value={search.pulledAt ? dateTime(search.pulledAt) : '—'} hint={search.error ? 'Didn’t work: see below' : 'Once a day'} />
             </div>
+            {search.error ? <p className="notice err" style={{ margin: 0, overflowWrap: 'anywhere' }}>Last pull: {search.error}</p> : null}
             <ActionForm action={pullSearchNow}><input type="hidden" name="tenant" value={t.id} /><button className="btn small">Pull now</button></ActionForm>
           </>
         ) : null}

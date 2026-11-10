@@ -152,7 +152,7 @@ table.t{border-collapse:collapse;width:100%;font-size:14px}
 .kv{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:8px 18px;margin:0;font-size:14px}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-.notice{border:1px solid var(--line-2);border-radius:12px;padding:12px 14px;font-size:14px;color:var(--soft);background:var(--raise)}
+.notice{overflow-wrap:anywhere;border:1px solid var(--line-2);border-radius:12px;padding:12px 14px;font-size:14px;color:var(--soft);background:var(--raise)}
 .notice.sample{border-style:dashed;border-color:color-mix(in srgb,var(--sample) 55%,transparent)}
 .notice.ok{border-color:color-mix(in srgb,var(--done) 50%,transparent)}
 .notice.err{border-color:color-mix(in srgb,var(--bad) 55%,transparent);color:var(--ink)}
