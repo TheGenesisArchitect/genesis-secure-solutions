@@ -12,7 +12,7 @@ import { adminDb } from '@/lib/supabase/admin';
 import { decideApproval } from '@/lib/actions';
 import { NOTE_COLS, noteWarnings, type Note, type CheckBack } from '@/lib/upgrade-notes';
 import { draftUpgradeNote, saveUpgradeNote, queueUpgradeNote, deleteUpgradeNote, queueCheckBack, saveSearchConsole, pullSearchNow } from '@/lib/upgrade-actions';
-import { searchNow, searchConsoleConfigured, searchConsoleUser } from '@/lib/search-console';
+import { searchNow, searchConsoleProblem, searchConsoleUser } from '@/lib/search-console';
 
 export const metadata = { title: 'Upgrade notes' };
 export const dynamic = 'force-dynamic';
@@ -132,8 +132,8 @@ export default async function ClientUpgrades({ params }: { params: Promise<{ slu
       }) : <Empty title="No upgrade notes yet">Tell Helix what shipped above. The first one for {t.name} can be the work you just finished.</Empty>}
 
       <Panel id="search-console" title="Google Search Console" sub="Gives Visibility, Helix and every check-back real Google numbers: searches, clicks and pages in Google.">
-        {!searchConsoleConfigured() ? (
-          <p className="notice err" style={{ margin: 0 }}>Genovus’s Search Console key isn’t set yet. Add the service account’s JSON key as GSC_SERVICE_ACCOUNT in Vercel (Production), then redeploy.</p>
+        {searchConsoleProblem() ? (
+          <p className="notice err" style={{ margin: 0 }}>{searchConsoleProblem()}</p>
         ) : (
           <p className="soft" style={{ margin: 0 }}>In the client’s Search Console: Settings → Users and permissions → Add user → <code style={{ userSelect: 'all' }}>{searchConsoleUser()}</code> with <b>Restricted</b> permission. Then save the property here.</p>
         )}

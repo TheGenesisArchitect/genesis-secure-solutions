@@ -97,8 +97,9 @@ export async function saveSearchConsole(_: ActionResult, f: FormData): Promise<A
 
 export async function pullSearchNow(_: ActionResult, f: FormData): Promise<ActionResult> {
   if (!(await team())) return fail('Only an admin or account lead can pull Search Console.');
-  const { searchConsoleConfigured, pullSearch } = await import('./search-console');
-  if (!searchConsoleConfigured()) return fail('Search Console isn’t set up on Genovus yet (the service account key is missing).');
+  const { searchConsoleProblem, pullSearch } = await import('./search-console');
+  const problem = searchConsoleProblem();
+  if (problem) return fail(problem);
   const { data: t } = await adminDb().from('tenants').select('search_console_site').eq('id', str(f, 'tenant', 64)).maybeSingle();
   if (!t?.search_console_site) return fail('Save the property first.');
   const r = await pullSearch(str(f, 'tenant', 64), t.search_console_site as string);

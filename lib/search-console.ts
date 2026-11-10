@@ -11,16 +11,26 @@ import { adminDb } from '@/lib/supabase/admin';
 type Key = { client_email: string; private_key: string };
 const DAY = 86_400_000;
 
-function key(): Key | null {
-  const raw = (process.env.GSC_SERVICE_ACCOUNT || '').trim();
-  if (!raw) return null;
+/** The key, or what is wrong with it in plain words (never any part of the key itself). Forgiving of how it was
+ *  pasted: surrounding quotes, a byte-order mark, base64, or a private key whose line breaks came through as "\n". */
+function read(): { key: Key } | { problem: string } {
+  let raw = (process.env.GSC_SERVICE_ACCOUNT || '').replace(/^﻿/, '').trim();
+  if (!raw) return { problem: 'GSC_SERVICE_ACCOUNT isn’t set in this deployment. Add it for Production in Vercel, then redeploy.' };
+  if (raw.length > 1 && (raw[0] === '"' || raw[0] === "'") && raw.at(-1) === raw[0]) raw = raw.slice(1, -1).trim();
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(raw) && !raw.startsWith('{')) return { problem: 'GSC_SERVICE_ACCOUNT holds only the private key. Paste the whole downloaded .json file instead, from the first { to the last }.' };
+  let j: Record<string, unknown>;
   try {
-    const k = JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')) as Partial<Key>;
-    return k.client_email && k.private_key ? { client_email: k.client_email, private_key: k.private_key } : null;
+    j = JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')) as Record<string, unknown>;
   } catch {
-    return null;
+    return { problem: `GSC_SERVICE_ACCOUNT isn’t a complete JSON file (${raw.length.toLocaleString('en-US')} characters, ${raw.startsWith('{') ? 'starts with {' : 'doesn’t start with {'}, ${raw.endsWith('}') ? 'ends with }' : 'doesn’t end with }'}). It was likely cut off: paste the whole file again.` };
   }
+  if (j.type && j.type !== 'service_account') return { problem: `That JSON is a “${String(j.type)}” file, not a service account key. In Google Cloud: IAM & Admin → Service Accounts → your account → Keys → Add key → JSON.` };
+  if (typeof j.client_email !== 'string' || typeof j.private_key !== 'string') return { problem: `That JSON is missing ${typeof j.client_email !== 'string' ? 'client_email' : 'private_key'}. Download a fresh JSON key for the service account and paste the whole file.` };
+  return { key: { client_email: j.client_email, private_key: j.private_key.replace(/\\n/g, '\n') } };
 }
+function key(): Key | null { const r = read(); return 'key' in r ? r.key : null; }
+/** Why Search Console isn't usable, for the console; null when the key reads fine. */
+export const searchConsoleProblem = (): string | null => { const r = read(); return 'problem' in r ? r.problem : null; };
 export const searchConsoleConfigured = () => key() !== null;
 /** The address an agency adds in Search Console (Settings → Users and permissions → Add user, Restricted). Not secret. */
 export const searchConsoleUser = () => key()?.client_email ?? null;
