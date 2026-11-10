@@ -119,7 +119,7 @@ check(a.length === DAYS * 7 && b.length === 0 && c.length === 0 && w.error, 'the
 // 4. Helix's brief
 const brief = await H.agencyBrief(owner, t.id, 'Test Launch Agency', 'Growth');
 const line = brief.split('\n').find((l) => l.startsWith('VISIBILITY'));
-check(line && line.includes(`Instagram ${(560 + DAYS - 1).toLocaleString('en-US')}`) && line.includes(`views ${(DAYS * 35).toLocaleString('en-US')}`) && /Not connected yet: Google search positions/.test(line), `Helix’s brief carries the board’s numbers and what isn’t connected (${line?.slice(0, 140)}…)`);
+check(line && line.includes(`Instagram ${(560 + DAYS - 1).toLocaleString('en-US')}`) && line.includes(`views ${(DAYS * 35).toLocaleString('en-US')}`) && line.includes('Google search (Search Console): not connected.') && /Not connected yet: Business Profile/.test(line), `Helix’s brief carries the board’s numbers and what isn’t connected (${line?.slice(0, 140)}…)`);
 
 // 5. the board
 const up = async () => { try { return (await fetch(ORIGIN, { redirect: 'manual' })).status > 0; } catch { return false; } };
