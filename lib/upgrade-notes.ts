@@ -144,7 +144,8 @@ export async function sendNote(noteId: string, origin: string): Promise<{ ok: st
     { h: 'How this scales', items: note.scales ? [note.scales] : [] },
   ].filter((s) => s.items.length);
   if (!note.tenants.is_sample) for (const to of emails) {
-    await db.from('outbox').insert({ tenant_id: note.tenant_id, to_email: to, template: 'upgrade_note', data: { agency: note.tenants.name, title: note.title, summary: note.summary, sections: JSON.stringify(sections), link }, dedupe_key: `upgrade:${note.id}:${to}` });
+    const q = await db.from('outbox').upsert({ tenant_id: note.tenant_id, to_email: to, template: 'upgrade_note', data: { agency: note.tenants.name, title: note.title, summary: note.summary, sections: JSON.stringify(sections), link }, dedupe_key: `upgrade:${note.id}:${to}` }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    if (q.error) return { err: `The email to ${to} couldn’t be queued: ${q.error.message}` };
   }
   await db.from('upgrade_notes').update({ status: 'sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', note.id);
   return { ok: `“${note.title}” went to ${emails.join(', ')} and is in their portal.` };
@@ -216,7 +217,8 @@ export async function sendCheckBack(noteId: string, origin: string): Promise<{ o
   const emails = await ownerEmails(note.tenant_id);
   if (!emails.length) return { err: 'No email for this agency yet.' };
   if (!note.tenants.is_sample) for (const to of emails) {
-    await db.from('outbox').insert({ tenant_id: note.tenant_id, to_email: to, template: 'upgrade_checkback', data: { agency: note.tenants.name, title: note.title, since: longDate(note.sent_at!.slice(0, 10)), lines: note.check_back!.lines.join('\n'), link: `${origin}/app/${note.tenants.slug}/upgrades#${note.id}` }, dedupe_key: `checkback:${note.id}:${to}` });
+    const q = await db.from('outbox').upsert({ tenant_id: note.tenant_id, to_email: to, template: 'upgrade_checkback', data: { agency: note.tenants.name, title: note.title, since: longDate(note.sent_at!.slice(0, 10)), lines: note.check_back!.lines.join('\n'), link: `${origin}/app/${note.tenants.slug}/upgrades#${note.id}` }, dedupe_key: `checkback:${note.id}:${to}` }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    if (q.error) return { err: `The email to ${to} couldn’t be queued: ${q.error.message}` };
   }
   await db.from('upgrade_notes').update({ check_back_status: 'sent', check_back_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', note.id);
   return { ok: `The check-back on “${note.title}” went to ${emails.join(', ')}.` };
