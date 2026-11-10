@@ -69,6 +69,35 @@ export async function agencyCards(db: SupabaseClient, tenantId: string, slug: st
   }
   const appr = approvals.data ?? [];
   if (appr.length) cards.push({ id: `approvals:${appr.map((a) => a.id).join(',').slice(0, 60)}`, lane: 'Approve', tone: 'today', title: `${plural(appr.length, 'approval')} waiting for you`, why: appr.slice(0, 2).map((a) => a.title).join(' · '), actions: [{ kind: 'link', label: 'Review now', href: `${base}/approvals`, primary: true }] });
+  // Helix relays the Genovus team's newest Upgrade Note (lib/upgrade-notes.ts) until this person has read it or its
+  // next steps are done; a fresh check-back shows for a week.
+  const { data: notes } = await db.from('upgrade_notes').select('id, title, summary, steps, sent_at, check_back, check_back_status, check_back_sent_at').eq('tenant_id', tenantId).eq('status', 'sent').gte('sent_at', new Date(Date.now() - 45 * 86_400_000).toISOString()).order('sent_at', { ascending: false }).limit(3);
+  if (notes?.length) {
+    const uid = (await db.auth.getUser()).data.user?.id;
+    const [{ data: reads }, { data: answers }] = await Promise.all([
+      uid ? db.from('upgrade_note_reads').select('note_id').eq('user_id', uid).in('note_id', notes.map((x) => x.id)) : Promise.resolve({ data: [] as { note_id: string }[] }),
+      db.from('upgrade_note_steps').select('note_id, step_key, status').in('note_id', notes.map((x) => x.id)),
+    ]);
+    for (const n of notes) {
+      const link = `${base}/upgrades#${n.id}`;
+      const fresh = n.check_back_status === 'sent' && n.check_back_sent_at && Date.parse(n.check_back_sent_at) > Date.now() - 7 * 86_400_000;
+      if (fresh) {
+        const first = ((n.check_back as { lines?: string[] } | null)?.lines ?? [])[0] ?? '';
+        cards.push({ id: `checkback:${n.id}`, lane: 'From Genovus', tone: 'today', title: `Checking back: ${n.title}`, why: first, actions: [
+          { kind: 'link', label: 'See the numbers', href: link, primary: true },
+          { kind: 'helix', label: 'What should I do next?', question: `The Genovus team checked back on "${n.title}". What do the numbers mean for my office, and what is the one thing I should do next?`, context: `upgrade note ${n.title}` },
+        ] });
+        continue;
+      }
+      const open = ((n.steps as { key: string; text: string }[]) ?? []).filter((s) => !(answers ?? []).some((a) => a.note_id === n.id && a.step_key === s.key && ['done', 'later'].includes(a.status as string)));
+      const unread = !(reads ?? []).some((r) => r.note_id === n.id);
+      if (!unread && !open.length) continue;
+      cards.push({ id: `upgrade:${n.id}`, lane: 'From Genovus', tone: 'today', title: unread ? `New from Genovus: ${n.title}` : `One step left: ${open[0].text}`, why: unread ? n.summary : `From “${n.title}”`, actions: [
+        { kind: 'link', label: unread ? 'Read it' : 'Answer it', href: link, primary: true },
+        { kind: 'helix', label: 'What does this do for me?', question: `Explain the Genovus upgrade "${n.title}" in plain words: what changed, what it does for my office, and what I should expect and when.`, context: `upgrade note ${n.title}` },
+      ] });
+    }
+  }
   for (const c of care.data ?? []) cards.push({ id: `care:${c.id}`, lane: 'Genovus team', tone: 'today', title: 'The Genovus team needs your answer', why: c.title, actions: [{ kind: 'link', label: 'Answer', href: `${base}/care`, primary: true }] });
   const p = (partners.data ?? [])[0];
   if (p) {

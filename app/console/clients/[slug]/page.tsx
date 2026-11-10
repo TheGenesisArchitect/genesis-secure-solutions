@@ -113,6 +113,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
         {TABS.map(([k, label]) => (
           <Link key={k} href={`/console/clients/${slug}${k === 'overview' ? '' : `?tab=${k}`}`} aria-current={k === tab ? 'page' : undefined}>{label}</Link>
         ))}
+        {t.kind === 'agency' ? <Link href={`/console/clients/${slug}/upgrades`}>Upgrade notes</Link> : null}
       </nav>
 
       {tab === 'overview' && (

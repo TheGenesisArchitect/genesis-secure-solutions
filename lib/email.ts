@@ -39,7 +39,7 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** One branded frame for every email: mark, heading, body, an optional button and code, and a quiet footer. */
-function frame(o: { preheader: string; heading: string; body: string[]; button?: { label: string; url: string }; code?: string; foot?: string; footLink?: { label: string; url: string } }, origin: string) {
+function frame(o: { preheader: string; heading: string; body: string[]; sections?: { h: string; items: string[] }[]; button?: { label: string; url: string }; code?: string; foot?: string; footLink?: { label: string; url: string } }, origin: string) {
   const btn = o.button
     ? `<tr><td style="padding:8px 0 4px"><a href="${esc(o.button.url)}" style="display:inline-block;background:#ff6a2b;background-image:linear-gradient(90deg,#ff5a20,#ffa31a);color:#160803;font:700 15px/1 Arial,sans-serif;text-decoration:none;padding:14px 22px;border-radius:999px">${esc(o.button.label)}</a></td></tr>`
     : '';
@@ -54,10 +54,11 @@ function frame(o: { preheader: string; heading: string; body: string[]; button?:
 <tr><td style="padding-bottom:18px"><img src="${origin}/brand/genovus/genovus-mark-128.png" width="32" height="32" alt="" style="vertical-align:middle;border-radius:8px"> <span style="font:800 14px Arial,sans-serif;letter-spacing:3px;color:#121419;vertical-align:middle">&nbsp;GENOVUS</span></td></tr>
 <tr><td style="font:800 22px/1.25 Arial,sans-serif;color:#121419;padding-bottom:10px">${esc(o.heading)}</td></tr>
 ${o.body.map((p) => `<tr><td style="font:15px/1.55 Arial,sans-serif;color:#3a3e47;padding-bottom:10px">${esc(p)}</td></tr>`).join('')}
+${(o.sections ?? []).map((sec) => `<tr><td style="font:700 12px/1.2 Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#c4410d;padding:12px 0 6px">${esc(sec.h)}</td></tr><tr><td style="padding-bottom:6px"><ul style="margin:0;padding-left:20px">${sec.items.map((i) => `<li style="font:15px/1.55 Arial,sans-serif;color:#3a3e47;padding-bottom:5px">${esc(i)}</li>`).join('')}</ul></td></tr>`).join('')}
 ${btn}${code}
 <tr><td style="font:12px/1.5 Arial,sans-serif;color:#8b909a;padding-top:20px;border-top:1px solid #eee">${esc(o.foot ?? 'Genovus, a Genesis Secure Solutions brand. Reply to this email to reach a person on our team.')}${o.footLink ? ` <a href="${esc(o.footLink.url)}" style="color:#8b909a;text-decoration:underline">${esc(o.footLink.label)}</a>` : ''}</td></tr>
 </table></td></tr></table></body></html>`;
-  const text = [o.heading, '', ...o.body, ...(o.button ? ['', `${o.button.label}: ${o.button.url}`] : []), ...(o.code ? ['', `Code: ${o.code}`] : []), '', o.foot ?? 'Genovus, a Genesis Secure Solutions brand.', ...(o.footLink ? [`${o.footLink.label}: ${o.footLink.url}`] : [])].join('\n');
+  const text = [o.heading, '', ...o.body, ...(o.sections ?? []).flatMap((sec) => ['', sec.h.toUpperCase(), ...sec.items.map((i) => `- ${i}`)]), ...(o.button ? ['', `${o.button.label}: ${o.button.url}`] : []), ...(o.code ? ['', `Code: ${o.code}`] : []), '', o.foot ?? 'Genovus, a Genesis Secure Solutions brand.', ...(o.footLink ? [`${o.footLink.label}: ${o.footLink.url}`] : [])].join('\n');
   return { html, text };
 }
 
@@ -278,6 +279,34 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           heading: `Your ${data.month} at a glance`,
           body: [`${data.leads} leads, ${data.booked} booked, ${data.won} won.`, `Next month, one thing: ${data.improvement}. ${data.why}`],
           button: { label: 'See the full report', url: data.link },
+        }, origin),
+      };
+    case 'upgrade_note': {
+      let sections: { h: string; items: string[] }[] = [];
+      try { sections = (JSON.parse(data.sections || '[]') as { h?: unknown; items?: unknown }[]).filter((x) => typeof x.h === 'string' && Array.isArray(x.items)).map((x) => ({ h: String(x.h), items: (x.items as unknown[]).map(String) })); } catch {}
+      return {
+        to,
+        subject: `${data.agency}: ${data.title}`,
+        ...frame({
+          preheader: data.summary || 'What we changed on your systems, and what to expect.',
+          heading: data.title,
+          body: [data.summary].filter(Boolean),
+          sections,
+          button: { label: 'See it in your portal', url: data.link },
+          foot: 'From your Genovus team. Questions? Reply to this email or ask Helix in your portal.',
+        }, origin),
+      };
+    }
+    case 'upgrade_checkback':
+      return {
+        to,
+        subject: `${data.agency}: checking back on “${data.title}”`,
+        ...frame({
+          preheader: 'What has changed since the upgrade, in real numbers.',
+          heading: `Checking back: ${data.title}`,
+          body: [`Here is what has happened since ${data.since}.`, ...String(data.lines || '').split('\n').filter(Boolean)],
+          button: { label: 'See it in your portal', url: data.link },
+          foot: 'From your Genovus team. Numbers come from Google Search Console and your Genovus leads.',
         }, origin),
       };
     case 'review_request':

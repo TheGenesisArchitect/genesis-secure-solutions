@@ -131,6 +131,31 @@ export default async function VisibilityPage({ params }: { params: Promise<{ slu
           )}
         </Panel>
 
+        <Panel id="found" title="Google search" sub={v.search?.connected ? `From Google Search Console${v.search.pulledAt ? ` · updated ${when(v.search.pulledAt)}` : ''} · Google’s numbers run about two days behind` : 'How your website shows up in Google'}>
+          {v.search?.connected && v.search.pulledAt && !v.search.error ? (
+            <>
+              <div className="grid g4">
+                <Tile label="Shown in searches" value={<span className="num">{n(v.search.impressions.now)}</span>} hint={`Last ${WINDOW_DAYS} days`} />
+                <Tile label="Clicks to your site" value={<span className="num">{n(v.search.clicks.now)}</span>} hint={`Last ${WINDOW_DAYS} days`} />
+                <Tile label="Pages in Google" value={<span className="num">{v.search.pages ? `${v.search.pages.indexed} of ${v.search.pages.total}` : '—'}</span>} hint="Pages on your site Google has added" />
+              </div>
+              {v.search.top.length ? (
+                <div className="table-wrap">
+                  <table className="t">
+                    <thead><tr><th>Searches that showed your site</th><th className="num">Shown</th><th className="num">Clicks</th></tr></thead>
+                    <tbody>{v.search.top.slice(0, 8).map((q) => <tr key={q.query}><td>{q.query}</td><td className="num">{q.impressions}</td><td className="num">{q.clicks}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              ) : <p className="soft">Searches appear here once Google has shown your site enough times to report them.</p>}
+            </>
+          ) : (
+            <div className="vis-connect">
+              <b>{v.search?.connected ? (v.search.error ? 'Google didn’t have numbers for us yet' : 'The first pull runs within a day') : 'Connect Google Search Console'}</b>
+              <span className="soft">{v.search?.connected ? (v.search.error ? `It said: ${v.search.error}. We try again every day.` : 'How often your site shows in Google, the searches that find you, and which pages Google has added.') : 'The Genovus team connects your site; how often you show up in Google and the searches that find you appear here.'}</span>
+            </div>
+          )}
+        </Panel>
+
         <Panel id="chosen" title="Why people pick you" sub="Your Google rating, read live each time you open this page">
           {own?.rating != null ? (
             <div className="grid g4">

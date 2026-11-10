@@ -73,10 +73,13 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
   // A new client's onboarding (their Welcome page): plan, kickoff and welcome form, so Helix can help fill it in.
   const { data: tslug } = await db.from('tenants').select('slug').eq('id', tenantId).maybeSingle();
   const welcome = tslug?.slug ? await import('./welcome').then((m) => m.welcomeBrief(tenantId, tslug.slug as string)).catch(() => []) : [];
+  // What the Genovus team changed on their systems lately (Upgrades), so Helix can explain it and nudge open steps.
+  const upgrades = await import('./upgrade-notes').then((m) => m.notesBrief(db, tenantId)).catch(() => [] as string[]);
   return [
     `AGENCY: ${name} · program ${program} · today ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${today} (America/New_York)${P ? ` · ${P.city ?? ''} ${P.state ?? ''} · carrier ${P.carrier ?? 'n/a'} · licensed ${(P.licensed_states ?? []).join(', ') || 'n/a'}` : ''}`,
     visLine,
     ...welcome,
+    ...upgrades,
     `LINES THIS AGENCY SELLS: ${lines.join(', ') || 'not set (ask the Genovus team to set them)'}`,
     `MARKET NOW: ${moments.map((m) => `${LINES[m.line].label}: ${m.label}${m.starting ? ' (starting next month)' : ''} (${m.why})`).join(' | ') || 'no seasonal moments for these lines this month'}`,
     `SOURCES this 30 days (leads / won / cost this month): ${Object.entries(bySource).map(([k, v]) => `${k} ${v.n}/${v.won}${cost[k] != null ? ` $${(cost[k] / 100).toFixed(0)} = $${(cost[k] / 100 / Math.max(1, v.n)).toFixed(0)}/lead` : ''}`).join(', ') || 'none'} · benchmark: vendors charge about $50 per shared lead`,

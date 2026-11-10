@@ -3,6 +3,7 @@
 // Only real numbers: anything not connected is `null` with the reason, never 0. The Google rating is read live by the
 // page (never stored), so it isn't here.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { searchNow, type SearchNow } from './search-console';
 
 const DAY = 86_400_000;
 export const WINDOW_DAYS = 28;
@@ -21,7 +22,7 @@ export type Social = {
 export type Funnel = { leads: number; reached: number; booked: number; won: number; medianReplyMin: number | null; bySource: { source: string; leads: number; booked: number; won: number }[] };
 export type Rhythm = { published: number; scheduled: number; waiting: number; nextAt: string | null };
 export type Move = { title: string; why: string; href: string; cta: string };
-export type Visibility = { social: Social; funnel: Funnel; rhythm: Rhythm; ownPlaceId: string | null; moves: Move[] };
+export type Visibility = { social: Social; search: SearchNow | null; funnel: Funnel; rhythm: Rhythm; ownPlaceId: string | null; moves: Move[] };
 
 const SOURCE: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', direct: 'Direct visit', partner: 'Partner referral', meta: 'Meta lead form', call: 'Phone call', form: 'Website form' };
 export const sourceLabel = (s: string) => SOURCE[s] ?? s.replace(/[-_]/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
@@ -96,7 +97,9 @@ export async function visibility(db: SupabaseClient, tenantId: string, slug: str
   if (!rhythm.scheduled && !rhythm.waiting) moves.push({ title: 'Nothing is scheduled to post', why: 'A steady rhythm keeps your name in front of the people who already follow you.', href: `${base}/care`, cta: 'Ask for posts' });
   if (funnel.won) moves.push({ title: `Ask your ${funnel.won} newest customer${funnel.won === 1 ? '' : 's'} for a Google review`, why: 'Ask every customer the same way. Reviews help you get picked on the map.', href: `${base}/assets`, cta: 'Review card' });
   if (funnel.leads && funnel.booked / funnel.leads < 0.3) moves.push({ title: 'Book more of the leads you reach', why: `${funnel.booked} of ${funnel.leads} leads booked in ${WINDOW_DAYS} days.`, href: `${base}/pipeline`, cta: 'Open Pipeline' });
-  return { social, funnel, rhythm, ownPlaceId: scan.data?.own_place_id ?? null, moves: moves.slice(0, 3) };
+  // Google search (Search Console), when the agency's property is connected. Never blocks the board.
+  const search = await searchNow(db, tenantId).catch(() => null);
+  return { social, search, funnel, rhythm, ownPlaceId: scan.data?.own_place_id ?? null, moves: moves.slice(0, 3) };
 }
 
 /** One line for Helix's brief, from the same numbers. */
@@ -106,5 +109,12 @@ export function visibilityLine(v: Visibility): string {
   const social = s.connected
     ? `social (Metricool${s.pulledAt ? `, pulled ${s.pulledAt.slice(0, 10)}` : ', not pulled yet'}): followers Facebook ${n(s.followers.facebook)}, Instagram ${n(s.followers.instagram)}; last ${WINDOW_DAYS} days reach ${n(s.reach.now)}, views ${n(s.views.now)}, interactions ${n(s.interactions.now)}`
     : 'social: no Metricool brand connected';
-  return `VISIBILITY (last ${WINDOW_DAYS} days): ${social}; posts published ${v.rhythm.published}, scheduled ${v.rhythm.scheduled}, waiting on the owner ${v.rhythm.waiting}; leads ${v.funnel.leads}, reached ${v.funnel.reached}, booked ${v.funnel.booked}, won ${v.funnel.won}. Not connected yet: Google search positions, Business Profile views and reviews, website visits (say so; never guess them).`;
+  return `VISIBILITY (last ${WINDOW_DAYS} days): ${social}; posts published ${v.rhythm.published}, scheduled ${v.rhythm.scheduled}, waiting on the owner ${v.rhythm.waiting}; leads ${v.funnel.leads}, reached ${v.funnel.reached}, booked ${v.funnel.booked}, won ${v.funnel.won}. ${searchLine(v.search)} Not connected yet: Business Profile views and reviews, website visits (say so; never guess them).`;
+}
+
+function searchLine(s: SearchNow | null): string {
+  if (!s?.connected) return 'Google search (Search Console): not connected.';
+  if (!s.pulledAt) return 'Google search (Search Console): connected, first numbers not pulled yet.';
+  const n = (x: number | null) => (x == null ? 'not available' : x.toLocaleString('en-US'));
+  return `Google search (Search Console, pulled ${s.pulledAt.slice(0, 10)}, last 28 days with data): showed in searches ${n(s.impressions.now)} times, clicks ${n(s.clicks.now)}${s.pages ? `; pages in Google ${s.pages.indexed} of ${s.pages.total}` : ''}${s.top.length ? `; top searches: ${s.top.slice(0, 5).map((q) => `"${q.query}" (${q.impressions} shown, ${q.clicks} clicks)`).join(', ')}` : ''}.`;
 }

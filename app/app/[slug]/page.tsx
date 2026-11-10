@@ -78,9 +78,18 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   // The day's action cards, from this agency's own records (only when the brief shows).
   const cards = showBrief ? await agencyCards(supabase, tid, slug, { isOwner: ctx.isOwner, has: (k) => access.has(k) }) : [];
   const moment = momentsNow(prof?.lines)[0];
+  // Without Helix's brief, the newest note from the Genovus team this person hasn't opened shows as its own card.
+  const { data: newest } = !showBrief && !sample ? await supabase.from('upgrade_notes').select('id, title, summary').eq('tenant_id', tid).eq('status', 'sent').order('sent_at', { ascending: false }).limit(1).maybeSingle() : { data: null };
+  const { data: seen } = newest && !ctx.asStaff ? await supabase.from('upgrade_note_reads').select('note_id').eq('note_id', newest.id).eq('user_id', ctx.viewer.userId).maybeSingle() : { data: null };
+  const upgrade = newest && !seen && !ctx.asStaff ? newest : null;
   const pulse = moment ? `Market: ${LINES[moment.line].label} ${moment.label.toLowerCase()} ${moment.starting ? 'starts next month' : 'is on now'}` : null;
   return (
     <AgencyShell ctx={ctx} title={`Welcome back`} film={film}>
+      {upgrade ? (
+        <Panel title={`New from Genovus: ${upgrade.title}`} sub="What we changed on your systems, and what to expect" actions={<Link className="btn small primary" href={`${base}/upgrades#${upgrade.id}`}>Read it</Link>}>
+          <p className="soft" style={{ margin: 0 }}>{upgrade.summary}</p>
+        </Panel>
+      ) : null}
       {showBrief ? <CommandBrief surface="agency" slug={slug} tenantId={tid} initial={(brief?.body as never) ?? null} cards={cards} pulse={pulse} sources="From your leads, calls, calendar, partners and market" /> : null}
       <div className="grid g4">
         <Tile label="Where you are" value={STAGE_LABEL[t?.stage as Stage] ?? '—'} hint={t?.stage === 'care' ? 'Live, with monthly care' : 'Getting you live'} />

@@ -39,6 +39,16 @@ export async function decideApproval(_: ActionResult, f: FormData) {
       if ('err' in r) return fail(r.err);
       return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: 'approved', p_note: str(f, 'note') || null }, r.ok);
     }
+    // Upgrade notes and their check-backs (lib/upgrade-notes.ts): approving sends; if sending fails, it stays pending.
+    const act = (a?.body as { action?: string } | null)?.action;
+    if (a?.status === 'pending' && (act === 'send_upgrade_note' || act === 'send_checkback')) {
+      const { sendNote, sendCheckBack } = await import('./upgrade-notes');
+      const id = String((a.body as { note?: string }).note ?? '');
+      const origin = process.env.APP_ORIGIN || 'https://genovus.io';
+      const r = act === 'send_upgrade_note' ? await sendNote(id, origin) : await sendCheckBack(id, origin);
+      if ('err' in r) return fail(r.err);
+      return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: 'approved', p_note: str(f, 'note') || null }, r.ok);
+    }
     if (a?.status === 'pending' && (a.body as { action?: string } | null)?.action === 'send_proposal') {
       const { sendProposal } = await import('./proposal-send');
       const r = await sendProposal(a.tenant_id as string);
@@ -46,8 +56,19 @@ export async function decideApproval(_: ActionResult, f: FormData) {
       return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: 'approved', p_note: str(f, 'note') || null }, r.ok);
     }
   }
-  return call('decide_approval', { p_id: str(f, 'id', 64), p_decision: str(f, 'decision', 30), p_note: str(f, 'note') || null },
+  const r = await call('decide_approval', { p_id: str(f, 'id', 64), p_decision: str(f, 'decision', 30), p_note: str(f, 'note') || null },
     str(f, 'decision', 30) === 'approved' ? 'Approved' : 'Changes requested');
+  // Changes asked on an upgrade note (or its check-back): it goes back to editing, so it can be queued again.
+  if (r?.ok && str(f, 'decision', 30) !== 'approved') {
+    const { data: a } = await (await db()).from('approvals').select('body').eq('id', str(f, 'id', 64)).maybeSingle();
+    const b = a?.body as { action?: string; note?: string } | null;
+    if (b?.note && (b.action === 'send_upgrade_note' || b.action === 'send_checkback')) {
+      const { adminDb } = await import('./supabase/admin');
+      if (b.action === 'send_upgrade_note') await adminDb().from('upgrade_notes').update({ status: 'draft' }).eq('id', b.note).eq('status', 'queued');
+      else await adminDb().from('upgrade_notes').update({ check_back_status: 'draft' }).eq('id', b.note).eq('check_back_status', 'queued');
+    }
+  }
+  return r;
 }
 
 export async function createCareRequest(_: ActionResult, f: FormData) {
@@ -116,7 +137,7 @@ export async function bulkApprove(_: ActionResult, f: FormData): Promise<ActionR
   let ids = f.getAll('id').map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 200);
   const supabase = await db();
   // Never in bulk: anything that sends money matters to a client (a proposal and deposit) takes its own tap.
-  const { data: own } = await supabase.from('approvals').select('id').in('id', ids).in('body->>action', ['send_proposal', 'send_report']);
+  const { data: own } = await supabase.from('approvals').select('id').in('id', ids).in('body->>action', ['send_proposal', 'send_report', 'send_upgrade_note', 'send_checkback']);
   ids = ids.filter((x) => !(own ?? []).some((o) => o.id === x));
   let ok = 0;
   const errors = new Set<string>();

@@ -8,6 +8,7 @@ import { makeMorningBrief } from '@/lib/helix-morning';
 import { deleteRecording } from '@/lib/twilio';
 import { PROGRAM_NAME } from '@/lib/programs';
 import { writeMonthlyReports } from '@/lib/monthly-report';
+import { writeCheckBacks } from '@/lib/upgrade-notes';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -25,6 +26,8 @@ export async function GET(req: Request) {
   await snapshotHouseKpis(db, period);
   // Each Growth and Premium agency's report for last month (once), waiting on the team's tap to send.
   await writeMonthlyReports(now).catch((e) => console.error(`[report] ${e instanceof Error ? e.message : e}`));
+  // Upgrade notes whose check-back date has come: real numbers written, waiting on the team's tap to send.
+  await writeCheckBacks().catch((e) => console.error(`[upgrade-notes] ${e instanceof Error ? e.message : e}`));
   const weekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
   const twoDays = new Date(Date.now() - 2 * 86_400_000).toISOString();
   const [{ count: inquiries }, { data: stale }, { count: care }, { data: broken }] = await Promise.all([

@@ -4,7 +4,7 @@ import type { NavSection } from '@/components/Shell';
 
 type Count = Promise<number> | undefined;
 
-export function agencyNav(base: string, has: (k: string) => boolean, opts: { isOwner: boolean; welcome?: boolean; programTitle: string; staffSlug?: string; counts?: { fresh?: Count; due?: Count; pending?: Count; open?: Count } }): NavSection[] {
+export function agencyNav(base: string, has: (k: string) => boolean, opts: { isOwner: boolean; welcome?: boolean; programTitle: string; staffSlug?: string; counts?: { fresh?: Count; due?: Count; pending?: Count; open?: Count; upgrades?: Count } }): NavSection[] {
   const c = opts.counts ?? {};
   return [
     {
@@ -41,6 +41,7 @@ export function agencyNav(base: string, has: (k: string) => boolean, opts: { isO
         { href: `${base}/assets`, label: 'Assets & documents' },
         ...(opts.isOwner ? [{ href: `${base}/billing`, label: 'Billing & maintenance' }] : []),
         { href: `${base}/team`, label: 'Team' },
+        { href: `${base}/upgrades`, label: 'Upgrades', icon: 'helix', count: c.upgrades },
         { href: `${base}/whats-new`, label: 'What’s new', icon: 'helix' },
         { href: `${base}/program`, label: 'Your program', icon: 'overview' },
       ],

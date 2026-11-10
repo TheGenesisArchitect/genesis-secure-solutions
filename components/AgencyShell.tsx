@@ -28,6 +28,9 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
   const pending = n(supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'pending').eq('approver', 'client'));
   const open = n(supabase.from('care_requests').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).neq('status', 'done'));
   const due = n(supabase.from('follow_ups').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'open').lte('due_on', businessToday()));
+  // Upgrade notes this person hasn't opened yet (lib/upgrade-notes.ts).
+  const upgrades = Promise.resolve(supabase.from('upgrade_notes').select('id').eq('tenant_id', tenant.tenantId).eq('status', 'sent').order('sent_at', { ascending: false }).limit(20))
+    .then(async ({ data }) => { if (!data?.length || asStaff) return 0; const { data: r } = await supabase.from('upgrade_note_reads').select('note_id').eq('user_id', viewer.userId).in('note_id', data.map((d) => d.id)); return data.length - (r?.length ?? 0); }, () => 0);
   const fresh = n(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.tenantId).eq('status', 'new'));
   // One shell: what shows is what this agency can open (its program plus any grant or trial from Genovus). The same
   // list feeds Ctrl+K and Helix's "go to" (lib/agency-nav.ts).
@@ -38,7 +41,7 @@ export async function AgencyShell({ ctx, title, children, actions, film }: { ctx
   // Before the deposit there is no plan on the agency yet: name the package from their proposal, not Launch.
   const proposed = !tenant.plan && welcome ? await supabase.from('agent_records').select('data').eq('tenant_id', tenant.tenantId).eq('is_current', true).maybeSingle().then((r) => (r.data?.data as { package?: string } | null)?.package, () => undefined) : undefined;
   const programLabel = proposed && proposed in PROGRAM_NAME ? PROGRAM_NAME[proposed as keyof typeof PROGRAM_NAME] : PROGRAM_NAME[program];
-  const nav = agencyNav(base, (k) => access.has(k), { isOwner, welcome, programTitle: `Your program · ${programLabel}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open } });
+  const nav = agencyNav(base, (k) => access.has(k), { isOwner, welcome, programTitle: `Your program · ${programLabel}${trialNote}`, staffSlug: asStaff ? tenant.slug : undefined, counts: { fresh, due, pending, open, upgrades } });
   return (
     <Shell
       searchClients
