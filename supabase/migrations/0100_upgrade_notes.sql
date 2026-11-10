@@ -106,7 +106,7 @@ begin
     execute format('alter table visibility_pulls drop constraint %I', c);
   end loop;
 end $$;
-alter table visibility_pulls add constraint visibility_pulls_source_check check (source in ('metricool','search_console'));
+alter table visibility_pulls add constraint visibility_pulls_source_check check (source in ('metricool','metricool-posts','search_console'));
 
 create table if not exists search_daily (
   tenant_id uuid not null references tenants on delete cascade,
