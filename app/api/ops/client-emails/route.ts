@@ -7,7 +7,7 @@
 //                                        (delivery=1 also asks Resend for each sent one's last event)
 //   POST   { slug, kind: "site_review" | "note", dry?, ...fields }   dry renders only; otherwise schedules
 //          fields as the panel's form: to, cc, when (Eastern "YYYY-MM-DDTHH:MM"), intent: "test", subject,
-//          note, site, card, sender, copy, copy_help, item: [...], help_<key>, reply, next | body (note)
+//          note, site, card, agency, sender, copy, copy_help, item: [...], help_<key>, reply, next | body (note)
 //   DELETE ?id=<outbox id>               cancel one that hasn't gone out
 import { timingSafeEqual } from 'node:crypto';
 import { adminDb } from '@/lib/supabase/admin';

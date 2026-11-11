@@ -113,7 +113,8 @@ export async function scheduleSiteReview(f: FormData, actor: Actor, dry = false)
     ...w.status.items.filter((i) => !i.done && picked.has(i.key)).map((i) => ({ label: i.label, help: str(f, `help_${i.key}`, 300) || i.help, url: `${dashboardUrl}?item=${i.key}#wl-${i.key}` })),
   ];
   const review = {
-    first: w.first, agency: t.name, siteUrl, siteImage: f.get('card') ? `${siteUrl}/opengraph-image` : undefined, note, dashboardUrl,
+    // The agency's public name when the client record's name is the agent's own ("Tyson Barrett - GEICO Insurance Agent").
+    first: w.first, agency: str(f, 'agency', 120) || String(w.record.agencyName ?? '') || t.name, siteUrl, siteImage: f.get('card') ? `${siteUrl}/opengraph-image` : undefined, note, dashboardUrl,
     asks, replyAsks: lines('reply'), done: w.progress.filled, total: w.progress.total, next: lines('next'),
     address: await (await import('./consult-followups')).postalAddress(), sender: str(f, 'sender', 60) || undefined,
   };
