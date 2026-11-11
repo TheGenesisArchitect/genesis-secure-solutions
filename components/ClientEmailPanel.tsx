@@ -7,7 +7,7 @@
 // The list shows what's scheduled and sent, with Cancel until the outbox picks it up.
 import { ActionForm } from './ActionForm';
 import { Panel } from './ui';
-import { adminDb } from '@/lib/supabase/admin';
+import { listClientEmails } from '@/lib/client-email-core';
 import { welcomeData } from '@/lib/welcome';
 import { scheduleClientEmailAction, scheduleSiteReviewAction, cancelClientEmailAction } from '@/lib/client-email';
 
@@ -50,12 +50,7 @@ function SendRow() {
 }
 
 export async function ClientEmailPanel({ tenantId, slug, defaultTo }: { tenantId: string; slug: string; defaultTo: string }) {
-  const [{ data: rows }, w] = await Promise.all([
-    adminDb().from('outbox').select('id, to_email, template, data, status, send_after, sent_at, last_error')
-      .eq('tenant_id', tenantId).in('template', ['client_update', 'site_review']).order('id', { ascending: false }).limit(10),
-    welcomeData(tenantId, slug),
-  ]);
-  const list = (rows ?? []).filter((r) => (r.data as Record<string, string>).test !== 'true');
+  const [list, w] = await Promise.all([listClientEmails(tenantId, 10), welcomeData(tenantId, slug)]);
   const intake = w.status.intake;
   const site = String(w.record.website ?? '') || (typeof intake.domain === 'string' && intake.domain ? `https://${intake.domain.replace(/^https?:\/\//, '')}` : '');
   const open = w.status.items.filter((i) => !i.done);
@@ -64,14 +59,13 @@ export async function ClientEmailPanel({ tenantId, slug, defaultTo }: { tenantId
       {list.length ? (
         <ul className="list" style={{ marginBottom: 14 }}>
           {list.map((r) => {
-            const d = r.data as Record<string, string>;
             return (
               <li key={r.id}>
-                <b>{d.subject}</b>
-                <span className="muted" style={{ fontSize: 13 }}>{r.template === 'site_review' ? 'Site review · ' : ''}To {r.to_email}{d.cc ? ` · cc ${d.cc}` : ''}</span>
+                <b>{r.subject}</b>
+                <span className="muted" style={{ fontSize: 13 }}>{r.test ? 'Test · ' : ''}{r.template === 'site_review' ? 'Site review · ' : ''}To {r.to}{r.cc ? ` · cc ${r.cc}` : ''}{r.by ? ` · by ${r.by}` : ''}</span>
                 <span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span className={`chip ${r.status === 'sent' ? 'done' : r.status === 'failed' ? 'blocked' : 'pending'}`}>{LABEL[r.status] ?? r.status}</span>
-                  <span className="muted" style={{ fontSize: 13 }}>{r.status === 'sent' && r.sent_at ? `${etFmt(r.sent_at)} Eastern` : r.status === 'pending' || r.status === 'sending' ? `${etFmt(r.send_after)} Eastern` : r.last_error ?? ''}</span>
+                  <span className="muted" style={{ fontSize: 13 }}>{r.status === 'sent' && r.sentAt ? `${etFmt(r.sentAt)} Eastern${r.providerId ? ` · Resend accepted it (id ${r.providerId.slice(0, 8)}…)` : ''}` : r.status === 'pending' || r.status === 'sending' ? `${etFmt(r.sendAfter)} Eastern${r.error ? ` · retrying: ${r.error}` : ''}` : r.error ?? ''}</span>
                   {r.status === 'pending' ? (
                     <ActionForm action={cancelClientEmailAction} helix="cancel client email" helixTitle="Cancel client email" lane="outward">
                       <input type="hidden" name="tenant" value={tenantId} />
@@ -86,7 +80,7 @@ export async function ClientEmailPanel({ tenantId, slug, defaultTo }: { tenantId
         </ul>
       ) : null}
 
-      <details open={!list.length} style={{ marginBottom: 12 }}>
+      <details open={!list.some((r) => !r.test)} style={{ marginBottom: 12 }}>
         <summary><b>Site ready for review</b> <span className="muted" style={{ fontSize: 13 }}>their site card, a short note, and what’s still missing, each a button straight to that spot in their dashboard</span></summary>
         <ActionForm action={scheduleSiteReviewAction} helix="site review email" helixTitle="Site review email" lane="outward" className="form" style={{ marginTop: 10 }}>
           <input type="hidden" name="tenant" value={tenantId} />

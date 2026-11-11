@@ -49,8 +49,9 @@ export async function GET(req: Request) {
     const attempts = row.attempts + 1;
     if (r.ok) {
       sent++;
-      await db.from('outbox').update({ status: 'sent', attempts, sent_at: new Date().toISOString(), last_error: null }).eq('id', row.id);
-      await db.from('audit_events').insert({ tenant_id: row.tenant_id, actor: null, actor_label: 'outbox', action: 'email.sent', subject: row.template, after: { to: row.to_email, outbox: row.id }, prev_hash: '', hash: '' });
+      // Resend's message id stays on the row: the proof it went out (and how to look it up in Resend).
+      await db.from('outbox').update({ status: 'sent', attempts, sent_at: new Date().toISOString(), last_error: null, data: { ...(row.data as Record<string, unknown>), provider_id: r.id } }).eq('id', row.id);
+      await db.from('audit_events').insert({ tenant_id: row.tenant_id, actor: null, actor_label: 'outbox', action: 'email.sent', subject: row.template, after: { to: row.to_email, outbox: row.id, provider_id: r.id }, prev_hash: '', hash: '' });
     } else {
       failed++;
       const giveUp = attempts >= 5;
