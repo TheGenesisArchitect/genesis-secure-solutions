@@ -17,8 +17,10 @@ export const dynamic = 'force-dynamic';
 const usd = (c: number) => `$${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 const dueLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 
-export default async function Welcome({ params }: { params: Promise<{ slug: string }> }) {
+// A link straight to one item (the site review email: ?item=headshot#wl-headshot) opens that item's section.
+export default async function Welcome({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ item?: string }> }) {
   const { slug } = await params;
+  const { item } = await searchParams;
   const ctx = await agencyContext(slug);
   const [w, access, past] = await Promise.all([welcomeData(ctx.tenant.tenantId, slug), accessFor(ctx.tenant.tenantId, ctx.tenant.plan), pastKickoff(ctx.tenant.tenantId).catch(() => null)]);
   const values = Object.fromEntries(Object.entries(w.status.intake).map(([k, v]) => [k, typeof v === 'string' ? v : v ? 'saved' : '']));
@@ -26,7 +28,8 @@ export default async function Welcome({ params }: { params: Promise<{ slug: stri
   // The office's own lines first (what they told us on the consult); the rest stay available.
   const lineOptions = [...LINE_OPTIONS].sort((a, b) => Number(lines.includes(b[0])) - Number(lines.includes(a[0])));
   const most = LINE_PAGES[w.plan.id] ?? 0;
-  const firstOpen = SECTIONS.find(([k]) => w.status.items.some((i) => i.section === k && !i.done))?.[0];
+  const linked = w.status.items.find((i) => i.key === item)?.section;
+  const firstOpen = linked ?? SECTIONS.find(([k]) => w.status.items.some((i) => i.section === k && !i.done))?.[0];
   const onFile: [string, unknown][] = [['Agency', w.record.agencyName ?? w.name], ['Address', w.record.address], ['Phone', w.record.phone], ['Email', w.record.email], ['Carrier', w.record.carrier], ['Website', w.record.website]];
   const kickMinutes = w.kickoff ? Math.round((Date.parse(w.kickoff.ends) - Date.parse(w.kickoff.starts)) / 60_000) : 30;
   return (

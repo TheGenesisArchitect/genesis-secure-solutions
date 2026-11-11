@@ -3,6 +3,7 @@
 // that has already checked permission (sign-in, invites) or a database event that queued it (outbox).
 import 'server-only';
 import { meetingIcs, meetingWhen } from './meeting-ics';
+import { siteReviewEmail, type SiteReview } from './email-site-review';
 
 // The Vercel variable was created as RESEND_GENOVOUS_API_KEY; RESEND_API_KEY is accepted too.
 const RESEND_KEY = () => process.env.RESEND_API_KEY || process.env.RESEND_GENOVOUS_API_KEY || '';
@@ -285,6 +286,12 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         text: [...paras, '--', foot].join('\n\n'),
         replyTo: data.reply_to || undefined,
       };
+    }
+    // "Your website is ready for review" (lib/email-site-review.ts), scheduled from the client page: the site card,
+    // a short note, and each open welcome-form item with a button to that field on their dashboard.
+    case 'site_review': {
+      const r = siteReviewEmail(JSON.parse(data.review) as SiteReview, origin);
+      return { to, cc: String(data.cc ?? '').split(',').map((s) => s.trim()).filter(Boolean), subject: data.subject || r.subject, html: r.html, text: r.text, replyTo: data.reply_to || undefined };
     }
     case 'monthly_report':
       return {

@@ -2,7 +2,7 @@
 // The welcome page's moving parts (app/app/[slug]/welcome): one form per section of the setup checklist (each saves
 // on its own, and Helix sees, fills and saves each one like any dashboard form), the kickoff card (confirm, or pick
 // another open team time), and the Ask Helix banner that opens Helix with a starter question.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { helixAsk } from './HelixDrawer';
 
@@ -14,6 +14,11 @@ export function WelcomeSection({ slug, title, sub, items, values, open }: { slug
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [domainChoice, setDomainChoice] = useState(values.domainChoice ?? '');
   const done = items.filter((i) => i.done).length;
+  // Arrived from a link to one item (?item=headshot), e.g. after signing in, where the #anchor is lost: go to it.
+  useEffect(() => {
+    const k = new URLSearchParams(window.location.search).get('item');
+    if (k && items.some((i) => i.key === k) && window.location.hash !== `#wl-${k}`) window.location.hash = `wl-${k}`;
+  }, [items]);
   return (
     <details className="wl-sec" open={open}>
       <summary><span className={'wl-dot' + (done === items.length ? ' done' : '')}>{done === items.length ? '✓' : ''}</span><b>{title}</b><span className="wl-count">{done} of {items.length}</span></summary>
