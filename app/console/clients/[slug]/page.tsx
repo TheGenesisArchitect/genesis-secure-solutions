@@ -273,6 +273,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <input className="input" type="email" name="email" required placeholder="name@agency.com" style={{ flex: 1, minWidth: 200 }} aria-label="Email to invite" />
                 <select className="select" name="role" defaultValue="owner" style={{ width: 'auto' }} aria-label="Access"><option value="owner">Owner</option><option value="staff">Office staff</option></select>
                 <button className="btn small primary" type="submit">Send sign-in invitation</button>
+                <label className="check" style={{ flexBasis: '100%', fontSize: 13 }}><input type="checkbox" name="quiet" value="1" /> Just give access, no email now (their first email will be the site review from Client email)</label>
               </ActionForm>
             ) : null}
             {t.kind === 'agency' ? <StaffAccess tenantId={t.id} keys={(leadKeys.data ?? []) as never} /> : null}

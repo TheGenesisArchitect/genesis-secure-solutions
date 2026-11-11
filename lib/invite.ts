@@ -14,6 +14,9 @@ export async function inviteMember(_: ActionResult, f: FormData): Promise<Action
   const tenant = String(f.get('tenant') ?? '');
   const email = String(f.get('email') ?? '').trim().toLowerCase();
   const role = String(f.get('role') ?? 'staff') === 'owner' ? 'owner' : 'staff';
+  // Access only, no invitation email: a scheduled email (the site review) will be their first message, and its
+  // buttons open the dashboard, where they sign in with an emailed code.
+  const quiet = f.get('quiet') === '1';
 
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 200) return { err: 'Enter a valid email address.', at: Date.now() };
   const me = await db();
@@ -35,7 +38,7 @@ export async function inviteMember(_: ActionResult, f: FormData): Promise<Action
   const { error } = await admin.from('memberships').upsert({ tenant_id: tenant, user_id: userId, role }, { onConflict: 'tenant_id,user_id' });
   if (error) return { err: 'Access could not be saved. Tell the Genovus team.', at: Date.now() };
 
-  if (emailConfigured()) {
+  if (emailConfigured() && !quiet) {
     const { data } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
     const p = data?.properties;
     const inviter = (await me.from('staff').select('display_name').eq('user_id', auth.user!.id).maybeSingle()).data?.display_name ?? auth.user?.email ?? 'Genovus';
@@ -46,8 +49,8 @@ export async function inviteMember(_: ActionResult, f: FormData): Promise<Action
   }
   await admin.from('audit_events').insert({
     tenant_id: tenant, actor: auth.user?.id ?? null, actor_label: auth.user?.email ?? 'unknown', action: 'member.invite',
-    subject: email, after: { role }, prev_hash: '', hash: '',
+    subject: email, after: { role, ...(quiet ? { emailed: false } : {}) }, prev_hash: '', hash: '',
   });
   revalidatePath('/', 'layout');
-  return { ok: `Invitation sent to ${email}.`, at: Date.now() };
+  return { ok: quiet ? `${email} can now sign in to the dashboard. No email was sent.` : `Invitation sent to ${email}.`, at: Date.now() };
 }
