@@ -11,7 +11,7 @@ const FROM = () => process.env.EMAIL_FROM || 'Genovus <hello@genovus.io>';
 const REPLY_TO = () => process.env.EMAIL_REPLY_TO || 'hello@genovus.io';
 
 export type Attachment = { filename: string; content: string; contentType: string };
-export type Mail = { to: string; subject: string; html: string; text: string; attachments?: Attachment[]; replyTo?: string; headers?: Record<string, string> };
+export type Mail = { to: string; cc?: string[]; subject: string; html: string; text: string; attachments?: Attachment[]; replyTo?: string; headers?: Record<string, string> };
 
 export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (!emailConfigured()) return { ok: false, error: 'email not configured' };
@@ -20,7 +20,7 @@ export async function sendEmail(m: Mail): Promise<{ ok: true; id: string } | { o
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_KEY()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: FROM(), to: [m.to], reply_to: m.replyTo || REPLY_TO(), subject: m.subject, html: m.html, text: m.text,
+        from: FROM(), to: [m.to], ...(m.cc?.length ? { cc: m.cc } : {}), reply_to: m.replyTo || REPLY_TO(), subject: m.subject, html: m.html, text: m.text,
         ...(m.headers ? { headers: m.headers } : {}),
         ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString('base64'), content_type: a.contentType })) } : {}),
       }),
@@ -53,7 +53,7 @@ function frame(o: { preheader: string; heading: string; body: string[]; sections
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;padding:28px">
 <tr><td style="padding-bottom:18px"><img src="${origin}/brand/genovus/genovus-mark-128.png" width="32" height="32" alt="" style="vertical-align:middle;border-radius:8px"> <span style="font:800 14px Arial,sans-serif;letter-spacing:3px;color:#121419;vertical-align:middle">&nbsp;GENOVUS</span></td></tr>
 <tr><td style="font:800 22px/1.25 Arial,sans-serif;color:#121419;padding-bottom:10px">${esc(o.heading)}</td></tr>
-${o.body.map((p) => `<tr><td style="font:15px/1.55 Arial,sans-serif;color:#3a3e47;padding-bottom:10px">${esc(p)}</td></tr>`).join('')}
+${o.body.map((p) => `<tr><td style="font:15px/1.55 Arial,sans-serif;color:#3a3e47;padding-bottom:10px">${esc(p).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)]/g, (u) => `<a href="${u}" style="color:#c4410d">${u}</a>`).replace(/\n/g, '<br>')}</td></tr>`).join('')}
 ${(o.sections ?? []).map((sec) => `<tr><td style="font:700 12px/1.2 Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#c4410d;padding:12px 0 6px">${esc(sec.h)}</td></tr><tr><td style="padding-bottom:6px"><ul style="margin:0;padding-left:20px">${sec.items.map((i) => `<li style="font:15px/1.55 Arial,sans-serif;color:#3a3e47;padding-bottom:5px">${esc(i)}</li>`).join('')}</ul></td></tr>`).join('')}
 ${btn}${code}
 <tr><td style="font:12px/1.5 Arial,sans-serif;color:#8b909a;padding-top:20px;border-top:1px solid #eee">${esc(o.foot ?? 'Genovus, a Genesis Secure Solutions brand. Reply to this email to reach a person on our team.')}${o.footLink ? ` <a href="${esc(o.footLink.url)}" style="color:#8b909a;text-decoration:underline">${esc(o.footLink.label)}</a>` : ''}</td></tr>
@@ -268,6 +268,22 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
         }, origin),
         replyTo: data.reply_to || undefined,
         ...(data.unsubscribe_url ? { headers: { 'List-Unsubscribe': `<${data.unsubscribe_url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
+      };
+    }
+    // A note to a client, written by a person on the team and scheduled from the client page (lib/client-email.ts):
+    // a site that's up for review, what we need next. Transactional: service they signed up for. Paragraphs split on
+    // blank lines; single line breaks (lists) stay. Cc is a comma list.
+    case 'client_update': {
+      const paras = String(data.body ?? '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+      const foot = `Genovus, a Genesis Secure Solutions brand${data.address ? ` · ${data.address}` : ''}. Reply to this email to reach a person on our team.`;
+      const { html } = frame({ preheader: paras[1] ?? paras[0] ?? '', heading: data.subject, body: paras, foot }, origin);
+      return {
+        to,
+        cc: String(data.cc ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+        subject: data.subject,
+        html,
+        text: [...paras, '--', foot].join('\n\n'),
+        replyTo: data.reply_to || undefined,
       };
     }
     case 'monthly_report':

@@ -26,6 +26,7 @@ import { blockersFor } from '@/lib/blockers';
 import { previewKey } from '@/lib/site';
 import { Suspense } from 'react';
 import { WelcomeConsole } from '@/components/WelcomeConsole';
+import { ClientEmailPanel } from '@/components/ClientEmailPanel';
 
 const TABS = [
   ['overview', 'Overview'], ['record', 'Agent record'], ['assets', 'Assets'], ['approvals', 'Approvals'],
@@ -258,6 +259,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               <MeetingsPanel tenantId={t.id} agency={t.name} today={businessToday()} attendees={(defaultInvitees?.data as string | null) ?? ''} rows={(meetings?.data ?? []) as MeetingRow[]} />
             </Panel>
           ) : null}
+          {t.kind === 'agency' && tab === 'overview' ? <Suspense fallback={null}><ClientEmailPanel tenantId={t.id} defaultTo={typeof (rec?.data as Record<string, unknown> | undefined)?.email === 'string' ? String((rec!.data as Record<string, unknown>).email) : ''} /></Suspense> : null}
           <Panel title="People" sub="Who can sign in to this agency’s dashboard">
             {members.data?.length ? (
               <p className="soft">{members.data.length} member{members.data.length > 1 ? 's' : ''}: {members.data.map((m) => m.role).join(', ')}.</p>
