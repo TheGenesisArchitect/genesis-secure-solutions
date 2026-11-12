@@ -10,7 +10,8 @@ const CSP = [
   "frame-src 'self' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "media-src 'self' blob:",
+  // Unedit's review card plays clips straight from private Blob through short-lived presigned links.
+  "media-src 'self' blob: https://*.private.blob.vercel-storage.com",
   "font-src 'self'",
   // Helix voice (Gemini Live), and the Studio's direct-to-Blob uploads (@vercel/blob/client: recorded takes, files).
   "connect-src 'self' wss://generativelanguage.googleapis.com https://vercel.com/api/blob/",

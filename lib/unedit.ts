@@ -342,7 +342,7 @@ export async function distribute(v: Vlog): Promise<{ sent: number; skipped: stri
 export async function syncUneditPosts(): Promise<{ checked: number; posted: number }> {
   const out = { checked: 0, posted: 0 };
   if (!metricoolConfigured()) return out;
-  const { data } = await dbx().from('unedit_posts').select('id, mc_post_id, mc_status').eq('status', 'sent').in('mc_status', ['SCHEDULED', 'PENDING']).limit(25);
+  const { data } = await dbx().from('unedit_posts').select('id, mc_post_id, mc_status').eq('status', 'sent').limit(25); // every in-flight state (SCHEDULED, PENDING, PUBLISHING, ...): 'sent' is never final
   for (const p of data ?? []) {
     out.checked++;
     const r = await postStatus(GENOVUS_BLOG_ID(), Number(p.mc_post_id));
