@@ -12,6 +12,7 @@ import 'server-only';
 import fs from 'node:fs/promises';
 import { put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
+import { siteOrigin } from '@/lib/cron';
 import { extractAudio, frames, presigned, probe, renderClip, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { pickStills, planVlog, redoClip, type Pick } from '@/lib/unedit-moments';
@@ -88,7 +89,12 @@ export async function runnable(): Promise<string[]> {
 }
 export async function kick(origin: string, id: string): Promise<void> {
   if (!process.env.CRON_SECRET) return;
-  await fetch(`${origin}/api/studio/unedit/${id}/step`, { method: 'POST', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(10_000) }).catch(() => null);
+  // In production always call the public domain: the cron runs on the deployment's *.vercel.app URL, which sits behind
+  // Vercel's login wall and answers a server-to-server POST with a 302 that never reaches this app (2026-11-12 stall).
+  const base = process.env.VERCEL_ENV === 'production' ? siteOrigin() : origin;
+  const r = await fetch(`${base}/api/studio/unedit/${id}/step`, { method: 'POST', redirect: 'manual', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(20_000) })
+    .catch((e) => { console.error(`[unedit] ${id} kick failed: ${e instanceof Error ? e.message : e}`); return null; });
+  if (r && !r.ok) console.error(`[unedit] ${id} kick answered ${r.status} from ${base}`);
 }
 
 async function readWords(v: Vlog): Promise<Word[]> {
