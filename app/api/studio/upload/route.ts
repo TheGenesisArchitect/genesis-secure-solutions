@@ -1,4 +1,4 @@
-// Direct-to-storage uploads for the Studio (phone recordings for capture shots, and final cuts). The browser
+// Direct-to-storage uploads for the Studio (phone recordings for capture shots, final cuts, and Unedit vlogs). The browser
 // uploads straight into private Blob storage with a short-lived token issued here, only to the Genovus team and
 // only into studio/uploads/ or studio/finals/. The file is registered afterwards by a server action.
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
@@ -21,10 +21,12 @@ export async function POST(req: Request) {
         const casting = /^studio\/casting\/[A-Za-z0-9._/-]+\.(png|jpe?g|webp)$/i.test(pathname);
         // Capture shots also take phone screenshots (StudioNext): a still of the real screen is a valid capture.
         const still = /^studio\/uploads\/[A-Za-z0-9._/-]+\.(png|jpe?g)$/i.test(pathname);
-        if (!rights && !casting && !still && !/^studio\/(uploads|finals)\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/.test(pathname)) throw new Error('Upload an .mp4, .mov or .webm video, or a screenshot.');
+        // Unedit: a whole one-take vlog straight off the phone (multipart, up to 4 GB).
+        const vlog = /^studio\/vlogs\/uploads\/[A-Za-z0-9._/-]+\.(mp4|mov|m4v|webm)$/i.test(pathname);
+        if (!rights && !casting && !still && !vlog && !/^studio\/(uploads|finals)\/[A-Za-z0-9._/-]+\.(mp4|mov|webm)$/.test(pathname)) throw new Error('Upload an .mp4, .mov or .webm video, or a screenshot.');
         return {
-          allowedContentTypes: rights ? ['application/pdf', 'image/png', 'image/jpeg'] : still ? ['image/png', 'image/jpeg'] : casting ? ['image/png', 'image/jpeg', 'image/webp'] : ['video/mp4', 'video/quicktime', 'video/webm'],
-          maximumSizeInBytes: 300 * 1024 * 1024,
+          allowedContentTypes: rights ? ['application/pdf', 'image/png', 'image/jpeg'] : still ? ['image/png', 'image/jpeg'] : casting ? ['image/png', 'image/jpeg', 'image/webp'] : vlog ? ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm'] : ['video/mp4', 'video/quicktime', 'video/webm'],
+          maximumSizeInBytes: (vlog ? 4096 : 300) * 1024 * 1024,
           addRandomSuffix: true,
         };
       },

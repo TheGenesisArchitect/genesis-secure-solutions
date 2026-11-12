@@ -66,6 +66,11 @@ export default async function Studio() {
   const inqBy = (s: string) => (inq ?? []).filter((i) => i.source === s).length;
   return (
     <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]}>
+      <Link href="/console/studio/unedit" className="ue-entry">
+        <span className="ue-entry-dot" aria-hidden="true" />
+        <span><b>Unedit</b><span className="muted">Record one take. Get the clips, the full video and thumbnails on one Approve card.</span></span>
+        <span className="btn small primary">Open</span>
+      </Link>
       {series ? (
         <>
           <StudioHome episodes={(eps ?? []) as HomeEpisode[]} covers={coverFor} featured="gjk-h01" current={V2_EPISODES} progress={new Map((eps ?? []).map((e) => { const s = (shots ?? []).filter((x) => x.episode_id === e.id); return [e.id, { done: s.filter((x) => x.status === 'approved' || x.status === 'take_ok').length, total: s.length }]; }))} />

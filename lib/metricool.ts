@@ -60,7 +60,9 @@ export const metricoolLive = () => (process.env.METRICOOL_MODE ?? '').trim() ===
 /** format: 'post' (feed image), 'story' (no caption on the network) or 'reel' (video). Left out, it stays what the
  *  Studio sends: an Instagram Reel, and a Facebook Reel when vertical, else a post. */
 export type McFormat = 'post' | 'story' | 'reel';
-export type McPostIn = { blogId: string; network: 'instagram' | 'facebook'; text: string; mediaUrl: string; when: Date; vertical: boolean; aiGenerated: boolean; format?: McFormat };
+/** YouTube (Unedit): the full video as a 'video', clips as a 'short'; a title is required. thumbnailUrl sets the
+ *  video's cover (Metricool fetches it; YouTube shows it once the channel is verified). */
+export type McPostIn = { blogId: string; network: 'instagram' | 'facebook' | 'youtube'; text: string; mediaUrl: string; when: Date; vertical: boolean; aiGenerated: boolean; format?: McFormat; title?: string; thumbnailUrl?: string };
 const TYPE: Record<McFormat, string> = { post: 'POST', story: 'STORY', reel: 'REEL' };
 const NY = (d: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(' ', 'T');
 
@@ -76,7 +78,9 @@ export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; 
     autoPublish: live, draft: !live,
     media: [p.mediaUrl], saveExternalMediaFiles: true, shortener: false,
     ...(p.network === 'instagram' ? { instagramData: { type: TYPE[format], autoPublish: live, ...(format === 'reel' ? { showReelOnFeed: true } : {}), isAiGenerated: p.aiGenerated } } : {}),
-    ...(p.network === 'facebook' ? { facebookData: { type: TYPE[format] } } : {}),
+    ...(p.network === 'facebook' ? { facebookData: { type: TYPE[format], ...(p.title && format !== 'story' ? { title: p.title } : {}) } } : {}),
+    ...(p.network === 'youtube' ? { youtubeData: { title: (p.title || p.text).slice(0, 100), type: p.vertical ? 'short' : 'video', privacy: 'public', madeForKids: false, isAiGeneratedContent: p.aiGenerated } } : {}),
+    ...(p.thumbnailUrl ? { videoThumbnailUrl: p.thumbnailUrl } : {}),
   };
   const r = await mc<Record<string, unknown>>('/v2/scheduler/posts', { blogId: p.blogId, method: 'POST', body });
   if (!r.ok) return r;

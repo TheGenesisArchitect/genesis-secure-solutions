@@ -34,6 +34,8 @@ const nextConfig: NextConfig = {
     '/api/studio/thumb/[id]': ['./lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'],
     // The episode render: a bundled ffmpeg binary plus the brand fonts and egg for cards and captions.
     '/api/studio/render/[code]': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'],
+    // Unedit: ffmpeg for clips, audio and stills; the brand font as TTF for burned-in captions (libass), WOFF for thumbnails.
+    '/api/studio/unedit/[id]/step': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.ttf', './lib/fonts/*.woff'],
   },
   // ffmpeg-static resolves its binary path at runtime; keep it out of the bundle so the path stays real.
   serverExternalPackages: ['ffmpeg-static'],
