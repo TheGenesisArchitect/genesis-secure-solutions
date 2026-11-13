@@ -45,5 +45,13 @@
       "path": "/api/cron/leads",
       "schedule": "* * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/studio/unedit/[id]/step/route.ts": {
+      "memory": 3009
+    },
+    "app/api/studio/unedit/[id]/part/[k]/route.ts": {
+      "memory": 3009
+    }
+  }
 }

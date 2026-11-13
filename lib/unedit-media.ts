@@ -190,17 +190,25 @@ export async function renderClip(url: string, spans: Span[], words: Word[], src:
     : portrait
       ? `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`
       : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '');
-  const inputs: string[] = [];
-  const fc: string[] = [];
-  spans.forEach((sp, i) => {
-    inputs.push('-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3), '-i', url);
-    fc.push(`[${i}:v]${frame},setsar=1,fps=${FPS},format=yuv420p[v${i}]`, `[${i}:a]aresample=48000,aformat=channel_layouts=stereo[a${i}]`);
-  });
-  fc.push(`${spans.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${spans.length}:v=1:a=1[vc][ac]`);
+  // Piece by piece: each span decodes alone (an 8K HDR decoder is large; several at once ran a function out of
+  // memory), framed, tone-mapped and graded at 1080×1920 into a near-lossless intermediate with PCM sound, so the
+  // pieces join without a gap or a click. One light pass then adds the punch-ins, captions and loudness.
+  const pieces: string[] = [];
+  for (const [i, sp] of spans.entries()) {
+    const out = `p${String(i).padStart(3, '0')}.mkv`;
+    await ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3), '-i', url,
+      '-vf', `${frame},setsar=1,fps=${FPS},format=yuv420p`, '-af', 'aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo',
+      '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', out], dir);
+    pieces.push(out);
+  }
+  await fs.writeFile(path.join(dir, 'pieces.txt'), pieces.map((f) => `file '${f}'`).join('\n'));
+  await ffmpeg(['-f', 'concat', '-safe', '0', '-i', 'pieces.txt', '-c', 'copy', 'joined.mkv'], dir);
+  for (const f of pieces) await fs.rm(path.join(dir, f), { force: true });
   const punch = zoom ? `scale=w='2*trunc(${W}*(${zoom})/2)':h='2*trunc(${H}*(${zoom})/2)':eval=frame,crop=${W}:${H},` : '';
-  fc.push(`[vc]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[ac]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]');
+  const fc = [`[0:v]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[0:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]'];
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
-  await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'clip.mp4'], dir);
+  await ffmpeg(['-i', 'joined.mkv', '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'clip.mp4'], dir);
+  await fs.rm(path.join(dir, 'joined.mkv'), { force: true });
   return { file: path.join(dir, 'clip.mp4'), dir, secs };
 }
 
