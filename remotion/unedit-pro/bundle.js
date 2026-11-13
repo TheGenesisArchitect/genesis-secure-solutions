@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 2664
+/***/ 6798
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -81,7 +81,6197 @@ function Wordmark({ size, egg = 1, open = 1 }) {
   ] });
 }
 
+;// ./node_modules/@remotion/effects/dist/esm/light-leak.mjs
+// src/light-leak.ts
+
+
+// src/validate-effect-param.ts
+var assertEffectParamsObject = (params, effectLabel) => {
+  if (params === null || typeof params !== "object") {
+    throw new TypeError(`${effectLabel} effect requires a parameters object, but got ${JSON.stringify(params)}`);
+  }
+};
+var assertRequiredFiniteNumber = (value, name) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`"${name}" must be a finite number, but got ${JSON.stringify(value)}`);
+  }
+};
+var assertRequiredColor = (value, name) => {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError(`"${name}" must be a non-empty string, but got ${JSON.stringify(value)}`);
+  }
+};
+var assertOptionalColor = (value, name) => {
+  if (value === undefined) {
+    return;
+  }
+  assertRequiredColor(value, name);
+};
+var assertOptionalBoolean = (value, name) => {
+  if (value === undefined) {
+    return;
+  }
+  if (typeof value !== "boolean") {
+    throw new TypeError(`"${name}" must be a boolean, but got ${JSON.stringify(value)}`);
+  }
+};
+
+// src/color-utils.ts
+var DEFAULT_AMOUNT = 1;
+var DEFAULT_BRIGHTNESS_AMOUNT = 0;
+var DEFAULT_HUE_DEGREES = 0;
+var colorAmountSchema = {
+  type: "number",
+  min: 0,
+  max: 1,
+  step: 0.01,
+  default: DEFAULT_AMOUNT,
+  description: "Amount",
+  hiddenFromList: false
+};
+var colorMultiplierSchema = {
+  type: "number",
+  min: 0,
+  step: 0.01,
+  default: DEFAULT_AMOUNT,
+  description: "Amount",
+  hiddenFromList: false
+};
+var brightnessAmountSchema = {
+  type: "number",
+  min: -1,
+  max: 1,
+  step: 0.01,
+  default: DEFAULT_BRIGHTNESS_AMOUNT,
+  description: "Amount",
+  hiddenFromList: false
+};
+var hueDegreesSchema = {
+  type: "rotation-degrees",
+  step: 1,
+  default: DEFAULT_HUE_DEGREES,
+  description: "Degrees"
+};
+var assertOptionalFiniteNumber = (value, name) => {
+  if (value === undefined) {
+    return;
+  }
+  assertRequiredFiniteNumber(value, name);
+};
+var validateUnitInterval = (value, name) => {
+  if (value < 0) {
+    throw new TypeError(`"${name}" must be >= 0, but got ${JSON.stringify(value)}`);
+  }
+  if (value > 1) {
+    throw new TypeError(`"${name}" must be <= 1, but got ${JSON.stringify(value)}`);
+  }
+};
+var validateNonNegative = (value, name) => {
+  if (value < 0) {
+    throw new TypeError(`"${name}" must be >= 0, but got ${JSON.stringify(value)}`);
+  }
+};
+var validateSignedUnitInterval = (value, name) => {
+  if (value < -1) {
+    throw new TypeError(`"${name}" must be >= -1, but got ${JSON.stringify(value)}`);
+  }
+  if (value > 1) {
+    throw new TypeError(`"${name}" must be <= 1, but got ${JSON.stringify(value)}`);
+  }
+};
+var clampColorChannel = (value) => {
+  return Math.max(0, Math.min(255, value));
+};
+var parseColorRgba = (ctx, color) => {
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const { data } = ctx.getImageData(0, 0, 1, 1);
+  return [data[0], data[1], data[2], data[3]];
+};
+
+// src/light-leak.ts
+var { createEffect, createWebGL2ContextError } = esm.Internals;
+var DEFAULT_SEED = 0;
+var DEFAULT_HUE_SHIFT = 0;
+var DEFAULT_PROGRESS = 0.5;
+var lightLeakEffectSchema = {
+  seed: {
+    type: "number",
+    default: DEFAULT_SEED,
+    description: "Seed",
+    hiddenFromList: false
+  },
+  hueShift: {
+    type: "number",
+    min: 0,
+    max: 360,
+    default: DEFAULT_HUE_SHIFT,
+    description: "Hue Shift",
+    hiddenFromList: false
+  },
+  progress: {
+    type: "number",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: DEFAULT_PROGRESS,
+    description: "Progress",
+    hiddenFromList: false
+  }
+};
+var resolve = (p) => ({
+  seed: p.seed ?? DEFAULT_SEED,
+  hueShift: p.hueShift ?? DEFAULT_HUE_SHIFT,
+  progress: p.progress ?? DEFAULT_PROGRESS
+});
+var validateLightLeakParams = (params) => {
+  assertEffectParamsObject(params, "lightLeak()");
+  assertOptionalFiniteNumber(params.seed, "seed");
+  assertOptionalFiniteNumber(params.hueShift, "hueShift");
+  assertOptionalFiniteNumber(params.progress, "progress");
+  const { hueShift, progress } = resolve(params);
+  if (hueShift < 0) {
+    throw new TypeError(`"hueShift" must be >= 0, but got ${hueShift}`);
+  }
+  if (hueShift > 360) {
+    throw new TypeError(`"hueShift" must be <= 360, but got ${hueShift}`);
+  }
+  validateUnitInterval(progress, "progress");
+};
+var LIGHT_LEAK_VS = `#version 300 es
+in vec2 aPos;
+in vec2 aUv;
+out vec2 vUv;
+void main() {
+	vUv = aUv;
+	gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+var LIGHT_LEAK_FS = `#version 300 es
+precision highp float;
+
+in vec2 vUv;
+out vec4 fragColor;
+
+uniform sampler2D uSource;
+uniform float evolveProgress;
+uniform float retractProgress;
+uniform float seed;
+uniform float retractSeed;
+uniform float hueShift;
+uniform vec2 resolution;
+
+const float Pi = 3.14159;
+
+vec3 computePattern(vec2 uv, float s, float t) {
+	vec2 p = uv * 0.8;
+	p += vec2(sin(s * 1.61803) * 5.0, cos(s * 2.71828) * 5.0);
+
+	for (int i = 1; i < 5; i++) {
+		vec2 newp = p;
+		float fi = float(i);
+		float phase = s * 0.7 * fi;
+		newp.x += 0.6 / fi * cos(fi * p.y + t * 0.7 + 0.3 * fi + phase) + 20.0;
+		newp.y += 0.6 / fi * cos(fi * p.x + t * 0.7 + 0.3 * float(i + 10) + phase) - 20.0 + 15.0;
+		p = newp;
+	}
+
+	float v1 = 0.5 * sin(2.0 * p.x) + 0.5;
+	float v2 = 0.5 * sin(2.0 * p.y) + 0.5;
+	float blend = sin(p.x + p.y) * 0.5 + 0.5;
+	float brightness = v1 * 0.5 + v2 * 0.5;
+	float patternValue = brightness * 0.6 + blend * 0.4;
+
+	return vec3(brightness, blend, patternValue);
+}
+
+void main() {
+	float refScale = 1.92;
+	vec2 uv = (gl_FragCoord.xy / resolution) * vec2(refScale, refScale * resolution.y / resolution.x);
+
+	vec3 patA = computePattern(uv, seed, evolveProgress * Pi);
+	float threshA = 1.0 - evolveProgress;
+	float revealAlpha = smoothstep(threshA, threshA + 0.3, patA.z);
+
+	vec2 maxUv = vec2(refScale, refScale * resolution.y / resolution.x);
+	vec2 retractUv = maxUv - uv;
+	vec3 patB = computePattern(retractUv, retractSeed, retractProgress * Pi);
+	float threshB = 1.0 - retractProgress;
+	float eraseAlpha = smoothstep(threshB, threshB + 0.3, patB.z);
+
+	float alpha = revealAlpha * (1.0 - eraseAlpha);
+
+	vec3 yellow = vec3(1.0, 0.85, 0.2);
+	vec3 orange = vec3(1.0, 0.5, 0.05);
+	vec3 col = mix(yellow, orange, patA.y);
+	col *= 0.6 + 0.6 * patA.x;
+
+	float angle = hueShift * Pi / 180.0;
+	float cosA = cos(angle);
+	float sinA = sin(angle);
+	mat3 hueRot = mat3(
+		cosA + (1.0 - cosA) / 3.0,
+		(1.0 - cosA) / 3.0 - sinA * 0.57735,
+		(1.0 - cosA) / 3.0 + sinA * 0.57735,
+		(1.0 - cosA) / 3.0 + sinA * 0.57735,
+		cosA + (1.0 - cosA) / 3.0,
+		(1.0 - cosA) / 3.0 - sinA * 0.57735,
+		(1.0 - cosA) / 3.0 - sinA * 0.57735,
+		(1.0 - cosA) / 3.0 + sinA * 0.57735,
+		cosA + (1.0 - cosA) / 3.0
+	);
+	col = clamp(hueRot * col, 0.0, 1.0);
+
+	vec4 src = texture(uSource, vUv);
+	vec4 leakPm = vec4(col * alpha, alpha);
+	fragColor = leakPm + src * (1.0 - alpha);
+}
+`;
+var compileShader = (gl, type, source) => {
+  const shader = gl.createShader(type);
+  if (!shader) {
+    throw new Error("Failed to create WebGL shader");
+  }
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(`Light leak shader compile failed: ${log ?? "(no log)"}`);
+  }
+  return shader;
+};
+var linkProgram = (gl, vs, fs) => {
+  const program = gl.createProgram();
+  if (!program) {
+    throw new Error("Failed to create WebGL program");
+  }
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error(`Light leak program link failed: ${log ?? "(no log)"}`);
+  }
+  return program;
+};
+var lightLeak = createEffect({
+  type: "remotion/light-leak",
+  label: "lightLeak()",
+  documentationLink: "https://www.remotion.dev/docs/effects/light-leak",
+  backend: "webgl2",
+  calculateKey: (params) => {
+    const r = resolve(params);
+    return `light-leak-${r.seed}-${r.hueShift}-${r.progress}`;
+  },
+  setup: (target) => {
+    const gl = target.getContext("webgl2", {
+      premultipliedAlpha: true,
+      alpha: true,
+      preserveDrawingBuffer: true
+    });
+    if (!gl) {
+      throw createWebGL2ContextError("light leak effect");
+    }
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    const vs = compileShader(gl, gl.VERTEX_SHADER, LIGHT_LEAK_VS);
+    const fs = compileShader(gl, gl.FRAGMENT_SHADER, LIGHT_LEAK_FS);
+    const program = linkProgram(gl, vs, fs);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    const vao = gl.createVertexArray();
+    if (!vao) {
+      throw new Error("Failed to create WebGL vertex array");
+    }
+    gl.bindVertexArray(vao);
+    const data = new Float32Array([
+      -1,
+      -1,
+      0,
+      0,
+      1,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1
+    ]);
+    const vbo = gl.createBuffer();
+    if (!vbo) {
+      throw new Error("Failed to create WebGL buffer");
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(program, "aPos");
+    const aUv = gl.getAttribLocation(program, "aUv");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+    gl.enableVertexAttribArray(aUv);
+    gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 16, 8);
+    gl.bindVertexArray(null);
+    const texture = gl.createTexture();
+    if (!texture) {
+      throw new Error("Failed to create WebGL texture");
+    }
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return {
+      gl,
+      program,
+      vao,
+      vbo,
+      texture,
+      uSource: gl.getUniformLocation(program, "uSource"),
+      uEvolveProgress: gl.getUniformLocation(program, "evolveProgress"),
+      uRetractProgress: gl.getUniformLocation(program, "retractProgress"),
+      uSeed: gl.getUniformLocation(program, "seed"),
+      uRetractSeed: gl.getUniformLocation(program, "retractSeed"),
+      uHueShift: gl.getUniformLocation(program, "hueShift"),
+      uResolution: gl.getUniformLocation(program, "resolution")
+    };
+  },
+  apply: ({ source, width, height, params, state, flipSourceY }) => {
+    const r = resolve(params);
+    const evolveProgress = Math.min(1, r.progress * 2);
+    const retractProgress = Math.max(0, r.progress * 2 - 1);
+    const {
+      gl,
+      program,
+      vao,
+      texture,
+      uSource,
+      uEvolveProgress,
+      uRetractProgress,
+      uSeed,
+      uRetractSeed,
+      uHueShift,
+      uResolution
+    } = state;
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+    gl.bindVertexArray(vao);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flipSourceY);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    if (uSource)
+      gl.uniform1i(uSource, 0);
+    if (uEvolveProgress)
+      gl.uniform1f(uEvolveProgress, evolveProgress);
+    if (uRetractProgress)
+      gl.uniform1f(uRetractProgress, retractProgress);
+    if (uSeed)
+      gl.uniform1f(uSeed, r.seed);
+    if (uRetractSeed)
+      gl.uniform1f(uRetractSeed, r.seed + 42);
+    if (uHueShift)
+      gl.uniform1f(uHueShift, r.hueShift);
+    if (uResolution)
+      gl.uniform2f(uResolution, width, height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindVertexArray(null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.useProgram(null);
+  },
+  cleanup: ({ gl, program, vao, vbo, texture }) => {
+    gl.deleteBuffer(vbo);
+    gl.deleteProgram(program);
+    gl.deleteVertexArray(vao);
+    gl.deleteTexture(texture);
+  },
+  schema: lightLeakEffectSchema,
+  validateParams: validateLightLeakParams
+});
+
+
+;// ./node_modules/@remotion/light-leaks/dist/esm/index.mjs
+// src/light-leak-internals.ts
+
+
+// src/LightLeak.tsx
+
+
+
+var { createWebGLContextError } = esm.Internals;
+var VERTEX_SHADER = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+var FRAGMENT_SHADER = `
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform float evolveProgress;
+uniform float retractProgress;
+uniform float seed;
+uniform float retractSeed;
+uniform float hueShift;
+uniform vec2 resolution;
+
+const float Pi = 3.14159;
+
+vec3 computePattern(vec2 uv, float s, float t) {
+    vec2 p = uv * 0.8;
+    p += vec2(sin(s * 1.61803) * 5.0, cos(s * 2.71828) * 5.0);
+
+    for(int i = 1; i < 5; i++)
+    {
+        vec2 newp = p;
+        float fi = float(i);
+        float phase = s * 0.7 * fi;
+        newp.x += 0.6 / fi * cos(fi * p.y + t * 0.7 + 0.3 * fi + phase) + 20.0;
+        newp.y += 0.6 / fi * cos(fi * p.x + t * 0.7 + 0.3 * float(i + 10) + phase) - 20.0 + 15.0;
+        p = newp;
+    }
+
+    float v1 = 0.5 * sin(2.0 * p.x) + 0.5;
+    float v2 = 0.5 * sin(2.0 * p.y) + 0.5;
+    float blend = sin(p.x + p.y) * 0.5 + 0.5;
+    float brightness = v1 * 0.5 + v2 * 0.5;
+    float patternValue = brightness * 0.6 + blend * 0.4;
+
+    return vec3(brightness, blend, patternValue);
+}
+
+void main()
+{
+    float refScale = 1.92;
+    vec2 uv = (gl_FragCoord.xy / resolution) * vec2(refScale, refScale * resolution.y / resolution.x);
+
+    vec3 patA = computePattern(uv, seed, evolveProgress * Pi);
+    float threshA = 1.0 - evolveProgress;
+    float revealAlpha = smoothstep(threshA, threshA + 0.3, patA.z);
+
+    vec2 maxUv = vec2(refScale, refScale * resolution.y / resolution.x);
+    vec2 retractUv = maxUv - uv;
+    vec3 patB = computePattern(retractUv, retractSeed, retractProgress * Pi);
+    float threshB = 1.0 - retractProgress;
+    float eraseAlpha = smoothstep(threshB, threshB + 0.3, patB.z);
+
+    float alpha = revealAlpha * (1.0 - eraseAlpha);
+
+    vec3 yellow = vec3(1.0, 0.85, 0.2);
+    vec3 orange = vec3(1.0, 0.5, 0.05);
+    vec3 col = mix(yellow, orange, patA.y);
+    col *= 0.6 + 0.6 * patA.x;
+
+    float angle = hueShift * Pi / 180.0;
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+    mat3 hueRot = mat3(
+        cosA + (1.0 - cosA) / 3.0,
+        (1.0 - cosA) / 3.0 - sinA * 0.57735,
+        (1.0 - cosA) / 3.0 + sinA * 0.57735,
+        (1.0 - cosA) / 3.0 + sinA * 0.57735,
+        cosA + (1.0 - cosA) / 3.0,
+        (1.0 - cosA) / 3.0 - sinA * 0.57735,
+        (1.0 - cosA) / 3.0 - sinA * 0.57735,
+        (1.0 - cosA) / 3.0 + sinA * 0.57735,
+        cosA + (1.0 - cosA) / 3.0
+    );
+    col = clamp(hueRot * col, 0.0, 1.0);
+
+    gl_FragColor = vec4(col, alpha);
+}
+`;
+var LightLeakCanvas = ({ seed, hueShift }) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { width, height, durationInFrames } = (0,esm.useVideoConfig)();
+  const canvasRef = (0,react.useRef)(null);
+  const glRef = (0,react.useRef)(null);
+  const { delayRender, continueRender, cancelRender } = (0,esm.useDelayRender)();
+  const [handle] = (0,react.useState)(() => delayRender());
+  const initGl = (0,react.useCallback)((canvas) => {
+    const gl = canvas.getContext("webgl", {
+      premultipliedAlpha: false,
+      alpha: true
+    });
+    if (!gl) {
+      cancelRender(createWebGLContextError("light leak"));
+      return null;
+    }
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    const compile = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    };
+    const program = gl.createProgram();
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX_SHADER));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADER));
+    gl.linkProgram(program);
+    gl.useProgram(program);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const pos = gl.getAttribLocation(program, "position");
+    gl.enableVertexAttribArray(pos);
+    gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+    continueRender(handle);
+    return {
+      gl,
+      resLoc: gl.getUniformLocation(program, "resolution"),
+      evolveProgressLoc: gl.getUniformLocation(program, "evolveProgress"),
+      retractProgressLoc: gl.getUniformLocation(program, "retractProgress"),
+      seedLoc: gl.getUniformLocation(program, "seed"),
+      retractSeedLoc: gl.getUniformLocation(program, "retractSeed"),
+      hueShiftLoc: gl.getUniformLocation(program, "hueShift")
+    };
+  }, [continueRender, handle, cancelRender]);
+  (0,react.useEffect)(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || glRef.current)
+      return;
+    glRef.current = initGl(canvas);
+  }, [initGl]);
+  (0,react.useEffect)(() => {
+    const ctx = glRef.current;
+    if (!ctx)
+      return;
+    const {
+      gl,
+      resLoc,
+      evolveProgressLoc,
+      retractProgressLoc,
+      seedLoc,
+      retractSeedLoc,
+      hueShiftLoc
+    } = ctx;
+    const normalized = durationInFrames <= 1 ? 0 : frame / (durationInFrames - 1);
+    const evolveProgress = Math.min(1, normalized * 2);
+    const retractProgress = Math.max(0, normalized * 2 - 1);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(evolveProgressLoc, evolveProgress);
+    gl.uniform1f(retractProgressLoc, retractProgress);
+    gl.uniform1f(seedLoc, seed);
+    gl.uniform1f(retractSeedLoc, seed + 42);
+    gl.uniform1f(hueShiftLoc, hueShift);
+    gl.uniform2f(resLoc, gl.canvas.width, gl.canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }, [frame, durationInFrames, seed, hueShift, width, height]);
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, {
+    children: /* @__PURE__ */ (0,jsx_runtime.jsx)("canvas", {
+      ref: canvasRef,
+      width,
+      height
+    })
+  });
+};
+var lightLeakSchema = {
+  ...esm.Internals.baseSchema,
+  seed: {
+    type: "number",
+    default: 0,
+    description: "Seed",
+    hiddenFromList: false
+  },
+  hueShift: {
+    type: "number",
+    min: 0,
+    max: 360,
+    default: 0,
+    description: "Hue Shift",
+    hiddenFromList: false
+  },
+  ...esm.Internals.transformSchema,
+  ...esm.Interactive.backgroundSchema,
+  ...esm.Interactive.borderSchema,
+  ...esm.Interactive.borderRadiusSchema,
+  ...esm.Internals.premountSchema
+};
+var LightLeakInner = ({
+  seed = 0,
+  hueShift = 0,
+  durationInFrames,
+  style,
+  controls,
+  ...sequenceProps
+}) => {
+  const { durationInFrames: videoDuration } = (0,esm.useVideoConfig)();
+  const resolvedDuration = durationInFrames ?? videoDuration;
+  if (typeof seed !== "number" || !Number.isFinite(seed)) {
+    throw new TypeError(`"seed" must be a finite number, but got ${JSON.stringify(seed)}`);
+  }
+  if (typeof hueShift !== "number" || !Number.isFinite(hueShift)) {
+    throw new TypeError(`"hueShift" must be a finite number, but got ${JSON.stringify(hueShift)}`);
+  }
+  if (hueShift < 0 || hueShift > 360) {
+    throw new RangeError(`"hueShift" must be between 0 and 360, but got ${hueShift}`);
+  }
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, {
+    durationInFrames: resolvedDuration,
+    name: "<LightLeak>",
+    _remotionInternalDocumentationLink: "https://www.remotion.dev/docs/light-leaks/light-leak",
+    controls,
+    ...sequenceProps,
+    style,
+    children: /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeakCanvas, {
+      seed,
+      hueShift
+    })
+  });
+};
+var LightLeak = esm.Interactive.withSchema({
+  Component: LightLeakInner,
+  componentName: "<LightLeak>",
+  componentIdentity: "dev.remotion.lightLeaks.LightLeak",
+  schema: lightLeakSchema,
+  supportsEffects: false
+});
+LightLeak.displayName = "LightLeak";
+
+// src/index.ts
+var LightLeakInternals = {
+  lightLeak: lightLeak
+};
+
+
+;// ./node_modules/@remotion/motion-blur/dist/esm/index.mjs
+/* unused harmony import specifier */ var useCurrentFrame3;
+/* unused harmony import specifier */ var AbsoluteFill2;
+/* unused harmony import specifier */ var Freeze3;
+/* unused harmony import specifier */ var esm_jsxs;
+/* unused harmony import specifier */ var jsx3;
+// src/CameraMotionBlur.tsx
+
+
+var getNumberOfSamples = ({
+  shutterFraction,
+  samples,
+  currentFrame
+}) => {
+  const maxOffset = shutterFraction * samples;
+  const maxTimeReverse = currentFrame - maxOffset;
+  const factor = Math.min(1, Math.max(0, maxTimeReverse / maxOffset + 1));
+  return Math.max(1, Math.round(Math.min(factor * samples, samples)));
+};
+var CameraMotionBlur = ({
+  children,
+  shutterAngle = 180,
+  samples = 10
+}) => {
+  const currentFrame = (0,esm.useCurrentFrame)();
+  if (typeof samples !== "number" || Number.isNaN(samples) || !Number.isFinite(samples)) {
+    throw new TypeError(`"samples" must be a number, but got ${JSON.stringify(samples)}`);
+  }
+  if (samples % 1 !== 0) {
+    throw new TypeError(`"samples" must be an integer, but got ${JSON.stringify(samples)}`);
+  }
+  if (samples < 0) {
+    throw new TypeError(`"samples" must be non-negative, but got ${JSON.stringify(samples)}`);
+  }
+  if (typeof shutterAngle !== "number" || Number.isNaN(shutterAngle) || !Number.isFinite(shutterAngle)) {
+    throw new TypeError(`"shutterAngle" must be a number, but got ${JSON.stringify(shutterAngle)}`);
+  }
+  if (shutterAngle < 0 || shutterAngle > 360) {
+    throw new TypeError(`"shutterAngle" must be between 0 and 360, but got ${JSON.stringify(shutterAngle)}`);
+  }
+  const shutterFraction = shutterAngle / 360;
+  const actualSamples = getNumberOfSamples({
+    currentFrame,
+    samples,
+    shutterFraction
+  });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, {
+    style: { isolation: "isolate" },
+    children: new Array(actualSamples).fill(true).map((_, i) => {
+      const sample = i + 1;
+      const sampleFrameOffset = shutterFraction * (sample / actualSamples);
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, {
+        style: {
+          mixBlendMode: "plus-lighter",
+          filter: `opacity(${1 / actualSamples})`
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Freeze, {
+          frame: currentFrame - sampleFrameOffset + 1,
+          children
+        })
+      }, `frame-${i.toString()}`);
+    })
+  });
+};
+// src/HtmlInCanvasMotionBlur.tsx
+
+
+
+var htmlInCanvasMotionBlurSchema = {
+  ...esm.Interactive.baseSchema,
+  ...esm.Interactive.premountSchema,
+  shutterAngle: {
+    type: "number",
+    min: 0,
+    max: 360,
+    step: 1,
+    default: 180,
+    description: "Shutter angle",
+    hiddenFromList: false
+  },
+  samples: {
+    type: "number",
+    min: 1,
+    max: 64,
+    step: 1,
+    integer: true,
+    default: 8,
+    description: "Samples",
+    hiddenFromList: false,
+    keyframable: false
+  },
+  disabled: {
+    type: "boolean",
+    default: false,
+    description: "Disabled"
+  }
+};
+var MotionBlurSample = ({
+  children,
+  width,
+  height,
+  index,
+  count,
+  shutterInFrames,
+  firstFrame,
+  lastFrame
+}) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const sampleFrame = Math.max(firstFrame, Math.min(lastFrame, frame + ((index + 0.5) / count - 0.5) * shutterInFrames));
+  const content = /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Freeze, {
+    frame: sampleFrame,
+    children
+  });
+  const isRepresentativeSample = index === Math.floor(count / 2);
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", {
+    "aria-hidden": !isRepresentativeSample,
+    ...index === 0 ? {} : { drawable: "" },
+    style: {
+      position: "absolute",
+      inset: 0,
+      width,
+      height,
+      isolation: "isolate",
+      pointerEvents: isRepresentativeSample ? "auto" : "none"
+    },
+    children: isRepresentativeSample ? content : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Internals.DisableSequenceRegistrationProvider, {
+      children: content
+    })
+  });
+};
+var HtmlInCanvasMotionBlurInner = ({
+  children,
+  width,
+  height,
+  shutterAngle = 180,
+  samples = 8,
+  disabled = false,
+  from,
+  durationInFrames,
+  trimBefore,
+  playbackRate,
+  loop,
+  freeze,
+  hidden,
+  name,
+  premountFor,
+  postmountFor,
+  showInTimeline,
+  styleWhilePremounted,
+  styleWhilePostmounted,
+  controls
+}) => {
+  const { durationInFrames: compositionDurationInFrames } = (0,esm.useVideoConfig)();
+  if (!Number.isInteger(samples) || samples < 1 || samples > 64) {
+    throw new TypeError(`"samples" must be an integer between 1 and 64, but got ${String(samples)}`);
+  }
+  if (typeof shutterAngle !== "number" || !Number.isFinite(shutterAngle) || shutterAngle < 0 || shutterAngle > 360) {
+    throw new TypeError(`"shutterAngle" must be between 0 and 360, but got ${String(shutterAngle)}`);
+  }
+  const actualSamples = disabled || shutterAngle === 0 ? 1 : samples;
+  const shutterInFrames = shutterAngle / 360 * (playbackRate ?? 1);
+  const firstFrame = trimBefore ?? 0;
+  const visibleDuration = Math.max(0, Math.min(esm.Internals.resolveSequenceDuration({
+    durationInFrames,
+    playbackRate,
+    loop
+  }), compositionDurationInFrames - (from ?? 0)));
+  const lastFrame = firstFrame + Math.max(0, visibleDuration - 1) * (playbackRate ?? 1);
+  const onPaint = (0,react.useCallback)(({ canvas, element, elementImage }) => {
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Failed to acquire 2D context for motion blur");
+    }
+    const layoutCanvas = element.parentElement;
+    if (!(layoutCanvas instanceof HTMLCanvasElement)) {
+      throw new Error("Failed to find the HTML-in-canvas layout canvas");
+    }
+    const captureElements = Array.from(layoutCanvas.children);
+    if (captureElements.length !== actualSamples || captureElements[0] !== element) {
+      throw new Error("Motion blur samples are not ready to paint");
+    }
+    context.reset();
+    context.globalCompositeOperation = "lighter";
+    context.globalAlpha = 1 / actualSamples;
+    for (const [index, sampleElement] of captureElements.entries()) {
+      const image = index === 0 ? elementImage : layoutCanvas.captureElementImage(sampleElement);
+      try {
+        context.drawElementImage(image, 0, 0);
+      } finally {
+        if (index !== 0) {
+          image.close();
+        }
+      }
+    }
+  }, [actualSamples]);
+  const sampleElements = Array.from({ length: actualSamples }, (_, index) => {
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(MotionBlurSample, {
+      width,
+      height,
+      index,
+      count: actualSamples,
+      shutterInFrames,
+      firstFrame,
+      lastFrame,
+      children
+    }, index);
+  });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.HtmlInCanvas, {
+    width,
+    height,
+    from,
+    durationInFrames,
+    trimBefore,
+    playbackRate,
+    loop,
+    freeze,
+    hidden,
+    name: name ?? "<HtmlInCanvasMotionBlur>",
+    premountFor,
+    postmountFor,
+    showInTimeline,
+    styleWhilePremounted,
+    styleWhilePostmounted,
+    ...{ controls },
+    onPaint,
+    _remotionInternalCanvasSiblings: sampleElements.slice(1),
+    children: sampleElements[0]
+  });
+};
+var HtmlInCanvasMotionBlur = esm.Interactive.withSchema({
+  Component: HtmlInCanvasMotionBlurInner,
+  componentName: "<HtmlInCanvasMotionBlur>",
+  componentIdentity: "dev.remotion.motionBlur.HtmlInCanvasMotionBlur",
+  schema: htmlInCanvasMotionBlurSchema,
+  supportsEffects: false
+});
+HtmlInCanvasMotionBlur.displayName = "HtmlInCanvasMotionBlur";
+// src/Trail.tsx
+
+
+var Trail = ({
+  children,
+  layers,
+  lagInFrames,
+  trailOpacity
+}) => {
+  const frame = useCurrentFrame3();
+  if (typeof layers !== "number" || Number.isNaN(layers) || !Number.isFinite(layers)) {
+    throw new TypeError(`"layers" must be a number, but got ${JSON.stringify(layers)}`);
+  }
+  if (layers % 1 !== 0) {
+    throw new TypeError(`"layers" must be an integer, but got ${JSON.stringify(layers)}`);
+  }
+  if (layers < 0) {
+    throw new TypeError(`"layers" must be non-negative, but got ${JSON.stringify(layers)}`);
+  }
+  if (typeof trailOpacity !== "number" || Number.isNaN(trailOpacity) || !Number.isFinite(trailOpacity)) {
+    throw new TypeError(`"trailOpacity" must be a number, but got ${JSON.stringify(trailOpacity)}`);
+  }
+  if (typeof lagInFrames !== "number" || Number.isNaN(lagInFrames) || !Number.isFinite(lagInFrames)) {
+    throw new TypeError(`"lagInFrames" must be a number, but got ${JSON.stringify(lagInFrames)}`);
+  }
+  return /* @__PURE__ */ esm_jsxs(AbsoluteFill2, {
+    children: [
+      new Array(layers).fill(true).map((_, i) => {
+        return /* @__PURE__ */ jsx3(AbsoluteFill2, {
+          style: {
+            opacity: trailOpacity - (layers - i) / layers * trailOpacity
+          },
+          children: /* @__PURE__ */ jsx3(Freeze3, {
+            frame: frame - lagInFrames * (layers - i),
+            children
+          })
+        }, `frame-${i.toString()}`);
+      }),
+      children
+    ]
+  });
+};
+
+
+// EXTERNAL MODULE: ./node_modules/remotion/dist/esm/no-react.mjs
+var no_react = __webpack_require__(9382);
+;// ./node_modules/@remotion/paths/dist/esm/index.mjs
+/* unused harmony import specifier */ var interpolate;
+// src/cut-instruction.ts
+var cutLInstruction = ({
+  instruction,
+  lastPoint,
+  progress
+}) => {
+  const x = lastPoint.x + (instruction.x - lastPoint.x) * progress;
+  const y = lastPoint.y + (instruction.y - lastPoint.y) * progress;
+  return {
+    type: "L",
+    x,
+    y
+  };
+};
+function interpolatePoint(pA, pB, factor) {
+  return {
+    x: pA.x + (pB.x - pA.x) * factor,
+    y: pA.y + (pB.y - pA.y) * factor
+  };
+}
+function cutCInstruction({
+  progress,
+  lastPoint,
+  instruction
+}) {
+  const u = progress;
+  const p0 = { x: lastPoint.x, y: lastPoint.y };
+  const p1 = { x: instruction.cp1x, y: instruction.cp1y };
+  const p2 = { x: instruction.cp2x, y: instruction.cp2y };
+  const p3 = { x: instruction.x, y: instruction.y };
+  const p01 = interpolatePoint(p0, p1, u);
+  const p12 = interpolatePoint(p1, p2, u);
+  const p23 = interpolatePoint(p2, p3, u);
+  const p012 = interpolatePoint(p01, p12, u);
+  const p123 = interpolatePoint(p12, p23, u);
+  const p0123 = interpolatePoint(p012, p123, u);
+  return {
+    type: "C",
+    cp1x: p01.x,
+    cp1y: p01.y,
+    cp2x: p012.x,
+    cp2y: p012.y,
+    x: p0123.x,
+    y: p0123.y
+  };
+}
+var cutInstruction = ({
+  instruction,
+  lastPoint,
+  progress
+}) => {
+  if (instruction.type === "M") {
+    return instruction;
+  }
+  if (instruction.type === "L") {
+    return cutLInstruction({ instruction, lastPoint, progress });
+  }
+  if (instruction.type === "C") {
+    return cutCInstruction({ instruction, lastPoint, progress });
+  }
+  if (instruction.type === "Z") {
+    return instruction;
+  }
+  throw new TypeError(`${instruction.type} is not supported.`);
+};
+
+// src/helpers/bezier-values.ts
+var tValues = [
+  [],
+  [],
+  [
+    -0.5773502691896257,
+    0.5773502691896257
+  ],
+  [
+    0,
+    -0.7745966692414834,
+    0.7745966692414834
+  ],
+  [
+    -0.33998104358485626,
+    0.33998104358485626,
+    -0.8611363115940526,
+    0.8611363115940526
+  ],
+  [
+    0,
+    -0.5384693101056831,
+    0.5384693101056831,
+    -0.906179845938664,
+    0.906179845938664
+  ],
+  [
+    0.6612093864662645,
+    -0.6612093864662645,
+    -0.2386191860831969,
+    0.2386191860831969,
+    -0.932469514203152,
+    0.932469514203152
+  ],
+  [
+    0,
+    0.4058451513773972,
+    -0.4058451513773972,
+    -0.7415311855993945,
+    0.7415311855993945,
+    -0.9491079123427585,
+    0.9491079123427585
+  ],
+  [
+    -0.1834346424956498,
+    0.1834346424956498,
+    -0.525532409916329,
+    0.525532409916329,
+    -0.7966664774136267,
+    0.7966664774136267,
+    -0.9602898564975363,
+    0.9602898564975363
+  ],
+  [
+    0,
+    -0.8360311073266358,
+    0.8360311073266358,
+    -0.9681602395076261,
+    0.9681602395076261,
+    -0.3242534234038089,
+    0.3242534234038089,
+    -0.6133714327005904,
+    0.6133714327005904
+  ],
+  [
+    -0.14887433898163122,
+    0.14887433898163122,
+    -0.4333953941292472,
+    0.4333953941292472,
+    -0.6794095682990244,
+    0.6794095682990244,
+    -0.8650633666889845,
+    0.8650633666889845,
+    -0.9739065285171717,
+    0.9739065285171717
+  ],
+  [
+    0,
+    -0.26954315595234496,
+    0.26954315595234496,
+    -0.5190961292068118,
+    0.5190961292068118,
+    -0.7301520055740494,
+    0.7301520055740494,
+    -0.8870625997680953,
+    0.8870625997680953,
+    -0.978228658146057,
+    0.978228658146057
+  ],
+  [
+    -0.1252334085114689,
+    0.1252334085114689,
+    -0.3678314989981802,
+    0.3678314989981802,
+    -0.5873179542866175,
+    0.5873179542866175,
+    -0.7699026741943047,
+    0.7699026741943047,
+    -0.9041172563704749,
+    0.9041172563704749,
+    -0.9815606342467192,
+    0.9815606342467192
+  ],
+  [
+    0,
+    -0.2304583159551348,
+    0.2304583159551348,
+    -0.44849275103644687,
+    0.44849275103644687,
+    -0.6423493394403402,
+    0.6423493394403402,
+    -0.8015780907333099,
+    0.8015780907333099,
+    -0.9175983992229779,
+    0.9175983992229779,
+    -0.9841830547185881,
+    0.9841830547185881
+  ],
+  [
+    -0.10805494870734367,
+    0.10805494870734367,
+    -0.31911236892788974,
+    0.31911236892788974,
+    -0.5152486363581541,
+    0.5152486363581541,
+    -0.6872929048116855,
+    0.6872929048116855,
+    -0.827201315069765,
+    0.827201315069765,
+    -0.9284348836635735,
+    0.9284348836635735,
+    -0.9862838086968123,
+    0.9862838086968123
+  ],
+  [
+    0,
+    -0.20119409399743451,
+    0.20119409399743451,
+    -0.3941513470775634,
+    0.3941513470775634,
+    -0.5709721726085388,
+    0.5709721726085388,
+    -0.7244177313601701,
+    0.7244177313601701,
+    -0.8482065834104272,
+    0.8482065834104272,
+    -0.937273392400706,
+    0.937273392400706,
+    -0.9879925180204854,
+    0.9879925180204854
+  ],
+  [
+    -0.09501250983763744,
+    0.09501250983763744,
+    -0.2816035507792589,
+    0.2816035507792589,
+    -0.45801677765722737,
+    0.45801677765722737,
+    -0.6178762444026438,
+    0.6178762444026438,
+    -0.755404408355003,
+    0.755404408355003,
+    -0.8656312023878318,
+    0.8656312023878318,
+    -0.9445750230732326,
+    0.9445750230732326,
+    -0.9894009349916499,
+    0.9894009349916499
+  ],
+  [
+    0,
+    -0.17848418149584785,
+    0.17848418149584785,
+    -0.3512317634538763,
+    0.3512317634538763,
+    -0.5126905370864769,
+    0.5126905370864769,
+    -0.6576711592166907,
+    0.6576711592166907,
+    -0.7815140038968014,
+    0.7815140038968014,
+    -0.8802391537269859,
+    0.8802391537269859,
+    -0.9506755217687678,
+    0.9506755217687678,
+    -0.9905754753144174,
+    0.9905754753144174
+  ],
+  [
+    -0.0847750130417353,
+    0.0847750130417353,
+    -0.2518862256915055,
+    0.2518862256915055,
+    -0.41175116146284263,
+    0.41175116146284263,
+    -0.5597708310739475,
+    0.5597708310739475,
+    -0.6916870430603532,
+    0.6916870430603532,
+    -0.8037049589725231,
+    0.8037049589725231,
+    -0.8926024664975557,
+    0.8926024664975557,
+    -0.9558239495713977,
+    0.9558239495713977,
+    -0.9915651684209309,
+    0.9915651684209309
+  ],
+  [
+    0,
+    -0.16035864564022537,
+    0.16035864564022537,
+    -0.31656409996362983,
+    0.31656409996362983,
+    -0.46457074137596094,
+    0.46457074137596094,
+    -0.600545304661681,
+    0.600545304661681,
+    -0.7209661773352294,
+    0.7209661773352294,
+    -0.8227146565371428,
+    0.8227146565371428,
+    -0.9031559036148179,
+    0.9031559036148179,
+    -0.96020815213483,
+    0.96020815213483,
+    -0.9924068438435844,
+    0.9924068438435844
+  ],
+  [
+    -0.07652652113349734,
+    0.07652652113349734,
+    -0.22778585114164507,
+    0.22778585114164507,
+    -0.37370608871541955,
+    0.37370608871541955,
+    -0.5108670019508271,
+    0.5108670019508271,
+    -0.636053680726515,
+    0.636053680726515,
+    -0.7463319064601508,
+    0.7463319064601508,
+    -0.8391169718222188,
+    0.8391169718222188,
+    -0.912234428251326,
+    0.912234428251326,
+    -0.9639719272779138,
+    0.9639719272779138,
+    -0.9931285991850949,
+    0.9931285991850949
+  ],
+  [
+    0,
+    -0.1455618541608951,
+    0.1455618541608951,
+    -0.2880213168024011,
+    0.2880213168024011,
+    -0.4243421202074388,
+    0.4243421202074388,
+    -0.5516188358872198,
+    0.5516188358872198,
+    -0.6671388041974123,
+    0.6671388041974123,
+    -0.7684399634756779,
+    0.7684399634756779,
+    -0.8533633645833173,
+    0.8533633645833173,
+    -0.9200993341504008,
+    0.9200993341504008,
+    -0.9672268385663063,
+    0.9672268385663063,
+    -0.9937521706203895,
+    0.9937521706203895
+  ],
+  [
+    -0.06973927331972223,
+    0.06973927331972223,
+    -0.20786042668822127,
+    0.20786042668822127,
+    -0.34193582089208424,
+    0.34193582089208424,
+    -0.469355837986757,
+    0.469355837986757,
+    -0.5876404035069116,
+    0.5876404035069116,
+    -0.6944872631866827,
+    0.6944872631866827,
+    -0.7878168059792081,
+    0.7878168059792081,
+    -0.8658125777203002,
+    0.8658125777203002,
+    -0.926956772187174,
+    0.926956772187174,
+    -0.9700604978354287,
+    0.9700604978354287,
+    -0.9942945854823992,
+    0.9942945854823992
+  ],
+  [
+    0,
+    -0.1332568242984661,
+    0.1332568242984661,
+    -0.26413568097034495,
+    0.26413568097034495,
+    -0.3903010380302908,
+    0.3903010380302908,
+    -0.5095014778460075,
+    0.5095014778460075,
+    -0.6196098757636461,
+    0.6196098757636461,
+    -0.7186613631319502,
+    0.7186613631319502,
+    -0.8048884016188399,
+    0.8048884016188399,
+    -0.8767523582704416,
+    0.8767523582704416,
+    -0.9329710868260161,
+    0.9329710868260161,
+    -0.9725424712181152,
+    0.9725424712181152,
+    -0.9947693349975522,
+    0.9947693349975522
+  ],
+  [
+    -0.06405689286260563,
+    0.06405689286260563,
+    -0.1911188674736163,
+    0.1911188674736163,
+    -0.3150426796961634,
+    0.3150426796961634,
+    -0.4337935076260451,
+    0.4337935076260451,
+    -0.5454214713888396,
+    0.5454214713888396,
+    -0.6480936519369755,
+    0.6480936519369755,
+    -0.7401241915785544,
+    0.7401241915785544,
+    -0.820001985973903,
+    0.820001985973903,
+    -0.8864155270044011,
+    0.8864155270044011,
+    -0.9382745520027328,
+    0.9382745520027328,
+    -0.9747285559713095,
+    0.9747285559713095,
+    -0.9951872199970213,
+    0.9951872199970213
+  ]
+];
+var cValues = [
+  [],
+  [],
+  [1, 1],
+  [
+    0.8888888888888888,
+    0.5555555555555556,
+    0.5555555555555556
+  ],
+  [
+    0.6521451548625461,
+    0.6521451548625461,
+    0.34785484513745385,
+    0.34785484513745385
+  ],
+  [
+    0.5688888888888889,
+    0.47862867049936647,
+    0.47862867049936647,
+    0.23692688505618908,
+    0.23692688505618908
+  ],
+  [
+    0.3607615730481386,
+    0.3607615730481386,
+    0.46791393457269104,
+    0.46791393457269104,
+    0.17132449237917036,
+    0.17132449237917036
+  ],
+  [
+    0.4179591836734694,
+    0.3818300505051189,
+    0.3818300505051189,
+    0.27970539148927664,
+    0.27970539148927664,
+    0.1294849661688697,
+    0.1294849661688697
+  ],
+  [
+    0.362683783378362,
+    0.362683783378362,
+    0.31370664587788727,
+    0.31370664587788727,
+    0.22238103445337448,
+    0.22238103445337448,
+    0.10122853629037626,
+    0.10122853629037626
+  ],
+  [
+    0.3302393550012598,
+    0.1806481606948574,
+    0.1806481606948574,
+    0.08127438836157441,
+    0.08127438836157441,
+    0.31234707704000286,
+    0.31234707704000286,
+    0.26061069640293544,
+    0.26061069640293544
+  ],
+  [
+    0.29552422471475287,
+    0.29552422471475287,
+    0.26926671930999635,
+    0.26926671930999635,
+    0.21908636251598204,
+    0.21908636251598204,
+    0.1494513491505806,
+    0.1494513491505806,
+    0.06667134430868814,
+    0.06667134430868814
+  ],
+  [
+    0.2729250867779006,
+    0.26280454451024665,
+    0.26280454451024665,
+    0.23319376459199048,
+    0.23319376459199048,
+    0.18629021092773426,
+    0.18629021092773426,
+    0.1255803694649046,
+    0.1255803694649046,
+    0.05566856711617366,
+    0.05566856711617366
+  ],
+  [
+    0.24914704581340277,
+    0.24914704581340277,
+    0.2334925365383548,
+    0.2334925365383548,
+    0.20316742672306592,
+    0.20316742672306592,
+    0.16007832854334622,
+    0.16007832854334622,
+    0.10693932599531843,
+    0.10693932599531843,
+    0.04717533638651183,
+    0.04717533638651183
+  ],
+  [
+    0.2325515532308739,
+    0.22628318026289723,
+    0.22628318026289723,
+    0.2078160475368885,
+    0.2078160475368885,
+    0.17814598076194574,
+    0.17814598076194574,
+    0.13887351021978725,
+    0.13887351021978725,
+    0.09212149983772845,
+    0.09212149983772845,
+    0.04048400476531588,
+    0.04048400476531588
+  ],
+  [
+    0.2152638534631578,
+    0.2152638534631578,
+    0.2051984637212956,
+    0.2051984637212956,
+    0.18553839747793782,
+    0.18553839747793782,
+    0.15720316715819355,
+    0.15720316715819355,
+    0.12151857068790319,
+    0.12151857068790319,
+    0.08015808715976021,
+    0.08015808715976021,
+    0.03511946033175186,
+    0.03511946033175186
+  ],
+  [
+    0.2025782419255613,
+    0.19843148532711158,
+    0.19843148532711158,
+    0.1861610000155622,
+    0.1861610000155622,
+    0.16626920581699392,
+    0.16626920581699392,
+    0.13957067792615432,
+    0.13957067792615432,
+    0.10715922046717194,
+    0.10715922046717194,
+    0.07036604748810812,
+    0.07036604748810812,
+    0.03075324199611727,
+    0.03075324199611727
+  ],
+  [
+    0.1894506104550685,
+    0.1894506104550685,
+    0.18260341504492358,
+    0.18260341504492358,
+    0.16915651939500254,
+    0.16915651939500254,
+    0.14959598881657674,
+    0.14959598881657674,
+    0.12462897125553388,
+    0.12462897125553388,
+    0.09515851168249279,
+    0.09515851168249279,
+    0.062253523938647894,
+    0.062253523938647894,
+    0.027152459411754096,
+    0.027152459411754096
+  ],
+  [
+    0.17944647035620653,
+    0.17656270536699264,
+    0.17656270536699264,
+    0.16800410215645004,
+    0.16800410215645004,
+    0.15404576107681028,
+    0.15404576107681028,
+    0.13513636846852548,
+    0.13513636846852548,
+    0.11188384719340397,
+    0.11188384719340397,
+    0.08503614831717918,
+    0.08503614831717918,
+    0.0554595293739872,
+    0.0554595293739872,
+    0.02414830286854793,
+    0.02414830286854793
+  ],
+  [
+    0.1691423829631436,
+    0.1691423829631436,
+    0.16427648374583273,
+    0.16427648374583273,
+    0.15468467512626524,
+    0.15468467512626524,
+    0.14064291467065065,
+    0.14064291467065065,
+    0.12255520671147846,
+    0.12255520671147846,
+    0.10094204410628717,
+    0.10094204410628717,
+    0.07642573025488905,
+    0.07642573025488905,
+    0.0497145488949698,
+    0.0497145488949698,
+    0.02161601352648331,
+    0.02161601352648331
+  ],
+  [
+    0.1610544498487837,
+    0.15896884339395434,
+    0.15896884339395434,
+    0.15276604206585967,
+    0.15276604206585967,
+    0.1426067021736066,
+    0.1426067021736066,
+    0.12875396253933621,
+    0.12875396253933621,
+    0.11156664554733399,
+    0.11156664554733399,
+    0.09149002162245,
+    0.09149002162245,
+    0.06904454273764123,
+    0.06904454273764123,
+    0.0448142267656996,
+    0.0448142267656996,
+    0.019461788229726478,
+    0.019461788229726478
+  ],
+  [
+    0.15275338713072584,
+    0.15275338713072584,
+    0.14917298647260374,
+    0.14917298647260374,
+    0.14209610931838204,
+    0.14209610931838204,
+    0.13168863844917664,
+    0.13168863844917664,
+    0.11819453196151841,
+    0.11819453196151841,
+    0.10193011981724044,
+    0.10193011981724044,
+    0.08327674157670475,
+    0.08327674157670475,
+    0.06267204833410907,
+    0.06267204833410907,
+    0.04060142980038694,
+    0.04060142980038694,
+    0.017614007139152118,
+    0.017614007139152118
+  ],
+  [
+    0.14608113364969041,
+    0.14452440398997005,
+    0.14452440398997005,
+    0.13988739479107315,
+    0.13988739479107315,
+    0.13226893863333747,
+    0.13226893863333747,
+    0.12183141605372853,
+    0.12183141605372853,
+    0.10879729916714838,
+    0.10879729916714838,
+    0.09344442345603386,
+    0.09344442345603386,
+    0.0761001136283793,
+    0.0761001136283793,
+    0.057134425426857205,
+    0.057134425426857205,
+    0.036953789770852494,
+    0.036953789770852494,
+    0.016017228257774335,
+    0.016017228257774335
+  ],
+  [
+    0.13925187285563198,
+    0.13925187285563198,
+    0.13654149834601517,
+    0.13654149834601517,
+    0.13117350478706238,
+    0.13117350478706238,
+    0.12325237681051242,
+    0.12325237681051242,
+    0.11293229608053922,
+    0.11293229608053922,
+    0.10041414444288096,
+    0.10041414444288096,
+    0.08594160621706773,
+    0.08594160621706773,
+    0.06979646842452049,
+    0.06979646842452049,
+    0.052293335152683286,
+    0.052293335152683286,
+    0.03377490158481415,
+    0.03377490158481415,
+    0.0146279952982722,
+    0.0146279952982722
+  ],
+  [
+    0.13365457218610619,
+    0.1324620394046966,
+    0.1324620394046966,
+    0.12890572218808216,
+    0.12890572218808216,
+    0.12304908430672953,
+    0.12304908430672953,
+    0.11499664022241136,
+    0.11499664022241136,
+    0.10489209146454141,
+    0.10489209146454141,
+    0.09291576606003515,
+    0.09291576606003515,
+    0.07928141177671895,
+    0.07928141177671895,
+    0.06423242140852585,
+    0.06423242140852585,
+    0.04803767173108467,
+    0.04803767173108467,
+    0.030988005856979445,
+    0.030988005856979445,
+    0.013411859487141771,
+    0.013411859487141771
+  ],
+  [
+    0.12793819534675216,
+    0.12793819534675216,
+    0.1258374563468283,
+    0.1258374563468283,
+    0.12167047292780339,
+    0.12167047292780339,
+    0.1155056680537256,
+    0.1155056680537256,
+    0.10744427011596563,
+    0.10744427011596563,
+    0.09761865210411388,
+    0.09761865210411388,
+    0.08619016153195327,
+    0.08619016153195327,
+    0.0733464814110803,
+    0.0733464814110803,
+    0.05929858491543678,
+    0.05929858491543678,
+    0.04427743881741981,
+    0.04427743881741981,
+    0.028531388628933663,
+    0.028531388628933663,
+    0.0123412297999872,
+    0.0123412297999872
+  ]
+];
+
+// src/helpers/bezier-functions.ts
+var cubicPoint = (xs, ys, t) => {
+  const x = (1 - t) * (1 - t) * (1 - t) * xs[0] + 3 * (1 - t) * (1 - t) * t * xs[1] + 3 * (1 - t) * t * t * xs[2] + t * t * t * xs[3];
+  const y = (1 - t) * (1 - t) * (1 - t) * ys[0] + 3 * (1 - t) * (1 - t) * t * ys[1] + 3 * (1 - t) * t * t * ys[2] + t * t * t * ys[3];
+  return { x, y };
+};
+var getCubicArcLength = ({
+  sx,
+  sy,
+  t
+}) => {
+  const v0x = 3 * (sx[1] - sx[0]);
+  const v1x = 3 * (sx[2] - sx[1]);
+  const v2x = 3 * (sx[3] - sx[2]);
+  const v0y = 3 * (sy[1] - sy[0]);
+  const v1y = 3 * (sy[2] - sy[1]);
+  const v2y = 3 * (sy[3] - sy[2]);
+  let correctedT;
+  const n = 20;
+  const z = t / 2;
+  let sum = 0;
+  for (let i = 0;i < n; i++) {
+    correctedT = z * tValues[n][i] + z;
+    const mt = 1 - correctedT;
+    const xbase = mt * mt * v0x + 2 * mt * correctedT * v1x + correctedT * correctedT * v2x;
+    const ybase = mt * mt * v0y + 2 * mt * correctedT * v1y + correctedT * correctedT * v2y;
+    sum += cValues[n][i] * Math.sqrt(xbase * xbase + ybase * ybase);
+  }
+  return z * sum;
+};
+var quadraticPoint = (xs, ys, t) => {
+  const x = (1 - t) * (1 - t) * xs[0] + 2 * (1 - t) * t * xs[1] + t * t * xs[2];
+  const y = (1 - t) * (1 - t) * ys[0] + 2 * (1 - t) * t * ys[1] + t * t * ys[2];
+  return { x, y };
+};
+var cubicDerivative = (xs, ys, t) => {
+  const v0x = 3 * (xs[1] - xs[0]);
+  const v1x = 3 * (xs[2] - xs[1]);
+  const v2x = 3 * (xs[3] - xs[2]);
+  const v0y = 3 * (ys[1] - ys[0]);
+  const v1y = 3 * (ys[2] - ys[1]);
+  const v2y = 3 * (ys[3] - ys[2]);
+  const mt = 1 - t;
+  return {
+    x: mt * mt * v0x + 2 * mt * t * v1x + t * t * v2x,
+    y: mt * mt * v0y + 2 * mt * t * v1y + t * t * v2y
+  };
+};
+var getQuadraticArcLength = (xs, ys, t) => {
+  if (t === undefined) {
+    t = 1;
+  }
+  const ax = xs[0] - 2 * xs[1] + xs[2];
+  const ay = ys[0] - 2 * ys[1] + ys[2];
+  const bx = 2 * xs[1] - 2 * xs[0];
+  const by = 2 * ys[1] - 2 * ys[0];
+  const A = 4 * (ax * ax + ay * ay);
+  const B = 4 * (ax * bx + ay * by);
+  const C = bx * bx + by * by;
+  if (A === 0) {
+    return t * Math.sqrt((xs[2] - xs[0]) ** 2 + (ys[2] - ys[0]) ** 2);
+  }
+  const b = B / (2 * A);
+  const c = C / A;
+  const u = t + b;
+  const k = c - b * b;
+  const uuk = u * u + k > 0 ? Math.sqrt(u * u + k) : 0;
+  const bbk = b * b + k > 0 ? Math.sqrt(b * b + k) : 0;
+  const term = b + Math.sqrt(b * b + k) === 0 ? 0 : k * Math.log(Math.abs((u + uuk) / (b + bbk)));
+  return Math.sqrt(A) / 2 * (u * uuk - b * bbk + term);
+};
+var quadraticDerivative = (xs, ys, t) => {
+  return {
+    x: (1 - t) * 2 * (xs[1] - xs[0]) + t * 2 * (xs[2] - xs[1]),
+    y: (1 - t) * 2 * (ys[1] - ys[0]) + t * 2 * (ys[2] - ys[1])
+  };
+};
+var t2length = ({
+  length,
+  totalLength,
+  func
+}) => {
+  let error = 1;
+  let t = length / totalLength;
+  let step = (length - func(t)) / totalLength;
+  let numIterations = 0;
+  while (error > 0.001) {
+    const increasedTLength = func(t + step);
+    const increasedTError = Math.abs(length - increasedTLength) / totalLength;
+    if (increasedTError < error) {
+      error = increasedTError;
+      t += step;
+    } else {
+      const decreasedTLength = func(t - step);
+      const decreasedTError = Math.abs(length - decreasedTLength) / totalLength;
+      if (decreasedTError < error) {
+        error = decreasedTError;
+        t -= step;
+      } else {
+        step /= 2;
+      }
+    }
+    numIterations++;
+    if (numIterations > 500) {
+      break;
+    }
+  }
+  return t;
+};
+
+// src/helpers/bezier.ts
+var makeQuadratic = ({
+  startX,
+  startY,
+  cpx,
+  cpy,
+  x,
+  y
+}) => {
+  const a = { x: startX, y: startY };
+  const b = { x: cpx, y: cpy };
+  const c = { x, y };
+  const length = getQuadraticArcLength([a.x, b.x, c.x, 0], [a.y, b.y, c.y, 0], 1);
+  const getTotalLength = () => {
+    return length;
+  };
+  const getPointAtLength = (len) => {
+    const xs = [a.x, b.x, c.x, 0];
+    const xy = [a.y, b.y, c.y, 0];
+    const t = t2length({
+      length: len,
+      totalLength: length,
+      func: (i) => getQuadraticArcLength(xs, xy, i)
+    });
+    return quadraticPoint(xs, xy, t);
+  };
+  const getTangentAtLength = (len) => {
+    const xs = [a.x, b.x, c.x, 0];
+    const xy = [a.y, b.y, c.y, 0];
+    const t = t2length({
+      length: len,
+      totalLength: length,
+      func: (i) => getQuadraticArcLength(xs, xy, i)
+    });
+    const derivative = quadraticDerivative(xs, xy, t);
+    const mdl = Math.sqrt(derivative.x * derivative.x + derivative.y * derivative.y);
+    let tangent;
+    if (mdl > 0) {
+      tangent = { x: derivative.x / mdl, y: derivative.y / mdl };
+    } else {
+      tangent = { x: 0, y: 0 };
+    }
+    return tangent;
+  };
+  const getC = () => {
+    return c;
+  };
+  return {
+    getPointAtLength,
+    getTangentAtLength,
+    getTotalLength,
+    getC,
+    type: "quadratic-bezier",
+    getD: () => ({ x: 0, y: 0 })
+  };
+};
+var makeCubic = ({
+  startX,
+  startY,
+  cp1x,
+  cp1y,
+  cp2x,
+  cp2y,
+  x,
+  y
+}) => {
+  const a = { x: startX, y: startY };
+  const b = { x: cp1x, y: cp1y };
+  const c = { x: cp2x, y: cp2y };
+  const d = { x, y };
+  const length = getCubicArcLength({
+    sx: [a.x, b.x, c.x, d.x],
+    sy: [a.y, b.y, c.y, d.y],
+    t: 1
+  });
+  const getTotalLength = () => {
+    return length;
+  };
+  const getPointAtLength = (len) => {
+    const sx = [a.x, b.x, c.x, d.x];
+    const sy = [a.y, b.y, c.y, d.y];
+    const t = t2length({
+      length: len,
+      totalLength: length,
+      func: (i) => {
+        return getCubicArcLength({ sx, sy, t: i });
+      }
+    });
+    return cubicPoint(sx, sy, t);
+  };
+  const getTangentAtLength = (len) => {
+    const xs = [a.x, b.x, c.x, d.x];
+    const xy = [a.y, b.y, c.y, d.y];
+    const t = t2length({
+      length: len,
+      totalLength: length,
+      func: (i) => getCubicArcLength({ sx: xs, sy: xy, t: i })
+    });
+    const derivative = cubicDerivative(xs, xy, t);
+    const mdl = Math.sqrt(derivative.x * derivative.x + derivative.y * derivative.y);
+    let tangent;
+    if (mdl > 0) {
+      tangent = { x: derivative.x / mdl, y: derivative.y / mdl };
+    } else {
+      tangent = { x: 0, y: 0 };
+    }
+    return tangent;
+  };
+  const getC = () => {
+    return c;
+  };
+  const getD = () => {
+    return d;
+  };
+  return {
+    getPointAtLength,
+    getTangentAtLength,
+    getTotalLength,
+    getC,
+    getD,
+    type: "cubic-bezier"
+  };
+};
+
+// src/helpers/linear.ts
+var makeLinearPosition = ({
+  x0,
+  x1,
+  y0,
+  y1
+}) => {
+  return {
+    getTotalLength: () => {
+      return Math.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2);
+    },
+    getPointAtLength: (pos) => {
+      let fraction = pos / Math.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2);
+      fraction = Number.isNaN(fraction) ? 1 : fraction;
+      const newDeltaX = (x1 - x0) * fraction;
+      const newDeltaY = (y1 - y0) * fraction;
+      return { x: x0 + newDeltaX, y: y0 + newDeltaY };
+    },
+    getTangentAtLength: () => {
+      const module = Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+      return { x: (x1 - x0) / module, y: (y1 - y0) / module };
+    },
+    type: "linear"
+  };
+};
+
+// src/helpers/reduced-analysis.ts
+var conductAnalysis = (instructions) => {
+  let currentPoint = { x: 0, y: 0 };
+  let moveStart = { x: 0, y: 0 };
+  const segments = [];
+  for (let i = 0;i < instructions.length; i++) {
+    const instruction = instructions[i];
+    if (instruction.type === "M") {
+      currentPoint = { x: instruction.x, y: instruction.y };
+      moveStart = { x: currentPoint.x, y: currentPoint.y };
+      segments.push({
+        startPoint: { x: instruction.x, y: instruction.y },
+        instructionsAndInfo: [
+          {
+            instruction,
+            function: null,
+            length: 0,
+            startPoint: currentPoint
+          }
+        ]
+      });
+    }
+    if (instruction.type === "L") {
+      if (segments.length > 0) {
+        const length = Math.sqrt((currentPoint.x - instruction.x) ** 2 + (currentPoint.y - instruction.y) ** 2);
+        segments[segments.length - 1].instructionsAndInfo.push({
+          instruction,
+          length,
+          function: makeLinearPosition({
+            x0: currentPoint.x,
+            x1: instruction.x,
+            y0: currentPoint.y,
+            y1: instruction.y
+          }),
+          startPoint: currentPoint
+        });
+      }
+      currentPoint = { x: instruction.x, y: instruction.y };
+    }
+    if (instruction.type === "Z") {
+      if (segments.length > 0) {
+        const length = Math.sqrt((segments[segments.length - 1].startPoint.x - currentPoint.x) ** 2 + (segments[segments.length - 1].startPoint.y - currentPoint.y) ** 2);
+        segments[segments.length - 1].instructionsAndInfo.push({
+          instruction,
+          function: makeLinearPosition({
+            x0: currentPoint.x,
+            x1: moveStart.x,
+            y0: currentPoint.y,
+            y1: moveStart.y
+          }),
+          length,
+          startPoint: { ...currentPoint }
+        });
+      }
+      currentPoint = { x: moveStart.x, y: moveStart.y };
+    }
+    if (instruction.type === "C") {
+      const curve = makeCubic({
+        startX: currentPoint.x,
+        startY: currentPoint.y,
+        cp1x: instruction.cp1x,
+        cp1y: instruction.cp1y,
+        cp2x: instruction.cp2x,
+        cp2y: instruction.cp2y,
+        x: instruction.x,
+        y: instruction.y
+      });
+      const length = curve.getTotalLength();
+      if (segments.length > 0) {
+        segments[segments.length - 1].instructionsAndInfo.push({
+          instruction,
+          length,
+          function: curve,
+          startPoint: { ...currentPoint }
+        });
+      }
+      currentPoint = { x: instruction.x, y: instruction.y };
+    }
+  }
+  return segments;
+};
+
+// src/parse-path.ts
+var esm_length = {
+  a: 7,
+  A: 7,
+  C: 6,
+  c: 6,
+  H: 1,
+  h: 1,
+  L: 2,
+  l: 2,
+  M: 2,
+  m: 2,
+  Q: 4,
+  q: 4,
+  S: 4,
+  s: 4,
+  T: 2,
+  t: 2,
+  V: 1,
+  v: 1,
+  Z: 0,
+  z: 0
+};
+var chunkExact = (array, instruction) => {
+  const chunks = [];
+  const expectedSize = esm_length[instruction];
+  if (array.length % expectedSize !== 0) {
+    throw new Error(`Expected number of arguments of SVG instruction "${instruction} ${array.join(" ")}" to be a multiple of ${expectedSize}`);
+  }
+  for (let i = 0;i < array.length; i += expectedSize) {
+    chunks.push(array.slice(i, i + expectedSize));
+  }
+  return chunks;
+};
+var makeInstructions = (arr, instruction, cb) => {
+  return chunkExact(arr, instruction).map((args) => {
+    return cb(args);
+  });
+};
+var segmentRegExp = /([astvzqmhlc])([^astvzqmhlc]*)/gi;
+var numberRegExp = /-?[0-9]*\.?[0-9]+(?:e[-+]?\d+)?/gi;
+var arcNumberRegExp = /[\s,]*([-+]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:e[-+]?\d+)?)/iy;
+var arcFlagRegExp = /[\s,]*([01])/y;
+var parseValues = (args, instructionType) => {
+  let numbers;
+  if (instructionType === "A" || instructionType === "a") {
+    numbers = [];
+    let match;
+    let lastIndex = 0;
+    do {
+      const regExp = numbers.length % 7 === 3 || numbers.length % 7 === 4 ? arcFlagRegExp : arcNumberRegExp;
+      regExp.lastIndex = lastIndex;
+      match = regExp.exec(args);
+      if (match) {
+        numbers.push(match[1]);
+        lastIndex = regExp.lastIndex;
+      }
+    } while (match);
+    const rest = args.slice(lastIndex);
+    if (!/^[\s,]*$/.test(rest)) {
+      throw new Error(`Malformed path data: ${instructionType} has an invalid value at "${rest.trim()}"`);
+    }
+  } else {
+    numbers = args.match(numberRegExp);
+  }
+  if (!numbers || numbers.length === 0) {
+    if (instructionType === "Z" || instructionType === "z") {
+      return [];
+    }
+    throw new Error(`Malformed path data: ${instructionType} was expected to have numbers afterwards`);
+  }
+  const expectedArguments = esm_length[instructionType];
+  if (numbers.length % expectedArguments !== 0) {
+    throw new Error(`Malformed path data: ${instructionType} was expected to have a multiple of ${expectedArguments} numbers, but got "${instructionType} ${numbers.join(" ")} instead"`);
+  }
+  return numbers.map(Number);
+};
+var parsePath = (path) => {
+  if (!path) {
+    throw new Error("No path provided");
+  }
+  const segments = path.match(segmentRegExp);
+  if (!segments) {
+    throw new Error(`No path elements found in string ${path}`);
+  }
+  return segments.map((segmentString) => {
+    const command = segmentString.charAt(0);
+    const args = parseValues(segmentString.substring(1), command);
+    if (command === "M" && args.length > 2) {
+      const segmentsArray = [];
+      segmentsArray.push({
+        type: command,
+        x: args[0],
+        y: args[1]
+      });
+      segmentsArray.push(...makeInstructions(args.slice(2), "L", (numbers) => ({
+        type: "L",
+        x: numbers[0],
+        y: numbers[1]
+      })));
+      return segmentsArray;
+    }
+    if (command === "m" && args.length > 2) {
+      const segmentsArray = [];
+      segmentsArray.push({
+        type: command,
+        dx: args[0],
+        dy: args[1]
+      });
+      segmentsArray.push(...makeInstructions(args.slice(2), "l", (numbers) => ({
+        type: "l",
+        dx: numbers[0],
+        dy: numbers[1]
+      })));
+      return segmentsArray;
+    }
+    if (command === "Z" || command === "z") {
+      return [
+        {
+          type: "Z"
+        }
+      ];
+    }
+    if (command === "A") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        rx: numbers[0],
+        ry: numbers[1],
+        xAxisRotation: numbers[2],
+        largeArcFlag: numbers[3] === 1,
+        sweepFlag: numbers[4] === 1,
+        x: numbers[5],
+        y: numbers[6]
+      }));
+    }
+    if (command === "a") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        rx: numbers[0],
+        ry: numbers[1],
+        xAxisRotation: numbers[2],
+        largeArcFlag: numbers[3] === 1,
+        sweepFlag: numbers[4] === 1,
+        dx: numbers[5],
+        dy: numbers[6]
+      }));
+    }
+    if (command === "C") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        cp1x: numbers[0],
+        cp1y: numbers[1],
+        cp2x: numbers[2],
+        cp2y: numbers[3],
+        x: numbers[4],
+        y: numbers[5]
+      }));
+    }
+    if (command === "c") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        cp1dx: numbers[0],
+        cp1dy: numbers[1],
+        cp2dx: numbers[2],
+        cp2dy: numbers[3],
+        dx: numbers[4],
+        dy: numbers[5]
+      }));
+    }
+    if (command === "S") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        cpx: numbers[0],
+        cpy: numbers[1],
+        x: numbers[2],
+        y: numbers[3]
+      }));
+    }
+    if (command === "s") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        cpdx: numbers[0],
+        cpdy: numbers[1],
+        dx: numbers[2],
+        dy: numbers[3]
+      }));
+    }
+    if (command === "H") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        x: numbers[0]
+      }));
+    }
+    if (command === "h") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        dx: numbers[0]
+      }));
+    }
+    if (command === "V") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        y: numbers[0]
+      }));
+    }
+    if (command === "v") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        dy: numbers[0]
+      }));
+    }
+    if (command === "L") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        x: numbers[0],
+        y: numbers[1]
+      }));
+    }
+    if (command === "M") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        x: numbers[0],
+        y: numbers[1]
+      }));
+    }
+    if (command === "m") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        dx: numbers[0],
+        dy: numbers[1]
+      }));
+    }
+    if (command === "l") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        dx: numbers[0],
+        dy: numbers[1]
+      }));
+    }
+    if (command === "Q") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        cpx: numbers[0],
+        cpy: numbers[1],
+        x: numbers[2],
+        y: numbers[3]
+      }));
+    }
+    if (command === "q") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        cpdx: numbers[0],
+        cpdy: numbers[1],
+        dx: numbers[2],
+        dy: numbers[3]
+      }));
+    }
+    if (command === "T") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        x: numbers[0],
+        y: numbers[1]
+      }));
+    }
+    if (command === "t") {
+      return makeInstructions(args, command, (numbers) => ({
+        type: command,
+        dx: numbers[0],
+        dy: numbers[1]
+      }));
+    }
+    throw new Error(`Invalid path element ${segmentString}`);
+  }, []).flat(1);
+};
+
+// src/helpers/convert-q-to-c-instruction.ts
+var convertQToCInstruction = (instruction, startPoint) => {
+  const cp1x = startPoint.x + 2 / 3 * (instruction.cpx - startPoint.x);
+  const cp1y = startPoint.y + 2 / 3 * (instruction.cpy - startPoint.y);
+  const cp2x = instruction.x + 2 / 3 * (instruction.cpx - instruction.x);
+  const cp2y = instruction.y + 2 / 3 * (instruction.cpy - instruction.y);
+  return {
+    type: "C",
+    cp1x,
+    cp1y,
+    cp2x,
+    cp2y,
+    x: instruction.x,
+    y: instruction.y
+  };
+};
+
+// src/helpers/iterate.ts
+var iterateOverSegments = ({
+  segments,
+  iterate
+}) => {
+  let x = 0;
+  let y = 0;
+  let initialX = 0;
+  let initialY = 0;
+  let cpX = null;
+  let cpY = null;
+  const newSegments = segments.map((s, i) => {
+    const newSeg = iterate({
+      segment: s,
+      x,
+      y,
+      prevSegment: segments[i - 1] ?? null,
+      initialX,
+      initialY,
+      cpX,
+      cpY
+    });
+    switch (s.type) {
+      case "M":
+        initialX = s.x;
+        initialY = s.y;
+        x = s.x;
+        y = s.y;
+        cpX = null;
+        cpY = null;
+        break;
+      case "Q":
+        x = s.x;
+        y = s.y;
+        cpX = s.cpx;
+        cpY = s.cpy;
+        break;
+      case "A":
+        x = s.x;
+        y = s.y;
+        cpX = null;
+        cpY = null;
+        break;
+      case "C":
+        x = s.x;
+        y = s.y;
+        cpX = s.cp2x;
+        cpY = s.cp2y;
+        break;
+      case "S":
+        x = s.x;
+        y = s.y;
+        cpX = s.cpx;
+        cpY = s.cpy;
+        break;
+      case "T":
+        if (cpX !== null && cpY !== null) {
+          cpX = x - (cpX - x);
+          cpY = y - (cpY - y);
+        }
+        x = s.x;
+        y = s.y;
+        break;
+      case "L":
+        x = s.x;
+        y = s.y;
+        cpX = null;
+        cpY = null;
+        break;
+      case "V":
+        y = s.y;
+        cpX = null;
+        cpY = null;
+        break;
+      case "H":
+        x = s.x;
+        cpX = null;
+        cpY = null;
+        break;
+      case "Z":
+        x = initialX;
+        y = initialY;
+        cpX = null;
+        cpY = null;
+        break;
+      default:
+        throw new Error(`Unexpected instruction ${s.type}`);
+    }
+    return newSeg;
+  });
+  return newSegments.flat(1);
+};
+
+// src/helpers/remove-a-s-t-curves.ts
+var TAU = Math.PI * 2;
+function approximate_unit_arc(theta1, delta_theta) {
+  const alpha = 4 / 3 * Math.tan(delta_theta / 4);
+  const x1 = Math.cos(theta1);
+  const y1 = Math.sin(theta1);
+  const x2 = Math.cos(theta1 + delta_theta);
+  const y2 = Math.sin(theta1 + delta_theta);
+  return [
+    x1,
+    y1,
+    x1 - y1 * alpha,
+    y1 + x1 * alpha,
+    x2 + y2 * alpha,
+    y2 - x2 * alpha,
+    x2,
+    y2
+  ];
+}
+function unit_vector_angle(ux, uy, vx, vy) {
+  const sign = ux * vy - uy * vx < 0 ? -1 : 1;
+  let dot = ux * vx + uy * vy;
+  if (dot > 1) {
+    dot = 1;
+  }
+  if (dot < -1) {
+    dot = -1;
+  }
+  return sign * Math.acos(dot);
+}
+function get_arc_center({
+  x1,
+  y1,
+  x2,
+  y2,
+  largeArcFlag,
+  sweepFlag,
+  rx,
+  ry,
+  sin_phi,
+  cos_phi
+}) {
+  const x1p = cos_phi * (x1 - x2) / 2 + sin_phi * (y1 - y2) / 2;
+  const y1p = -sin_phi * (x1 - x2) / 2 + cos_phi * (y1 - y2) / 2;
+  const rx_sq = rx * rx;
+  const ry_sq = ry * ry;
+  const x1p_sq = x1p * x1p;
+  const y1p_sq = y1p * y1p;
+  let radicant = rx_sq * ry_sq - rx_sq * y1p_sq - ry_sq * x1p_sq;
+  if (radicant < 0) {
+    radicant = 0;
+  }
+  radicant /= rx_sq * y1p_sq + ry_sq * x1p_sq;
+  radicant = Math.sqrt(radicant) * (largeArcFlag === sweepFlag ? -1 : 1);
+  const cxp = radicant * rx / ry * y1p;
+  const cyp = radicant * -ry / rx * x1p;
+  const cx = cos_phi * cxp - sin_phi * cyp + (x1 + x2) / 2;
+  const cy = sin_phi * cxp + cos_phi * cyp + (y1 + y2) / 2;
+  const v1x = (x1p - cxp) / rx;
+  const v1y = (y1p - cyp) / ry;
+  const v2x = (-x1p - cxp) / rx;
+  const v2y = (-y1p - cyp) / ry;
+  const theta1 = unit_vector_angle(1, 0, v1x, v1y);
+  let delta_theta = unit_vector_angle(v1x, v1y, v2x, v2y);
+  if (sweepFlag === false && delta_theta > 0) {
+    delta_theta -= TAU;
+  }
+  if (sweepFlag === true && delta_theta < 0) {
+    delta_theta += TAU;
+  }
+  return [cx, cy, theta1, delta_theta];
+}
+function arcToCircle({
+  x1,
+  y1,
+  x2,
+  y2,
+  largeArcFlag,
+  sweepFlag,
+  rx,
+  ry,
+  phi
+}) {
+  const sin_phi = Math.sin(phi * TAU / 360);
+  const cos_phi = Math.cos(phi * TAU / 360);
+  const x1p = cos_phi * (x1 - x2) / 2 + sin_phi * (y1 - y2) / 2;
+  const y1p = -sin_phi * (x1 - x2) / 2 + cos_phi * (y1 - y2) / 2;
+  if (x1p === 0 && y1p === 0) {
+    return [];
+  }
+  if (rx === 0 || ry === 0) {
+    return [];
+  }
+  rx = Math.abs(rx);
+  ry = Math.abs(ry);
+  const lambda = x1p * x1p / (rx * rx) + y1p * y1p / (ry * ry);
+  if (lambda > 1) {
+    rx *= Math.sqrt(lambda);
+    ry *= Math.sqrt(lambda);
+  }
+  const cc = get_arc_center({
+    x1,
+    y1,
+    x2,
+    y2,
+    largeArcFlag,
+    sweepFlag,
+    rx,
+    ry,
+    sin_phi,
+    cos_phi
+  });
+  const result = [];
+  let theta1 = cc[2];
+  let delta_theta = cc[3];
+  const segments = Math.max(Math.ceil(Math.abs(delta_theta) / (TAU / 4)), 1);
+  delta_theta /= segments;
+  for (let i = 0;i < segments; i++) {
+    result.push(approximate_unit_arc(theta1, delta_theta));
+    theta1 += delta_theta;
+  }
+  return result.map((curve) => {
+    for (let i = 0;i < curve.length; i += 2) {
+      let x = curve[i + 0];
+      let y = curve[i + 1];
+      x *= rx;
+      y *= ry;
+      const xp = cos_phi * x - sin_phi * y;
+      const yp = sin_phi * x + cos_phi * y;
+      curve[i + 0] = xp + cc[0];
+      curve[i + 1] = yp + cc[1];
+    }
+    return curve;
+  });
+}
+var removeATSHVQInstructions = (segments) => {
+  return iterateOverSegments({
+    segments,
+    iterate: ({ segment, prevSegment, x, y, cpX, cpY }) => {
+      if (segment.type === "H") {
+        return [{ type: "L", x: segment.x, y }];
+      }
+      if (segment.type === "V") {
+        return [{ type: "L", x, y: segment.y }];
+      }
+      if (segment.type === "A") {
+        const nextX = segment.x;
+        const nextY = segment.y;
+        const new_segments = arcToCircle({
+          x1: x,
+          y1: y,
+          x2: nextX,
+          y2: nextY,
+          largeArcFlag: segment.largeArcFlag,
+          sweepFlag: segment.sweepFlag,
+          rx: segment.rx,
+          ry: segment.ry,
+          phi: segment.xAxisRotation
+        });
+        if (new_segments.length === 0) {
+          return [
+            {
+              type: "L",
+              x: segment.x,
+              y: segment.y
+            }
+          ];
+        }
+        const result = new_segments.map((_s) => {
+          return {
+            type: "C",
+            cp1x: _s[2],
+            cp1y: _s[3],
+            cp2x: _s[4],
+            cp2y: _s[5],
+            x: _s[6],
+            y: _s[7]
+          };
+        });
+        return result;
+      }
+      if (segment.type === "T") {
+        let prevControlX = 0;
+        let prevControlY = 0;
+        if (prevSegment && (prevSegment.type === "Q" || prevSegment.type === "T")) {
+          prevControlX = cpX;
+          prevControlY = cpY;
+        } else {
+          prevControlX = x;
+          prevControlY = y;
+        }
+        const vectorX = prevControlX - x;
+        const vectorY = prevControlY - y;
+        const newControlX = x - vectorX;
+        const newControlY = y - vectorY;
+        return [
+          convertQToCInstruction({
+            type: "Q",
+            cpx: newControlX,
+            cpy: newControlY,
+            x: segment.x,
+            y: segment.y
+          }, { x, y })
+        ];
+      }
+      if (segment.type === "S") {
+        let prevControlX = 0;
+        let prevControlY = 0;
+        if (prevSegment && prevSegment.type === "C") {
+          prevControlX = prevSegment.cp2x;
+          prevControlY = prevSegment.cp2y;
+        } else if (prevSegment && prevSegment.type === "S") {
+          prevControlX = prevSegment.cpx;
+          prevControlY = prevSegment.cpy;
+        } else {
+          prevControlX = x;
+          prevControlY = y;
+        }
+        const vectorX = prevControlX - x;
+        const vectorY = prevControlY - y;
+        const newControlX = x - vectorX;
+        const newControlY = y - vectorY;
+        return [
+          {
+            type: "C",
+            cp1x: newControlX,
+            cp1y: newControlY,
+            cp2x: segment.cpx,
+            cp2y: segment.cpy,
+            x: segment.x,
+            y: segment.y
+          }
+        ];
+      }
+      if (segment.type === "Q") {
+        return [convertQToCInstruction(segment, { x, y })];
+      }
+      return [segment];
+    }
+  });
+};
+
+// src/serialize-instructions.ts
+var serializeInstruction = (instruction) => {
+  if (instruction.type === "A") {
+    return `A ${instruction.rx} ${instruction.ry} ${instruction.xAxisRotation} ${Number(instruction.largeArcFlag)} ${Number(instruction.sweepFlag)} ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "a") {
+    return `a ${instruction.rx} ${instruction.ry} ${instruction.xAxisRotation} ${Number(instruction.largeArcFlag)} ${Number(instruction.sweepFlag)} ${instruction.dx} ${instruction.dy}`;
+  }
+  if (instruction.type === "C") {
+    return `C ${instruction.cp1x} ${instruction.cp1y} ${instruction.cp2x} ${instruction.cp2y} ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "c") {
+    return `c ${instruction.cp1dx} ${instruction.cp1dy} ${instruction.cp2dx} ${instruction.cp2dy} ${instruction.dx} ${instruction.dy}`;
+  }
+  if (instruction.type === "S") {
+    return `S ${instruction.cpx} ${instruction.cpy} ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "s") {
+    return `s ${instruction.cpdx} ${instruction.cpdy} ${instruction.dx} ${instruction.dy}`;
+  }
+  if (instruction.type === "Q") {
+    return `Q ${instruction.cpx} ${instruction.cpy} ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "q") {
+    return `q ${instruction.cpdx} ${instruction.cpdy} ${instruction.dx} ${instruction.dy}`;
+  }
+  if (instruction.type === "Z") {
+    return "Z";
+  }
+  if (instruction.type === "H") {
+    return `H ${instruction.x}`;
+  }
+  if (instruction.type === "h") {
+    return `h ${instruction.dx}`;
+  }
+  if (instruction.type === "V") {
+    return `V ${instruction.y}`;
+  }
+  if (instruction.type === "v") {
+    return `v ${instruction.dy}`;
+  }
+  if (instruction.type === "L") {
+    return `L ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "l") {
+    return `l ${instruction.dx} ${instruction.dy}`;
+  }
+  if (instruction.type === "M") {
+    return `M ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "m") {
+    return `m ${instruction.dx} ${instruction.dy}`;
+  }
+  if (instruction.type === "T") {
+    return `T ${instruction.x} ${instruction.y}`;
+  }
+  if (instruction.type === "t") {
+    return `t ${instruction.dx} ${instruction.dy}`;
+  }
+  throw new Error(`Unknown instruction type: ${instruction.type}`);
+};
+var serializeInstructions = (path) => {
+  return path.map((p) => {
+    return serializeInstruction(p);
+  }).join(" ");
+};
+
+// src/normalize-path.ts
+var normalizeInstructions = (instructions) => {
+  const normalized = [];
+  let x = 0;
+  let y = 0;
+  let moveX = 0;
+  let moveY = 0;
+  for (let i = 0;i < instructions.length; i++) {
+    const instruction = instructions[i];
+    if (instruction.type === "M") {
+      moveX = instruction.x;
+      moveY = instruction.y;
+    } else if (instruction.type === "m") {
+      moveX = x + instruction.dx;
+      moveY = y + instruction.dy;
+    }
+    if (instruction.type === "A" || instruction.type === "C" || instruction.type === "L" || instruction.type === "M" || instruction.type === "Q" || instruction.type === "S" || instruction.type === "T") {
+      normalized.push(instruction);
+      x = instruction.x;
+      y = instruction.y;
+      continue;
+    }
+    if (instruction.type === "a" || instruction.type === "c" || instruction.type === "l" || instruction.type === "m" || instruction.type === "q" || instruction.type === "s" || instruction.type === "t") {
+      const currentX = x;
+      const currentY = y;
+      x += instruction.dx;
+      y += instruction.dy;
+      if (instruction.type === "a") {
+        normalized.push({
+          type: "A",
+          largeArcFlag: instruction.largeArcFlag,
+          rx: instruction.rx,
+          ry: instruction.ry,
+          sweepFlag: instruction.sweepFlag,
+          xAxisRotation: instruction.xAxisRotation,
+          x,
+          y
+        });
+        continue;
+      }
+      if (instruction.type === "c") {
+        normalized.push({
+          type: "C",
+          cp1x: instruction.cp1dx + currentX,
+          cp1y: instruction.cp1dy + currentY,
+          cp2x: instruction.cp2dx + currentX,
+          cp2y: instruction.cp2dy + currentY,
+          x,
+          y
+        });
+        continue;
+      }
+      if (instruction.type === "l") {
+        normalized.push({
+          type: "L",
+          x,
+          y
+        });
+        continue;
+      }
+      if (instruction.type === "m") {
+        normalized.push({
+          type: "M",
+          x,
+          y
+        });
+        continue;
+      }
+      if (instruction.type === "q") {
+        normalized.push({
+          type: "Q",
+          cpx: instruction.cpdx + currentX,
+          cpy: instruction.cpdy + currentY,
+          x,
+          y
+        });
+        continue;
+      }
+      if (instruction.type === "s") {
+        normalized.push({
+          type: "S",
+          cpx: instruction.cpdx + currentX,
+          cpy: instruction.cpdy + currentY,
+          x,
+          y
+        });
+        continue;
+      }
+      if (instruction.type === "t") {
+        normalized.push({
+          type: "T",
+          x,
+          y
+        });
+        continue;
+      }
+    }
+    if (instruction.type === "H") {
+      normalized.push(instruction);
+      x = instruction.x;
+      continue;
+    }
+    if (instruction.type === "V") {
+      normalized.push(instruction);
+      y = instruction.y;
+      continue;
+    }
+    if (instruction.type === "Z") {
+      normalized.push(instruction);
+      x = moveX;
+      y = moveY;
+      continue;
+    }
+    if (instruction.type === "h") {
+      x += instruction.dx;
+      normalized.push({
+        type: "H",
+        x
+      });
+      continue;
+    }
+    if (instruction.type === "v") {
+      y += instruction.dy;
+      normalized.push({
+        type: "V",
+        y
+      });
+      continue;
+    }
+    throw new Error("Unknown instruction type: " + instruction.type);
+  }
+  return normalized;
+};
+var normalizePath = (path) => {
+  const instructions = parsePath(path);
+  const normalized = normalizeInstructions(instructions);
+  return serializeInstructions(normalized);
+};
+
+// src/reduce-instructions.ts
+var reduceInstructions = (instruction) => {
+  const simplified = normalizeInstructions(instruction);
+  return removeATSHVQInstructions(simplified);
+};
+
+// src/cut-path.ts
+var cutPath = (d, length2) => {
+  const parsed = parsePath(d);
+  const reduced = reduceInstructions(parsed);
+  const constructed = conductAnalysis(reduced);
+  const newInstructions = [];
+  let summedUpLength = 0;
+  for (const segment of constructed) {
+    for (const instructionAndInfo of segment.instructionsAndInfo) {
+      if (summedUpLength + instructionAndInfo.length > length2) {
+        const remainingLength = length2 - summedUpLength;
+        const progress = remainingLength / instructionAndInfo.length;
+        const cut = cutInstruction({
+          instruction: instructionAndInfo.instruction,
+          lastPoint: instructionAndInfo.startPoint,
+          progress
+        });
+        newInstructions.push(cut);
+        return serializeInstructions(newInstructions);
+      }
+      summedUpLength += instructionAndInfo.length;
+      newInstructions.push(instructionAndInfo.instruction);
+      if (summedUpLength === length2) {
+        return serializeInstructions(newInstructions);
+      }
+    }
+  }
+  return serializeInstructions(newInstructions);
+};
+
+// src/debug-path.ts
+var debugPath = (d) => {
+  const instructions = normalizeInstructions(parsePath(d));
+  return instructions.map((inst, i) => {
+    if (inst.type === "Z") {
+      return null;
+    }
+    if (inst.type === "H" || inst.type === "V") {
+      return null;
+    }
+    const topLeft = [inst.x - 5, inst.y - 5];
+    const topRight = [inst.x + 5, inst.y - 5];
+    const bottomLeft = [inst.x - 5, inst.y + 5];
+    const bottomRight = [inst.x + 5, inst.y + 5];
+    const triangle = [
+      {
+        type: "M",
+        x: topLeft[0],
+        y: topLeft[1]
+      },
+      {
+        type: "L",
+        x: topRight[0],
+        y: topRight[1]
+      },
+      {
+        type: "L",
+        x: bottomRight[0],
+        y: bottomRight[1]
+      },
+      {
+        type: "L",
+        x: bottomLeft[0],
+        y: bottomLeft[1]
+      },
+      {
+        type: "Z"
+      }
+    ];
+    return {
+      d: serializeInstructions(triangle),
+      color: i === instructions.length - 1 ? "red" : inst.type === "M" ? "blue" : "green"
+    };
+  }).filter(Boolean);
+};
+
+// src/get-bounding-box.ts
+var CBEZIER_MINMAX_EPSILON = 0.00000001;
+function minmaxQ(A) {
+  const min = Math.min(A[0], A[2]);
+  const max = Math.max(A[0], A[2]);
+  if (A[1] > A[0] ? A[2] >= A[1] : A[2] <= A[1]) {
+    return [min, max];
+  }
+  const E = (A[0] * A[2] - A[1] * A[1]) / (A[0] - 2 * A[1] + A[2]);
+  return E < min ? [E, max] : [min, E];
+}
+function minmaxC(A) {
+  const K = A[0] - 3 * A[1] + 3 * A[2] - A[3];
+  if (Math.abs(K) < CBEZIER_MINMAX_EPSILON) {
+    if (A[0] === A[3] && A[0] === A[1]) {
+      return [A[0], A[3]];
+    }
+    return minmaxQ([
+      A[0],
+      -0.5 * A[0] + 1.5 * A[1],
+      A[0] - 3 * A[1] + 3 * A[2]
+    ]);
+  }
+  const T = -A[0] * A[2] + A[0] * A[3] - A[1] * A[2] - A[1] * A[3] + A[1] * A[1] + A[2] * A[2];
+  if (T <= 0) {
+    return [Math.min(A[0], A[3]), Math.max(A[0], A[3])];
+  }
+  const S = Math.sqrt(T);
+  let min = Math.min(A[0], A[3]);
+  let max = Math.max(A[0], A[3]);
+  const L = A[0] - 2 * A[1] + A[2];
+  for (let R = (L + S) / K, i = 1;i <= 2; R = (L - S) / K, i++) {
+    if (R > 0 && R < 1) {
+      const Q = A[0] * (1 - R) * (1 - R) * (1 - R) + A[1] * 3 * (1 - R) * (1 - R) * R + A[2] * 3 * (1 - R) * R * R + A[3] * R * R * R;
+      if (Q < min) {
+        min = Q;
+      }
+      if (Q > max) {
+        max = Q;
+      }
+    }
+  }
+  return [min, max];
+}
+var getBoundingBoxFromInstructions = (instructions) => {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let x = 0;
+  let y = 0;
+  let lastMoveX = 0;
+  let lastMoveY = 0;
+  for (const seg of instructions) {
+    switch (seg.type) {
+      case "M": {
+        lastMoveX = seg.x;
+        lastMoveY = seg.y;
+        if (minX > seg.x) {
+          minX = seg.x;
+        }
+        if (minY > seg.y) {
+          minY = seg.y;
+        }
+        if (maxX < seg.x) {
+          maxX = seg.x;
+        }
+        if (maxY < seg.y) {
+          maxY = seg.y;
+        }
+        x = seg.x;
+        y = seg.y;
+        break;
+      }
+      case "L": {
+        if (minX > seg.x) {
+          minX = seg.x;
+        }
+        if (minY > seg.y) {
+          minY = seg.y;
+        }
+        if (maxX < seg.x) {
+          maxX = seg.x;
+        }
+        if (maxY < seg.y) {
+          maxY = seg.y;
+        }
+        x = seg.x;
+        y = seg.y;
+        break;
+      }
+      case "C": {
+        const cxMinMax = minmaxC([x, seg.cp1x, seg.cp2x, seg.x]);
+        if (minX > cxMinMax[0]) {
+          minX = cxMinMax[0];
+        }
+        if (maxX < cxMinMax[1]) {
+          maxX = cxMinMax[1];
+        }
+        const cyMinMax = minmaxC([y, seg.cp1y, seg.cp2y, seg.y]);
+        if (minY > cyMinMax[0]) {
+          minY = cyMinMax[0];
+        }
+        if (maxY < cyMinMax[1]) {
+          maxY = cyMinMax[1];
+        }
+        x = seg.x;
+        y = seg.y;
+        break;
+      }
+      case "Z":
+        x = lastMoveX;
+        y = lastMoveY;
+        break;
+      default:
+        throw new Error(`Unknown instruction ${seg.type}`);
+    }
+  }
+  return {
+    x1: minX,
+    y1: minY,
+    x2: maxX,
+    y2: maxY,
+    viewBox: `${minX} ${minY} ${maxX - minX} ${maxY - minY}`,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+};
+var getBoundingBox = (d) => {
+  const parsed = parsePath(d);
+  const unarced = removeATSHVQInstructions(normalizeInstructions(parsed));
+  return getBoundingBoxFromInstructions(unarced);
+};
+
+// src/translate-path.ts
+var translateSegments = (segments, x, y) => {
+  return segments.map((segment) => {
+    if (segment.type === "a" || segment.type === "c" || segment.type === "v" || segment.type === "s" || segment.type === "h" || segment.type === "l" || segment.type === "m" || segment.type === "q" || segment.type === "t") {
+      return segment;
+    }
+    if (segment.type === "V") {
+      return {
+        type: "V",
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "H") {
+      return {
+        type: "H",
+        x: segment.x + x
+      };
+    }
+    if (segment.type === "A") {
+      return {
+        type: "A",
+        rx: segment.rx,
+        ry: segment.ry,
+        largeArcFlag: segment.largeArcFlag,
+        sweepFlag: segment.sweepFlag,
+        xAxisRotation: segment.xAxisRotation,
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "Z") {
+      return segment;
+    }
+    if (segment.type === "C") {
+      return {
+        type: "C",
+        cp1x: segment.cp1x + x,
+        cp1y: segment.cp1y + y,
+        cp2x: segment.cp2x + x,
+        cp2y: segment.cp2y + y,
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "Q") {
+      return {
+        type: "Q",
+        cpx: segment.cpx + x,
+        cpy: segment.cpy + y,
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "S") {
+      return {
+        type: "S",
+        cpx: segment.cpx + x,
+        cpy: segment.cpy + y,
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "T") {
+      return {
+        type: "T",
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "L") {
+      return {
+        type: "L",
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    if (segment.type === "M") {
+      return {
+        type: "M",
+        x: segment.x + x,
+        y: segment.y + y
+      };
+    }
+    throw new Error(`Unknown segment type: ${segment.type}`);
+  });
+};
+var translatePath = (path, x, y) => {
+  return serializeInstructions(translateSegments(parsePath(path), x, y));
+};
+
+// src/center-path.ts
+var centerPath = (d, target = { x: 0, y: 0 }) => {
+  const box = getBoundingBox(d);
+  const dx = target.x - (box.x1 + box.x2) / 2;
+  const dy = target.y - (box.y1 + box.y2) / 2;
+  return translatePath(d, dx, dy);
+};
+// src/helpers/arc.ts
+var mod = (x, m) => {
+  return (x % m + m) % m;
+};
+var toRadians = (angle) => {
+  return angle * (Math.PI / 180);
+};
+var distance = (p0, p1) => {
+  return Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2);
+};
+var clamp = (val, min, max) => {
+  return Math.min(Math.max(val, min), max);
+};
+var angleBetween = (v0, v1) => {
+  const p = v0.x * v1.x + v0.y * v1.y;
+  const n = Math.sqrt((v0.x ** 2 + v0.y ** 2) * (v1.x ** 2 + v1.y ** 2));
+  const sign = v0.x * v1.y - v0.y * v1.x < 0 ? -1 : 1;
+  const angle = sign * Math.acos(p / n);
+  return angle;
+};
+var pointOnEllipticalArc = ({
+  p0,
+  rx,
+  ry,
+  xAxisRotation,
+  largeArcFlag,
+  sweepFlag,
+  p1,
+  t
+}) => {
+  rx = Math.abs(rx);
+  ry = Math.abs(ry);
+  xAxisRotation = mod(xAxisRotation, 360);
+  const xAxisRotationRadians = toRadians(xAxisRotation);
+  if (p0.x === p1.x && p0.y === p1.y) {
+    return { x: p0.x, y: p0.y, ellipticalArcAngle: 0 };
+  }
+  if (rx === 0 || ry === 0) {
+    return { x: 0, y: 0, ellipticalArcAngle: 0 };
+  }
+  const dx = (p0.x - p1.x) / 2;
+  const dy = (p0.y - p1.y) / 2;
+  const transformedPoint = {
+    x: Math.cos(xAxisRotationRadians) * dx + Math.sin(xAxisRotationRadians) * dy,
+    y: -Math.sin(xAxisRotationRadians) * dx + Math.cos(xAxisRotationRadians) * dy
+  };
+  const radiiCheck = transformedPoint.x ** 2 / rx ** 2 + transformedPoint.y ** 2 / ry ** 2;
+  if (radiiCheck > 1) {
+    rx *= Math.sqrt(radiiCheck);
+    ry *= Math.sqrt(radiiCheck);
+  }
+  const cSquareNumerator = rx ** 2 * ry ** 2 - rx ** 2 * transformedPoint.y ** 2 - ry ** 2 * transformedPoint.x ** 2;
+  const cSquareRootDenom = rx ** 2 * transformedPoint.y ** 2 + ry ** 2 * transformedPoint.x ** 2;
+  let cRadicand = cSquareNumerator / cSquareRootDenom;
+  cRadicand = cRadicand < 0 ? 0 : cRadicand;
+  const cCoef = (largeArcFlag === sweepFlag ? -1 : 1) * Math.sqrt(cRadicand);
+  const transformedCenter = {
+    x: cCoef * (rx * transformedPoint.y / ry),
+    y: cCoef * (-(ry * transformedPoint.x) / rx)
+  };
+  const center = {
+    x: Math.cos(xAxisRotationRadians) * transformedCenter.x - Math.sin(xAxisRotationRadians) * transformedCenter.y + (p0.x + p1.x) / 2,
+    y: Math.sin(xAxisRotationRadians) * transformedCenter.x + Math.cos(xAxisRotationRadians) * transformedCenter.y + (p0.y + p1.y) / 2
+  };
+  const startVector = {
+    x: (transformedPoint.x - transformedCenter.x) / rx,
+    y: (transformedPoint.y - transformedCenter.y) / ry
+  };
+  const startAngle = angleBetween({
+    x: 1,
+    y: 0
+  }, startVector);
+  const endVector = {
+    x: (-transformedPoint.x - transformedCenter.x) / rx,
+    y: (-transformedPoint.y - transformedCenter.y) / ry
+  };
+  let sweepAngle = angleBetween(startVector, endVector);
+  if (!sweepFlag && sweepAngle > 0) {
+    sweepAngle -= 2 * Math.PI;
+  } else if (sweepFlag && sweepAngle < 0) {
+    sweepAngle += 2 * Math.PI;
+  }
+  sweepAngle %= 2 * Math.PI;
+  const angle = startAngle + sweepAngle * t;
+  const ellipseComponentX = rx * Math.cos(angle);
+  const ellipseComponentY = ry * Math.sin(angle);
+  const point = {
+    x: Math.cos(xAxisRotationRadians) * ellipseComponentX - Math.sin(xAxisRotationRadians) * ellipseComponentY + center.x,
+    y: Math.sin(xAxisRotationRadians) * ellipseComponentX + Math.cos(xAxisRotationRadians) * ellipseComponentY + center.y,
+    ellipticalArcStartAngle: startAngle,
+    ellipticalArcEndAngle: startAngle + sweepAngle,
+    ellipticalArcAngle: angle,
+    ellipticalArcCenter: center,
+    resultantRx: rx,
+    resultantRy: ry
+  };
+  return point;
+};
+var approximateArcLengthOfCurve = (resolution, pointOnCurveFunc) => {
+  resolution = resolution ? resolution : 500;
+  let resultantArcLength = 0;
+  const arcLengthMap = [];
+  const approximationLines = [];
+  let prevPoint = pointOnCurveFunc(0);
+  let nextPoint;
+  for (let i = 0;i < resolution; i++) {
+    const t = clamp(i * (1 / resolution), 0, 1);
+    nextPoint = pointOnCurveFunc(t);
+    resultantArcLength += distance(prevPoint, nextPoint);
+    approximationLines.push([prevPoint, nextPoint]);
+    arcLengthMap.push({
+      t,
+      arcLength: resultantArcLength
+    });
+    prevPoint = nextPoint;
+  }
+  nextPoint = pointOnCurveFunc(1);
+  approximationLines.push([prevPoint, nextPoint]);
+  resultantArcLength += distance(prevPoint, nextPoint);
+  arcLengthMap.push({
+    t: 1,
+    arcLength: resultantArcLength
+  });
+  return {
+    arcLength: resultantArcLength,
+    arcLengthMap,
+    approximationLines
+  };
+};
+var makeArc = ({
+  x0,
+  y0,
+  rx,
+  ry,
+  xAxisRotate,
+  LargeArcFlag,
+  SweepFlag,
+  x1,
+  y1
+}) => {
+  const lengthProperties = approximateArcLengthOfCurve(300, (t) => {
+    return pointOnEllipticalArc({
+      p0: { x: x0, y: y0 },
+      rx,
+      ry,
+      xAxisRotation: xAxisRotate,
+      largeArcFlag: LargeArcFlag,
+      sweepFlag: SweepFlag,
+      p1: { x: x1, y: y1 },
+      t
+    });
+  });
+  const length2 = lengthProperties.arcLength;
+  const getPointAtLength = (fractionLength) => {
+    if (fractionLength < 0) {
+      fractionLength = 0;
+    } else if (fractionLength > length2) {
+      fractionLength = length2;
+    }
+    const position = pointOnEllipticalArc({
+      p0: { x: x0, y: y0 },
+      rx,
+      ry,
+      xAxisRotation: xAxisRotate,
+      largeArcFlag: LargeArcFlag,
+      sweepFlag: SweepFlag,
+      p1: { x: x1, y: y1 },
+      t: fractionLength / length2
+    });
+    return { x: position.x, y: position.y };
+  };
+  return {
+    getPointAtLength,
+    getTangentAtLength: (fractionLength) => {
+      if (fractionLength < 0) {
+        fractionLength = 0;
+      } else if (fractionLength > length2) {
+        fractionLength = length2;
+      }
+      const point_dist = 0.05;
+      const p1 = getPointAtLength(fractionLength);
+      let p2;
+      if (fractionLength < 0) {
+        fractionLength = 0;
+      } else if (fractionLength > length2) {
+        fractionLength = length2;
+      }
+      if (fractionLength < length2 - point_dist) {
+        p2 = getPointAtLength(fractionLength + point_dist);
+      } else {
+        p2 = getPointAtLength(fractionLength - point_dist);
+      }
+      const xDist = p2.x - p1.x;
+      const yDist = p2.y - p1.y;
+      const dist = Math.sqrt(xDist * xDist + yDist * yDist);
+      if (fractionLength < length2 - point_dist) {
+        return { x: -xDist / dist, y: -yDist / dist };
+      }
+      return { x: xDist / dist, y: yDist / dist };
+    },
+    getTotalLength: () => {
+      return length2;
+    },
+    type: "arc"
+  };
+};
+
+// src/helpers/construct.ts
+var constructFromInstructions = (instructions) => {
+  let totalLength = 0;
+  const partialLengths = [];
+  const functions = [];
+  let initialPoint = null;
+  let cur = [0, 0];
+  let prev_point = [0, 0];
+  let curve;
+  let ringStart = [0, 0];
+  const segments = [];
+  for (let i = 0;i < instructions.length; i++) {
+    const instruction = instructions[i];
+    if (instruction.type !== "m" && instruction.type !== "M" && segments.length > 0) {
+      segments[segments.length - 1].push(instruction);
+    }
+    if (instruction.type === "M") {
+      cur = [instruction.x, instruction.y];
+      ringStart = [cur[0], cur[1]];
+      segments.push([instruction]);
+      functions.push(null);
+      if (i === 0) {
+        initialPoint = { x: instruction.x, y: instruction.y };
+      }
+    }
+    if (instruction.type === "m") {
+      cur = [instruction.dx + cur[0], instruction.dy + cur[1]];
+      ringStart = [cur[0], cur[1]];
+      segments.push([{ type: "M", x: cur[0], y: cur[1] }]);
+      functions.push(null);
+    }
+    if (instruction.type === "L") {
+      totalLength += Math.sqrt((cur[0] - instruction.x) ** 2 + (cur[1] - instruction.y) ** 2);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: instruction.x,
+        y0: cur[1],
+        y1: instruction.y
+      }));
+      cur = [instruction.x, instruction.y];
+    }
+    if (instruction.type === "l") {
+      totalLength += Math.sqrt(instruction.dx ** 2 + instruction.dy ** 2);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: instruction.dx + cur[0],
+        y0: cur[1],
+        y1: instruction.dy + cur[1]
+      }));
+      cur = [instruction.dx + cur[0], instruction.dy + cur[1]];
+    }
+    if (instruction.type === "H") {
+      totalLength += Math.abs(cur[0] - instruction.x);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: instruction.x,
+        y0: cur[1],
+        y1: cur[1]
+      }));
+      cur[0] = instruction.x;
+    }
+    if (instruction.type === "h") {
+      totalLength += Math.abs(instruction.dx);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: cur[0] + instruction.dx,
+        y0: cur[1],
+        y1: cur[1]
+      }));
+      cur[0] = instruction.dx + cur[0];
+    } else if (instruction.type === "V") {
+      totalLength += Math.abs(cur[1] - instruction.y);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: cur[0],
+        y0: cur[1],
+        y1: instruction.y
+      }));
+      cur[1] = instruction.y;
+    }
+    if (instruction.type === "v") {
+      totalLength += Math.abs(instruction.dy);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: cur[0],
+        y0: cur[1],
+        y1: cur[1] + instruction.dy
+      }));
+      cur[1] = instruction.dy + cur[1];
+    } else if (instruction.type === "Z") {
+      totalLength += Math.sqrt((ringStart[0] - cur[0]) ** 2 + (ringStart[1] - cur[1]) ** 2);
+      functions.push(makeLinearPosition({
+        x0: cur[0],
+        x1: ringStart[0],
+        y0: cur[1],
+        y1: ringStart[1]
+      }));
+      cur = [ringStart[0], ringStart[1]];
+    }
+    if (instruction.type === "C") {
+      curve = makeCubic({
+        startX: cur[0],
+        startY: cur[1],
+        cp1x: instruction.cp1x,
+        cp1y: instruction.cp1y,
+        cp2x: instruction.cp2x,
+        cp2y: instruction.cp2y,
+        x: instruction.x,
+        y: instruction.y
+      });
+      totalLength += curve.getTotalLength();
+      cur = [instruction.x, instruction.y];
+      functions.push(curve);
+    } else if (instruction.type === "c") {
+      curve = makeCubic({
+        startX: cur[0],
+        startY: cur[1],
+        cp1x: cur[0] + instruction.cp1dx,
+        cp1y: cur[1] + instruction.cp1dy,
+        cp2x: cur[0] + instruction.cp2dx,
+        cp2y: cur[1] + instruction.cp2dy,
+        x: cur[0] + instruction.dx,
+        y: cur[1] + instruction.dy
+      });
+      if (curve.getTotalLength() > 0) {
+        totalLength += curve.getTotalLength();
+        functions.push(curve);
+        cur = [instruction.dx + cur[0], instruction.dy + cur[1]];
+      } else {
+        functions.push(makeLinearPosition({ x0: cur[0], x1: cur[0], y0: cur[1], y1: cur[1] }));
+      }
+    }
+    if (instruction.type === "S") {
+      const prev = instructions[i - 1];
+      const prevWasCurve = prev.type === "C" || prev.type === "c" || prev.type === "S" || prev.type === "s";
+      if (i > 0 && prevWasCurve) {
+        if (curve) {
+          const c = curve.getC();
+          curve = makeCubic({
+            startX: cur[0],
+            startY: cur[1],
+            cp1x: 2 * cur[0] - c.x,
+            cp1y: 2 * cur[1] - c.y,
+            cp2x: instruction.cpx,
+            cp2y: instruction.cpy,
+            x: instruction.x,
+            y: instruction.y
+          });
+        }
+      } else {
+        curve = makeCubic({
+          startX: cur[0],
+          startY: cur[1],
+          cp1x: cur[0],
+          cp1y: cur[1],
+          cp2x: instruction.cpx,
+          cp2y: instruction.cpy,
+          x: instruction.x,
+          y: instruction.y
+        });
+      }
+      if (curve) {
+        totalLength += curve.getTotalLength();
+        cur = [instruction.x, instruction.y];
+        functions.push(curve);
+      }
+    }
+    if (instruction.type === "s") {
+      const prev = instructions[i - 1];
+      const prevWasCurve = prev.type === "C" || prev.type === "c" || prev.type === "S" || prev.type === "s";
+      if (i > 0 && prevWasCurve) {
+        if (curve) {
+          const c = curve.getC();
+          const d = curve.getD();
+          curve = makeCubic({
+            startX: cur[0],
+            startY: cur[1],
+            cp1x: cur[0] + d.x - c.x,
+            cp1y: cur[1] + d.y - c.y,
+            cp2x: cur[0] + instruction.cpdx,
+            cp2y: cur[1] + instruction.cpdy,
+            x: cur[0] + instruction.dx,
+            y: cur[1] + instruction.dy
+          });
+        }
+      } else {
+        curve = makeCubic({
+          startX: cur[0],
+          startY: cur[1],
+          cp1x: cur[0],
+          cp1y: cur[1],
+          cp2x: cur[0] + instruction.cpdx,
+          cp2y: cur[1] + instruction.cpdy,
+          x: cur[0] + instruction.dx,
+          y: cur[1] + instruction.dy
+        });
+      }
+      if (curve) {
+        totalLength += curve.getTotalLength();
+        cur = [instruction.dx + cur[0], instruction.dy + cur[1]];
+        functions.push(curve);
+      }
+    }
+    if (instruction.type === "Q") {
+      if (cur[0] === instruction.cpx && cur[1] === instruction.cpy) {
+        const linearCurve = makeLinearPosition({
+          x0: instruction.cpx,
+          x1: instruction.x,
+          y0: instruction.cpy,
+          y1: instruction.y
+        });
+        totalLength += linearCurve.getTotalLength();
+        functions.push(linearCurve);
+      } else {
+        curve = makeQuadratic({
+          startX: cur[0],
+          startY: cur[1],
+          cpx: instruction.cpx,
+          cpy: instruction.cpy,
+          x: instruction.x,
+          y: instruction.y
+        });
+        totalLength += curve.getTotalLength();
+        functions.push(curve);
+      }
+      cur = [instruction.x, instruction.y];
+      prev_point = [instruction.cpx, instruction.cpy];
+    }
+    if (instruction.type === "q") {
+      if (instruction.cpdx === 0 && instruction.cpdy === 0) {
+        const linearCurve = makeLinearPosition({
+          x0: cur[0] + instruction.cpdx,
+          x1: cur[0] + instruction.cpdy,
+          y0: cur[1] + instruction.dx,
+          y1: cur[1] + instruction.dy
+        });
+        totalLength += linearCurve.getTotalLength();
+        functions.push(linearCurve);
+      } else {
+        curve = makeQuadratic({
+          startX: cur[0],
+          startY: cur[1],
+          cpx: cur[0] + instruction.cpdx,
+          cpy: cur[1] + instruction.cpdy,
+          x: cur[0] + instruction.dx,
+          y: cur[1] + instruction.dy
+        });
+        totalLength += curve.getTotalLength();
+        functions.push(curve);
+      }
+      prev_point = [cur[0] + instruction.cpdx, cur[1] + instruction.cpdy];
+      cur = [instruction.dx + cur[0], instruction.dy + cur[1]];
+    }
+    if (instruction.type === "T") {
+      const prev = instructions[i - 1];
+      const prevWasQ = prev.type === "Q" || prev.type === "q" || prev.type === "T" || prev.type === "t";
+      if (i > 0 && prevWasQ) {
+        curve = makeQuadratic({
+          startX: cur[0],
+          startY: cur[1],
+          cpx: 2 * cur[0] - prev_point[0],
+          cpy: 2 * cur[1] - prev_point[1],
+          x: instruction.x,
+          y: instruction.y
+        });
+        functions.push(curve);
+        totalLength += curve.getTotalLength();
+      } else {
+        const linearCurve = makeLinearPosition({
+          x0: cur[0],
+          x1: instruction.x,
+          y0: cur[1],
+          y1: instruction.y
+        });
+        functions.push(linearCurve);
+        totalLength += linearCurve.getTotalLength();
+      }
+      prev_point = [2 * cur[0] - prev_point[0], 2 * cur[1] - prev_point[1]];
+      cur = [instruction.x, instruction.y];
+    }
+    if (instruction.type === "t") {
+      const prev = instructions[i - 1];
+      const prevWasQ = prev.type === "Q" || prev.type === "q" || prev.type === "T" || prev.type === "t";
+      if (i > 0 && prevWasQ) {
+        curve = makeQuadratic({
+          startX: cur[0],
+          startY: cur[1],
+          cpx: 2 * cur[0] - prev_point[0],
+          cpy: 2 * cur[1] - prev_point[1],
+          x: cur[0] + instruction.dx,
+          y: cur[1] + instruction.dy
+        });
+        totalLength += curve.getTotalLength();
+        functions.push(curve);
+      } else {
+        const linearCurve = makeLinearPosition({
+          x0: cur[0],
+          x1: cur[0] + instruction.dx,
+          y0: cur[1],
+          y1: cur[1] + instruction.dy
+        });
+        totalLength += linearCurve.getTotalLength();
+        functions.push(linearCurve);
+      }
+      prev_point = [2 * cur[0] - prev_point[0], 2 * cur[1] - prev_point[1]];
+      cur = [instruction.dx + cur[0], instruction.dy + cur[1]];
+    }
+    if (instruction.type === "A") {
+      const arcCurve = makeArc({
+        x0: cur[0],
+        y0: cur[1],
+        rx: instruction.rx,
+        ry: instruction.ry,
+        xAxisRotate: instruction.xAxisRotation,
+        LargeArcFlag: instruction.largeArcFlag,
+        SweepFlag: instruction.sweepFlag,
+        x1: instruction.x,
+        y1: instruction.y
+      });
+      totalLength += arcCurve.getTotalLength();
+      cur = [instruction.x, instruction.y];
+      functions.push(arcCurve);
+    }
+    if (instruction.type === "a") {
+      const arcCurve = makeArc({
+        x0: cur[0],
+        y0: cur[1],
+        rx: instruction.rx,
+        ry: instruction.ry,
+        xAxisRotate: instruction.xAxisRotation,
+        LargeArcFlag: instruction.largeArcFlag,
+        SweepFlag: instruction.sweepFlag,
+        x1: cur[0] + instruction.dx,
+        y1: cur[1] + instruction.dy
+      });
+      totalLength += arcCurve.getTotalLength();
+      cur = [cur[0] + instruction.dx, cur[1] + instruction.dy];
+      functions.push(arcCurve);
+    }
+    partialLengths.push(totalLength);
+  }
+  return {
+    segments,
+    initialPoint,
+    totalLength,
+    partialLengths,
+    functions
+  };
+};
+var construct = (string) => {
+  const parsed = parsePath(string);
+  return constructFromInstructions(parsed);
+};
+
+// src/get-length.ts
+var getLength = (path) => {
+  const constructucted = construct(path);
+  return constructucted.totalLength;
+};
+
+// src/evolve-path.ts
+var evolvePath = (progress, path) => {
+  const length2 = getLength(path);
+  if (progress === 0) {
+    const extendedLength = length2 * 1.5;
+    return {
+      strokeDasharray: `${extendedLength} ${extendedLength}`,
+      strokeDashoffset: extendedLength
+    };
+  }
+  const strokeDasharray = `${length2} ${length2}`;
+  const strokeDashoffset = length2 - progress * length2;
+  return { strokeDasharray, strokeDashoffset };
+};
+// src/extend-viewbox.ts
+var extendViewBox = (currentViewBox, scale) => {
+  const relativeScale = scale - 1;
+  const splitted = currentViewBox.split(" ").map((a) => a.trim()).filter((a) => a !== "").map(Number);
+  if (splitted.length !== 4) {
+    throw new Error(`currentViewBox must be 4 valid numbers, but got "${currentViewBox}"`);
+  }
+  for (const part of splitted) {
+    if (Number.isNaN(part)) {
+      throw new Error(`currentViewBox must be 4 valid numbers, but got "${currentViewBox}"`);
+    }
+    if (!Number.isFinite(part)) {
+      throw new Error(`currentViewBox must be 4 valid numbers, but got "${currentViewBox}"`);
+    }
+  }
+  const [x, y, width, height] = splitted;
+  return [
+    x - relativeScale * width / 2,
+    y - relativeScale * height / 2,
+    width + relativeScale * width,
+    height + relativeScale * height
+  ].join(" ");
+};
+// src/get-instruction-index-at-length.ts
+var getInstructionIndexAtLengthFromConstructed = (constructed, fractionLength) => {
+  if (fractionLength < 0) {
+    throw new Error("Length less than 0 was passed");
+  }
+  if (fractionLength > constructed.totalLength) {
+    fractionLength = constructed.totalLength;
+  }
+  let index = constructed.partialLengths.length - 1;
+  while (constructed.partialLengths[index] >= fractionLength && index > 0) {
+    index--;
+  }
+  return {
+    lengthIntoInstruction: fractionLength - constructed.partialLengths[index],
+    index
+  };
+};
+var getInstructionIndexAtLength = (path, length2) => {
+  const constructed = construct(path);
+  if (length2 > constructed.totalLength) {
+    throw new Error(`A length of ${length2} was passed to getInstructionIndexAtLength() but the total length of the path is only ${constructed.totalLength}`);
+  }
+  return getInstructionIndexAtLengthFromConstructed(constructed, length2);
+};
+// src/get-point-at-length.ts
+var getPointAtLength = (path, length2) => {
+  const constructed = construct(path);
+  if (length2 > constructed.totalLength) {
+    return null;
+  }
+  const fractionPart = getInstructionIndexAtLengthFromConstructed(constructed, length2);
+  const functionAtPart = constructed.functions[fractionPart.index + 1];
+  if (functionAtPart) {
+    return functionAtPart.getPointAtLength(fractionPart.lengthIntoInstruction);
+  }
+  if (constructed.initialPoint) {
+    return constructed.initialPoint;
+  }
+  throw new Error("Wrong function at this part.");
+};
+// src/get-subpaths.ts
+var getSubpaths = (path) => {
+  const parsed = parsePath(path);
+  const { segments } = constructFromInstructions(parsed);
+  return segments.map((seg) => {
+    return serializeInstructions(seg);
+  });
+};
+// src/get-tangent-at-length.ts
+var getTangentAtLength = (path, length2) => {
+  const constructed = construct(path);
+  if (length2 > constructed.totalLength) {
+    return null;
+  }
+  const fractionPart = getInstructionIndexAtLengthFromConstructed(constructed, length2);
+  const functionAtPart = constructed.functions[fractionPart.index + 1];
+  if (functionAtPart) {
+    return functionAtPart.getTangentAtLength(fractionPart.lengthIntoInstruction);
+  }
+  if (constructed.initialPoint) {
+    return { x: 0, y: 0 };
+  }
+  throw new Error("Wrong function at this part.");
+};
+// src/get-end-position.ts
+var getEndPosition = (instructions) => {
+  let x = 0;
+  let y = 0;
+  let moveX = 0;
+  let moveY = 0;
+  for (let i = 0;i < instructions.length; i++) {
+    const instruction = instructions[i];
+    if (instruction.type === "M") {
+      moveX = instruction.x;
+      moveY = instruction.y;
+    } else if (instruction.type === "m") {
+      moveX += instruction.dx;
+      moveY += instruction.dy;
+    }
+    if (instruction.type === "A" || instruction.type === "C" || instruction.type === "L" || instruction.type === "M" || instruction.type === "Q" || instruction.type === "S" || instruction.type === "T") {
+      x = instruction.x;
+      y = instruction.y;
+      continue;
+    }
+    if (instruction.type === "a" || instruction.type === "c" || instruction.type === "l" || instruction.type === "m" || instruction.type === "q" || instruction.type === "s" || instruction.type === "t") {
+      x += instruction.dx;
+      y += instruction.dy;
+      continue;
+    }
+    if (instruction.type === "H") {
+      x = instruction.x;
+      continue;
+    }
+    if (instruction.type === "V") {
+      y = instruction.y;
+      continue;
+    }
+    if (instruction.type === "Z") {
+      x = moveX;
+      y = moveY;
+      continue;
+    }
+    if (instruction.type === "h") {
+      x += instruction.dx;
+      continue;
+    }
+    if (instruction.type === "v") {
+      y += instruction.dy;
+      continue;
+    }
+    throw new Error("Unknown instruction type: " + instruction.type);
+  }
+  return {
+    x,
+    y
+  };
+};
+
+// src/interpolate-path/convert-to-same-instruction-type.ts
+var convertToLCommand = (command) => {
+  if (command.type === "M" || command.type === "L" || command.type === "Z") {
+    throw new Error("unexpected");
+  }
+  return {
+    type: "L",
+    x: command.x,
+    y: command.y
+  };
+};
+var convertToCCommand = (command, currentPoint) => {
+  if (command.type === "M" || command.type === "C" || command.type === "Z") {
+    throw new Error("unexpected");
+  }
+  if (command.type === "L") {
+    return {
+      type: "C",
+      cp1x: currentPoint.x,
+      cp1y: currentPoint.y,
+      cp2x: command.x,
+      cp2y: command.y,
+      x: command.x,
+      y: command.y
+    };
+  }
+  throw new Error("all types should be handled");
+};
+function convertToSameInstructionType(aCommand, bCommand, currentPoint) {
+  if (aCommand.type === "M" || bCommand.type === "M") {
+    return { ...aCommand };
+  }
+  if (aCommand.type === bCommand.type) {
+    return { ...aCommand };
+  }
+  if (bCommand.type === "C") {
+    return convertToCCommand(aCommand, currentPoint);
+  }
+  if (bCommand.type === "L") {
+    return convertToLCommand(aCommand);
+  }
+  if (bCommand.type === "Z") {
+    return {
+      type: "Z"
+    };
+  }
+  throw new TypeError("unhandled");
+}
+
+// src/interpolate-path/points-to-command.ts
+function pointsToInstruction(points) {
+  const x = points[points.length - 1][0];
+  const y = points[points.length - 1][1];
+  if (points.length === 4) {
+    const x1 = points[1][0];
+    const y1 = points[1][1];
+    const x2 = points[2][0];
+    const y2 = points[2][1];
+    return {
+      type: "C",
+      cp1x: x1,
+      cp1y: y1,
+      cp2x: x2,
+      cp2y: y2,
+      x,
+      y
+    };
+  }
+  if (points.length === 3) {
+    const x1 = points[1][0];
+    const y1 = points[1][1];
+    return convertQToCInstruction({
+      type: "Q",
+      cpx: x1,
+      cpy: y1,
+      x,
+      y
+    }, {
+      x: points[0][0],
+      y: points[0][1]
+    });
+  }
+  return {
+    type: "L",
+    x,
+    y
+  };
+}
+
+// src/interpolate-path/de-casteljau.ts
+function decasteljau(points, t) {
+  const left = [];
+  const right = [];
+  function decasteljauRecurse(_points, _t) {
+    if (_points.length === 1) {
+      left.push(_points[0]);
+      right.push(_points[0]);
+    } else {
+      const newPoints = Array(_points.length - 1);
+      for (let i = 0;i < newPoints.length; i++) {
+        if (i === 0) {
+          left.push(_points[0]);
+        }
+        if (i === newPoints.length - 1) {
+          right.push(_points[i + 1]);
+        }
+        newPoints[i] = [
+          (1 - _t) * _points[i][0] + _t * _points[i + 1][0],
+          (1 - _t) * _points[i][1] + _t * _points[i + 1][1]
+        ];
+      }
+      decasteljauRecurse(newPoints, _t);
+    }
+  }
+  if (points.length) {
+    decasteljauRecurse(points, t);
+  }
+  return { left, right: right.reverse() };
+}
+
+// src/interpolate-path/split-curve-as-points.ts
+function splitCurveAsPoints(points, segmentCount = 2) {
+  const segments = [];
+  let remainingCurve = points;
+  const tIncrement = 1 / segmentCount;
+  for (let i = 0;i < segmentCount - 1; i++) {
+    const tRelative = tIncrement / (1 - tIncrement * i);
+    const split = decasteljau(remainingCurve, tRelative);
+    segments.push(split.left);
+    remainingCurve = split.right;
+  }
+  segments.push(remainingCurve);
+  return segments;
+}
+
+// src/interpolate-path/split-curve.ts
+var splitCurveInstructions = (instructionStartX, instructionStartY, instructionEnd, segmentCount) => {
+  const points = [[instructionStartX, instructionStartY]];
+  if (instructionEnd.type === "Q") {
+    points.push([instructionEnd.cpx, instructionEnd.cpy]);
+  }
+  if (instructionEnd.type === "C") {
+    points.push([instructionEnd.cp1x, instructionEnd.cp1y]);
+    points.push([instructionEnd.cp2x, instructionEnd.cp2y]);
+  }
+  points.push([instructionEnd.x, instructionEnd.y]);
+  return splitCurveAsPoints(points, segmentCount).map((p) => {
+    return pointsToInstruction(p);
+  });
+};
+
+// src/interpolate-path/split-segment.ts
+function splitSegmentInstructions(commandStart, commandEnd, segmentCount) {
+  let segments = [];
+  if (commandEnd.type === "L" || commandEnd.type === "C") {
+    if (commandStart.type !== "Z") {
+      segments = segments.concat(splitCurveInstructions(commandStart.x, commandStart.y, commandEnd, segmentCount));
+    }
+  } else {
+    const copyCommand = commandStart.type === "M" ? {
+      type: "L",
+      x: commandStart.x,
+      y: commandStart.y
+    } : commandStart;
+    segments = segments.concat(new Array(segmentCount - 1).fill(true).map(() => copyCommand));
+    segments.push(commandEnd);
+  }
+  return segments;
+}
+
+// src/interpolate-path/extend-command.ts
+function extendInstruction(commandsToExtend, referenceCommands) {
+  const numSegmentsToExtend = commandsToExtend.length - 1;
+  const numReferenceSegments = referenceCommands.length - 1;
+  const segmentRatio = numSegmentsToExtend / numReferenceSegments;
+  const countPointsPerSegment = new Array(numReferenceSegments).fill(undefined).reduce((accum, _d, i) => {
+    const insertIndex = Math.floor(segmentRatio * i);
+    accum[insertIndex] = (accum[insertIndex] || 0) + 1;
+    return accum;
+  }, []);
+  const extended = countPointsPerSegment.reduce((_extended, segmentCount, i) => {
+    if (i === commandsToExtend.length - 1) {
+      const lastCommandCopies = new Array(segmentCount).fill({
+        ...commandsToExtend[commandsToExtend.length - 1]
+      });
+      if (lastCommandCopies[0].type === "M") {
+        lastCommandCopies.forEach((d) => {
+          d.type = "L";
+        });
+      }
+      return _extended.concat(lastCommandCopies);
+    }
+    return _extended.concat(splitSegmentInstructions(commandsToExtend[i], commandsToExtend[i + 1], segmentCount));
+  }, []);
+  extended.unshift(commandsToExtend[0]);
+  return extended;
+}
+
+// src/interpolate-path/interpolate-instruction-of-same-kind.ts
+var interpolateLInstruction = (t, first, second) => {
+  return {
+    type: "L",
+    x: (1 - t) * first.x + t * second.x,
+    y: (1 - t) * first.y + t * second.y
+  };
+};
+var interpolateCInstructions = (t, first, second) => {
+  return {
+    type: "C",
+    cp1x: (1 - t) * first.cp1x + t * second.cp1x,
+    cp2x: (1 - t) * first.cp2x + t * second.cp2x,
+    cp1y: (1 - t) * first.cp1y + t * second.cp1y,
+    cp2y: (1 - t) * first.cp2y + t * second.cp2y,
+    x: (1 - t) * first.x + t * second.x,
+    y: (1 - t) * first.y + t * second.y
+  };
+};
+var interpolateMInstructions = (t, first, second) => {
+  return {
+    type: "M",
+    x: (1 - t) * first.x + t * second.x,
+    y: (1 - t) * first.y + t * second.y
+  };
+};
+var interpolateInstructionOfSameKind = (t, first, second) => {
+  if (first.type === "L") {
+    if (second.type !== "L") {
+      throw new Error("mismatch");
+    }
+    return interpolateLInstruction(t, first, second);
+  }
+  if (first.type === "C") {
+    if (second.type !== "C") {
+      throw new Error("mismatch");
+    }
+    return interpolateCInstructions(t, first, second);
+  }
+  if (first.type === "M") {
+    if (second.type !== "M") {
+      throw new Error("mismatch");
+    }
+    return interpolateMInstructions(t, first, second);
+  }
+  if (first.type === "Z") {
+    if (second.type !== "Z") {
+      throw new Error("mismatch");
+    }
+    return {
+      type: "Z"
+    };
+  }
+  throw new Error("mismatch");
+};
+
+// src/interpolate-path/interpolate-instructions.ts
+function interpolateInstructions(aCommandsInput, bCommandsInput) {
+  let aCommands = aCommandsInput.slice();
+  let bCommands = bCommandsInput.slice();
+  if (!aCommands.length && !bCommands.length) {
+    return function() {
+      return [];
+    };
+  }
+  const addZ = (aCommands.length === 0 || aCommands[aCommands.length - 1].type === "Z") && (bCommands.length === 0 || bCommands[bCommands.length - 1].type === "Z");
+  if (aCommands.length > 0 && aCommands[aCommands.length - 1].type === "Z") {
+    aCommands.pop();
+  }
+  if (bCommands.length > 0 && bCommands[bCommands.length - 1].type === "Z") {
+    bCommands.pop();
+  }
+  if (!aCommands.length) {
+    aCommands.push(bCommands[0]);
+  } else if (!bCommands.length) {
+    bCommands.push(aCommands[0]);
+  }
+  const numPointsToExtend = Math.abs(bCommands.length - aCommands.length);
+  if (numPointsToExtend !== 0) {
+    if (bCommands.length > aCommands.length) {
+      aCommands = extendInstruction(aCommands, bCommands);
+    } else if (bCommands.length < aCommands.length) {
+      bCommands = extendInstruction(bCommands, aCommands);
+    }
+  }
+  const aSameType = aCommands.map((aCommand, i) => {
+    const commandsUntilNow = aCommands.slice(0, i);
+    const point = getEndPosition(commandsUntilNow);
+    return convertToSameInstructionType(aCommand, bCommands[i], point);
+  });
+  const interpolatedCommands = [];
+  if (addZ) {
+    aSameType.push({ type: "Z" });
+    bCommands.push({ type: "Z" });
+  }
+  return function(t) {
+    if (t === 1) {
+      return bCommandsInput;
+    }
+    if (t === 0) {
+      return aSameType;
+    }
+    for (let i = 0;i < aSameType.length; ++i) {
+      interpolatedCommands.push(interpolateInstructionOfSameKind(t, aSameType[i], bCommands[i]));
+    }
+    return interpolatedCommands;
+  };
+}
+
+// src/interpolate-path/interpolate-path.ts
+var interpolatePath = (value, firstPath, secondPath) => {
+  if (value === 1) {
+    return secondPath;
+  }
+  if (value === 0) {
+    return firstPath;
+  }
+  const aCommands = reduceInstructions(parsePath(firstPath));
+  if (aCommands.length === 0) {
+    throw new TypeError(`SVG Path "${firstPath}" is not valid`);
+  }
+  const bCommands = reduceInstructions(parsePath(secondPath));
+  if (bCommands.length === 0) {
+    throw new TypeError(`SVG Path "${secondPath}" is not valid`);
+  }
+  const commandInterpolator = interpolateInstructions(aCommands, bCommands);
+  return serializeInstructions(commandInterpolator(value));
+};
+// src/interpolate-paths.ts
+
+var normalizeInterpolatedPath = (path) => {
+  return path.replace(/-?\d*\.?\d+(?:e[+-]?\d+)?/gi, (value) => {
+    const number = Number(value);
+    return Number.isInteger(number) ? value : String(Number(number.toPrecision(15)));
+  });
+};
+var interpolatePaths = (input, inputRange, outputRange, options) => {
+  if (!Array.isArray(outputRange)) {
+    throw new TypeError("outputRange must be an array of SVG path strings");
+  }
+  for (const path of outputRange) {
+    if (typeof path !== "string") {
+      throw new TypeError("outputRange must contain only SVG path strings");
+    }
+  }
+  for (const side of ["extrapolateLeft", "extrapolateRight"]) {
+    const extrapolation = options?.[side];
+    if (extrapolation !== undefined && extrapolation !== "extend" && extrapolation !== "clamp" && extrapolation !== "wrap") {
+      throw new TypeError(`${side} must be "extend", "clamp", or "wrap" for interpolatePaths()`);
+    }
+  }
+  const weights = interpolate(input, inputRange, outputRange.map((_, pathIndex) => outputRange.map((__, index) => index === pathIndex ? 1 : 0)), options);
+  const exactPathIndex = weights.findIndex((weight, index) => weight === 1 && weights.every((otherWeight, otherIndex) => otherIndex === index ? true : otherWeight === 0));
+  if (exactPathIndex !== -1) {
+    return outputRange[exactPathIndex];
+  }
+  const contributingPaths = outputRange.map((path, index) => ({ path, weight: weights[index] })).filter(({ weight }) => weight !== 0);
+  const paths = contributingPaths.map(({ path }) => {
+    const commands = reduceInstructions(parsePath(path));
+    if (commands.length === 0) {
+      throw new TypeError(`SVG Path "${path}" is not valid`);
+    }
+    return commands;
+  });
+  const closed = paths.every((commands) => commands[commands.length - 1].type === "Z");
+  const openPaths = paths.map((commands) => commands[commands.length - 1].type === "Z" ? commands.slice(0, -1) : commands);
+  const reference = openPaths.reduce((longest, commands) => commands.length > longest.length ? commands : longest);
+  const extendedPaths = openPaths.map((commands) => commands.length < reference.length ? extendInstruction(commands, reference) : commands);
+  const result = reference.map((_, instructionIndex) => {
+    const commands = extendedPaths.map((path) => path[instructionIndex]);
+    if (commands.some((command) => command.type === "Z")) {
+      if (commands.every((command) => command.type === "Z")) {
+        return { type: "Z" };
+      }
+      throw new TypeError("Cannot interpolate SVG paths with different subpath structures");
+    }
+    const target = commands.find((command) => command.type === "C") ?? commands[0];
+    const normalized = commands.map((command, pathIndex) => {
+      if (command.type === "M" !== (target.type === "M")) {
+        throw new TypeError("Cannot interpolate SVG paths with different subpath structures");
+      }
+      return convertToSameInstructionType(command, target, getEndPosition(extendedPaths[pathIndex].slice(0, instructionIndex)));
+    });
+    const coordinates = normalized.map((command) => {
+      if (command.type === "Z") {
+        return [];
+      }
+      return command.type === "C" ? [
+        command.x,
+        command.y,
+        command.cp1x,
+        command.cp1y,
+        command.cp2x,
+        command.cp2y
+      ] : [command.x, command.y];
+    });
+    const values = coordinates[0].map((base, coordinateIndex) => {
+      const interpolated = coordinates.reduce((value, path, pathIndex) => value + (path[coordinateIndex] - base) * contributingPaths[pathIndex].weight, base);
+      if (Number.isFinite(interpolated)) {
+        return interpolated;
+      }
+      return coordinates.reduce((sum, path, pathIndex) => sum + path[coordinateIndex] * contributingPaths[pathIndex].weight, 0);
+    });
+    if (target.type === "C") {
+      return {
+        type: "C",
+        x: values[0],
+        y: values[1],
+        cp1x: values[2],
+        cp1y: values[3],
+        cp2x: values[4],
+        cp2y: values[5]
+      };
+    }
+    return { type: target.type, x: values[0], y: values[1] };
+  });
+  if (closed) {
+    result.push({ type: "Z" });
+  }
+  return normalizeInterpolatedPath(serializeInstructions(result));
+};
+// src/reset-path.ts
+var resetPath = (d) => {
+  const box = getBoundingBox(d);
+  return translatePath(d, -box.x1, -box.y1);
+};
+// src/reverse-path.ts
+function reverseNormalizedPath(instructions) {
+  const reversed = [];
+  let nextX = 0;
+  let nextY = 0;
+  for (const term of instructions) {
+    if (term.type === "A") {
+      reversed.unshift({
+        type: "A",
+        largeArcFlag: term.largeArcFlag,
+        rx: term.rx,
+        ry: term.ry,
+        xAxisRotation: term.xAxisRotation,
+        sweepFlag: !term.sweepFlag,
+        x: nextX,
+        y: nextY
+      });
+    } else if (term.type === "C") {
+      reversed.unshift({
+        type: "C",
+        cp1x: term.cp2x,
+        cp1y: term.cp2y,
+        cp2x: term.cp1x,
+        cp2y: term.cp1y,
+        x: nextX,
+        y: nextY
+      });
+    } else if (term.type === "Q") {
+      reversed.unshift({
+        type: "Q",
+        cpx: term.cpx,
+        cpy: term.cpy,
+        x: nextX,
+        y: nextY
+      });
+    } else if (term.type === "L") {
+      reversed.unshift({
+        type: "L",
+        x: nextX,
+        y: nextY
+      });
+    } else if (term.type === "M") {} else if (term.type === "Z") {} else {
+      throw new Error("unnormalized instruction " + term.type);
+    }
+    if (term.type !== "Z") {
+      nextX = term.x;
+      nextY = term.y;
+    }
+  }
+  reversed.unshift({
+    type: "M",
+    x: nextX,
+    y: nextY
+  });
+  let revstring = serializeInstructions(reversed);
+  if (instructions[instructions.length - 1].type === "Z")
+    revstring += "Z";
+  revstring = revstring.replace(/M M/g, "Z M");
+  return revstring;
+}
+var reversePath = (path) => {
+  const parsed = parsePath(path);
+  const normalized = normalizeInstructions(parsed);
+  const reduced = reduceInstructions(normalized);
+  const { segments } = constructFromInstructions(reduced);
+  return segments.map((spath) => {
+    return reverseNormalizedPath(spath);
+  }).join(" ").replace(/ +/g, " ").trim();
+};
+// src/scale-path.ts
+var scalePath = (d, scaleX, scaleY) => {
+  const reduced = reduceInstructions(parsePath(d));
+  const bounded = getBoundingBoxFromInstructions(reduced);
+  const zeroed = translateSegments(reduced, -bounded.x1, -bounded.y1);
+  const mapped = zeroed.map((instruction) => {
+    if (instruction.type === "L") {
+      return {
+        type: "L",
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y
+      };
+    }
+    if (instruction.type === "C") {
+      return {
+        type: "C",
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y,
+        cp1x: scaleX * instruction.cp1x,
+        cp1y: scaleY * instruction.cp1y,
+        cp2x: scaleX * instruction.cp2x,
+        cp2y: scaleY * instruction.cp2y
+      };
+    }
+    if (instruction.type === "M") {
+      return {
+        type: "M",
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y
+      };
+    }
+    if (instruction.type === "Q") {
+      return {
+        type: "Q",
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y,
+        cpx: scaleX * instruction.cpx,
+        cpy: scaleY * instruction.cpy
+      };
+    }
+    if (instruction.type === "Z") {
+      return {
+        type: "Z"
+      };
+    }
+    if (instruction.type === "A") {
+      return {
+        type: "A",
+        largeArcFlag: instruction.largeArcFlag,
+        rx: scaleX * instruction.rx,
+        ry: scaleY * instruction.ry,
+        sweepFlag: instruction.sweepFlag,
+        xAxisRotation: instruction.xAxisRotation,
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y
+      };
+    }
+    if (instruction.type === "H") {
+      return {
+        type: "H",
+        x: scaleX * instruction.x
+      };
+    }
+    if (instruction.type === "S") {
+      return {
+        type: "S",
+        cpx: scaleX * instruction.cpx,
+        cpy: scaleY * instruction.cpy,
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y
+      };
+    }
+    if (instruction.type === "T") {
+      return {
+        type: "T",
+        x: scaleX * instruction.x,
+        y: scaleY * instruction.y
+      };
+    }
+    if (instruction.type === "V") {
+      return {
+        type: "V",
+        y: scaleY * instruction.y
+      };
+    }
+    if (instruction.type === "a") {
+      return {
+        type: "a",
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy,
+        largeArcFlag: instruction.largeArcFlag,
+        rx: scaleX * instruction.rx,
+        ry: scaleY * instruction.ry,
+        sweepFlag: instruction.sweepFlag,
+        xAxisRotation: instruction.xAxisRotation
+      };
+    }
+    if (instruction.type === "c") {
+      return {
+        type: "c",
+        cp1dx: scaleX * instruction.cp1dx,
+        cp1dy: scaleY * instruction.cp1dy,
+        cp2dx: scaleX * instruction.cp2dx,
+        cp2dy: scaleY * instruction.cp2dy,
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy
+      };
+    }
+    if (instruction.type === "h") {
+      return {
+        type: "h",
+        dx: scaleX * instruction.dx
+      };
+    }
+    if (instruction.type === "l") {
+      return {
+        type: "l",
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy
+      };
+    }
+    if (instruction.type === "m") {
+      return {
+        type: "m",
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy
+      };
+    }
+    if (instruction.type === "q") {
+      return {
+        type: "q",
+        cpdx: scaleX * instruction.cpdx,
+        cpdy: scaleY * instruction.cpdy,
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy
+      };
+    }
+    if (instruction.type === "s") {
+      return {
+        type: "s",
+        cpdx: scaleX * instruction.cpdx,
+        cpdy: scaleY * instruction.cpdy,
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy
+      };
+    }
+    if (instruction.type === "t") {
+      return {
+        type: "t",
+        dx: scaleX * instruction.dx,
+        dy: scaleY * instruction.dy
+      };
+    }
+    if (instruction.type === "v") {
+      return {
+        type: "v",
+        dy: scaleY * instruction.dy
+      };
+    }
+    throw new Error("unexpected function");
+  });
+  return serializeInstructions(translateSegments(mapped, bounded.x1, bounded.y1));
+};
+// src/warp-path/warp-helpers.ts
+var euclideanDistance = (points) => {
+  const startPoint = points[0];
+  const endPoint = points[points.length - 1];
+  let d2 = 0;
+  for (let i = 0;i < startPoint.length; i++) {
+    const d = endPoint[i] - startPoint[i];
+    d2 += d ** 2;
+  }
+  return Math.sqrt(d2);
+};
+function split(p, t = 0.5) {
+  const seg0 = [];
+  const seg1 = [];
+  const orders = [p];
+  while (orders.length < p.length) {
+    const q = orders[orders.length - 1];
+    const r = [];
+    for (let i = 1;i < q.length; i++) {
+      const q0 = q[i - 1];
+      const q1 = q[i];
+      const s = [];
+      const dim = Math.max(q0.length, q1.length);
+      for (let j = 0;j < dim; j++) {
+        const s0 = q0[j] || 0;
+        const s1 = q1[j] || 0;
+        s.push(s0 + (s1 - s0) * t);
+      }
+      r.push(s);
+    }
+    orders.push(r);
+  }
+  for (let i = 0;i < orders.length; i++) {
+    seg0.push(orders[i][0]);
+    seg1.push(orders[orders.length - 1 - i][i]);
+  }
+  return [seg0, seg1];
+}
+function interpolateUntil(points, threshold, deltaFunction = euclideanDistance) {
+  const stack = [points];
+  const segments = [];
+  while (stack.length > 0) {
+    const currentPoints = stack.pop();
+    if (deltaFunction(currentPoints) > threshold) {
+      const newPoints = split(currentPoints);
+      for (let i = newPoints.length - 1;i >= 0; i--) {
+        stack.push(newPoints[i]);
+      }
+    } else {
+      segments.push(currentPoints);
+    }
+  }
+  return segments;
+}
+function createLineSegment(points) {
+  switch (points.length) {
+    case 2:
+      return {
+        type: "L",
+        x: points[1][0],
+        y: points[1][1]
+      };
+    case 3:
+      return convertQToCInstruction({
+        type: "Q",
+        cpx: points[1][0],
+        cpy: points[1][1],
+        x: points[2][0],
+        y: points[2][1]
+      }, {
+        x: points[0][0],
+        y: points[0][1]
+      });
+    case 4:
+      return {
+        type: "C",
+        cp1x: points[1][0],
+        cp1y: points[1][1],
+        cp2x: points[2][0],
+        cp2y: points[2][1],
+        x: points[3][0],
+        y: points[3][1]
+      };
+    default:
+      throw new Error("Expected 2, 3 or 4 points for a line segment, got " + points.length);
+  }
+}
+function warpInterpolate(path, threshold, deltaFunction) {
+  let prexX = 0;
+  let prexY = 0;
+  return path.map((segment) => {
+    const points = [[prexX, prexY]];
+    if (segment.type !== "Z") {
+      prexX = segment.x;
+      prexY = segment.y;
+    }
+    if (segment.type === "C") {
+      points.push([segment.cp1x, segment.cp1y]);
+      points.push([segment.cp2x, segment.cp2y]);
+      points.push([segment.x, segment.y]);
+    }
+    if (segment.type === "L") {
+      points.push([segment.x, segment.y]);
+    }
+    if (segment.type === "C" || segment.type === "L") {
+      return interpolateUntil(points, threshold, deltaFunction).map((rawSegment) => createLineSegment(rawSegment));
+    }
+    return [segment];
+  }).flat(1);
+}
+function svgPathInterpolate(path, threshold) {
+  let didWork = false;
+  const deltaFunction = (points) => {
+    const linearPoints = [
+      points[0].slice(0, 2),
+      points[points.length - 1].slice(0, 2)
+    ];
+    const delta = euclideanDistance(linearPoints);
+    didWork = didWork || delta > threshold;
+    return delta;
+  };
+  return warpInterpolate(path, threshold, deltaFunction);
+}
+var warpTransform = (path, transformer) => {
+  return path.map((segment) => {
+    if (segment.type === "L") {
+      const { x, y } = transformer({ x: segment.x, y: segment.y });
+      return [
+        {
+          type: "L",
+          x,
+          y
+        }
+      ];
+    }
+    if (segment.type === "C") {
+      const { x, y } = transformer({ x: segment.x, y: segment.y });
+      const { x: cp1x, y: cp1y } = transformer({
+        x: segment.cp1x,
+        y: segment.cp1y
+      });
+      const { x: cp2x, y: cp2y } = transformer({
+        x: segment.cp2x,
+        y: segment.cp2y
+      });
+      return [
+        {
+          type: "C",
+          x,
+          y,
+          cp1x,
+          cp1y,
+          cp2x,
+          cp2y
+        }
+      ];
+    }
+    if (segment.type === "M") {
+      const { x, y } = transformer({ x: segment.x, y: segment.y });
+      return [
+        {
+          type: "M",
+          x,
+          y
+        }
+      ];
+    }
+    return [segment];
+  }).flat(1);
+};
+var fixZInstruction = (instructions) => {
+  let prevX = 0;
+  let prevY = 0;
+  return instructions.map((instruction) => {
+    if (instruction.type === "Z") {
+      return [
+        {
+          type: "L",
+          x: prevX,
+          y: prevY
+        },
+        {
+          type: "Z"
+        }
+      ];
+    }
+    if (instruction.type === "M") {
+      prevX = instruction.x;
+      prevY = instruction.y;
+    }
+    return [instruction];
+  }).flat(1);
+};
+
+// src/warp-path/index.ts
+var getDefaultInterpolationThreshold = (instructions) => {
+  const boundingBox = getBoundingBoxFromInstructions(instructions);
+  const longer = Math.max(boundingBox.y2 - boundingBox.y1, boundingBox.x2 - boundingBox.x1);
+  return longer * 0.01;
+};
+var warpPath = (path, transformer, options) => {
+  const reduced = reduceInstructions(parsePath(path));
+  const withZFix = fixZInstruction(reduced);
+  const interpolated = svgPathInterpolate(withZFix, options?.interpolationThreshold ?? getDefaultInterpolationThreshold(withZFix));
+  return serializeInstructions(warpTransform(interpolated, transformer));
+};
+
+// src/index.ts
+var PathInternals = {
+  getBoundingBoxFromInstructions,
+  debugPath,
+  cutPath
+};
+
+
+;// ./node_modules/simplex-noise/dist/esm/simplex-noise.js
+/*
+ * A fast javascript implementation of simplex noise by Jonas Wagner
+
+Based on a speed-improved simplex noise algorithm for 2D, 3D and 4D in Java.
+Which is based on example code by Stefan Gustavson (stegu@itn.liu.se).
+With Optimisations by Peter Eastman (peastman@drizzle.stanford.edu).
+Better rank ordering method by Stefan Gustavson in 2012.
+
+ Copyright (c) 2022 Jonas Wagner
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ */
+// these #__PURE__ comments help uglifyjs with dead code removal
+// 
+const F2 = /*#__PURE__*/ 0.5 * (Math.sqrt(3.0) - 1.0);
+const G2 = /*#__PURE__*/ (3.0 - Math.sqrt(3.0)) / 6.0;
+const F3 = (/* unused pure expression or super */ null && (1.0 / 3.0));
+const G3 = (/* unused pure expression or super */ null && (1.0 / 6.0));
+const F4 = /*#__PURE__*/ (Math.sqrt(5.0) - 1.0) / 4.0;
+const G4 = /*#__PURE__*/ (5.0 - Math.sqrt(5.0)) / 20.0;
+// I'm really not sure why this | 0 (basically a coercion to int)
+// is making this faster but I get ~5 million ops/sec more on the
+// benchmarks across the board or a ~10% speedup.
+const fastFloor = (x) => Math.floor(x) | 0;
+const grad2 = /*#__PURE__*/ new Float64Array([1, 1,
+    -1, 1,
+    1, -1,
+    -1, -1,
+    1, 0,
+    -1, 0,
+    1, 0,
+    -1, 0,
+    0, 1,
+    0, -1,
+    0, 1,
+    0, -1]);
+// double seems to be faster than single or int's
+// probably because most operations are in double precision
+const grad3 = /*#__PURE__*/ new Float64Array([1, 1, 0,
+    -1, 1, 0,
+    1, -1, 0,
+    -1, -1, 0,
+    1, 0, 1,
+    -1, 0, 1,
+    1, 0, -1,
+    -1, 0, -1,
+    0, 1, 1,
+    0, -1, 1,
+    0, 1, -1,
+    0, -1, -1]);
+// double is a bit quicker here as well
+const grad4 = /*#__PURE__*/ new Float64Array([0, 1, 1, 1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, -1, -1,
+    0, -1, 1, 1, 0, -1, 1, -1, 0, -1, -1, 1, 0, -1, -1, -1,
+    1, 0, 1, 1, 1, 0, 1, -1, 1, 0, -1, 1, 1, 0, -1, -1,
+    -1, 0, 1, 1, -1, 0, 1, -1, -1, 0, -1, 1, -1, 0, -1, -1,
+    1, 1, 0, 1, 1, 1, 0, -1, 1, -1, 0, 1, 1, -1, 0, -1,
+    -1, 1, 0, 1, -1, 1, 0, -1, -1, -1, 0, 1, -1, -1, 0, -1,
+    1, 1, 1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, -1, -1, 0,
+    -1, 1, 1, 0, -1, 1, -1, 0, -1, -1, 1, 0, -1, -1, -1, 0]);
+/**
+ * Creates a 2D noise function
+ * @param random the random function that will be used to build the permutation table
+ * @returns {NoiseFunction2D}
+ */
+function createNoise2D(random = Math.random) {
+    const perm = buildPermutationTable(random);
+    // precalculating this yields a little ~3% performance improvement.
+    const permGrad2x = new Float64Array(perm).map(v => grad2[(v % 12) * 2]);
+    const permGrad2y = new Float64Array(perm).map(v => grad2[(v % 12) * 2 + 1]);
+    return function noise2D(x, y) {
+        // if(!isFinite(x) || !isFinite(y)) return 0;
+        let n0 = 0; // Noise contributions from the three corners
+        let n1 = 0;
+        let n2 = 0;
+        // Skew the input space to determine which simplex cell we're in
+        const s = (x + y) * F2; // Hairy factor for 2D
+        const i = fastFloor(x + s);
+        const j = fastFloor(y + s);
+        const t = (i + j) * G2;
+        const X0 = i - t; // Unskew the cell origin back to (x,y) space
+        const Y0 = j - t;
+        const x0 = x - X0; // The x,y distances from the cell origin
+        const y0 = y - Y0;
+        // For the 2D case, the simplex shape is an equilateral triangle.
+        // Determine which simplex we are in.
+        let i1, j1; // Offsets for second (middle) corner of simplex in (i,j) coords
+        if (x0 > y0) {
+            i1 = 1;
+            j1 = 0;
+        } // lower triangle, XY order: (0,0)->(1,0)->(1,1)
+        else {
+            i1 = 0;
+            j1 = 1;
+        } // upper triangle, YX order: (0,0)->(0,1)->(1,1)
+        // A step of (1,0) in (i,j) means a step of (1-c,-c) in (x,y), and
+        // a step of (0,1) in (i,j) means a step of (-c,1-c) in (x,y), where
+        // c = (3-sqrt(3))/6
+        const x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords
+        const y1 = y0 - j1 + G2;
+        const x2 = x0 - 1.0 + 2.0 * G2; // Offsets for last corner in (x,y) unskewed coords
+        const y2 = y0 - 1.0 + 2.0 * G2;
+        // Work out the hashed gradient indices of the three simplex corners
+        const ii = i & 255;
+        const jj = j & 255;
+        // Calculate the contribution from the three corners
+        let t0 = 0.5 - x0 * x0 - y0 * y0;
+        if (t0 >= 0) {
+            const gi0 = ii + perm[jj];
+            const g0x = permGrad2x[gi0];
+            const g0y = permGrad2y[gi0];
+            t0 *= t0;
+            // n0 = t0 * t0 * (grad2[gi0] * x0 + grad2[gi0 + 1] * y0); // (x,y) of grad3 used for 2D gradient
+            n0 = t0 * t0 * (g0x * x0 + g0y * y0);
+        }
+        let t1 = 0.5 - x1 * x1 - y1 * y1;
+        if (t1 >= 0) {
+            const gi1 = ii + i1 + perm[jj + j1];
+            const g1x = permGrad2x[gi1];
+            const g1y = permGrad2y[gi1];
+            t1 *= t1;
+            // n1 = t1 * t1 * (grad2[gi1] * x1 + grad2[gi1 + 1] * y1);
+            n1 = t1 * t1 * (g1x * x1 + g1y * y1);
+        }
+        let t2 = 0.5 - x2 * x2 - y2 * y2;
+        if (t2 >= 0) {
+            const gi2 = ii + 1 + perm[jj + 1];
+            const g2x = permGrad2x[gi2];
+            const g2y = permGrad2y[gi2];
+            t2 *= t2;
+            // n2 = t2 * t2 * (grad2[gi2] * x2 + grad2[gi2 + 1] * y2);
+            n2 = t2 * t2 * (g2x * x2 + g2y * y2);
+        }
+        // Add contributions from each corner to get the final noise value.
+        // The result is scaled to return values in the interval [-1,1].
+        return 70.0 * (n0 + n1 + n2);
+    };
+}
+/**
+ * Creates a 3D noise function
+ * @param random the random function that will be used to build the permutation table
+ * @returns {NoiseFunction3D}
+ */
+function createNoise3D(random = Math.random) {
+    const perm = buildPermutationTable(random);
+    // precalculating these seems to yield a speedup of over 15%
+    const permGrad3x = new Float64Array(perm).map(v => grad3[(v % 12) * 3]);
+    const permGrad3y = new Float64Array(perm).map(v => grad3[(v % 12) * 3 + 1]);
+    const permGrad3z = new Float64Array(perm).map(v => grad3[(v % 12) * 3 + 2]);
+    return function noise3D(x, y, z) {
+        let n0, n1, n2, n3; // Noise contributions from the four corners
+        // Skew the input space to determine which simplex cell we're in
+        const s = (x + y + z) * F3; // Very nice and simple skew factor for 3D
+        const i = fastFloor(x + s);
+        const j = fastFloor(y + s);
+        const k = fastFloor(z + s);
+        const t = (i + j + k) * G3;
+        const X0 = i - t; // Unskew the cell origin back to (x,y,z) space
+        const Y0 = j - t;
+        const Z0 = k - t;
+        const x0 = x - X0; // The x,y,z distances from the cell origin
+        const y0 = y - Y0;
+        const z0 = z - Z0;
+        // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
+        // Determine which simplex we are in.
+        let i1, j1, k1; // Offsets for second corner of simplex in (i,j,k) coords
+        let i2, j2, k2; // Offsets for third corner of simplex in (i,j,k) coords
+        if (x0 >= y0) {
+            if (y0 >= z0) {
+                i1 = 1;
+                j1 = 0;
+                k1 = 0;
+                i2 = 1;
+                j2 = 1;
+                k2 = 0;
+            } // X Y Z order
+            else if (x0 >= z0) {
+                i1 = 1;
+                j1 = 0;
+                k1 = 0;
+                i2 = 1;
+                j2 = 0;
+                k2 = 1;
+            } // X Z Y order
+            else {
+                i1 = 0;
+                j1 = 0;
+                k1 = 1;
+                i2 = 1;
+                j2 = 0;
+                k2 = 1;
+            } // Z X Y order
+        }
+        else { // x0<y0
+            if (y0 < z0) {
+                i1 = 0;
+                j1 = 0;
+                k1 = 1;
+                i2 = 0;
+                j2 = 1;
+                k2 = 1;
+            } // Z Y X order
+            else if (x0 < z0) {
+                i1 = 0;
+                j1 = 1;
+                k1 = 0;
+                i2 = 0;
+                j2 = 1;
+                k2 = 1;
+            } // Y Z X order
+            else {
+                i1 = 0;
+                j1 = 1;
+                k1 = 0;
+                i2 = 1;
+                j2 = 1;
+                k2 = 0;
+            } // Y X Z order
+        }
+        // A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
+        // a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
+        // a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
+        // c = 1/6.
+        const x1 = x0 - i1 + G3; // Offsets for second corner in (x,y,z) coords
+        const y1 = y0 - j1 + G3;
+        const z1 = z0 - k1 + G3;
+        const x2 = x0 - i2 + 2.0 * G3; // Offsets for third corner in (x,y,z) coords
+        const y2 = y0 - j2 + 2.0 * G3;
+        const z2 = z0 - k2 + 2.0 * G3;
+        const x3 = x0 - 1.0 + 3.0 * G3; // Offsets for last corner in (x,y,z) coords
+        const y3 = y0 - 1.0 + 3.0 * G3;
+        const z3 = z0 - 1.0 + 3.0 * G3;
+        // Work out the hashed gradient indices of the four simplex corners
+        const ii = i & 255;
+        const jj = j & 255;
+        const kk = k & 255;
+        // Calculate the contribution from the four corners
+        let t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0;
+        if (t0 < 0)
+            n0 = 0.0;
+        else {
+            const gi0 = ii + perm[jj + perm[kk]];
+            t0 *= t0;
+            n0 = t0 * t0 * (permGrad3x[gi0] * x0 + permGrad3y[gi0] * y0 + permGrad3z[gi0] * z0);
+        }
+        let t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1;
+        if (t1 < 0)
+            n1 = 0.0;
+        else {
+            const gi1 = ii + i1 + perm[jj + j1 + perm[kk + k1]];
+            t1 *= t1;
+            n1 = t1 * t1 * (permGrad3x[gi1] * x1 + permGrad3y[gi1] * y1 + permGrad3z[gi1] * z1);
+        }
+        let t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2;
+        if (t2 < 0)
+            n2 = 0.0;
+        else {
+            const gi2 = ii + i2 + perm[jj + j2 + perm[kk + k2]];
+            t2 *= t2;
+            n2 = t2 * t2 * (permGrad3x[gi2] * x2 + permGrad3y[gi2] * y2 + permGrad3z[gi2] * z2);
+        }
+        let t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3;
+        if (t3 < 0)
+            n3 = 0.0;
+        else {
+            const gi3 = ii + 1 + perm[jj + 1 + perm[kk + 1]];
+            t3 *= t3;
+            n3 = t3 * t3 * (permGrad3x[gi3] * x3 + permGrad3y[gi3] * y3 + permGrad3z[gi3] * z3);
+        }
+        // Add contributions from each corner to get the final noise value.
+        // The result is scaled to stay just inside [-1,1]
+        return 32.0 * (n0 + n1 + n2 + n3);
+    };
+}
+/**
+ * Creates a 4D noise function
+ * @param random the random function that will be used to build the permutation table
+ * @returns {NoiseFunction4D}
+ */
+function createNoise4D(random = Math.random) {
+    const perm = buildPermutationTable(random);
+    // precalculating these leads to a ~10% speedup
+    const permGrad4x = new Float64Array(perm).map(v => grad4[(v % 32) * 4]);
+    const permGrad4y = new Float64Array(perm).map(v => grad4[(v % 32) * 4 + 1]);
+    const permGrad4z = new Float64Array(perm).map(v => grad4[(v % 32) * 4 + 2]);
+    const permGrad4w = new Float64Array(perm).map(v => grad4[(v % 32) * 4 + 3]);
+    return function noise4D(x, y, z, w) {
+        let n0, n1, n2, n3, n4; // Noise contributions from the five corners
+        // Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
+        const s = (x + y + z + w) * F4; // Factor for 4D skewing
+        const i = fastFloor(x + s);
+        const j = fastFloor(y + s);
+        const k = fastFloor(z + s);
+        const l = fastFloor(w + s);
+        const t = (i + j + k + l) * G4; // Factor for 4D unskewing
+        const X0 = i - t; // Unskew the cell origin back to (x,y,z,w) space
+        const Y0 = j - t;
+        const Z0 = k - t;
+        const W0 = l - t;
+        const x0 = x - X0; // The x,y,z,w distances from the cell origin
+        const y0 = y - Y0;
+        const z0 = z - Z0;
+        const w0 = w - W0;
+        // For the 4D case, the simplex is a 4D shape I won't even try to describe.
+        // To find out which of the 24 possible simplices we're in, we need to
+        // determine the magnitude ordering of x0, y0, z0 and w0.
+        // Six pair-wise comparisons are performed between each possible pair
+        // of the four coordinates, and the results are used to rank the numbers.
+        let rankx = 0;
+        let ranky = 0;
+        let rankz = 0;
+        let rankw = 0;
+        if (x0 > y0)
+            rankx++;
+        else
+            ranky++;
+        if (x0 > z0)
+            rankx++;
+        else
+            rankz++;
+        if (x0 > w0)
+            rankx++;
+        else
+            rankw++;
+        if (y0 > z0)
+            ranky++;
+        else
+            rankz++;
+        if (y0 > w0)
+            ranky++;
+        else
+            rankw++;
+        if (z0 > w0)
+            rankz++;
+        else
+            rankw++;
+        // simplex[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
+        // Many values of c will never occur, since e.g. x>y>z>w makes x<z, y<w and x<w
+        // impossible. Only the 24 indices which have non-zero entries make any sense.
+        // We use a thresholding to set the coordinates in turn from the largest magnitude.
+        // Rank 3 denotes the largest coordinate.
+        // Rank 2 denotes the second largest coordinate.
+        // Rank 1 denotes the second smallest coordinate.
+        // The integer offsets for the second simplex corner
+        const i1 = rankx >= 3 ? 1 : 0;
+        const j1 = ranky >= 3 ? 1 : 0;
+        const k1 = rankz >= 3 ? 1 : 0;
+        const l1 = rankw >= 3 ? 1 : 0;
+        // The integer offsets for the third simplex corner
+        const i2 = rankx >= 2 ? 1 : 0;
+        const j2 = ranky >= 2 ? 1 : 0;
+        const k2 = rankz >= 2 ? 1 : 0;
+        const l2 = rankw >= 2 ? 1 : 0;
+        // The integer offsets for the fourth simplex corner
+        const i3 = rankx >= 1 ? 1 : 0;
+        const j3 = ranky >= 1 ? 1 : 0;
+        const k3 = rankz >= 1 ? 1 : 0;
+        const l3 = rankw >= 1 ? 1 : 0;
+        // The fifth corner has all coordinate offsets = 1, so no need to compute that.
+        const x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords
+        const y1 = y0 - j1 + G4;
+        const z1 = z0 - k1 + G4;
+        const w1 = w0 - l1 + G4;
+        const x2 = x0 - i2 + 2.0 * G4; // Offsets for third corner in (x,y,z,w) coords
+        const y2 = y0 - j2 + 2.0 * G4;
+        const z2 = z0 - k2 + 2.0 * G4;
+        const w2 = w0 - l2 + 2.0 * G4;
+        const x3 = x0 - i3 + 3.0 * G4; // Offsets for fourth corner in (x,y,z,w) coords
+        const y3 = y0 - j3 + 3.0 * G4;
+        const z3 = z0 - k3 + 3.0 * G4;
+        const w3 = w0 - l3 + 3.0 * G4;
+        const x4 = x0 - 1.0 + 4.0 * G4; // Offsets for last corner in (x,y,z,w) coords
+        const y4 = y0 - 1.0 + 4.0 * G4;
+        const z4 = z0 - 1.0 + 4.0 * G4;
+        const w4 = w0 - 1.0 + 4.0 * G4;
+        // Work out the hashed gradient indices of the five simplex corners
+        const ii = i & 255;
+        const jj = j & 255;
+        const kk = k & 255;
+        const ll = l & 255;
+        // Calculate the contribution from the five corners
+        let t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
+        if (t0 < 0)
+            n0 = 0.0;
+        else {
+            const gi0 = ii + perm[jj + perm[kk + perm[ll]]];
+            t0 *= t0;
+            n0 = t0 * t0 * (permGrad4x[gi0] * x0 + permGrad4y[gi0] * y0 + permGrad4z[gi0] * z0 + permGrad4w[gi0] * w0);
+        }
+        let t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
+        if (t1 < 0)
+            n1 = 0.0;
+        else {
+            const gi1 = ii + i1 + perm[jj + j1 + perm[kk + k1 + perm[ll + l1]]];
+            t1 *= t1;
+            n1 = t1 * t1 * (permGrad4x[gi1] * x1 + permGrad4y[gi1] * y1 + permGrad4z[gi1] * z1 + permGrad4w[gi1] * w1);
+        }
+        let t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
+        if (t2 < 0)
+            n2 = 0.0;
+        else {
+            const gi2 = ii + i2 + perm[jj + j2 + perm[kk + k2 + perm[ll + l2]]];
+            t2 *= t2;
+            n2 = t2 * t2 * (permGrad4x[gi2] * x2 + permGrad4y[gi2] * y2 + permGrad4z[gi2] * z2 + permGrad4w[gi2] * w2);
+        }
+        let t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
+        if (t3 < 0)
+            n3 = 0.0;
+        else {
+            const gi3 = ii + i3 + perm[jj + j3 + perm[kk + k3 + perm[ll + l3]]];
+            t3 *= t3;
+            n3 = t3 * t3 * (permGrad4x[gi3] * x3 + permGrad4y[gi3] * y3 + permGrad4z[gi3] * z3 + permGrad4w[gi3] * w3);
+        }
+        let t4 = 0.6 - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
+        if (t4 < 0)
+            n4 = 0.0;
+        else {
+            const gi4 = ii + 1 + perm[jj + 1 + perm[kk + 1 + perm[ll + 1]]];
+            t4 *= t4;
+            n4 = t4 * t4 * (permGrad4x[gi4] * x4 + permGrad4y[gi4] * y4 + permGrad4z[gi4] * z4 + permGrad4w[gi4] * w4);
+        }
+        // Sum up and scale the result to cover the range [-1,1]
+        return 27.0 * (n0 + n1 + n2 + n3 + n4);
+    };
+}
+/**
+ * Builds a random permutation table.
+ * This is exported only for (internal) testing purposes.
+ * Do not rely on this export.
+ * @private
+ */
+function buildPermutationTable(random) {
+    const tableSize = 512;
+    const p = new Uint8Array(tableSize);
+    for (let i = 0; i < tableSize / 2; i++) {
+        p[i] = i;
+    }
+    for (let i = 0; i < tableSize / 2 - 1; i++) {
+        const r = i + ~~(random() * (256 - i));
+        const aux = p[i];
+        p[i] = p[r];
+        p[r] = aux;
+    }
+    for (let i = 256; i < tableSize; i++) {
+        p[i] = p[i - 256];
+    }
+    return p;
+}
+//# sourceMappingURL=simplex-noise.js.map
+;// ./node_modules/@remotion/noise/dist/esm/index.mjs
+/* unused harmony import specifier */ var random;
+/* unused harmony import specifier */ var esm_createNoise3D;
+/* unused harmony import specifier */ var esm_createNoise4D;
+// src/index.ts
+
+
+var seedCache2d = new Map;
+var seedCache3d = new Map;
+var seedCache4d = new Map;
+var generate2DNoise = (seed) => {
+  const cached = seedCache2d.get(seed);
+  if (cached) {
+    return cached;
+  }
+  if (seedCache2d.size > 10) {
+    seedCache2d.delete(seedCache2d.keys().next().value);
+  }
+  const noise = createNoise2D(() => (0,esm.random)(seed));
+  seedCache2d.set(seed, noise);
+  return noise;
+};
+var generate3DNoise = (seed) => {
+  const cached = seedCache3d.get(seed);
+  if (cached) {
+    return cached;
+  }
+  if (seedCache3d.size > 10) {
+    seedCache3d.delete(seedCache3d.keys().next().value);
+  }
+  const noise = esm_createNoise3D(() => random(seed));
+  seedCache3d.set(seed, noise);
+  return noise;
+};
+var generate4DNoise = (seed) => {
+  const cached = seedCache4d.get(seed);
+  if (cached) {
+    return cached;
+  }
+  if (seedCache4d.size > 10) {
+    seedCache4d.delete(seedCache4d.keys().next().value);
+  }
+  const noise = esm_createNoise4D(() => random(seed));
+  seedCache4d.set(seed, noise);
+  return noise;
+};
+var noise2D = (seed, x, y) => {
+  return generate2DNoise(seed)(x, y);
+};
+var noise3D = (seed, x, y, z) => generate3DNoise(random(seed))(x, y, z);
+var noise4D = (seed, x, y, z, w) => generate4DNoise(random(seed))(x, y, z, w);
+
+
+;// ./node_modules/@remotion/layout-utils/dist/esm/index.mjs
+// src/layouts/measure-text.ts
+var wordCache = new Map;
+var takeMeasurement = ({
+  text,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  letterSpacing,
+  fontVariantNumeric,
+  additionalStyles,
+  textTransform
+}) => {
+  if (typeof document === "undefined") {
+    throw new Error("measureText() can only be called in a browser.");
+  }
+  const node = document.createElement("span");
+  if (fontFamily) {
+    node.style.fontFamily = fontFamily;
+  }
+  node.style.display = "inline-block";
+  node.style.position = "absolute";
+  node.style.top = `-10000px`;
+  node.style.whiteSpace = "pre";
+  node.style.fontSize = typeof fontSize === "string" ? fontSize : `${fontSize}px`;
+  if (additionalStyles) {
+    for (const key of Object.keys(additionalStyles)) {
+      node.style[key] = additionalStyles[key];
+    }
+  }
+  if (fontWeight) {
+    node.style.fontWeight = fontWeight.toString();
+  }
+  if (letterSpacing) {
+    node.style.letterSpacing = letterSpacing;
+  }
+  if (fontVariantNumeric) {
+    node.style.fontVariantNumeric = fontVariantNumeric;
+  }
+  if (textTransform) {
+    node.style.textTransform = textTransform;
+  }
+  node.innerText = text;
+  document.body.appendChild(node);
+  const computedFontFamily = window.getComputedStyle(node).fontFamily;
+  const boundingBox = node.getBoundingClientRect();
+  document.body.removeChild(node);
+  return {
+    boundingBox,
+    computedFontFamily
+  };
+};
+var measureText = ({
+  text,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  letterSpacing,
+  fontVariantNumeric,
+  validateFontIsLoaded,
+  additionalStyles,
+  textTransform
+}) => {
+  const key = `${text}-${fontFamily}-${fontWeight}-${fontSize}-${letterSpacing}-${textTransform}-${JSON.stringify(additionalStyles)}`;
+  if (wordCache.has(key)) {
+    return wordCache.get(key);
+  }
+  const { boundingBox, computedFontFamily } = takeMeasurement({
+    fontFamily,
+    fontSize,
+    text,
+    fontVariantNumeric,
+    fontWeight,
+    letterSpacing,
+    additionalStyles,
+    textTransform
+  });
+  if (validateFontIsLoaded && text.trim().length > 0) {
+    const {
+      boundingBox: boundingBoxOfFallbackFont,
+      computedFontFamily: computedFallback
+    } = takeMeasurement({
+      fontFamily: null,
+      fontSize,
+      text,
+      fontVariantNumeric,
+      fontWeight,
+      letterSpacing,
+      additionalStyles,
+      textTransform
+    });
+    const sameAsFallbackFont = boundingBox.height === boundingBoxOfFallbackFont.height && boundingBox.width === boundingBoxOfFallbackFont.width;
+    if (sameAsFallbackFont && computedFallback !== computedFontFamily && new Set(text).size > 4) {
+      const err = [
+        `Called measureText() with "fontFamily": ${JSON.stringify(fontFamily)} but it looks like the font is not loaded at the time of calling.`,
+        `A measurement with the fallback font ${computedFallback} was taken and had the same dimensions, indicating that the browser used the fallback font.`,
+        "See https://remotion.dev/docs/layout-utils/best-practices for best practices."
+      ];
+      throw new Error(err.join(`
+`));
+    }
+  }
+  const result = { height: boundingBox.height, width: boundingBox.width };
+  wordCache.set(key, result);
+  return result;
+};
+
+// src/layouts/fill-text-box.ts
+var fillTextBox = ({
+  maxBoxWidth,
+  maxLines
+}) => {
+  const lines = new Array(maxLines).fill(0).map(() => []);
+  return {
+    add: ({
+      text,
+      fontFamily,
+      fontWeight,
+      fontSize,
+      letterSpacing,
+      fontVariantNumeric,
+      validateFontIsLoaded,
+      textTransform,
+      additionalStyles
+    }) => {
+      const lastLineIndex = lines.reduceRight((acc, curr, index) => {
+        if (acc === -1 && curr.length > 0) {
+          return index;
+        }
+        return acc;
+      }, -1);
+      const currentlyAt = lastLineIndex === -1 ? 0 : lastLineIndex;
+      const lineToUse = lines[currentlyAt];
+      const lineWithWord = [
+        ...lineToUse,
+        {
+          text,
+          fontFamily,
+          fontWeight,
+          fontSize,
+          letterSpacing,
+          fontVariantNumeric,
+          validateFontIsLoaded,
+          textTransform,
+          additionalStyles
+        }
+      ];
+      const widths = lineWithWord.map((w) => measureText(w).width);
+      const lineWidthWithWordAdded = widths.reduce((a, b) => a + b, 0);
+      if (Math.ceil(lineWidthWithWordAdded) <= maxBoxWidth) {
+        lines[currentlyAt].push({
+          text: lines[currentlyAt].length === 0 ? text.trimStart() : text,
+          fontFamily,
+          fontWeight,
+          fontSize,
+          letterSpacing,
+          textTransform,
+          fontVariantNumeric,
+          validateFontIsLoaded,
+          additionalStyles
+        });
+        return { exceedsBox: false, newLine: false };
+      }
+      if (currentlyAt === maxLines - 1) {
+        return { exceedsBox: true, newLine: false };
+      }
+      const wordForNewLine = {
+        text: text.trimStart(),
+        fontFamily,
+        fontWeight,
+        fontSize,
+        letterSpacing,
+        fontVariantNumeric,
+        validateFontIsLoaded,
+        textTransform,
+        additionalStyles
+      };
+      const wordAloneWidth = measureText(wordForNewLine).width;
+      if (Math.ceil(wordAloneWidth) > maxBoxWidth) {
+        return { exceedsBox: true, newLine: false };
+      }
+      lines[currentlyAt + 1] = [wordForNewLine];
+      return { exceedsBox: false, newLine: true };
+    }
+  };
+};
+// src/layouts/fit-text.ts
+var sampleSize = 100;
+var fitText = ({
+  text,
+  withinWidth,
+  fontFamily,
+  fontVariantNumeric,
+  fontWeight,
+  letterSpacing,
+  validateFontIsLoaded,
+  additionalStyles,
+  textTransform
+}) => {
+  const estimate = measureText({
+    text,
+    fontFamily,
+    fontSize: sampleSize,
+    fontWeight,
+    fontVariantNumeric,
+    letterSpacing,
+    validateFontIsLoaded,
+    textTransform,
+    additionalStyles
+  });
+  return { fontSize: withinWidth / estimate.width * sampleSize };
+};
+// src/layouts/fit-text-on-n-lines.ts
+var PRECISION = 100;
+var fitTextOnNLines = ({
+  text,
+  maxLines,
+  maxBoxWidth,
+  fontFamily,
+  fontWeight,
+  letterSpacing,
+  fontVariantNumeric,
+  validateFontIsLoaded,
+  textTransform,
+  additionalStyles,
+  maxFontSize
+}) => {
+  const minFontSize = 0.1;
+  let left = Math.floor(minFontSize * PRECISION);
+  let right = Math.floor((maxFontSize ?? 2000) * PRECISION);
+  let optimalFontSize = minFontSize;
+  let optimalLines = [];
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const fontSize = mid / PRECISION;
+    const textBox = fillTextBox({
+      maxBoxWidth,
+      maxLines
+    });
+    const words = text.split(" ");
+    let exceedsBox = false;
+    let currentLine = 0;
+    const lines = [""];
+    for (const word of words) {
+      const result = textBox.add({
+        text: lines[currentLine].length === 0 ? word : " " + word,
+        fontFamily,
+        fontWeight,
+        fontSize,
+        letterSpacing,
+        fontVariantNumeric,
+        validateFontIsLoaded,
+        textTransform,
+        additionalStyles
+      });
+      if (result.exceedsBox) {
+        exceedsBox = true;
+        break;
+      }
+      if (result.newLine) {
+        lines.push("");
+        currentLine++;
+      }
+      lines[currentLine] += word + " ";
+    }
+    if (!exceedsBox && currentLine < maxLines) {
+      optimalFontSize = fontSize;
+      optimalLines = lines;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  for (let i = 0;i < optimalLines.length; i++) {
+    optimalLines[i] = optimalLines[i].trimEnd();
+  }
+  return {
+    fontSize: optimalFontSize,
+    lines: optimalLines
+  };
+};
+
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+const toKebabCase = (string) => string?.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+
+
+//# sourceMappingURL=toKebabCase.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+function toLucideIconData(iconName, iconNode, aliases = []) {
+  if (iconNode == null) {
+    throw new Error("[lucide]: iconNode is required when icon name is used");
+  }
+  return {
+    name: toKebabCase(iconName),
+    size: 24,
+    node: iconNode,
+    ...aliases.length > 0 ? { aliases } : {}
+  };
+}
+
+
+//# sourceMappingURL=toLucideIconData.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+const toCamelCase = (string) => {
+  let out = "";
+  let upperNext = false;
+  for (const ch of string) {
+    if (ch === "-" || ch === "_" || ch <= " ") {
+      upperNext = out.length > 0;
+      continue;
+    }
+    if (out.length === 0) {
+      out += ch.toLowerCase();
+    } else {
+      out += upperNext ? ch.toUpperCase() : ch;
+    }
+    upperNext = false;
+  }
+  return out;
+};
+
+
+//# sourceMappingURL=toCamelCase.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/utils/toPascalCase.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const toPascalCase = (string) => {
+  const camelCase = toCamelCase(string);
+  return camelCase.charAt(0).toUpperCase() + camelCase.slice(1);
+};
+
+
+//# sourceMappingURL=toPascalCase.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/utils/mergeClasses.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+const mergeClasses = (...classes) => classes.filter((className, index, array) => {
+  return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index;
+}).join(" ").trim();
+
+
+//# sourceMappingURL=mergeClasses.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/build/defaultAttributes.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+const defaultAttributes = {
+  xmlns: "http://www.w3.org/2000/svg",
+  width: 24,
+  height: 24,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  "stroke-width": 2,
+  "stroke-linecap": "round",
+  "stroke-linejoin": "round"
+};
+
+
+//# sourceMappingURL=defaultAttributes.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+
+function isDefined(value) {
+  return value !== null && value !== void 0;
+}
+function buildLucideIconNode(icon, params = {}) {
+  const attributeNames = params.attributeNames ?? {};
+  const getAttributeName = (attributeName) => attributeNames[attributeName] ?? attributeName;
+  const viewBoxWidth = icon.size ?? icon.width ?? defaultAttributes["width"];
+  const viewBoxHeight = icon.size ?? icon.height ?? defaultAttributes["height"];
+  const aliasClassNames = icon.aliases?.filter((alias) => typeof alias === "string" && alias.trim() !== "").map((alias) => `lucide-${alias}`) ?? [];
+  const iconClassNames = [...icon.name ? [`lucide-${icon.name}`] : [], ...aliasClassNames];
+  const classNamesFromClassName = params.className?.split(" ").filter(Boolean) ?? [];
+  const className = params.includeDefaultClasses === false ? mergeClasses(...classNamesFromClassName) : mergeClasses("lucide", ...iconClassNames, ...classNamesFromClassName);
+  const calculatedStrokeWidth = params.absoluteStrokeWidth ? Number(params.strokeWidth ?? defaultAttributes["stroke-width"]) * Number(icon.size ?? icon.width ?? defaultAttributes["width"]) / Number(params.size ?? params.width ?? defaultAttributes["width"]) : params.strokeWidth ?? defaultAttributes["stroke-width"];
+  const attributes = {
+    ...Object.entries(defaultAttributes).reduce((attrs, [attrName, value]) => {
+      attrs[getAttributeName(attrName)] = value;
+      return attrs;
+    }, {}),
+    ..."color" in params && params.color && {
+      [getAttributeName("stroke")]: params.color
+    },
+    ..."size" in params && isDefined(params.size) && {
+      [getAttributeName("width")]: params.size,
+      [getAttributeName("height")]: params.size
+    },
+    ..."width" in params && isDefined(params.width) && {
+      [getAttributeName("width")]: params.width
+    },
+    ..."height" in params && isDefined(params.height) && {
+      [getAttributeName("height")]: params.height
+    },
+    [getAttributeName("stroke-width")]: calculatedStrokeWidth,
+    ...className && {
+      [getAttributeName("class")]: className
+    },
+    [getAttributeName("viewBox")]: `0 0 ${viewBoxWidth} ${viewBoxHeight}`,
+    ...params.hasA11yProp === false ? {
+      [getAttributeName("aria-hidden")]: "true"
+    } : {},
+    ..."attributes" in params && params.attributes
+  };
+  return [
+    "svg",
+    attributes,
+    icon.node.map((child) => {
+      const [name, attrs, children] = child;
+      const nextAttrs = params.nonScalingStroke ? { [getAttributeName("vector-effect")]: "non-scaling-stroke", ...attrs } : attrs;
+      return children ? [name, nextAttrs, children] : [name, nextAttrs];
+    })
+  ];
+}
+
+
+//# sourceMappingURL=buildLucideIconNode.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+function buildLucideIconForReact(icon, params = {}) {
+  return buildLucideIconNode(icon, {
+    ...params,
+    attributeNames: {
+      ...params.attributeNames,
+      class: "className",
+      "stroke-width": "strokeWidth",
+      "stroke-linecap": "strokeLinecap",
+      "stroke-linejoin": "strokeLinejoin",
+      "vector-effect": "vectorEffect"
+    }
+  });
+}
+
+
+//# sourceMappingURL=buildLucideIconForReact.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+const hasA11yProp = (props) => {
+  for (const prop in props) {
+    if (prop.startsWith("aria-") || prop === "role" || prop === "title") {
+      return true;
+    }
+  }
+  return false;
+};
+
+
+//# sourceMappingURL=hasA11yProp.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/context.mjs
+/* unused harmony import specifier */ var useMemo;
+/* unused harmony import specifier */ var createElement;
+
+"use client";
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const LucideContext = (0,react.createContext)({});
+function LucideProvider({
+  children,
+  size,
+  color,
+  strokeWidth,
+  absoluteStrokeWidth,
+  nonScalingStroke,
+  className
+}) {
+  const value = useMemo(
+    () => ({
+      size,
+      color,
+      strokeWidth,
+      absoluteStrokeWidth,
+      nonScalingStroke,
+      className
+    }),
+    [size, color, strokeWidth, absoluteStrokeWidth, nonScalingStroke, className]
+  );
+  return createElement(LucideContext.Provider, { value }, children);
+}
+const useLucideContext = () => (0,react.useContext)(LucideContext);
+
+
+//# sourceMappingURL=context.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/Icon.mjs
+
+"use client";
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+
+
+
+
+const Icon = (0,react.forwardRef)(
+  ({
+    color,
+    size,
+    width,
+    height,
+    strokeWidth,
+    absoluteStrokeWidth,
+    nonScalingStroke,
+    className = "",
+    children,
+    iconNode = [],
+    icon = {
+      node: iconNode,
+      aliases: [],
+      size: 24
+    },
+    ...rest
+  }, ref) => {
+    const {
+      size: contextSize = 24,
+      strokeWidth: contextStrokeWidth = 2,
+      absoluteStrokeWidth: contextAbsoluteStrokeWidth = false,
+      nonScalingStroke: contextNonScalingStroke = false,
+      color: contextColor = "currentColor",
+      className: contextClass = ""
+    } = useLucideContext() ?? {};
+    const hasAccessibleProp = Boolean(children) || hasA11yProp(rest);
+    const [name, svgAttributes, builtIconNode = []] = buildLucideIconForReact(icon, {
+      color: color ?? contextColor,
+      width: width ?? size ?? contextSize,
+      height: height ?? size ?? contextSize,
+      strokeWidth: strokeWidth ?? contextStrokeWidth,
+      absoluteStrokeWidth: absoluteStrokeWidth ?? contextAbsoluteStrokeWidth,
+      nonScalingStroke: nonScalingStroke ?? contextNonScalingStroke,
+      className: mergeClasses(contextClass, className),
+      hasA11yProp: hasAccessibleProp,
+      attributes: rest
+    });
+    return (0,react.createElement)(
+      name,
+      {
+        ref,
+        ...svgAttributes
+      },
+      [
+        ...builtIconNode.map(([tag, attrs]) => (0,react.createElement)(tag, attrs)),
+        ...Array.isArray(children) ? children : [children]
+      ]
+    );
+  }
+);
+
+
+//# sourceMappingURL=Icon.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/createLucideIcon.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+
+
+
+function createLucideIcon(iconDataOrName, iconNode = [], aliases = []) {
+  const iconData = typeof iconDataOrName === "string" ? toLucideIconData(iconDataOrName, iconNode, aliases) : iconDataOrName;
+  const Component = (0,react.forwardRef)(
+    ({ className, ...props }, ref) => (0,react.createElement)(Icon, {
+      ref,
+      icon: iconData,
+      className,
+      ...props
+    })
+  );
+  if (iconData.name) {
+    Component.displayName = toPascalCase(iconData.name);
+  }
+  return Component;
+}
+
+
+//# sourceMappingURL=createLucideIcon.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/dollar-sign.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const __iconData = {
+  name: "dollar-sign",
+  size: 24,
+  node: [
+    ["path", { d: "M12 3v18", key: "108xh3" }],
+    ["path", { d: "M17 5H9.5a1 1 0 000 7h5a1 1 0 010 7H6", key: "pwzcbw" }]
+  ]
+};
+__iconData.node;
+const DollarSign = createLucideIcon(__iconData);
+
+
+//# sourceMappingURL=dollar-sign.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/percent.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const percent_iconData = {
+  name: "percent",
+  size: 24,
+  node: [
+    ["line", { x1: "19", x2: "5", y1: "5", y2: "19", key: "1x9vlm" }],
+    ["circle", { cx: "6.5", cy: "6.5", r: "2.5", key: "4mh3h7" }],
+    ["circle", { cx: "17.5", cy: "17.5", r: "2.5", key: "1mdrzq" }]
+  ]
+};
+percent_iconData.node;
+const Percent = createLucideIcon(percent_iconData);
+
+
+//# sourceMappingURL=percent.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/clock.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const clock_iconData = {
+  name: "clock",
+  size: 24,
+  node: [
+    ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
+    ["path", { d: "M12 6v6l4 2", key: "mmk7yg" }]
+  ]
+};
+clock_iconData.node;
+const Clock = createLucideIcon(clock_iconData);
+
+
+//# sourceMappingURL=clock.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/trending-up.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const trending_up_iconData = {
+  name: "trending-up",
+  size: 24,
+  node: [
+    ["path", { d: "M16 7h6v6", key: "box55l" }],
+    ["path", { d: "m22 7-8.5 8.5-5-5L2 17", key: "1t1m79" }]
+  ]
+};
+trending_up_iconData.node;
+const TrendingUp = createLucideIcon(trending_up_iconData);
+
+
+//# sourceMappingURL=trending-up.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/check.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const check_iconData = {
+  name: "check",
+  size: 24,
+  node: [["path", { d: "M20 6 9 17l-5-5", key: "1gmf2c" }]]
+};
+check_iconData.node;
+const Check = createLucideIcon(check_iconData);
+
+
+//# sourceMappingURL=check.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/message-circle-question-mark.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const message_circle_question_mark_iconData = {
+  name: "message-circle-question-mark",
+  size: 24,
+  node: [
+    [
+      "path",
+      {
+        d: "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+        key: "1sd12s"
+      }
+    ],
+    ["path", { d: "M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5", key: "1awbb0" }],
+    ["path", { d: "M12 17h.01", key: "p32p05" }]
+  ],
+  aliases: ["message-circle-question"]
+};
+message_circle_question_mark_iconData.node;
+const MessageCircleQuestionMark = createLucideIcon(message_circle_question_mark_iconData);
+
+
+//# sourceMappingURL=message-circle-question-mark.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/hand.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const hand_iconData = {
+  name: "hand",
+  size: 24,
+  node: [
+    ["path", { d: "M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2", key: "1fvzgz" }],
+    ["path", { d: "M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2", key: "1kc0my" }],
+    ["path", { d: "M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8", key: "10h0bg" }],
+    [
+      "path",
+      {
+        d: "M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15",
+        key: "1s1gnw"
+      }
+    ]
+  ]
+};
+hand_iconData.node;
+const Hand = createLucideIcon(hand_iconData);
+
+
+//# sourceMappingURL=hand.mjs.map
+
+;// ./node_modules/lucide-react/dist/esm/icons/arrow-right.mjs
+/**
+ * @license lucide-react v1.72.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const arrow_right_iconData = {
+  name: "arrow-right",
+  size: 24,
+  node: [
+    ["path", { d: "M5 12h14", key: "1ays0h" }],
+    ["path", { d: "m12 5 7 7-7 7", key: "xquz4c" }]
+  ]
+};
+arrow_right_iconData.node;
+const ArrowRight = createLucideIcon(arrow_right_iconData);
+
+
+//# sourceMappingURL=arrow-right.mjs.map
+
 ;// ./src/UneditCues.tsx
+
+
+
+
+
+
 
 
 
@@ -99,6 +6289,29 @@ function useOut(durFrames) {
   const frame = (0,esm.useCurrentFrame)();
   return (0,esm.interpolate)(frame, [durFrames - 8, durFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 }
+function useDrift(seed, amp = 5) {
+  const frame = (0,esm.useCurrentFrame)();
+  return `translate(${(noise2D(seed, frame / 90, 0) * amp).toFixed(2)}px, ${(noise2D(seed, 0, frame / 90) * amp).toFixed(2)}px)`;
+}
+function Marker({ width, delay = 4, color = ACCENT }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const p = (0,esm.interpolate)(frame, [delay, delay + 12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: (x) => 1 - Math.pow(1 - x, 3) });
+  const d = `M 6 22 C ${width * 0.3} 6, ${width * 0.6} 30, ${width - 6} 12`;
+  const { strokeDasharray, strokeDashoffset } = evolvePath(p, d);
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("svg", { width, height: 36, viewBox: `0 0 ${width} 36`, style: { display: "block", margin: "0 auto", overflow: "visible" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("path", { d, fill: "none", stroke: color, strokeWidth: 10, strokeLinecap: "round", strokeDasharray, strokeDashoffset }) });
+}
+function CounterIcon({ cue }) {
+  const props = { size: 64, color: ACCENT, strokeWidth: 2.4 };
+  if (cue.prefix === "$") return /* @__PURE__ */ (0,jsx_runtime.jsx)(DollarSign, { ...props });
+  if (cue.suffix === "%") return /* @__PURE__ */ (0,jsx_runtime.jsx)(Percent, { ...props });
+  if (/\b(sec|min|hour|hr|day|week|month|year)/i.test(cue.text)) return /* @__PURE__ */ (0,jsx_runtime.jsx)(Clock, { ...props });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(TrendingUp, { ...props });
+}
+function Grain() {
+  const frame = (0,esm.useCurrentFrame)();
+  const x = frame * 197 % 512, y = frame * 331 % 512;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none", mixBlendMode: "overlay", opacity: 0.1, backgroundImage: `url(${(0,esm.staticFile)("fx/grain.png")})`, backgroundRepeat: "repeat", backgroundPosition: `${x}px ${y}px` } });
+}
 function fmt(n, final) {
   const decimals = Number.isInteger(final) ? 0 : 1;
   return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -110,13 +6323,16 @@ function Counter({ cue, dur }) {
   const out = useOut(dur);
   const roll = (0,esm.interpolate)(frame, [2, Math.round(fps * 0.9)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: (x) => 1 - Math.pow(1 - x, 3) });
   const v = cue.value ?? 0;
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 90, right: 90, top: 250, borderRadius: 44, padding: "46px 40px 40px", textAlign: "center", ...GLASS, opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [70, 0])}px) scale(${(0,esm.interpolate)(p, [0, 1], [0.9, 1])})` }, children: [
+  const drift = useDrift("counter");
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 90, right: 90, top: 250, borderRadius: 44, padding: "34px 40px 40px", textAlign: "center", ...GLASS, opacity: out, transform: `${drift} translateY(${(0,esm.interpolate)(p, [0, 1], [70, 0])}px) scale(${(0,esm.interpolate)(p, [0, 1], [0.9, 1])})` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "grid", placeItems: "center", marginBottom: 6, transform: `scale(${p}) rotate(${(0,esm.interpolate)(p, [0, 1], [-40, 0])}deg)` }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(CounterIcon, { cue }) }),
     /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: String(Math.round(v)).length > 5 ? 150 : 200, lineHeight: 1, color: "#fff", letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", textShadow: `0 0 60px ${ACCENT}55` }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: GOLD }, children: cue.prefix }),
       fmt(v * roll, v),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: GOLD }, children: cue.suffix })
     ] }),
-    cue.text ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 18, fontFamily: SERIF, fontStyle: "italic", fontSize: 64, color: ACCENT, lineHeight: 1.1 }, children: cue.text.toLowerCase() }) : null
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(Marker, { width: 420, delay: Math.round(fps * 0.85), color: GOLD }),
+    cue.text ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 14, fontFamily: SERIF, fontStyle: "italic", fontSize: 64, color: ACCENT, lineHeight: 1.1 }, children: cue.text.toLowerCase() }) : null
   ] });
 }
 function Logo({ cue, dur }) {
@@ -142,7 +6358,8 @@ function List({ cue, dur, t0 }) {
     const q = (0,esm.spring)({ frame: frame - at, fps, config: { damping: 14, stiffness: 180 } });
     return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 24, opacity: q, transform: `translateX(${(0,esm.interpolate)(q, [0, 1], [-60, 0])}px)` }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 62, height: 62, borderRadius: 18, background: ACCENT, display: "grid", placeItems: "center", fontFamily: F.display, fontWeight: 800, fontSize: 34, color: "#111", transform: `scale(${q})` }, children: i + 1 }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 56, color: "#fff", textTransform: "uppercase", lineHeight: 1.05 }, children: it.text })
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 56, color: "#fff", textTransform: "uppercase", lineHeight: 1.05, flex: 1 }, children: it.text }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(Check, { size: 54, color: GOLD, strokeWidth: 3, style: { opacity: (0,esm.spring)({ frame: frame - at - 8, fps, config: { damping: 12 } }) } })
     ] }, i);
   }) });
 }
@@ -151,6 +6368,7 @@ function Question({ cue, dur }) {
   const out = useOut(dur);
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 80, right: 80, top: 230, borderRadius: 44, padding: "20px 44px 44px", ...GLASS, opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [-50, 0])}px)` }, children: [
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: SERIF, fontStyle: "italic", fontSize: 260, lineHeight: 0.9, color: ACCENT, transform: `rotate(${(0,esm.interpolate)(p, [0, 1], [-30, -6])}deg)`, transformOrigin: "left bottom", display: "inline-block" }, children: "?" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", right: 40, top: 40, opacity: p }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(MessageCircleQuestionMark, { size: 72, color: ACCENT, strokeWidth: 2.2 }) }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 66, color: "#fff", textTransform: "uppercase", lineHeight: 1.08 }, children: cue.text })
   ] });
 }
@@ -167,7 +6385,8 @@ function Tap({ cue, dur }) {
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 120, right: 120, top: 150, height: 1080, borderRadius: 48, overflow: "hidden", ...GLASS, opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [120, 0])}px) scale(${(0,esm.interpolate)(p, [0, 1], [0.92, press])})` }, children: [
     s ? s.clip ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: s.clip, muted: true, style: fit }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: s.still, style: fit }) : null,
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: "50%", top: "62%", width: 120, height: 120, marginLeft: -60, marginTop: -60, borderRadius: "50%", border: `6px solid ${ACCENT}`, opacity: 1 - ring, transform: `scale(${0.4 + ring * 1.8})` } }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: "50%", top: "62%", width: 64, height: 64, marginLeft: -32, marginTop: -32, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: `0 0 0 10px ${ACCENT}55`, opacity: (0,esm.interpolate)(frame, [tapAt - 6, tapAt, tapAt + 14], [0, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) } })
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: "50%", top: "62%", width: 64, height: 64, marginLeft: -32, marginTop: -32, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: `0 0 0 10px ${ACCENT}55`, opacity: (0,esm.interpolate)(frame, [tapAt - 6, tapAt, tapAt + 14], [0, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: "50%", top: "62%", marginLeft: -6, marginTop: 4, transform: `translate(${(0,esm.interpolate)(frame, [0, tapAt], [140, 0], { extrapolateRight: "clamp" })}px, ${(0,esm.interpolate)(frame, [0, tapAt], [160, 0], { extrapolateRight: "clamp" })}px) scale(${press})`, filter: "drop-shadow(0 10px 20px rgba(0,0,0,.5))" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Hand, { size: 110, color: "#fff", fill: "rgba(255,255,255,.15)", strokeWidth: 1.6 }) })
   ] });
 }
 function Headline({ cue, dur }) {
@@ -178,7 +6397,10 @@ function Headline({ cue, dur }) {
   return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 70, right: 70, top: 300, textAlign: "center", opacity: out, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0 26px" }, children: words.map((w, i) => {
     const q = (0,esm.spring)({ frame: frame - i * 3, fps, config: { damping: 12, stiffness: 220, mass: 0.6 } });
     const hot = i === words.length - 1;
-    return /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: hot ? SERIF : F.display, fontStyle: hot ? "italic" : "normal", fontWeight: hot ? 400 : 800, fontSize: hot ? 170 : 130, lineHeight: 1.02, textTransform: hot ? "none" : "uppercase", color: hot ? ACCENT : "#fff", opacity: q, display: "inline-block", transform: `translateY(${(0,esm.interpolate)(q, [0, 1], [80, 0])}px) scale(${(0,esm.interpolate)(q, [0, 1], [1.4, 1])})`, textShadow: "0 10px 40px rgba(0,0,0,.6)" }, children: hot ? w.toLowerCase() : w }, i);
+    return /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { fontFamily: hot ? SERIF : F.display, fontStyle: hot ? "italic" : "normal", fontWeight: hot ? 400 : 800, fontSize: hot ? 170 : 130, lineHeight: 1.02, textTransform: hot ? "none" : "uppercase", color: hot ? ACCENT : "#fff", opacity: q, display: "inline-block", transform: `translateY(${(0,esm.interpolate)(q, [0, 1], [80, 0])}px) scale(${(0,esm.interpolate)(q, [0, 1], [1.4, 1])})`, textShadow: "0 10px 40px rgba(0,0,0,.6)" }, children: [
+      hot ? w.toLowerCase() : w,
+      hot ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Marker, { width: Math.min(560, 70 + w.length * 70), delay: i * 3 + 8 }) : null
+    ] }, i);
   }) });
 }
 function Cta({ cue, dur }) {
@@ -186,8 +6408,8 @@ function Cta({ cue, dur }) {
   const out = useOut(dur);
   const frame = (0,esm.useCurrentFrame)();
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 70, right: 70, top: 260, borderRadius: 32, padding: "34px 40px", display: "flex", alignItems: "center", gap: 28, background: ACCENT, boxShadow: "0 40px 90px -20px rgba(255,106,43,.55)", opacity: out, transform: `translateX(${(0,esm.interpolate)(p, [0, 1], [-1e3, 0])}px)` }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 64, color: "#111", textTransform: "uppercase", lineHeight: 1.05, flex: 1 }, children: cue.text }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 90, color: "#111", transform: `translateX(${Math.sin(frame / 5) * 8}px)` }, children: "\u2192" })
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: Math.min(64, fitText({ text: cue.text.toUpperCase(), withinWidth: 1500, fontFamily: F.display, fontWeight: 800, validateFontIsLoaded: false }).fontSize), color: "#111", textTransform: "uppercase", lineHeight: 1.05, flex: 1 }, children: cue.text }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { display: "grid", placeItems: "center", transform: `translateX(${Math.sin(frame / 5) * 8}px)` }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(ArrowRight, { size: 96, color: "#111", strokeWidth: 3 }) })
   ] });
 }
 function CueGraphic({ cue, dur }) {
@@ -210,12 +6432,22 @@ function CueGraphic({ cue, dur }) {
       return null;
   }
 }
+function MovingBlur({ dur, children }) {
+  const frame = (0,esm.useCurrentFrame)();
+  return frame < 12 || frame >= dur - 8 ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CameraMotionBlur, { shutterAngle: 180, samples: 5, children }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children });
+}
 function CueLayer({ cues, fps }) {
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: cues.map((c, i) => {
-    const from = Math.max(0, Math.round(c.t * fps));
-    const dur = Math.max(18, Math.round((c.end - c.t) * fps));
-    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `cue ${c.kind}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(CueGraphic, { cue: c, dur }) }, i);
-  }) });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: [
+    cues.map((c, i) => {
+      const from = Math.max(0, Math.round(c.t * fps));
+      const dur = Math.max(18, Math.round((c.end - c.t) * fps));
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `cue ${c.kind}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(MovingBlur, { dur, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(CueGraphic, { cue: c, dur }) }) }, i);
+    }),
+    cues.filter((c) => c.kind === "logo" || c.kind === "cta").map((c, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeak, { from: Math.max(0, Math.round(c.t * fps) - 4), durationInFrames: Math.round(fps * 0.7), seed: i + 3, hueShift: 0, style: { opacity: 0.32, mixBlendMode: "screen" } }, `leak${i}`))
+  ] });
+}
+function CutLeaks({ cuts, fps }) {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: cuts.map((t, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeak, { from: Math.max(0, Math.round(t * fps) - 6), durationInFrames: Math.round(fps * 0.6), seed: i * 7 + 1, hueShift: 0, style: { opacity: 0.28, mixBlendMode: "screen" } }, i)) });
 }
 function CameraRig({ cues, children }) {
   const frame = (0,esm.useCurrentFrame)();
@@ -391,7 +6623,9 @@ const UneditPro = ({ src, words, shots, cues = [], serif = false, sfx = false })
       const dur = Number.isFinite(to) ? Math.max(1, to - from) : void 0;
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i + 1} ${sh.layout}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Shot, { shot: sh, src, from }) }, i);
     }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(CutLeaks, { cuts: sorted.filter((sh, i) => i > 0 && sh.layout !== sorted[i - 1].layout && (sh.layout === "screen" || sorted[i - 1].layout === "screen")).map((sh) => sh.s), fps: PRO_FPS }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(CueLayer, { cues, fps: PRO_FPS }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(Grain, {}),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(Captions, { words, shots: sorted, serif }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src }),
     sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(SoundEffects, { words, shots: sorted, busy: cues.filter((c) => c.sound).map((c) => c.t) }),
@@ -20670,7 +26904,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(2664);
+/******/ 	__webpack_require__(6798);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	
