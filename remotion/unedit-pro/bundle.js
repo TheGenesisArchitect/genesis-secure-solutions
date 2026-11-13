@@ -151,7 +151,7 @@ function Shot({ shot, src, from }) {
       const word = (shot.accent ?? "").replace(/[^\p{L}\p{N}$%.'-]/gu, "");
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: C.bg, display: "grid", placeItems: "center" }, children: [
         /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [60, 0])}px)`, opacity: p, textAlign: "center", padding: "0 80px" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: SERIF, fontStyle: "italic", fontSize: word.length > 9 ? 170 : 230, lineHeight: 1, color: ACCENT }, children: word.toLowerCase() }) }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Bubble, { src, from, top: 1120, size: 260 })
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(Bubble, { src, from, top: 150, size: 260 })
       ] });
     }
     default:

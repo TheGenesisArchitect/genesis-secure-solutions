@@ -60,6 +60,8 @@ export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: numbe
     if (k === 0) layout = 'face';
     const shot: Shot = { w0: sen.w0, w1: sen.w1, s: sen.s, e: sen.e, layout, accent, screen: layout === 'screen' || layout === 'split' ? screen : null, figure: layout === 'number' || layout === 'split' ? figure : null };
     const prev = shots[shots.length - 1];
+    // One huge word at a time: a word shot right after another becomes a card.
+    if (prev && shot.layout === 'word' && prev.layout === 'word') shot.layout = 'card';
     // Too short to read as its own shot: it keeps the previous layout (its accent word still counts).
     // A figure or a huge word belongs to the sentence that says it, so after one the short shot becomes a card.
     if (prev && shot.e - shot.s < MIN_SHOT_S) {
