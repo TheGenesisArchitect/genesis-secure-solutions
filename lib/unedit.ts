@@ -540,6 +540,16 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
     case 'retry_episode': {
       // The polished episode stopped (the clips went on to review): fresh tries for its failed parts, before approval.
       inReview();
+      const gr = vlog.episode_plan?.graphics;
+      if (vlog.episode_plan && !vlog.episode_plan.error && gr?.error && gr.items.length) {
+        // The episode finished without its graphics: render the reel again and lay it over every part.
+        await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+        const graphics = { ...gr, error: null, reels: gr.reels?.map((r) => ({ from: r.from, to: r.to })) };
+        await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+        await log('retry-episode', id, { graphics: true });
+        await kick(origin, id);
+        return 'Adding the graphics to the episode again.';
+      }
       if (!vlog.episode_plan?.error) return 'The episode is fine.';
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null }).eq('vlog_id', id).neq('status', 'done');
       await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, error: null }, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
