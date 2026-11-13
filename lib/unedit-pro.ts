@@ -1,17 +1,17 @@
-// Unedit Pro's graphics pass, server only. ffmpeg cuts a clean 9:16 clip (no captions); Remotion Lambda renders the
-// UneditPro composition from Genovus Motion over it (layouts per planned shot, real screen-library inserts, the
-// Genovus captions); the result comes back into private Blob as the clip, so the card and Metricool are unchanged.
-// Off until the Remotion env is set (REMOTION_AWS_ACCESS_KEY_ID / _SECRET_ACCESS_KEY, REMOTION_SERVE_URL,
-// REMOTION_FUNCTION_NAME, REMOTION_AWS_REGION); then a failed pass falls back to the plain clip, never a stuck job.
-// The composition's Remotion version must match @remotion/lambda here exactly (both 4.0.533).
+// Unedit Pro's graphics pass, server only. ffmpeg cuts a clean 9:16 clip (no captions); Remotion renders the
+// UneditPro composition from Genovus Motion over it inside a Vercel Sandbox (layouts per planned shot, real
+// screen-library inserts, the Genovus captions); this function reads the MP4 back out of the sandbox and stores it in
+// private Blob as the clip, so the card and Metricool are unchanged and the Blob token never enters the sandbox.
+// No AWS: the sandbox signs in with this deployment's Vercel OIDC token. Off unless UNEDIT_PRO=on; then any failure
+// falls back to the plain clip, never a stuck job. The bundle (remotion/unedit-pro) is built from Genovus Motion with
+// scripts/bundle-pro.mjs and must use the same Remotion version as @remotion/vercel here (4.0.533).
 import 'server-only';
-import { getRenderProgress, presignUrl, renderMediaOnLambda, type AwsRegion } from '@remotion/lambda/client';
+import path from 'node:path';
 import assets from '@/data/screen-library-assets.json';
 import { presigned, wordsForSpans, type Span, type Word } from '@/lib/unedit-media';
 import type { Shot } from '@/lib/unedit-shots';
 
-const REGION = () => ((process.env.REMOTION_AWS_REGION || 'us-east-1').trim()) as AwsRegion;
-export const proConfigured = () => Boolean(process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_AWS_SECRET_ACCESS_KEY && process.env.REMOTION_SERVE_URL && process.env.REMOTION_FUNCTION_NAME);
+export const proConfigured = () => (process.env.UNEDIT_PRO ?? '').trim() === 'on';
 
 type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null } | null };
 export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; serif: boolean };
@@ -47,25 +47,24 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
   return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], serif: false };
 }
 
-/** Render on Remotion Lambda and return the MP4 bytes (polls until done; throws on a render error or after 9 min). */
+/** Render in a fresh Vercel Sandbox and return the MP4 bytes. The sandbox lives at most 13 minutes and is stopped
+ *  when done; setup (system packages, Chrome) is part of each render for now. */
 export async function renderPro(props: ProProps): Promise<Buffer> {
-  const region = REGION();
-  const functionName = process.env.REMOTION_FUNCTION_NAME!.trim();
-  const { renderId, bucketName } = await renderMediaOnLambda({
-    region, functionName, serveUrl: process.env.REMOTION_SERVE_URL!.trim(), composition: 'UneditPro',
-    inputProps: props as unknown as Record<string, unknown>, codec: 'h264', crf: 20, privacy: 'private', maxRetries: 1, downloadBehavior: null,
-  });
-  const until = Date.now() + 9 * 60_000;
-  while (Date.now() < until) {
-    await new Promise((r) => setTimeout(r, 4000));
-    const p = await getRenderProgress({ renderId, bucketName, functionName, region });
-    if (p.fatalErrorEncountered) throw new Error(`Remotion: ${p.errors[0]?.message?.slice(0, 200) ?? 'render failed'}`);
-    if (p.done && p.outKey) {
-      const url = await presignUrl({ region, bucketName, objectKey: p.outKey, expiresInSeconds: 600 });
-      const r = await fetch(url, { signal: AbortSignal.timeout(180_000) });
-      if (!r.ok) throw new Error(`Remotion output download failed (${r.status}).`);
-      return Buffer.from(await r.arrayBuffer());
-    }
+  // ESM-only package: loaded on demand, so a server bundle that requires its externals still works.
+  const { addBundleToSandbox, createSandbox, renderMediaOnVercel } = await import('@remotion/vercel');
+  const sandbox = await createSandbox({ timeoutInMilliseconds: 13 * 60_000 });
+  try {
+    // addBundleToSandbox makes the bundle's subfolders but not its root (@remotion/vercel 4.0.533).
+    await sandbox.mkDir('remotion-bundle').catch(() => {});
+    await addBundleToSandbox({ sandbox, bundleDir: path.join(process.cwd(), 'remotion/unedit-pro') });
+    const { sandboxFilePath } = await renderMediaOnVercel({
+      sandbox, compositionId: 'UneditPro', inputProps: props as unknown as Record<string, unknown>,
+      codec: 'h264', crf: 20, timeoutInMilliseconds: 8 * 60_000,
+    });
+    const bytes = await sandbox.readFileToBuffer({ path: sandboxFilePath }, { signal: AbortSignal.timeout(180_000) });
+    if (!bytes?.length) throw new Error('The render finished without a video file.');
+    return bytes;
+  } finally {
+    await sandbox.stop().catch(() => {});
   }
-  throw new Error('Remotion render took longer than 9 minutes.');
 }

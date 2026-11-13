@@ -36,10 +36,12 @@ const nextConfig: NextConfig = {
     // The episode render: a bundled ffmpeg binary plus the brand fonts and egg for cards and captions.
     '/api/studio/render/[code]': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.woff', './public/brand/genovus/genovus-egg.svg'],
     // Unedit: ffmpeg for clips, audio and stills; the brand font as TTF for burned-in captions (libass), WOFF for thumbnails.
-    '/api/studio/unedit/[id]/step': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.ttf', './lib/fonts/*.woff'],
+    // Unedit Pro: the Remotion bundle it uploads into a Vercel Sandbox per render (built from Genovus Motion).
+    '/api/studio/unedit/[id]/step': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.ttf', './lib/fonts/*.woff', './remotion/unedit-pro/**/*'],
   },
   // ffmpeg-static resolves its binary path at runtime; keep it out of the bundle so the path stays real.
-  serverExternalPackages: ['ffmpeg-static'],
+  // Remotion's renderer and its Vercel Sandbox driver load native binaries and the sandbox SDK at runtime.
+  serverExternalPackages: ['ffmpeg-static', '@remotion/vercel', '@remotion/renderer', '@vercel/sandbox'],
   poweredByHeader: false,
   // Friendly doors under the genovus.io mothership: app. for agencies, partners. for carriers. Everything
   // lives on genovus.io itself so one sign-in covers the whole ecosystem.

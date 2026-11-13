@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 78 100" role="img" aria-label="Genovus">
+  <defs>
+    <radialGradient id="body" cx="0.36" cy="0.28" r="0.82" fx="0.34" fy="0.24">
+      <stop offset="0" stop-color="#ffd38a"/>
+      <stop offset="0.2" stop-color="#ffa33a"/>
+      <stop offset="0.48" stop-color="#f6781c"/>
+      <stop offset="0.82" stop-color="#e2380f"/>
+      <stop offset="1" stop-color="#a8260a"/>
+    </radialGradient>
+    <radialGradient id="shade" cx="0.74" cy="0.8" r="0.55">
+      <stop offset="0" stop-color="#6e1900" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#6e1900" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shine" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bounce" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffc878" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ffc878" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="egg"><path d="M39 0C61 0 78 38 78 62C78 85 61 100 39 100C17 100 0 85 0 62C0 38 17 0 39 0Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#egg)">
+    <rect width="78" height="100" fill="url(#body)"/>
+    <rect width="78" height="100" fill="url(#shade)"/>
+    <ellipse cx="27" cy="22" rx="11" ry="8" fill="url(#shine)" transform="rotate(-24 27 22)"/>
+    <ellipse cx="40" cy="92" rx="17" ry="5" fill="url(#bounce)"/>
+  </g>
+</svg>
