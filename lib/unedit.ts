@@ -18,6 +18,7 @@ import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/une
 import { pickStills, planVlog, redoClip, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
+import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { GENOVUS_BLOG_ID, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 
 export type Stage = 'uploaded' | 'transcribing' | 'finding' | 'rendering' | 'review' | 'publishing' | 'published' | 'failed';
@@ -161,15 +162,29 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         const spans: Span[] = [...(next.hook_start_s != null && next.hook_end_s != null ? [{ from: Number(next.hook_start_s), to: Number(next.hook_end_s) }] : []), { from: Number(next.start_s), to: Number(next.end_s) }];
         // Unedit Pro: the shot plan's accent words get the orange caption and a punch-in (clips planned before it have none).
         const shots = ((next.features as { shots?: Shot[] })?.shots ?? []);
-        const out = await renderClip(src, spans, words, probeOf(v), { accents: shots.map((s) => s.accent).filter((a): a is number => a != null) });
-        try {
-          const bytes = await fs.readFile(out.file);
-          const path = `${dir(v)}/clips/${next.n}-${Date.now()}.mp4`;
-          await put(path, bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
-          await dbx().from('unedit_clips').update({ blob_path: path, secs: Math.round(out.secs * 10) / 10, status: 'ready', error: null }).eq('id', next.id);
-        } finally { await fs.rm(out.dir, { recursive: true, force: true }).catch(() => {}); }
+        const accents = shots.map((s) => s.accent).filter((a): a is number => a != null);
+        const cut = async (captions: boolean) => {
+          const o = await renderClip(src, spans, words, probeOf(v), { accents, captions });
+          try { return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(o.dir, { recursive: true, force: true }).catch(() => {}); }
+        };
+        // Unedit Pro's graphics pass (Remotion Lambda) when it is configured; any failure falls back to the plain clip.
+        let made: { bytes: Buffer; secs: number; pro: boolean } | null = null;
+        if (proConfigured() && shots.length) {
+          try {
+            const base = await cut(false);
+            const basePath = `${dir(v)}/clips/${next.n}-base.mp4`;
+            await put(basePath, base.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
+            made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents)), secs: base.secs, pro: true };
+          } catch (e) {
+            console.error(`[unedit] ${v.id} clip ${next.n}: Unedit Pro fell back to the plain clip: ${e instanceof Error ? e.message : e}`);
+          }
+        }
+        made ??= { ...(await cut(true)), pro: false };
+        const path = `${dir(v)}/clips/${next.n}-${Date.now()}.mp4`;
+        await put(path, made.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
+        await dbx().from('unedit_clips').update({ blob_path: path, secs: Math.round(made.secs * 10) / 10, status: 'ready', error: null, features: { ...(next.features ?? {}), pro: made.pro } }).eq('id', next.id);
         await release(v.id); // the route kicks the next clip right away, in a fresh function
-        return `Rendered clip ${next.n}.`;
+        return `Rendered clip ${next.n}${made.pro ? ' (Unedit Pro)' : ''}.`;
       }
       if (!v.thumbs?.length) {
         await makeThumbs(v, src);

@@ -17,6 +17,7 @@
     "vercel-build": "node scripts/ensure-ffmpeg.mjs && node scripts/build-template.mjs && node scripts/migrate-on-deploy.mjs && next build"
   },
   "dependencies": {
+    "@remotion/lambda": "4.0.533",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "@vercel/blob": "^2.0.0",
