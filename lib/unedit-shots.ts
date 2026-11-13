@@ -27,7 +27,8 @@ export const SHOTS_RULES = [
   'For every clip also write "shots": one entry per sentence the clip plays (its hook sentences too), in sentence order.',
   `Each shot: {"s":<sentence #>,"layout":"${LAYOUTS.join('|')}","accent":"<ONE word copied exactly from that sentence: the number, name or verb that carries its point; never a filler word>","screen":"<a screen code from the list or null>","figure":"<a number or 1-3 words from the sentence for a big card, or null>"}.`,
   'Layouts: face = the speaker full frame. card = the speaker in a card on a light canvas. screen = a real product screen with the speaker in a corner bubble (needs "screen"). split = the speaker above, a screen or figure below. number = one big figure from the sentence (needs "figure"). word = the accent word huge, kinetic type.',
-  'Change layout every one or two sentences. The first shot is always face. Use screen only when the sentence is about what that screen shows; never invent screens. Use number only for a figure the speaker actually says.',
+  'The audience should SEE the product working, not read about it. Whenever a sentence mentions the product, a feature, a step, a page, a result or what someone does in it, show the closest real screen from the list (screen, or split when the speaker’s face matters). When the clip talks about the product, at least half its shots should be screen or split. A screen may repeat across sentences while the speaker is still describing it.',
+  'Use card and word for opinions, feelings and punchlines; number only for a figure the speaker says word for word in that sentence. Change layout every one or two sentences, except a screen may hold while it is still being described. The first shot is always face. Never invent screen codes.',
 ].join('\n');
 
 /** Repair Claude's shots for one clip into code-checked shots over the sentences the clip plays. */
@@ -41,7 +42,9 @@ export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: numbe
     const r = bySentence.get(i) ?? {};
     let layout: Layout = (LAYOUTS as readonly string[]).includes(String(r.layout)) ? (r.layout as Layout) : 'face';
     const screen = typeof r.screen === 'string' && SCREENS.has(r.screen) ? r.screen : null;
-    const figure = typeof r.figure === 'string' && r.figure.trim() && r.figure.trim().length <= 14 && sen.text.toLowerCase().includes(r.figure.trim().toLowerCase().replace(/[^a-z0-9$%. ]/g, '').split(' ')[0]) ? r.figure.trim() : null;
+    // A figure is shown only if the speaker says all of it in this sentence ("three hours" never over "three minutes").
+    const said = (f: string) => { const want = f.toLowerCase().split(/\s+/).map(norm).filter(Boolean); const have = new Set(sen.text.split(' ').map(norm)); return want.length > 0 && want.every((w) => have.has(w)); };
+    const figure = typeof r.figure === 'string' && r.figure.trim() && r.figure.trim().length <= 14 && said(r.figure.trim()) ? r.figure.trim() : null;
     if (layout === 'screen' && !screen) layout = 'face';
     if (layout === 'split' && !screen && !figure) layout = 'card';
     if (layout === 'number' && !figure) layout = 'card';

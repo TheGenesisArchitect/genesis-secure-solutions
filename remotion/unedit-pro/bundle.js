@@ -119,7 +119,10 @@ function useEnter() {
   return { p, style: { opacity: (0,esm.interpolate)(p, [0, 1], [0, 1]), transform: `scale(${(0,esm.interpolate)(p, [0, 1], [1.04, 1])})` } };
 }
 function ScreenInsert({ screen, from }) {
-  return screen.clip ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: screen.clip, muted: true, startFrom: 0, style: { width: "100%", height: "100%", objectFit: "cover" } }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: screen.still, style: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" } }, from);
+  const frame = (0,esm.useCurrentFrame)();
+  const push = (0,esm.interpolate)(frame, [0, 8 * PRO_FPS], [1, 1.08], { extrapolateRight: "clamp" });
+  const fit = { width: "100%", height: "100%", objectFit: screen.wide ? "contain" : "cover", objectPosition: "top", transform: `scale(${push})`, transformOrigin: "50% 20%" };
+  return screen.clip ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: screen.clip, muted: true, startFrom: 0, style: fit }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: screen.still, style: fit }, from);
 }
 function Bubble({ src, from, top = 110, size = 300 }) {
   return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", right: 70, top, width: size, height: size, borderRadius: "50%", overflow: "hidden", border: "8px solid #fff", boxShadow: "0 24px 60px rgba(0,0,0,.55)" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Speaker, { src, from }) });

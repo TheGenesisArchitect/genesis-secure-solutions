@@ -14,16 +14,17 @@ import type { Shot } from '@/lib/unedit-shots';
 
 export const proConfigured = () => (process.env.UNEDIT_PRO ?? '').trim() === 'on';
 
-type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null } | null };
+type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null; wide: boolean } | null };
 export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; serif: boolean; sfx: boolean };
 
 const ENTRIES = (assets as { entries: Record<string, { clip?: string; still?: string }> }).entries ?? {};
 
 /** A library screen as presigned links: the phone capture (it fills a 9:16 panel), else the desktop one. */
 async function screenLinks(code: string): Promise<ProShot['screen']> {
-  const a = ENTRIES[`${code}:phone`] ?? ENTRIES[`${code}:desktop`];
+  const phone = ENTRIES[`${code}:phone`];
+  const a = phone ?? ENTRIES[`${code}:desktop`];
   if (!a?.still) return null;
-  return { still: await presigned(a.still, 120), clip: a.clip ? await presigned(a.clip, 120) : null };
+  return { still: await presigned(a.still, 120), clip: a.clip ? await presigned(a.clip, 120) : null, wide: !phone };
 }
 
 /** The composition's props: words and shots moved onto the clip's own timeline (spans play back to back, the hook
