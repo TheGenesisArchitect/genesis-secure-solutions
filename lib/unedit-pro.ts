@@ -17,7 +17,7 @@ export const proConfigured = () => (process.env.UNEDIT_PRO ?? '').trim() === 'on
 
 type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null; wide: boolean } | null };
 /** A cue on the clip's own timeline (lib/unedit-cues.ts), for Genovus Motion's cue layer. */
-export type ProCue = { t: number; end: number; kind: Cue['kind']; text: string; items?: { text: string; t: number }[]; value?: number; prefix?: string; suffix?: string; screen?: ProShot['screen']; sound: Cue['sound']; cam: Cue['cam'] };
+export type ProCue = { t: number; end: number; kind: Cue['kind']; text: string; icon?: string; items?: { text: string; t: number }[]; value?: number; prefix?: string; suffix?: string; screen?: ProShot['screen']; sound: Cue['sound']; cam: Cue['cam'] };
 export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; cues: ProCue[]; serif: boolean; sfx: boolean };
 
 const ENTRIES = (assets as { entries: Record<string, { clip?: string; still?: string }> }).entries ?? {};
@@ -69,7 +69,15 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
       const k = words.findIndex((w, i) => i >= c.w && norm(w.w) === first);
       return { text: it, t: k >= 0 ? at(words[k].s) ?? t : t };
     });
-    outCues.push({ t, end: Math.max(end, t + 1.2, ...(items ?? []).map((x) => x.t + 1)), kind: c.kind, text: c.text, items, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam });
+    outCues.push({ t, end: Math.max(end, t + 1.2, ...(items ?? []).map((x) => x.t + 1)), kind: c.kind, text: c.text, icon: c.icon, items, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam });
+  }
+  // A big word or figure card is a beat, not a scene: after 2.4 s it hands back to the speaker's face.
+  for (let i = 0; i < out.length; i++) {
+    const sh = out[i];
+    if ((sh.layout === 'word' || sh.layout === 'number') && sh.e - sh.s > 3.2) {
+      out.splice(i + 1, 0, { s: sh.s + 2.4, e: sh.e, layout: 'face', accent: null, figure: null, screen: null });
+      sh.e = sh.s + 2.4;
+    }
   }
   // One graphic at a time: while a cue is on screen, the shot under it is the speaker's face (no figure card, big
   // word or second screen competing with it). A whip is only a camera move, so it changes nothing.

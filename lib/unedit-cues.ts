@@ -8,7 +8,9 @@
 // Sounds and animations are named slots (lib side) rendered by Genovus Motion; licensed packs swap into the slots.
 import type { Word } from '@/lib/unedit-media';
 
-export const CUE_KINDS = ['counter', 'logo', 'list', 'whip', 'question', 'tap', 'headline', 'cta'] as const;
+export const CUE_KINDS = ['counter', 'logo', 'list', 'whip', 'question', 'tap', 'headline', 'cta', 'icon'] as const;
+/** Icons the director may pop on a real-world noun (Lucide, ISC license; every name checked against lucide-react). */
+export const ICONS = new Set(["Coffee", "Candy", "Cookie", "Heart", "HeartPulse", "Brain", "Dumbbell", "Apple", "Pill", "Car", "House", "Briefcase", "Clock", "Calendar", "Phone", "Smartphone", "Camera", "Video", "Mic", "Mail", "MessageCircle", "Users", "User", "Baby", "Dog", "Plane", "MapPin", "Globe", "Sun", "Moon", "Flame", "Zap", "Rocket", "Trophy", "Target", "TrendingUp", "TrendingDown", "DollarSign", "Wallet", "PiggyBank", "CreditCard", "ShoppingCart", "Gift", "Book", "GraduationCap", "Lightbulb", "Shield", "Lock", "Key", "Wrench", "Hammer", "Code", "Laptop", "Bot", "Sparkles", "Star", "ThumbsUp", "ThumbsDown", "Check", "X", "AlertTriangle", "Ban", "Hourglass", "Timer", "Bed", "Utensils", "Pizza", "Beer", "Wine", "Droplet", "Leaf", "Music", "Gamepad2", "Church", "HandHeart", "Smile", "Frown", "Footprints", "Activity", "Stethoscope", "Scale", "Megaphone", "Eye", "Crown", "Gem", "Store", "Building2", "Factory", "Truck", "Fuel", "Umbrella", "CloudRain", "Snowflake", "Bike", "Medal", "Repeat", "RefreshCw", "Send", "Upload", "Download", "Play", "Pause", "Film", "Image", "Sofa", "Shirt", "Watch", "Ticket", "Puzzle", "Handshake", "Landmark", "Receipt", "Calculator", "ChartLine", "ChartPie", "Banknote", "Coins", "Bitcoin", "HandCoins", "Siren", "Skull", "Bug", "Cake", "IceCreamCone", "Croissant", "Salad", "Sandwich", "Soup", "Milk", "CupSoda", "Sprout", "Mountain", "Waves", "Tent", "Anchor", "Ship", "Train", "Bus", "Fish"]);
 export type CueKind = (typeof CUE_KINDS)[number];
 export const SOUND_SLOTS = ['hit', 'whoosh', 'riser', 'pop', 'click', 'tick', 'swish', 'sting'] as const;
 export type SoundSlot = (typeof SOUND_SLOTS)[number];
@@ -17,8 +19,8 @@ export type CameraMove = (typeof CAMERA)[number];
 export type Tag = 'number' | 'money' | 'time' | 'brand' | 'list' | 'contrast' | 'question' | 'action' | 'cta' | 'emphasis';
 
 /** A cue on the recording's timeline: anchored to word w (global index), held until word w1. */
-export type Cue = { kind: CueKind; w: number; w1: number; s: number; e: number; text: string; items?: string[]; value?: number; prefix?: string; suffix?: string; screen?: string | null; sound: SoundSlot | null; cam: CameraMove | null };
-export type RawCue = { w?: string; s?: number; kind?: string; text?: string; items?: unknown[]; screen?: string | null; sound?: string | null; cam?: string | null };
+export type Cue = { kind: CueKind; w: number; w1: number; s: number; e: number; text: string; icon?: string; items?: string[]; value?: number; prefix?: string; suffix?: string; screen?: string | null; sound: SoundSlot | null; cam: CameraMove | null };
+export type RawCue = { w?: string; s?: number; kind?: string; text?: string; icon?: string; items?: unknown[]; screen?: string | null; sound?: string | null; cam?: string | null };
 
 // Each kind's default sound and camera move: the director may change them only to another slot in the vocabulary.
 export const DEFAULTS: Record<CueKind, { sound: SoundSlot | null; cam: CameraMove | null; needs: Tag[] }> = {
@@ -30,6 +32,7 @@ export const DEFAULTS: Record<CueKind, { sound: SoundSlot | null; cam: CameraMov
   tap: { sound: 'click', cam: 'punch', needs: ['action'] },
   headline: { sound: 'hit', cam: 'shake', needs: ['emphasis', 'number', 'money'] },
   cta: { sound: 'sting', cam: 'pull', needs: ['cta'] },
+  icon: { sound: 'pop', cam: null, needs: [] },
 };
 
 const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9$%.,']/g, '').replace(/[.,]$/, '');
@@ -88,13 +91,13 @@ export function taggedText(words: Word[], tags: Tag[][], w0: number, w1: number)
 /** The prompt's instructions for the "cues" field of each clip. */
 export const CUES_RULES = [
   'For every clip also write "cues": the graphics, sounds and camera moves, each placed on ONE exact word of the transcript. Tagged words look like [word|tags]. A cue goes on a tagged word whose tag fits it:',
-  'counter = a number counts up on screen (on a number, money or time word; "text" is what it measures, e.g. "hours a week"). logo = the brand mark reveals (on a brand). list = items build one by one as they are said (on a list word; "items": the 2-5 items, each copied from the transcript, under 5 words). whip = a whip transition into the contrast (on "but", "instead"…). question = a question card (on the question\'s last word; "text" is the question, under 10 words). tap = the product screen gets a tap (on an action word; "screen" is a screen code from the list). headline = the line hits as kinetic type (on an emphasis word; "text" is 2-5 words copied from the sentence). cta = the closing call to action (on a call-to-action word; "text" under 6 words).',
-  'Each cue: {"w":"<the exact word>","s":<sentence #>,"kind":"<kind>","text":"…","items":[…],"screen":null,"sound":"' + SOUND_SLOTS.join('|') + '|null","cam":"' + CAMERA.join('|') + '|null"}. Sound and camera are optional; leave them out for the default.',
+  'counter = a number counts up on screen (on a number, money or time word; "text" is what it measures, e.g. "hours a week"). logo = the brand mark reveals (on a brand). list = items build one by one as they are said (on a list word; "items": the 2-5 items, each copied from the transcript, under 5 words). whip = a whip transition into the contrast (on "but", "instead"…). question = a question card (on the question\'s last word; "text" is the question, under 10 words). tap = the product screen gets a tap (on an action word; "screen" is a screen code from the list). headline = the line hits as kinetic type (on an emphasis word; "text" is 2-5 words copied from the sentence). cta = the closing call to action (on a call-to-action word; "text" under 6 words). icon = a real thing the speaker names gets its icon (on that noun, ANY word, tagged or not; "icon" is one name from: ' + [...ICONS].join(', ') + '). Icons suit everyday, personal and story talk where there are no numbers or brands.',
+  'Each cue: {"w":"<the exact word>","s":<sentence #>,"kind":"<kind>","text":"…","items":[…],"screen":null,"icon":null,"sound":"' + SOUND_SLOTS.join('|') + '|null","cam":"' + CAMERA.join('|') + '|null"}. Sound and camera are optional; leave them out for the default.',
   'Fewer, better cues: one for the hook, then at most one every 4 seconds of talk; skip quiet, emotional or personal moments (let the face carry them). Pick the moments a top editor would: the number that surprises, the brand when it is the point, the list when the speaker counts, the turn of the argument.',
 ].join('\n');
 
 const MAJOR_GAP = 3.2; // seconds between two cues
-const PRIORITY: CueKind[] = ['counter', 'list', 'tap', 'logo', 'question', 'cta', 'headline', 'whip'];
+const PRIORITY: CueKind[] = ['counter', 'list', 'tap', 'logo', 'question', 'cta', 'headline', 'icon', 'whip'];
 const MAX_PER_CLIP = 8;
 
 /** Repair the director's cues for one clip into code-checked cues on words inside the clip's sentences. */
@@ -111,7 +114,7 @@ export function toCues(raw: RawCue[] | undefined, ss: { i: number; w0: number; w
     if (w < 0) continue;
     const d = DEFAULTS[kind];
     // The word must carry a tag that fits the cue (a counter needs a number, a logo a brand…).
-    if (!d.needs.some((t) => tags[w]?.includes(t))) continue;
+    if (d.needs.length && !d.needs.some((t) => tags[w]?.includes(t))) continue;
     const text = typeof r.text === 'string' ? r.text.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
     const sound = (SOUND_SLOTS as readonly string[]).includes(String(r.sound)) ? (r.sound as SoundSlot) : r.sound === null ? null : d.sound;
     const cam = (CAMERA as readonly string[]).includes(String(r.cam)) ? (r.cam as CameraMove) : r.cam === null ? null : d.cam;
@@ -127,6 +130,14 @@ export function toCues(raw: RawCue[] | undefined, ss: { i: number; w0: number; w
       if (items.length < 2) continue;
       cue.items = items.slice(0, 5);
       cue.e = words[Math.min(words.length - 1, sen.w1 + 30)].e;
+    }
+    if (kind === 'icon') {
+      // A real thing the speaker names (coffee, sugar, a car, money): its icon pops beside them, labeled with their word.
+      const name = String(r.icon ?? '');
+      if (!ICONS.has(name) || norm(words[w].w).length < 3) continue;
+      cue.icon = name;
+      cue.text = words[w].w.replace(/[^\p{L}\p{N}'-]/gu, '').toLowerCase();
+      cue.e = Math.min(cue.e, cue.s + 1.8);
     }
     if (kind === 'tap') { cue.screen = typeof r.screen === 'string' && screens.has(r.screen) ? r.screen : null; if (!cue.screen) continue; }
     if ((kind === 'question' || kind === 'headline' || kind === 'cta') && !text) continue;
