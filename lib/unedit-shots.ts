@@ -17,6 +17,9 @@ const MIN_SHOT_S = 1.6;
 const STOP = new Set(['the', 'and', 'but', 'for', 'that', 'this', 'with', 'you', 'your', 'are', 'was', 'were', 'have', 'has', 'had', 'its', "it's", 'our', 'they', 'them', 'then', 'than', 'just', 'like', 'into', 'from', 'what', 'when', 'where', 'there', 'their', 'about', 'some', 'really', 'very', 'gonna', 'kind']);
 const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9$%']/g, '');
 
+/** Every real screen code in the library. */
+export const screenCodes = () => new Set(SCREENS.keys());
+
 /** The screen-library lines the prompt offers Claude (code: what it shows). */
 export function screenMenu(): string {
   return [...SCREENS].map(([code, title]) => `${code}: ${title}`).join('\n');

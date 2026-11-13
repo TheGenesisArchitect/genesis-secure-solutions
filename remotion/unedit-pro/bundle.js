@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 9485
+/***/ 2664
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -81,7 +81,175 @@ function Wordmark({ size, egg = 1, open = 1 }) {
   ] });
 }
 
+;// ./src/UneditCues.tsx
+
+
+
+
+const ACCENT = "#FF6A2B";
+const GOLD = "#FFA31A";
+const SERIF = '"Instrument Serif", Georgia, serif';
+const GLASS = { background: "rgba(14,16,22,.58)", backdropFilter: "blur(22px) saturate(1.3)", WebkitBackdropFilter: "blur(22px) saturate(1.3)", border: "1.5px solid rgba(255,255,255,.16)", boxShadow: "0 40px 90px -20px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.18)" };
+function useIn(delay = 0) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  return (0,esm.spring)({ frame: frame - delay, fps, config: { damping: 15, stiffness: 170, mass: 0.75 } });
+}
+function useOut(durFrames) {
+  const frame = (0,esm.useCurrentFrame)();
+  return (0,esm.interpolate)(frame, [durFrames - 8, durFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+}
+function fmt(n, final) {
+  const decimals = Number.isInteger(final) ? 0 : 1;
+  return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function Counter({ cue, dur }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const p = useIn();
+  const out = useOut(dur);
+  const roll = (0,esm.interpolate)(frame, [2, Math.round(fps * 0.9)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: (x) => 1 - Math.pow(1 - x, 3) });
+  const v = cue.value ?? 0;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 90, right: 90, top: 250, borderRadius: 44, padding: "46px 40px 40px", textAlign: "center", ...GLASS, opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [70, 0])}px) scale(${(0,esm.interpolate)(p, [0, 1], [0.9, 1])})` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: String(Math.round(v)).length > 5 ? 150 : 200, lineHeight: 1, color: "#fff", letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", textShadow: `0 0 60px ${ACCENT}55` }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: GOLD }, children: cue.prefix }),
+      fmt(v * roll, v),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: GOLD }, children: cue.suffix })
+    ] }),
+    cue.text ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 18, fontFamily: SERIF, fontStyle: "italic", fontSize: 64, color: ACCENT, lineHeight: 1.1 }, children: cue.text.toLowerCase() }) : null
+  ] });
+}
+function Logo({ cue, dur }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const p = useIn();
+  const out = useOut(dur);
+  const genovus = /genovus/i.test(cue.text) || !cue.text;
+  const sweep = (0,esm.interpolate)(frame, [4, 22], [-40, 140], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const name = genovus ? "GENOVUS" : cue.text.toUpperCase();
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, right: 0, top: 300, display: "grid", placeItems: "center", opacity: out }, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { ...GLASS, borderRadius: 999, padding: "30px 64px", display: "flex", alignItems: "center", gap: 26, transform: `scale(${(0,esm.interpolate)(p, [0, 1], [0.7, 1])})`, overflow: "hidden", position: "relative" }, children: [
+    genovus ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: (0,esm.staticFile)("brand/genovus-egg.svg"), style: { width: 84, height: 104, transform: `rotate(${(0,esm.interpolate)(p, [0, 1], [-25, 0])}deg)` } }) : null,
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 92, letterSpacing: `${(0,esm.interpolate)(p, [0, 1], [0.4, 0.06])}em`, color: "#fff" }, children: name }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: 0, bottom: 0, left: `${sweep}%`, width: "22%", background: "linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent)", transform: "skewX(-18deg)" } })
+  ] }) });
+}
+function List({ cue, dur, t0 }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const out = useOut(dur);
+  const p = useIn();
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 80, right: 80, top: 210, borderRadius: 40, padding: "36px 44px", ...GLASS, opacity: out * p, display: "grid", gap: 22 }, children: (cue.items ?? []).map((it, i) => {
+    const at = Math.max(0, Math.round((it.t - t0) * fps));
+    const q = (0,esm.spring)({ frame: frame - at, fps, config: { damping: 14, stiffness: 180 } });
+    return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 24, opacity: q, transform: `translateX(${(0,esm.interpolate)(q, [0, 1], [-60, 0])}px)` }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 62, height: 62, borderRadius: 18, background: ACCENT, display: "grid", placeItems: "center", fontFamily: F.display, fontWeight: 800, fontSize: 34, color: "#111", transform: `scale(${q})` }, children: i + 1 }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 56, color: "#fff", textTransform: "uppercase", lineHeight: 1.05 }, children: it.text })
+    ] }, i);
+  }) });
+}
+function Question({ cue, dur }) {
+  const p = useIn();
+  const out = useOut(dur);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 80, right: 80, top: 230, borderRadius: 44, padding: "20px 44px 44px", ...GLASS, opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [-50, 0])}px)` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: SERIF, fontStyle: "italic", fontSize: 260, lineHeight: 0.9, color: ACCENT, transform: `rotate(${(0,esm.interpolate)(p, [0, 1], [-30, -6])}deg)`, transformOrigin: "left bottom", display: "inline-block" }, children: "?" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 66, color: "#fff", textTransform: "uppercase", lineHeight: 1.08 }, children: cue.text })
+  ] });
+}
+function Tap({ cue, dur }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const p = useIn();
+  const out = useOut(dur);
+  const tapAt = Math.round(fps * 0.45);
+  const ring = (0,esm.interpolate)(frame, [tapAt, tapAt + 16], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const press = frame >= tapAt && frame < tapAt + 6 ? 0.92 : 1;
+  const s = cue.screen;
+  const fit = { width: "100%", height: "100%", objectFit: "cover", objectPosition: (s == null ? void 0 : s.wide) ? "left top" : "top" };
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 120, right: 120, top: 150, height: 1080, borderRadius: 48, overflow: "hidden", ...GLASS, opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [120, 0])}px) scale(${(0,esm.interpolate)(p, [0, 1], [0.92, press])})` }, children: [
+    s ? s.clip ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: s.clip, muted: true, style: fit }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: s.still, style: fit }) : null,
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: "50%", top: "62%", width: 120, height: 120, marginLeft: -60, marginTop: -60, borderRadius: "50%", border: `6px solid ${ACCENT}`, opacity: 1 - ring, transform: `scale(${0.4 + ring * 1.8})` } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: "50%", top: "62%", width: 64, height: 64, marginLeft: -32, marginTop: -32, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: `0 0 0 10px ${ACCENT}55`, opacity: (0,esm.interpolate)(frame, [tapAt - 6, tapAt, tapAt + 14], [0, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) } })
+  ] });
+}
+function Headline({ cue, dur }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const out = useOut(dur);
+  const words = cue.text.split(" ");
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 70, right: 70, top: 300, textAlign: "center", opacity: out, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0 26px" }, children: words.map((w, i) => {
+    const q = (0,esm.spring)({ frame: frame - i * 3, fps, config: { damping: 12, stiffness: 220, mass: 0.6 } });
+    const hot = i === words.length - 1;
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: hot ? SERIF : F.display, fontStyle: hot ? "italic" : "normal", fontWeight: hot ? 400 : 800, fontSize: hot ? 170 : 130, lineHeight: 1.02, textTransform: hot ? "none" : "uppercase", color: hot ? ACCENT : "#fff", opacity: q, display: "inline-block", transform: `translateY(${(0,esm.interpolate)(q, [0, 1], [80, 0])}px) scale(${(0,esm.interpolate)(q, [0, 1], [1.4, 1])})`, textShadow: "0 10px 40px rgba(0,0,0,.6)" }, children: hot ? w.toLowerCase() : w }, i);
+  }) });
+}
+function Cta({ cue, dur }) {
+  const p = useIn();
+  const out = useOut(dur);
+  const frame = (0,esm.useCurrentFrame)();
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 70, right: 70, top: 260, borderRadius: 32, padding: "34px 40px", display: "flex", alignItems: "center", gap: 28, background: ACCENT, boxShadow: "0 40px 90px -20px rgba(255,106,43,.55)", opacity: out, transform: `translateX(${(0,esm.interpolate)(p, [0, 1], [-1e3, 0])}px)` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 64, color: "#111", textTransform: "uppercase", lineHeight: 1.05, flex: 1 }, children: cue.text }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 90, color: "#111", transform: `translateX(${Math.sin(frame / 5) * 8}px)` }, children: "\u2192" })
+  ] });
+}
+function CueGraphic({ cue, dur }) {
+  switch (cue.kind) {
+    case "counter":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(Counter, { cue, dur });
+    case "logo":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(Logo, { cue, dur });
+    case "list":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(List, { cue, dur, t0: cue.t });
+    case "question":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(Question, { cue, dur });
+    case "tap":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(Tap, { cue, dur });
+    case "headline":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(Headline, { cue, dur });
+    case "cta":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(Cta, { cue, dur });
+    default:
+      return null;
+  }
+}
+function CueLayer({ cues, fps }) {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: cues.map((c, i) => {
+    const from = Math.max(0, Math.round(c.t * fps));
+    const dur = Math.max(18, Math.round((c.end - c.t) * fps));
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `cue ${c.kind}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(CueGraphic, { cue: c, dur }) }, i);
+  }) });
+}
+function CameraRig({ cues, children }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  let scale = 1, x = 0, y = 0, blur = 0;
+  for (const c of cues) {
+    if (!c.cam) continue;
+    const f0 = Math.round(c.t * fps), f1 = Math.round(c.end * fps);
+    if (frame < f0 || frame > f1 + 10) continue;
+    const k = frame - f0;
+    const hold = (0,esm.interpolate)(frame, [f1, f1 + 10], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    if (c.cam === "punch") scale *= 1 + 0.12 * (0,esm.spring)({ frame: k, fps, config: { damping: 18, stiffness: 260 } }) * hold;
+    if (c.cam === "push") scale *= 1 + 0.06 * (0,esm.interpolate)(frame, [f0, f1], [0, 1], { extrapolateRight: "clamp" }) * hold;
+    if (c.cam === "pull") scale *= 1 + 0.06 * (1 - (0,esm.interpolate)(frame, [f0, f1], [0, 1], { extrapolateRight: "clamp" }));
+    if (c.cam === "shake" && k < 12) {
+      const d = Math.exp(-k / 4);
+      x += Math.sin(k * 2.7) * 14 * d;
+      y += Math.cos(k * 3.3) * 10 * d;
+    }
+    if (c.cam === "whip" && k < 9) {
+      const w = Math.sin(k / 9 * Math.PI);
+      x += (k < 5 ? -1 : 1) * 260 * w;
+      blur += 26 * w;
+    }
+  }
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { transform: `translate(${x}px, ${y}px) scale(${scale})`, filter: blur > 0.5 ? `blur(${blur.toFixed(1)}px)` : void 0 }, children });
+}
+function CueSounds({ cues, fps }) {
+  const VOL = { hit: 0.42, whoosh: 0.4, riser: 0.36, pop: 0.32, click: 0.4, tick: 0.3, swish: 0.4, sting: 0.34 };
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: cues.filter((c) => c.sound).map((c, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: Math.max(0, Math.round((c.t - (c.sound === "riser" ? 0.9 : c.sound === "whoosh" ? 0.25 : 0)) * fps)), durationInFrames: Math.round(1.6 * fps), name: `cue sound ${c.sound}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src: (0,esm.staticFile)(`sfx/${c.sound}.wav`), volume: VOL[c.sound] ?? 0.35 }) }, i)) });
+}
+
 ;// ./src/UneditPro.tsx
+
 
 
 
@@ -90,9 +258,9 @@ function Wordmark({ size, egg = 1, open = 1 }) {
 const PRO_FPS = 30;
 const CANVAS = "#F6F4F1";
 const INK = "#14161B";
-const ACCENT = "#FF6A2B";
-const GOLD = "#FFA31A";
-const SERIF = '"Instrument Serif", Georgia, serif';
+const UneditPro_ACCENT = "#FF6A2B";
+const UneditPro_GOLD = "#FFA31A";
+const UneditPro_SERIF = '"Instrument Serif", Georgia, serif';
 if (typeof document !== "undefined") {
   const h = (0,esm.delayRender)("accent serif");
   new FontFace("Instrument Serif", `url(${(0,esm.staticFile)("fonts/instrument-serif-italic.ttf")})`, { style: "italic", weight: "400" }).load().then((f) => {
@@ -140,7 +308,7 @@ function Shot({ shot, src, from }) {
     case "split":
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: C.bg }, children: [
         /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, right: 0, top: 0, height: 960, overflow: "hidden" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Speaker, { src, from }) }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, right: 0, top: 960, bottom: 0, borderTop: `6px solid ${ACCENT}`, background: C.panel, overflow: "hidden", ...style }, children: shot.screen ? /* @__PURE__ */ (0,jsx_runtime.jsx)(ScreenInsert, { screen: shot.screen, from }) : /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "grid", placeItems: "center", height: "100%", fontFamily: F.display, fontWeight: 800, fontSize: 220, color: "#fff", letterSpacing: "-0.02em" }, children: shot.figure }) })
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, right: 0, top: 960, bottom: 0, borderTop: `6px solid ${UneditPro_ACCENT}`, background: C.panel, overflow: "hidden", ...style }, children: shot.screen ? /* @__PURE__ */ (0,jsx_runtime.jsx)(ScreenInsert, { screen: shot.screen, from }) : /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "grid", placeItems: "center", height: "100%", fontFamily: F.display, fontWeight: 800, fontSize: 220, color: "#fff", letterSpacing: "-0.02em" }, children: shot.figure }) })
       ] });
     case "number":
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: CANVAS }, children: [
@@ -150,7 +318,7 @@ function Shot({ shot, src, from }) {
     case "word": {
       const word = (shot.accent ?? "").replace(/[^\p{L}\p{N}$%.'-]/gu, "");
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: C.bg, display: "grid", placeItems: "center" }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [60, 0])}px)`, opacity: p, textAlign: "center", padding: "0 80px" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: SERIF, fontStyle: "italic", fontSize: word.length > 9 ? 170 : 230, lineHeight: 1, color: ACCENT }, children: word.toLowerCase() }) }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [60, 0])}px)`, opacity: p, textAlign: "center", padding: "0 80px" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: UneditPro_SERIF, fontStyle: "italic", fontSize: word.length > 9 ? 170 : 230, lineHeight: 1, color: UneditPro_ACCENT }, children: word.toLowerCase() }) }),
         /* @__PURE__ */ (0,jsx_runtime.jsx)(Bubble, { src, from, top: 150, size: 260 })
       ] });
     }
@@ -186,8 +354,8 @@ function Captions({ words, shots, serif }) {
   const bottom = (shot == null ? void 0 : shot.layout) === "card" ? 330 : (shot == null ? void 0 : shot.layout) === "split" ? 1e3 : (shot == null ? void 0 : shot.layout) === "screen" ? 330 : 470;
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 90, right: 90, bottom, textAlign: "center", fontFamily: F.display, fontWeight: 800, fontSize: 84, lineHeight: 1.12, textTransform: "uppercase", textWrap: "balance" }, children: cur.map((w, k) => {
     const said = t >= w.s;
-    const base = { color: light ? INK : said ? GOLD : "#fff", opacity: light && !said && !w.a ? 0.38 : 1, textShadow: light ? "none" : "0 4px 18px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.9)", WebkitTextStroke: light ? void 0 : "3px rgba(0,0,0,.85)", paintOrder: "stroke fill" };
-    const accent = serif ? { fontFamily: SERIF, fontStyle: "italic", fontWeight: 400, textTransform: "none", fontSize: 108, color: ACCENT, WebkitTextStroke: light ? void 0 : "2px rgba(0,0,0,.6)" } : { color: ACCENT, fontSize: 94 };
+    const base = { color: light ? INK : said ? UneditPro_GOLD : "#fff", opacity: light && !said && !w.a ? 0.38 : 1, textShadow: light ? "none" : "0 4px 18px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.9)", WebkitTextStroke: light ? void 0 : "3px rgba(0,0,0,.85)", paintOrder: "stroke fill" };
+    const accent = serif ? { fontFamily: UneditPro_SERIF, fontStyle: "italic", fontWeight: 400, textTransform: "none", fontSize: 108, color: UneditPro_ACCENT, WebkitTextStroke: light ? void 0 : "2px rgba(0,0,0,.6)" } : { color: UneditPro_ACCENT, fontSize: 94 };
     return /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { ...base, ...w.a ? accent : {} }, children: [
       k ? " " : "",
       w.a && serif ? w.w.toLowerCase() : w.w
@@ -196,7 +364,7 @@ function Captions({ words, shots, serif }) {
 }
 const WHOOSH_PEAK = 0.25;
 const SFX_GAP = 0.7;
-function sfxCues(words, sorted) {
+function sfxCues(words, sorted, busy = []) {
   const cues = [];
   for (let i = 1; i < sorted.length; i++) if (sorted[i].layout !== sorted[i - 1].layout) cues.push({ t: sorted[i].s, kind: "whoosh" });
   let lastPop = -Infinity;
@@ -205,27 +373,29 @@ function sfxCues(words, sorted) {
     cues.push({ t: w.s, kind: "pop" });
     lastPop = w.s;
   }
-  return cues.sort((a, b) => a.t - b.t);
+  return cues.filter((c) => !busy.some((t) => Math.abs(t - c.t) < SFX_GAP)).sort((a, b) => a.t - b.t);
 }
-function SoundEffects({ words, shots }) {
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: sfxCues(words, shots).map((c, i) => {
+function SoundEffects({ words, shots, busy }) {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: sfxCues(words, shots, busy).map((c, i) => {
     const at = c.kind === "whoosh" ? c.t - WHOOSH_PEAK : c.t;
     return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: Math.max(0, Math.round(at * PRO_FPS)), durationInFrames: Math.round(0.6 * PRO_FPS), name: `sfx ${c.kind}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src: (0,esm.staticFile)(`sfx/${c.kind}.wav`), volume: c.kind === "whoosh" ? 0.45 : 0.3 }) }, i);
   }) });
 }
-const UneditPro = ({ src, words, shots, serif = false, sfx = false }) => {
+const UneditPro = ({ src, words, shots, cues = [], serif = false, sfx = false }) => {
   const sorted = [...shots].sort((a, b) => a.s - b.s);
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "#000" }, children: [
-    sorted.map((sh, i) => {
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(CameraRig, { cues, children: sorted.map((sh, i) => {
       var _a;
       const from = i === 0 ? 0 : Math.round(sh.s * PRO_FPS);
       const to = Math.round((((_a = sorted[i + 1]) == null ? void 0 : _a.s) ?? Infinity) * PRO_FPS);
       const dur = Number.isFinite(to) ? Math.max(1, to - from) : void 0;
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i + 1} ${sh.layout}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Shot, { shot: sh, src, from }) }, i);
-    }),
+    }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(CueLayer, { cues, fps: PRO_FPS }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(Captions, { words, shots: sorted, serif }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src }),
-    sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(SoundEffects, { words, shots: sorted })
+    sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(SoundEffects, { words, shots: sorted, busy: cues.filter((c) => c.sound).map((c) => c.t) }),
+    sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(CueSounds, { cues, fps: PRO_FPS })
   ] });
 };
 
@@ -20500,7 +20670,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(9485);
+/******/ 	__webpack_require__(2664);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

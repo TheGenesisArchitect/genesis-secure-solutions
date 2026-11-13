@@ -9,13 +9,16 @@ import 'server-only';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import assets from '@/data/screen-library-assets.json';
+import type { Cue } from '@/lib/unedit-cues';
 import { presigned, wordsForSpans, type Span, type Word } from '@/lib/unedit-media';
 import type { Shot } from '@/lib/unedit-shots';
 
 export const proConfigured = () => (process.env.UNEDIT_PRO ?? '').trim() === 'on';
 
 type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null; wide: boolean } | null };
-export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; serif: boolean; sfx: boolean };
+/** A cue on the clip's own timeline (lib/unedit-cues.ts), for Genovus Motion's cue layer. */
+export type ProCue = { t: number; end: number; kind: Cue['kind']; text: string; items?: { text: string; t: number }[]; value?: number; prefix?: string; suffix?: string; screen?: ProShot['screen']; sound: Cue['sound']; cam: Cue['cam'] };
+export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; cues: ProCue[]; serif: boolean; sfx: boolean };
 
 const ENTRIES = (assets as { entries: Record<string, { clip?: string; still?: string }> }).entries ?? {};
 
@@ -29,7 +32,7 @@ async function screenLinks(code: string): Promise<ProShot['screen']> {
 
 /** The composition's props: words and shots moved onto the clip's own timeline (spans play back to back, the hook
  *  first). Shots arrive in play order, so each takes the next span that holds it. */
-export async function proProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[]): Promise<ProProps> {
+export async function proProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], cues: Cue[] = []): Promise<ProProps> {
   const marks = new Set(accents);
   const timed = wordsForSpans(words.map((w, i) => (marks.has(i) ? { ...w, a: true } : w)), spans);
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
@@ -52,7 +55,29 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
     });
   }
   if (out[0]) out[0].s = 0;
-  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], serif: true, sfx: process.env.UNEDIT_SFX !== 'off' };
+  // Cues: each lands where its word plays in the clip (the first time, if the hook repeats it); a cue whose word the
+  // edit cut is dropped. List items appear as each is said.
+  const at = (t: number) => { let off = 0; for (const sp of spans) { if (t >= sp.from - 0.02 && t <= sp.to + 0.02) return off + Math.max(0, t - sp.from); off += sp.to - sp.from; } return null; };
+  const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9$%']/g, '');
+  const outCues: ProCue[] = [];
+  for (const c of cues) {
+    const t = at(c.s);
+    if (t == null) continue;
+    const end = Math.min(secs, (at(c.e) ?? t + 2.5) + 0.4);
+    const items = c.items?.map((it) => {
+      const first = norm(it.split(' ')[0]);
+      const k = words.findIndex((w, i) => i >= c.w && norm(w.w) === first);
+      return { text: it, t: k >= 0 ? at(words[k].s) ?? t : t };
+    });
+    outCues.push({ t, end: Math.max(end, t + 1.2, ...(items ?? []).map((x) => x.t + 1)), kind: c.kind, text: c.text, items, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam });
+  }
+  // One graphic at a time: while a cue is on screen, the shot under it is the speaker's face (no figure card, big
+  // word or second screen competing with it). A whip is only a camera move, so it changes nothing.
+  for (const sh of out) {
+    if (sh.layout === 'face') continue;
+    if (outCues.some((c) => c.kind !== 'whip' && c.t < sh.e && c.end > sh.s)) Object.assign(sh, { layout: 'face', figure: null, screen: null });
+  }
+  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], cues: outCues, serif: true, sfx: process.env.UNEDIT_SFX !== 'off' };
 }
 
 /** Render in a fresh Vercel Sandbox and return the MP4 bytes. The sandbox lives at most 13 minutes and is stopped

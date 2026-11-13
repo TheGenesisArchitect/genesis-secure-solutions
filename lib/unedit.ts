@@ -20,6 +20,7 @@ import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/une
 import { pickStills, planVlog, redoClip, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
+import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Edit } from '@/lib/unedit-edit';
 import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Look } from '@/lib/unedit-look';
 import { assemble, partSeconds, partsOf, renderPart, shotCrops, type EpisodePlan, type Part } from '@/lib/unedit-episode';
@@ -191,7 +192,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
             const base = await cut(false);
             const basePath = `${dir(v)}/clips/${next.n}-base.mp4`;
             await put(basePath, base.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
-            made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents)), secs: base.secs, pro: true };
+            const cues = ((next.features as { cues?: Cue[] })?.cues ?? []);
+            made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents, cues)), secs: base.secs, pro: true };
           } catch (e) {
             console.error(`[unedit] ${v.id} clip ${next.n}: Unedit Pro fell back to the plain clip: ${e instanceof Error ? e.message : e}`);
             // Said on the card, never silent: this clip is the plain cut, and Redo tries the graphics again.
