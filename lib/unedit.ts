@@ -167,8 +167,9 @@ export async function step(v: Vlog, origin: string): Promise<string> {
           const o = await renderClip(src, spans, words, probeOf(v), { accents, captions });
           try { return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(o.dir, { recursive: true, force: true }).catch(() => {}); }
         };
-        // Unedit Pro's graphics pass (Remotion Lambda) when it is configured; any failure falls back to the plain clip.
+        // Unedit Pro's graphics pass (Remotion on Vercel Sandbox) when it is configured; any failure falls back to the plain clip.
         let made: { bytes: Buffer; secs: number; pro: boolean } | null = null;
+        let proError: string | null = null;
         if (proConfigured() && shots.length) {
           try {
             const base = await cut(false);
@@ -177,12 +178,14 @@ export async function step(v: Vlog, origin: string): Promise<string> {
             made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents)), secs: base.secs, pro: true };
           } catch (e) {
             console.error(`[unedit] ${v.id} clip ${next.n}: Unedit Pro fell back to the plain clip: ${e instanceof Error ? e.message : e}`);
+            // Said on the card, never silent: this clip is the plain cut, and Redo tries the graphics again.
+            proError = `The graphics didn't render, so this is the plain cut (${(e instanceof Error ? e.message : String(e)).slice(0, 160)}). Redo to try again.`;
           }
         }
         made ??= { ...(await cut(true)), pro: false };
         const path = `${dir(v)}/clips/${next.n}-${Date.now()}.mp4`;
         await put(path, made.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
-        await dbx().from('unedit_clips').update({ blob_path: path, secs: Math.round(made.secs * 10) / 10, status: 'ready', error: null, features: { ...(next.features ?? {}), pro: made.pro } }).eq('id', next.id);
+        await dbx().from('unedit_clips').update({ blob_path: path, secs: Math.round(made.secs * 10) / 10, status: 'ready', error: proError, features: { ...(next.features ?? {}), pro: made.pro } }).eq('id', next.id);
         await release(v.id); // the route kicks the next clip right away, in a fresh function
         return `Rendered clip ${next.n}${made.pro ? ' (Unedit Pro)' : ''}.`;
       }

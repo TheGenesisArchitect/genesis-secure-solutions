@@ -6,6 +6,7 @@
 // falls back to the plain clip, never a stuck job. The bundle (remotion/unedit-pro) is built from Genovus Motion with
 // scripts/bundle-pro.mjs and must use the same Remotion version as @remotion/vercel here (4.0.533).
 import 'server-only';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import assets from '@/data/screen-library-assets.json';
 import { presigned, wordsForSpans, type Span, type Word } from '@/lib/unedit-media';
@@ -56,7 +57,13 @@ export async function renderPro(props: ProProps): Promise<Buffer> {
   try {
     // addBundleToSandbox makes the bundle's subfolders but not its root (@remotion/vercel 4.0.533).
     await sandbox.mkDir('remotion-bundle').catch(() => {});
-    await addBundleToSandbox({ sandbox, bundleDir: path.join(process.cwd(), 'remotion/unedit-pro') });
+    const bundleDir = path.join(process.cwd(), 'remotion/unedit-pro');
+    await addBundleToSandbox({ sandbox, bundleDir });
+    // The renderer opens bundle.js.map before it picks the composition, but the deployed function doesn't carry .map
+    // files (file tracing drops them), so the first production renders failed with ENOENT. Send the map if this
+    // copy has it, else a valid empty one (it only improves error stack traces).
+    const map = await fs.readFile(path.join(bundleDir, 'bundle.js.map')).catch(() => Buffer.from('{"version":3,"sources":[],"names":[],"mappings":""}'));
+    await sandbox.writeFiles([{ path: 'remotion-bundle/bundle.js.map', content: map }]);
     const { sandboxFilePath } = await renderMediaOnVercel({
       sandbox, compositionId: 'UneditPro', inputProps: props as unknown as Record<string, unknown>,
       codec: 'h264', crf: 20, timeoutInMilliseconds: 8 * 60_000,
