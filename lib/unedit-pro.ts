@@ -14,7 +14,7 @@ import type { Shot } from '@/lib/unedit-shots';
 export const proConfigured = () => (process.env.UNEDIT_PRO ?? '').trim() === 'on';
 
 type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null } | null };
-export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; serif: boolean };
+export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; serif: boolean; sfx: boolean };
 
 const ENTRIES = (assets as { entries: Record<string, { clip?: string; still?: string }> }).entries ?? {};
 
@@ -44,7 +44,7 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
     });
   }
   if (out[0]) out[0].s = 0;
-  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], serif: true };
+  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], serif: true, sfx: process.env.UNEDIT_SFX !== 'off' };
 }
 
 /** Render in a fresh Vercel Sandbox and return the MP4 bytes. The sandbox lives at most 13 minutes and is stopped

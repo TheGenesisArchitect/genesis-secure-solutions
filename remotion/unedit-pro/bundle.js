@@ -191,7 +191,26 @@ function Captions({ words, shots, serif }) {
     ] }, `${w.s}-${k}`);
   }) }) });
 }
-const UneditPro = ({ src, words, shots, serif = false }) => {
+const WHOOSH_PEAK = 0.25;
+const SFX_GAP = 0.7;
+function sfxCues(words, sorted) {
+  const cues = [];
+  for (let i = 1; i < sorted.length; i++) if (sorted[i].layout !== sorted[i - 1].layout) cues.push({ t: sorted[i].s, kind: "whoosh" });
+  let lastPop = -Infinity;
+  for (const w of words) {
+    if (!w.a || w.s - lastPop < 1.5 || cues.some((c) => Math.abs(c.t - w.s) < SFX_GAP)) continue;
+    cues.push({ t: w.s, kind: "pop" });
+    lastPop = w.s;
+  }
+  return cues.sort((a, b) => a.t - b.t);
+}
+function SoundEffects({ words, shots }) {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: sfxCues(words, shots).map((c, i) => {
+    const at = c.kind === "whoosh" ? c.t - WHOOSH_PEAK : c.t;
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: Math.max(0, Math.round(at * PRO_FPS)), durationInFrames: Math.round(0.6 * PRO_FPS), name: `sfx ${c.kind}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src: (0,esm.staticFile)(`sfx/${c.kind}.wav`), volume: c.kind === "whoosh" ? 0.45 : 0.3 }) }, i);
+  }) });
+}
+const UneditPro = ({ src, words, shots, serif = false, sfx = false }) => {
   const sorted = [...shots].sort((a, b) => a.s - b.s);
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "#000" }, children: [
     sorted.map((sh, i) => {
@@ -202,7 +221,8 @@ const UneditPro = ({ src, words, shots, serif = false }) => {
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i + 1} ${sh.layout}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Shot, { shot: sh, src, from }) }, i);
     }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(Captions, { words, shots: sorted, serif }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src })
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src }),
+    sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(SoundEffects, { words, shots: sorted })
   ] });
 };
 
