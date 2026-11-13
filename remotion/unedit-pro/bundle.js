@@ -93,6 +93,16 @@ const INK = "#14161B";
 const ACCENT = "#FF6A2B";
 const GOLD = "#FFA31A";
 const SERIF = '"Instrument Serif", Georgia, serif';
+if (typeof document !== "undefined") {
+  const h = (0,esm.delayRender)("accent serif");
+  new FontFace("Instrument Serif", `url(${(0,esm.staticFile)("fonts/instrument-serif-italic.ttf")})`, { style: "italic", weight: "400" }).load().then((f) => {
+    document.fonts.add(f);
+    (0,esm.continueRender)(h);
+  }).catch((e) => {
+    console.error(e);
+    (0,esm.continueRender)(h);
+  });
+}
 const calculateProMetadata = ({ props }) => ({
   durationInFrames: Math.max(1, Math.round(props.secs * PRO_FPS)),
   fps: PRO_FPS,

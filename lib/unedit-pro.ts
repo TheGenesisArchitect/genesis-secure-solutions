@@ -44,7 +44,7 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
     });
   }
   if (out[0]) out[0].s = 0;
-  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], serif: false };
+  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], serif: true };
 }
 
 /** Render in a fresh Vercel Sandbox and return the MP4 bytes. The sandbox lives at most 13 minutes and is stopped
