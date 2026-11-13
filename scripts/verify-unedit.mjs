@@ -182,14 +182,30 @@ try {
   const presign = async (p) => { const { issueSignedToken, presignUrl } = await import('@vercel/blob'); const until = Date.now() + 600_000; const tok = await issueSignedToken({ pathname: p, operations: ['get'], validUntil: until }); return (await presignUrl(tok, { operation: 'get', pathname: p, access: 'private', validUntil: until })).presignedUrl; };
   fs.writeFileSync(clipFile, Buffer.from(await (await fetch(await presign(c1.blob_path))).arrayBuffer()));
   const info = (() => { try { execFileSync(FF, ['-hide_banner', '-i', clipFile]); return ''; } catch (e) { return String(e.stderr); } })();
-  const want = (Number(c1.end_s) - Number(c1.start_s)) + (Number(c1.hook_end_s) - Number(c1.hook_start_s));
+  // Episode Pro's edit applies inside clips too (pauses and fillers cut): the clip runs what the edit keeps of it.
+  const within = (spans, keep) => spans.flatMap((sp) => keep.map((k) => [Math.max(sp[0], k.from), Math.min(sp[1], k.to)]).filter(([a, b]) => b - a >= 0.3));
+  const raw = [[Number(c1.hook_start_s), Number(c1.hook_end_s)], [Number(c1.start_s), Number(c1.end_s)]];
+  const kept = v.edit?.keep?.length ? within(raw, v.edit.keep) : raw;
+  const want = kept.reduce((a, [x, y]) => a + (y - x), 0);
   const dur = (() => { const m = info.match(/Duration: (\d+):(\d+):([\d.]+)/); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0; })();
-  check(/1080x1920/.test(info) && /Audio: aac/.test(info) && Math.abs(dur - want) < 0.6, `clip 1 is 1080×1920 with audio, ${dur.toFixed(1)} s (hook + moment ${want.toFixed(1)} s)`);
+  check(/1080x1920/.test(info) && /Audio: aac/.test(info) && Math.abs(dur - want) < 0.6, `clip 1 is 1080×1920 with audio, ${dur.toFixed(1)} s (hook + moment as edited ${want.toFixed(1)} s)`);
   execFileSync(FF, ['-y', '-loglevel', 'error', '-ss', '1.0', '-i', clipFile, '-frames:v', '1', path.join(OUT, 'clip1-frame.png')]);
   check(Array.isArray(v.thumbs) && v.thumbs.length === 3 && v.thumb_pick === 0 && ctl.aiCalls.includes('vision'), 'three thumbnails are made from the stills Claude picked');
   const thumbBytes = Buffer.from(await (await fetch(await presign(v.thumbs[0].blob))).arrayBuffer());
   fs.writeFileSync(path.join(OUT, 'thumb-a.jpg'), thumbBytes);
   check(thumbBytes[0] === 0xff && thumbBytes[1] === 0xd8 && thumbBytes.length < 2_000_000, `thumbnails are JPEGs under YouTube's 2 MB (${Math.round(thumbBytes.length / 1024)} KB)`);
+  // Episode Pro: the full episode, edited and polished, rendered in parts and joined with one soundtrack.
+  check(v.edit?.keep?.length > 0 && v.episode_plan?.parts > 0 && Boolean(v.audio_blob), `the episode is planned (${v.edit?.keep?.length} kept pieces, ${v.episode_plan?.parts} parts, ${v.edit?.removed} s cut) with a full-quality soundtrack`);
+  check(Boolean(v.episode_path) && !v.episode_plan?.error, `the polished episode is stored (${v.episode_path ?? v.episode_plan?.error})`);
+  if (v.episode_path) {
+    const epFile = path.join(media, 'episode.mp4');
+    fs.writeFileSync(epFile, Buffer.from(await (await fetch(await presign(v.episode_path))).arrayBuffer()));
+    const epInfo = (() => { try { execFileSync(FF, ['-hide_banner', '-i', epFile]); return ''; } catch (e) { return String(e.stderr); } })();
+    const epDur = (() => { const m = epInfo.match(/Duration: (\d+):(\d+):([\d.]+)/); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0; })();
+    const parts = must(await db.from('unedit_episode_parts').select('status').eq('vlog_id', id), 'parts');
+    check(/Video: h264/.test(epInfo) && /Audio: aac/.test(epInfo) && Math.abs(epDur - Number(v.edit.secs)) < 0.5 && parts.every((p) => p.status === 'done'), `the episode has picture and sound, ${epDur.toFixed(1)} s (the edit keeps ${Number(v.edit.secs).toFixed(1)} s; ${parts.length} parts done)`);
+    execFileSync(FF, ['-y', '-loglevel', 'error', '-ss', '2.0', '-i', epFile, '-frames:v', '1', path.join(OUT, 'episode-frame.png')]);
+  }
   const spent = must(await db.rpc('studio_spent_cents'), 'spent');
   check(v.cost_cents > 0 && spent >= v.cost_cents, `the cost is charged to the Studio budget ($${(v.cost_cents / 100).toFixed(2)})`);
 

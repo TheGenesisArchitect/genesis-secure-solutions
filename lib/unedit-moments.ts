@@ -13,7 +13,7 @@ export type Pick = {
   title: string; caption: string; copy: { instagram: string; facebook: string; youtube: string };
   features: { hook: string; topic: string; why: string; at: number; shots: Shot[] };
 };
-export type Plan = { clips: Pick[]; episode: { title: string; description: string; tags: string[] }; thumbs: string[]; cents: number; dropped: string[] };
+export type Plan = { clips: Pick[]; episode: { title: string; description: string; tags: string[] }; thumbs: string[]; cents: number; dropped: string[]; falseStarts: string[] };
 
 const MODEL = () => (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim();
 const BASE = () => (process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com').replace(/\/$/, '');
@@ -46,10 +46,11 @@ function prompt(ss: Sentence[], opts: { who: string; redo?: { title: string; fro
     'Pick as many clips as the talk truly supports, up to 6. Fewer good clips beat more weak ones. Clips must not overlap.',
     'Copy rules: plain, confident, in the speaker\'s voice. No guarantees, no prices or savings claims, no "best rates", no claims the speaker did not make. Hashtags only at the end of Instagram copy, at most 3.',
     'The thumbnail lines are for the full video: each 4 words or fewer, distinct from the title, drawn from the talk.',
+    'False starts: where the speaker begins a sentence, stops, and says it again, list the abandoned words (copied exactly from the transcript, at least two words) in "false_starts", so the full video can cut them. Only clear restarts; never a sentence the speaker finished.',
     SHOTS_RULES,
     `Screen codes (real Genovus screens):
 ${screenMenu()}`,
-    'Return only JSON, no prose: {"clips":[{"from":<first sentence #>,"to":<last sentence #>,"hook":<sentence # or null>,"hook_to":<sentence # or null>,"title":"<6 words max>","caption":"<one line under 90 chars>","instagram":"<caption>","facebook":"<caption>","youtube":"<Shorts title under 90 chars>","hook_type":"question|claim|story|number|contrast","topic":"<2-4 words>","why":"<one line>","shots":[{"s":0,"layout":"face","accent":"","screen":null,"figure":null}]}],"episode":{"title":"<under 90 chars>","description":"<2-4 sentences>","tags":["..."]},"thumbs":["","",""]}',
+    'Return only JSON, no prose: {"clips":[{"from":<first sentence #>,"to":<last sentence #>,"hook":<sentence # or null>,"hook_to":<sentence # or null>,"title":"<6 words max>","caption":"<one line under 90 chars>","instagram":"<caption>","facebook":"<caption>","youtube":"<Shorts title under 90 chars>","hook_type":"question|claim|story|number|contrast","topic":"<2-4 words>","why":"<one line>","shots":[{"s":0,"layout":"face","accent":"","screen":null,"figure":null}]}],"episode":{"title":"<under 90 chars>","description":"<2-4 sentences>","tags":["..."]},"thumbs":["","",""],"false_starts":["<exact abandoned words>"]}',
   ].join('\n');
   const lines = ss.map((x) => `[${x.i} ${mmss(x.s)}–${mmss(x.e)}] ${x.text}`).join('\n');
   const user = opts.redo
@@ -101,11 +102,11 @@ export function toPicks(raw: RawClip[], ss: Sentence[], taken: { from: number; t
   return { picks, dropped };
 }
 
-function parse(text: string): { clips: RawClip[]; episode: { title?: string; description?: string; tags?: unknown[] }; thumbs: unknown[] } {
+function parse(text: string): { clips: RawClip[]; episode: { title?: string; description?: string; tags?: unknown[] }; thumbs: unknown[]; falseStarts: string[] } {
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Claude did not return the clip plan.');
-  const j = JSON.parse(m[0]) as { clips?: RawClip[]; episode?: { title?: string; description?: string; tags?: unknown[] }; thumbs?: unknown[] };
-  return { clips: Array.isArray(j.clips) ? j.clips : [], episode: j.episode ?? {}, thumbs: Array.isArray(j.thumbs) ? j.thumbs : [] };
+  const j = JSON.parse(m[0]) as { clips?: RawClip[]; episode?: { title?: string; description?: string; tags?: unknown[] }; thumbs?: unknown[]; false_starts?: unknown[] };
+  return { clips: Array.isArray(j.clips) ? j.clips : [], episode: j.episode ?? {}, thumbs: Array.isArray(j.thumbs) ? j.thumbs : [], falseStarts: (Array.isArray(j.false_starts) ? j.false_starts : []).map((x) => str(x, 200)).filter((x) => x.split(' ').length >= 2).slice(0, 20) };
 }
 
 /** Plan the whole vlog: clips, the full video's title and description, thumbnail lines. */
@@ -118,7 +119,7 @@ export async function planVlog(words: Word[], who = 'Anthony at Genovus'): Promi
   const { picks, dropped } = toPicks(j.clips.slice(0, 6), ss);
   const thumbs = j.thumbs.map((t) => str(t, 40)).filter((t) => t && t.split(/\s+/).length <= 5 && !BANNED.test(t)).slice(0, 3);
   return {
-    clips: picks, dropped, cents: r.cents,
+    clips: picks, dropped, cents: r.cents, falseStarts: j.falseStarts,
     episode: { title: str(j.episode.title, 95) || 'New video', description: str(j.episode.description, 4500), tags: (j.episode.tags ?? []).map((t) => str(t, 30)).filter(Boolean).slice(0, 12) },
     thumbs: thumbs.length ? thumbs : [str(j.episode.title, 40)].filter(Boolean),
   };

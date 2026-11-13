@@ -8,12 +8,18 @@ import { useRouter } from 'next/navigation';
 
 export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
 export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null };
-export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null };
+export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; cuts: Record<string, number> } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
 const STEPS: [string, string][] = [['uploaded', 'Uploaded'], ['transcribing', 'Transcribed'], ['finding', 'Moments found'], ['rendering', 'Clips cut'], ['review', 'Your review'], ['publishing', 'Sent']];
 const ORDER = ['uploaded', 'transcribing', 'finding', 'rendering', 'review', 'publishing', 'published'];
 const NET: Record<string, string> = { instagram: 'Instagram Reel', facebook: 'Facebook Reel', youtube: 'YouTube' };
+// "0:15 tightened: 1 camera command, 6 uh/um, 3 long pauses, walk-off"
+function polishSummary(p: { removed: number; cuts: Record<string, number> }): string {
+  const n = (k: string, one: string, many = `${one}s`) => (p.cuts[k] ? `${p.cuts[k]} ${p.cuts[k] === 1 ? one : many}` : '');
+  const bits = [n('command', 'camera command'), n('filler', 'uh/um', 'uh/ums'), n('false start', 'false start'), n('pause', 'long pause'), p.cuts.head ? 'walk-up' : '', p.cuts.tail ? 'walk-off' : ''].filter(Boolean);
+  return `${mmss(p.removed)} tightened${bits.length ? ` (${bits.join(', ')})` : ''}`;
+}
 const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: CardClip[]; posts: CardPost[] }) {
@@ -61,13 +67,23 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
           <button className="btn small primary" type="button" disabled={busy === 'retry'} onClick={() => send({ tool: 'retry' }, 'retry')}>Retry</button>
         </div>
       ) : working ? (
-        <p className="ue-working"><span className="take-spin" /> {vlog.stage === 'uploaded' || vlog.stage === 'transcribing' ? 'Reading the recording and transcribing it…' : vlog.stage === 'finding' ? 'Finding the moments that stand on their own…' : vlog.stage === 'rendering' ? `Cutting clips with captions… ${clips.filter((c) => c.status !== 'rendering' && c.status !== 'redo').length} of ${clips.length} ready` : 'Sending to Metricool…'}</p>
+        <p className="ue-working"><span className="take-spin" /> {vlog.stage === 'uploaded' || vlog.stage === 'transcribing' ? 'Reading the recording and transcribing it…' : vlog.stage === 'finding' ? 'Finding the moments that stand on their own…' : vlog.stage === 'rendering' ? (vlog.polish && clips.every((c) => c.status !== 'rendering' && c.status !== 'redo') ? `Polishing the full episode… ${vlog.polish.done} of ${vlog.polish.parts} parts` : `Cutting clips with captions… ${clips.filter((c) => c.status !== 'rendering' && c.status !== 'redo').length} of ${clips.length} ready`) : 'Sending to Metricool…'}</p>
       ) : null}
 
       <section className="ue-episode">
         <div className="ue-ep-video">
           {vlog.source ? <video src={vlog.source} controls playsInline preload="metadata" /> : <div className="ue-blank" />}
-          <span className="muted">Full video · {vlog.duration ? mmss(vlog.duration) : '…'} · {vlog.bytes >= 1024 ** 3 ? `${(vlog.bytes / 1024 ** 3).toFixed(2)} GB` : `${Math.max(1, Math.round(vlog.bytes / 1024 ** 2))} MB`} · goes to YouTube as is</span>
+          {vlog.polish?.ready ? (
+            <span className="muted">Full video · {mmss(vlog.polish.secs)} · polished: {polishSummary(vlog.polish)} · reframed, color-graded, audio leveled</span>
+          ) : (
+            vlog.polish?.error ? (
+              <span className="ue-stop" role="alert">
+                <span>The polished episode didn’t finish ({vlog.polish.error}). The full video goes to YouTube as recorded unless you try again.</span>
+                <button type="button" className="btn" disabled={!review || busy === 'ep-retry'} onClick={() => send({ tool: 'retry_episode' }, 'ep-retry')}>Polish again</button>
+              </span>
+            ) :
+            <span className="muted">Full video · {vlog.duration ? mmss(vlog.duration) : '…'} · {vlog.bytes >= 1024 ** 3 ? `${(vlog.bytes / 1024 ** 3).toFixed(2)} GB` : `${Math.max(1, Math.round(vlog.bytes / 1024 ** 2))} MB`} · {vlog.polish ? 'the polished version replaces this when it finishes' : 'goes to YouTube as is'}</span>
+          )}
         </div>
         <div className="ue-ep-copy">
           <p className="eyebrow">Full video · YouTube</p>

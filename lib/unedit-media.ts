@@ -23,7 +23,7 @@ const W = 1080;
 const H = 1920;
 
 export type Word = { w: string; s: number; e: number; c?: number; /** Unedit Pro: the shot's accent word */ a?: boolean };
-export type Probe = { duration: number; width: number; height: number; rotation: number; vcodec: string; acodec: string };
+export type Probe = { duration: number; width: number; height: number; rotation: number; vcodec: string; acodec: string; /** HDR transfer, when the phone shot HDR */ hdr?: 'hlg' | 'pq' | null };
 export type Span = { from: number; to: number };
 
 /** A presigned GET link to a private blob (Range works), valid for `mins` (Blob allows just under 7 days). */
@@ -33,7 +33,7 @@ export async function presigned(pathname: string, mins = 120): Promise<string> {
   return (await presignUrl(tok, { operation: 'get', pathname, access: 'private', validUntil: until })).presignedUrl;
 }
 
-async function ffmpeg(args: string[], cwd?: string, timeoutMs = 600_000): Promise<string> {
+export async function ffmpeg(args: string[], cwd?: string, timeoutMs = 600_000): Promise<string> {
   try {
     const { stderr } = await run(String(ffmpegPath), ['-nostdin', '-y', '-hide_banner', '-loglevel', 'error', ...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs });
     return String(stderr);
@@ -42,6 +42,19 @@ async function ffmpeg(args: string[], cwd?: string, timeoutMs = 600_000): Promis
     throw new Error(`ffmpeg: ${String(err.stderr || err.message || 'failed').trim().split('\n').slice(-3).join(' ').slice(0, 300)}`);
   }
 }
+
+let zscale: Promise<boolean> | null = null;
+/** Phones shoot HDR (HLG or PQ, BT.2020). Treated as ordinary video it looks flat and yellow, so every picture made
+ *  from an HDR recording is tone-mapped to standard color (BT.709) first, before any grade. HLG's reference white is
+ *  203 nits. Empty when the source is SDR or this ffmpeg lacks zscale (then the picture is left as it was). */
+export async function toSdr(hdr: Probe['hdr']): Promise<string> {
+  if (!hdr) return '';
+  zscale ??= run(String(ffmpegPath), ['-hide_banner', '-filters'], { maxBuffer: 4 * 1024 * 1024, timeout: 30_000 }).then((r) => / zscale /.test(String(r.stdout)), () => false);
+  if (!(await zscale)) return '';
+  return 'zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p';
+}
+/** Tags for an encode made from tone-mapped (or ordinary) video: standard BT.709 color. */
+export const BT709 = ['-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv'];
 
 /** What the recording is: read from its header over the network (ffmpeg -i prints it and exits). */
 export async function probe(url: string): Promise<Probe> {
@@ -59,16 +72,22 @@ export async function probe(url: string): Promise<Probe> {
     duration: Number(dur[1]) * 3600 + Number(dur[2]) * 60 + Number(dur[3]),
     width: turned ? h : w, height: turned ? w : h, rotation,
     vcodec: v[1], acodec: a?.[1] ?? '',
+    hdr: /arib-std-b67/.test(v[0]) ? 'hlg' : /smpte2084/.test(v[0]) ? 'pq' : null,
   };
 }
 
 /** The talk as a small mono MP3 (16 kHz, 48 kbps): what transcription receives instead of the video. */
-export async function extractAudio(url: string): Promise<Buffer> {
+export async function extractAudio(url: string): Promise<Buffer>;
+export async function extractAudio(url: string, hq: true): Promise<{ mp3: Buffer; m4a: Buffer }>;
+/** With hq: also the talk at full quality (48 kHz stereo AAC), read in the same pass, for the episode's soundtrack. */
+export async function extractAudio(url: string, hq?: boolean): Promise<Buffer | { mp3: Buffer; m4a: Buffer }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-audio-'));
   try {
     const out = path.join(dir, 'talk.mp3');
-    await ffmpeg(['-i', url, '-map', '0:a:0', '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'libmp3lame', '-b:a', '48k', out], undefined, 700_000);
-    return await fs.readFile(out);
+    const full = path.join(dir, 'talk.m4a');
+    await ffmpeg(['-i', url, '-map', '0:a:0', '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'libmp3lame', '-b:a', '48k', out,
+      ...(hq ? ['-map', '0:a:0', '-vn', '-ac', '2', '-ar', '48000', '-c:a', 'aac', '-b:a', '256k', full] : [])], undefined, 700_000);
+    return hq ? { mp3: await fs.readFile(out), m4a: await fs.readFile(full) } : await fs.readFile(out);
   } finally { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); }
 }
 
@@ -152,7 +171,8 @@ export function zoomExpr(words: Word[]): string | null {
 
 /** Render one 9:16 clip from the recording to a local MP4 (the caller stores it). Spans play in order: a hook
  *  span first when the moment was rebuilt to open on its strongest line. */
-export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean } = {}): Promise<{ file: string; dir: string; secs: number }> {
+/** opts.crop: Episode Pro's face-aware 9:16 rectangle of a landscape source; opts.grade: its color filter. */
+export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null } = {}): Promise<{ file: string; dir: string; secs: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clip-'));
   const serif = await fontsDir(dir);
   // Accent words are marked by their index in the whole transcript, before the words are re-timed onto the clip.
@@ -164,9 +184,12 @@ export async function renderClip(url: string, spans: Span[], words: Word[], src:
   const zoom = zoomExpr(timed);
   const portrait = src.height >= src.width;
   // Portrait phone video fills 9:16; landscape is center-cropped (a talking head sits in the middle).
-  const frame = portrait
-    ? `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`
-    : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`;
+  const c = opts.crop;
+  const frame = (c && !portrait
+    ? `crop=${c.w}:${c.h}:${c.x}:${c.y},scale=${W}:${H}:flags=lanczos`
+    : portrait
+      ? `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`
+      : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '');
   const inputs: string[] = [];
   const fc: string[] = [];
   spans.forEach((sp, i) => {
@@ -177,18 +200,19 @@ export async function renderClip(url: string, spans: Span[], words: Word[], src:
   const punch = zoom ? `scale=w='2*trunc(${W}*(${zoom})/2)':h='2*trunc(${H}*(${zoom})/2)':eval=frame,crop=${W}:${H},` : '';
   fc.push(`[vc]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[ac]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]');
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
-  await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'clip.mp4'], dir);
+  await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'clip.mp4'], dir);
   return { file: path.join(dir, 'clip.mp4'), dir, secs };
 }
 
 /** Stills from the recording at the given seconds, as JPEGs (width `w`, height kept in proportion). */
-export async function frames(url: string, at: number[], w = 1280): Promise<Buffer[]> {
+export async function frames(url: string, at: number[], w = 1280, fast = false, pre = ''): Promise<Buffer[]> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-frames-'));
   try {
     const out: Buffer[] = [];
     for (const [i, t] of at.entries()) {
       const f = path.join(dir, `f${i}.jpg`);
-      await ffmpeg(['-ss', Math.max(0, t).toFixed(2), '-i', url, '-frames:v', '1', '-vf', `scale=${w}:-2`, '-q:v', '3', f], undefined, 90_000);
+      // fast: the nearest keyframe after t (no decoding up to the exact frame), for sampling large recordings.
+      await ffmpeg([...(fast ? ['-skip_frame', 'nokey'] : []), '-ss', Math.max(0, t).toFixed(2), '-i', url, '-frames:v', '1', '-vf', `${pre ? `${pre},` : ''}scale=${w}:-2`, '-q:v', '3', f], undefined, 90_000);
       out.push(await fs.readFile(f));
     }
     return out;

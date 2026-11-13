@@ -1,7 +1,9 @@
 // Unedit (Studio): one take in, a campaign out. Server only.
 //   uploaded     → read the recording, pull its audio, transcribe it (words with times)       → finding
 //   finding      → Claude picks the clips and writes the copy, the episode title, thumb lines   → rendering
-//   rendering    → each clip rendered 9:16 with word captions; then three thumbnails            → review
+//   finding      … and Episode Pro's edit (head/tail, hands-free commands, uh/um, false starts, pauses) and look
+//   rendering    → each clip rendered 9:16 with word captions; then three thumbnails; then the full episode,
+//                  edited and polished, rendered in parallel parts and joined with one soundtrack  → review
 //   review       → the card: Approve or Redo each clip, pick a thumbnail, Approve the campaign   → publishing
 //   publishing   → Metricool drafts (or scheduled posts when METRICOOL_MODE=publish)           → published
 // One step at a time, under a lease, run by /api/studio/unedit/[id]/step (kicked by the Studio cron and right after
@@ -13,11 +15,14 @@ import fs from 'node:fs/promises';
 import { put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { extractAudio, frames, presigned, probe, renderClip, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { extractAudio, frames, presigned, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { pickStills, planVlog, redoClip, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
+import { editList, within, type Edit } from '@/lib/unedit-edit';
+import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Look } from '@/lib/unedit-look';
+import { assemble, partSeconds, partsOf, renderPart, shotCrops, type EpisodePlan, type Part } from '@/lib/unedit-episode';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { GENOVUS_BLOG_ID, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 
@@ -28,6 +33,8 @@ export type Vlog = {
   stage: Stage; stage_at: string; lease_until: string | null; attempts: number; error: string | null; provider: Provider | 'mock' | null;
   transcript_blob: string | null; words: number | null; episode: { title?: string; description?: string; tags?: string[]; dropped?: string[] };
   thumbs: { blob: string; text: string; t: number; look: string }[]; thumb_pick: number | null; cost_cents: number; created_at: string; approved_at: string | null;
+  // Episode Pro (null on recordings made before it: their episode posts as recorded)
+  audio_blob: string | null; edit: Edit | null; look: Look | null; episode_plan: EpisodePlan | null; episode_path: string | null;
 };
 export type Clip = {
   id: string; vlog_id: string; n: number; start_s: number; end_s: number; hook_start_s: number | null; hook_end_s: number | null;
@@ -120,11 +127,14 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const provider = defaultProvider();
       // The cost is known from the length, so it is charged (and checked against the budget) before the call.
       await spend(v.id, costCents(provider, p.duration), `transcription (${provider})`);
-      const mp3 = await extractAudio(src);
+      // One read of the recording gives the small MP3 for transcription and the full-quality soundtrack for the episode.
+      const { mp3, m4a } = await extractAudio(src, true);
+      const audioPath = `${dir(v)}/audio.m4a`;
+      await put(audioPath, m4a, { access: 'private', contentType: 'audio/mp4', addRandomSuffix: false, allowOverwrite: true });
       const t = await transcribe(mp3, p.duration, provider);
       const path = `${dir(v)}/transcript-${provider}.json`;
       await put(path, JSON.stringify({ provider, words: t.words }), { access: 'private', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
-      await advance(v.id, 'finding', { provider, transcript_blob: path, words: t.words.length });
+      await advance(v.id, 'finding', { provider, transcript_blob: path, words: t.words.length, audio_blob: audioPath });
       await log('transcribed', subject, { provider, words: t.words.length, secs: Math.round(p.duration), cents: t.cents });
       return `Transcribed ${t.words.length} words with ${provider}.`;
     }
@@ -137,7 +147,9 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const rows = plan.clips.map((c, i) => clipRow(v, i + 1, c));
       const ins = await dbx().from('unedit_clips').insert(rows);
       if (ins.error) throw new Error(ins.error.message);
-      await advance(v.id, 'rendering', { title: plan.episode.title, episode: { ...plan.episode, dropped: plan.dropped, thumb_lines: plan.thumbs } });
+      // Episode Pro: what the full episode keeps, how it looks, and its parts (rendered in parallel after the clips).
+      const pro = await planEpisode(v, words, plan.falseStarts);
+      await advance(v.id, 'rendering', { title: plan.episode.title, episode: { ...plan.episode, dropped: plan.dropped, thumb_lines: plan.thumbs }, ...pro });
       await log('planned', subject, { clips: plan.clips.length, dropped: plan.dropped.length, cents: plan.cents });
       return `Picked ${plan.clips.length} clip${plan.clips.length === 1 ? '' : 's'}.`;
     }
@@ -159,12 +171,16 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const next = (await dbx().from('unedit_clips').select('*').eq('vlog_id', v.id).eq('status', 'rendering').order('n').limit(1)).data?.[0] as Clip | undefined;
       if (next) {
         const words = await readWords(v);
-        const spans: Span[] = [...(next.hook_start_s != null && next.hook_end_s != null ? [{ from: Number(next.hook_start_s), to: Number(next.hook_end_s) }] : []), { from: Number(next.start_s), to: Number(next.end_s) }];
+        const raw: Span[] = [...(next.hook_start_s != null && next.hook_end_s != null ? [{ from: Number(next.hook_start_s), to: Number(next.hook_end_s) }] : []), { from: Number(next.start_s), to: Number(next.end_s) }];
+        // Episode Pro's edit applies to clips too: no uh/um, false starts or long pauses inside a clip.
+        const edited = v.edit ? within(raw, v.edit.keep) : [];
+        const spans = edited.length ? edited : raw;
+        const look = clipLook(v);
         // Unedit Pro: the shot plan's accent words get the orange caption and a punch-in (clips planned before it have none).
         const shots = ((next.features as { shots?: Shot[] })?.shots ?? []);
         const accents = shots.map((s) => s.accent).filter((a): a is number => a != null);
         const cut = async (captions: boolean) => {
-          const o = await renderClip(src, spans, words, probeOf(v), { accents, captions });
+          const o = await renderClip(src, spans, words, probeOf(v), { accents, captions, ...look });
           try { return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(o.dir, { recursive: true, force: true }).catch(() => {}); }
         };
         // Unedit Pro's graphics pass (Remotion on Vercel Sandbox) when it is configured; any failure falls back to the plain clip.
@@ -192,6 +208,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       if (!v.thumbs?.length) {
         await makeThumbs(v, src);
       }
+      // Episode Pro: start the part workers, wait for them, then join the episode (each its own step).
+      if (v.episode_plan && !v.episode_path && !v.episode_plan.error) return await episodeStep(v, origin);
       await advance(v.id, 'review');
       await log('ready', subject, {});
       return 'Ready for review.';
@@ -217,15 +235,137 @@ function clipRow(v: Vlog, n: number, c: Pick) {
   return { tenant_id: v.tenant_id, vlog_id: v.id, n, start_s: c.from, end_s: c.to, hook_start_s: c.hookFrom, hook_end_s: c.hookTo, title: c.title, caption: c.caption, copy: c.copy, features: c.features, status: 'rendering', blob_path: null, secs: null, note: null };
 }
 
+// ---- Episode Pro ------------------------------------------------------------------------------------------------
+const PARALLEL = Number(process.env.UNEDIT_EPISODE_WORKERS || 8);
+const PART_LEASE_MIN = 14;
+const PART_TRIES = 3;
+const partPath = (v: { id: string }, k: number) => `${dir(v)}/episode/part-${String(k).padStart(3, '0')}.mp4`;
+
+/** The episode's edit, look and parts, from the transcript (at the end of 'finding'). A recording with too little
+ *  talk left after the edit keeps posting as recorded (no plan). */
+async function planEpisode(v: Vlog, words: Word[], falseStarts: string[]): Promise<{ edit: Edit; look: Look | null; episode_plan: EpisodePlan | null; episode_path: null }> {
+  const edit = editList(words, Number(v.duration_s ?? 0), falseStarts);
+  // UNEDIT_EPISODE=off turns Episode Pro off without a redeploy: the episode posts as recorded, clips keep the edit.
+  if (process.env.UNEDIT_EPISODE === 'off' || !edit.keep.length || edit.secs < 15) return { edit, look: null, episode_plan: null, episode_path: null };
+  const src0 = await presigned(v.blob_path, 60);
+  const sdr = await toSdr((await probe(src0)).hdr);
+  const look = await analyzeLook(src0, edit.keep, sdr);
+  await spend(v.id, look.cents, 'episode look (Claude)');
+  const src = { width: Number(v.width ?? 1920), height: Number(v.height ?? 1080) };
+  const parts = partsOf(edit.segs, partSeconds(src));
+  await dbx().from('unedit_episode_parts').delete().eq('vlog_id', v.id);
+  const ins = await dbx().from('unedit_episode_parts').insert(parts.map((p) => ({ vlog_id: v.id, k: p.k, tenant_id: v.tenant_id, segs: p.segs })));
+  if (ins.error) throw new Error(ins.error.message);
+  await log('episode-planned', v.id, { keep: edit.keep.length, secs: edit.secs, removed: edit.removed, cuts: edit.cuts.length, parts: parts.length, face: Boolean(look.face), grade: look.grade });
+  return { edit, look, episode_plan: { size: episodeSize(src), src, face: look.face, grade: look.grade, sdr, parts: parts.length, secs: edit.secs }, episode_path: null };
+}
+
+/** A clip's framing and grade from the recording's look: a face-aware 9:16 crop of a landscape source. */
+function clipLook(v: Vlog): { crop?: ReturnType<typeof framing> | null; grade?: string | null; sdr?: string | null } {
+  if (!v.look) return {};
+  const src = { width: Number(v.width ?? 1080), height: Number(v.height ?? 1920) };
+  const crop = src.width > src.height ? framing(v.look.face, src, { width: 1080, height: 1920 }, FILL.clip) : null;
+  return { crop, grade: gradeFilter(v.look.grade), sdr: v.look.sdr || null };
+}
+
+async function kickPart(origin: string, id: string, k: number): Promise<void> {
+  if (!process.env.CRON_SECRET) return;
+  const base = process.env.VERCEL_ENV === 'production' ? siteOrigin() : origin;
+  const r = await fetch(`${base}/api/studio/unedit/${id}/part/${k}`, { method: 'POST', redirect: 'manual', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(20_000) })
+    .catch((e) => { console.error(`[unedit] ${id} part ${k} kick failed: ${e instanceof Error ? e.message : e}`); return null; });
+  if (r && !r.ok) console.error(`[unedit] ${id} part ${k} kick answered ${r.status} from ${base}`);
+}
+
+/** One step of the episode: start workers on parts that need one, or (all parts done) join the episode. */
+async function episodeStep(v: Vlog, origin: string): Promise<string> {
+  const { data } = await dbx().from('unedit_episode_parts').select('k, status, lease_until, attempts, error, blob_path').eq('vlog_id', v.id).order('k');
+  const parts = (data ?? []) as { k: number; status: string; lease_until: string | null; attempts: number; error: string | null; blob_path: string | null }[];
+  if (!parts.length) throw new Error('The episode has no parts to render. Retry plans it again.');
+  // A failed episode never holds the clips back: the card says so (with a retry) and the full video goes as recorded.
+  const giveUp = async (why: string) => {
+    await dbx().from('unedit_vlogs').update({ episode_plan: { ...v.episode_plan, error: why.slice(0, 300) } }).eq('id', v.id);
+    await log('episode-failed', v.id, { why });
+    await advance(v.id, 'review');
+    return `The polished episode didn't finish (${why}); the clips are ready for review.`;
+  };
+  const failed = parts.find((p) => p.status === 'failed');
+  if (failed) return await giveUp(`part ${failed.k + 1} failed ${PART_TRIES} times: ${failed.error ?? 'unknown error'}`);
+  const open = parts.filter((p) => p.status !== 'done');
+  if (open.length) {
+    const now = Date.now();
+    const running = open.filter((p) => p.status === 'running' && p.lease_until && Date.parse(p.lease_until) > now).length;
+    const free = open.filter((p) => p.status === 'todo' || (p.status === 'running' && (!p.lease_until || Date.parse(p.lease_until) <= now)));
+    const start = free.slice(0, Math.max(0, PARALLEL - running));
+    await Promise.all(start.map((p) => kickPart(origin, v.id, p.k)));
+    // Hold the recording while the workers run: the last one to finish kicks this step; the cron covers a lost kick.
+    await release(v.id, { lease_until: new Date(now + 3 * 60_000).toISOString() });
+    return `Polishing the episode: ${parts.length - open.length} of ${parts.length} parts done${start.length ? `, started ${start.length}` : ''}.`;
+  }
+  // Every part is done: one soundtrack for the whole episode, the parts joined without re-encoding.
+  const t0 = Date.now();
+  const path = `${dir(v)}/episode/episode-${Date.now()}.mp4`;
+  const urls = await Promise.all(parts.map((p) => presigned(p.blob_path ?? partPath(v, p.k), 120)));
+  const sound = await presigned(v.audio_blob ?? v.blob_path, 120);
+  try {
+    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }));
+  } catch (e) { return await giveUp(`joining the parts: ${e instanceof Error ? e.message : String(e)}`); }
+  await dbx().from('unedit_vlogs').update({ episode_path: path, episode_plan: { ...v.episode_plan, path, at: new Date().toISOString() } }).eq('id', v.id);
+  await log('episode-ready', v.id, { path, parts: parts.length, secs: v.episode_plan?.secs, ms: Date.now() - t0 });
+  await release(v.id);
+  return `Finished the episode (${parts.length} parts).`;
+}
+
+/** A part worker (POST /api/studio/unedit/[id]/part/[k]): claim the part, frame each shot on the speaker, render,
+ *  store. The last part to finish kicks the recording's next step. A part that fails PART_TRIES times stops the job. */
+export async function renderEpisodePart(id: string, k: number, origin: string): Promise<string> {
+  const now = new Date().toISOString();
+  const { data: claimed } = await dbx().from('unedit_episode_parts')
+    .update({ status: 'running', lease_until: new Date(Date.now() + PART_LEASE_MIN * 60_000).toISOString() })
+    .eq('vlog_id', id).eq('k', k).or(`status.eq.todo,and(status.eq.running,lease_until.lt.${now})`)
+    .select('*').maybeSingle();
+  if (!claimed) return `Part ${k} is taken or done.`;
+  const tries = Number(claimed.attempts ?? 0) + 1;
+  await dbx().from('unedit_episode_parts').update({ attempts: tries }).eq('vlog_id', id).eq('k', k);
+  const t0 = Date.now();
+  try {
+    const { data: row } = await dbx().from('unedit_vlogs').select('*').eq('id', id).single();
+    const v = row as Vlog;
+    if (!v.episode_plan) throw new Error('The episode has no plan.');
+    const src = await presigned(v.blob_path, 120);
+    const part: Part = { k, segs: claimed.segs as Part['segs'], status: 'todo' };
+    const { crops, cents } = await shotCrops(src, part, v.episode_plan);
+    await spend(id, cents, `episode part ${k + 1} framing (Claude)`);
+    const out = await renderPart(src, part, crops, v.episode_plan);
+    try {
+      const path = partPath(v, k);
+      await put(path, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
+      await dbx().from('unedit_episode_parts').update({ status: 'done', blob_path: path, secs: Math.round(out.secs * 100) / 100, ms: Date.now() - t0, error: null, lease_until: null }).eq('vlog_id', id).eq('k', k);
+    } finally { await fs.rm(out.dir, { recursive: true, force: true }).catch(() => {}); }
+    const { count } = await dbx().from('unedit_episode_parts').select('k', { count: 'exact', head: true }).eq('vlog_id', id).neq('status', 'done');
+    if (!count) { await release(id); await kick(origin, id); }
+    return `Rendered episode part ${k + 1} in ${Math.round((Date.now() - t0) / 1000)} s.`;
+  } catch (e) {
+    const msg = (e instanceof Error ? e.message : String(e)).slice(0, 400);
+    await dbx().from('unedit_episode_parts').update({ status: tries >= PART_TRIES ? 'failed' : 'todo', error: msg, lease_until: null, ms: Date.now() - t0 }).eq('vlog_id', id).eq('k', k);
+    if (tries >= PART_TRIES) { await release(id); await kick(origin, id); } // the step reports the failure on the card
+    console.error(`[unedit] ${id} episode part ${k}: ${msg}`);
+    return `Part ${k + 1} failed: ${msg}`;
+  }
+}
+
 /** Three thumbnail options: Claude picks the three best stills of the speaker from eight, each gets a line and a look. */
 async function makeThumbs(v: Vlog, src: string) {
   const dur = Number(v.duration_s ?? 60);
-  const at = Array.from({ length: 8 }, (_, i) => Math.round(((i + 0.5) / 8) * dur * 10) / 10);
+  // Sampled from the talk the edit keeps (never the walk-up or walk-off); polished like the episode.
+  const at = v.edit?.keep.length ? sampleTimes(v.edit.keep, 8) : Array.from({ length: 8 }, (_, i) => Math.round(((i + 0.5) / 8) * dur * 10) / 10);
+  const src2 = { width: Number(v.width ?? 1920), height: Number(v.height ?? 1080) };
+  const c = v.look && v.episode_plan ? framing(v.look.face, src2, v.episode_plan.size, FILL.medium) : null;
+  const pre = v.look ? [c ? `crop=${c.w}:${c.h}:${c.x}:${c.y}` : '', v.look.sdr, gradeFilter(v.look.grade)].filter(Boolean).join(',') : '';
   const small = await frames(src, at, 512);
   const { order, cents } = await pickStills(small);
   await spend(v.id, cents, 'thumbnail stills (Claude)');
   const lines = ((v.episode as { thumb_lines?: string[] }).thumb_lines ?? []).concat([v.episode.title ?? v.title ?? 'New video']).filter(Boolean);
-  const big = await frames(src, order.map((i) => at[i]), 1280);
+  const big = await frames(src, order.map((i) => at[i]), 1280, false, pre);
   const thumbs: Vlog['thumbs'] = [];
   for (const [k, still] of big.entries()) {
     const look = LOOKS[k % LOOKS.length];
@@ -246,6 +386,7 @@ type Tap =
   | { tool: 'pick_thumb'; index: number }
   | { tool: 'edit_episode'; title?: string; description?: string }
   | { tool: 'retry' }
+  | { tool: 'retry_episode' }
   | { tool: 'approve' };
 
 /** One tap on the card, by a staff member. Returns what changed, in words. */
@@ -295,10 +436,22 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       await dbx().from('unedit_vlogs').update({ episode }).eq('id', id);
       return 'Saved.';
     }
+    case 'retry_episode': {
+      // The polished episode stopped (the clips went on to review): fresh tries for its failed parts, before approval.
+      inReview();
+      if (!vlog.episode_plan?.error) return 'The episode is fine.';
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null }).eq('vlog_id', id).neq('status', 'done');
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, error: null }, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+      await log('retry-episode', id, {});
+      await kick(origin, id);
+      return 'Polishing the episode again.';
+    }
     case 'retry': {
       if (!vlog.error) return 'Nothing to retry.';
       await dbx().from('unedit_vlogs').update({ error: null, lease_until: null }).eq('id', id);
       await dbx().from('unedit_clips').update({ status: 'rendering', error: null }).eq('vlog_id', id).eq('status', 'failed');
+      // A failed episode part gets fresh tries.
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null }).eq('vlog_id', id).eq('status', 'failed');
       await log('retry', id, { stage: vlog.stage });
       await kick(origin, id);
       return 'Trying again.';
@@ -346,7 +499,8 @@ export async function distribute(v: Vlog): Promise<{ sent: number; skipped: stri
   const when = new Date(Date.now() + 15 * 60_000);
   const mins = 6 * 24 * 60;
   for (const p of posts) {
-    const media = p.clip_id ? clipPath.get(p.clip_id) : v.blob_path;
+    // The full video is the polished episode when Episode Pro made one, else the recording as shot.
+    const media = p.clip_id ? clipPath.get(p.clip_id) : (v.episode_path ?? v.blob_path);
     if (!media) { await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'No video for this post.' }).eq('id', p.id); out.skipped.push(`${p.platform} ${p.kind}`); continue; }
     const r = await schedulePost({
       blogId: GENOVUS_BLOG_ID(), network: p.platform, text: p.body, title: p.title ?? undefined, mediaUrl: await presigned(media, mins), when,

@@ -19,7 +19,8 @@ export const providerReady = (p: Provider) => Boolean(key(p));
 export const costCents = (p: Provider, seconds: number) => Math.max(1, Math.ceil((seconds / 60) * CENTS_PER_MIN[p]));
 
 async function deepgram(mp3: Buffer): Promise<Word[]> {
-  const q = new URLSearchParams({ model: 'nova-3', smart_format: 'true', punctuate: 'true', language: 'en' });
+  // filler_words: "uh" and "um" come back as words, so Episode Pro can cut them (they never reach a caption).
+  const q = new URLSearchParams({ model: 'nova-3', smart_format: 'true', punctuate: 'true', filler_words: 'true', language: 'en' });
   // Our own names, so the transcript (and every caption) spells them right: "Genovus", never "Genova".
   for (const t of ['Genovus', 'Unedit', 'Unedit Pro', 'Helix', 'Metricool']) q.append('keyterm', t);
   const r = await fetch(`${DG()}/v1/listen?${q}`, { method: 'POST', headers: { authorization: `Token ${key('deepgram')}`, 'content-type': 'audio/mpeg' }, body: new Uint8Array(mp3), signal: AbortSignal.timeout(540_000) });
@@ -33,7 +34,7 @@ async function assemblyai(mp3: Buffer): Promise<Word[]> {
   const up = await fetch(`${AAI()}/v2/upload`, { method: 'POST', headers: { ...h, 'content-type': 'application/octet-stream' }, body: new Uint8Array(mp3), signal: AbortSignal.timeout(120_000) });
   const u = (await up.json().catch(() => ({}))) as { upload_url?: string; error?: string };
   if (!up.ok || !u.upload_url) throw new Error(`AssemblyAI upload: ${u.error || `HTTP ${up.status}`}`);
-  const start = await fetch(`${AAI()}/v2/transcript`, { method: 'POST', headers: { ...h, 'content-type': 'application/json' }, body: JSON.stringify({ audio_url: u.upload_url, language_code: 'en', punctuate: true, format_text: true }), signal: AbortSignal.timeout(30_000) });
+  const start = await fetch(`${AAI()}/v2/transcript`, { method: 'POST', headers: { ...h, 'content-type': 'application/json' }, body: JSON.stringify({ audio_url: u.upload_url, language_code: 'en', punctuate: true, format_text: true, disfluencies: true }), signal: AbortSignal.timeout(30_000) });
   const s = (await start.json().catch(() => ({}))) as { id?: string; error?: string };
   if (!start.ok || !s.id) throw new Error(`AssemblyAI: ${s.error || `HTTP ${start.status}`}`);
   // A 15-minute talk usually finishes in well under two minutes; give it up to eight.

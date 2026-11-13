@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
     // Unedit: ffmpeg for clips, audio and stills; the brand font as TTF for burned-in captions (libass), WOFF for thumbnails.
     // Unedit Pro: the Remotion bundle it uploads into a Vercel Sandbox per render (built from Genovus Motion).
     '/api/studio/unedit/[id]/step': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.ttf', './lib/fonts/*.woff', './remotion/unedit-pro/**/*'],
+    // Episode Pro's part workers: ffmpeg only (framing, grade and encode).
+    '/api/studio/unedit/[id]/part/[k]': ['./node_modules/ffmpeg-static/ffmpeg*'],
   },
   // ffmpeg-static resolves its binary path at runtime; keep it out of the bundle so the path stays real.
   // Remotion's renderer and its Vercel Sandbox driver load native binaries and the sandbox SDK at runtime.

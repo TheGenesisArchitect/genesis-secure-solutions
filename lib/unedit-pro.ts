@@ -35,12 +35,18 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
   const out: ProShot[] = [];
   let k = 0, offset = 0;
+  // A span owns a shot that starts inside it, or in the cut just before it (Episode Pro removes "um"s and pauses, so a
+  // sentence can start in a gap); across the hook-to-moment jump only a small lead counts.
+  const owns = (sh: Shot, i: number) => {
+    const lead = i > 0 && spans[i - 1].to <= spans[i].from ? spans[i - 1].to : spans[i].from - 0.2;
+    return sh.s >= lead && sh.s < spans[i].to;
+  };
   for (const sh of shots) {
-    while (k < spans.length && !(sh.s >= spans[k].from - 0.2 && sh.s < spans[k].to)) { offset += spans[k].to - spans[k].from; k++; }
+    while (k < spans.length && !owns(sh, k)) { offset += spans[k].to - spans[k].from; k++; }
     if (k >= spans.length) break;
     const sp = spans[k];
     out.push({
-      s: Math.max(0, offset + sh.s - sp.from), e: Math.min(secs, offset + Math.min(sh.e, sp.to) - sp.from), layout: sh.layout,
+      s: offset + Math.max(0, sh.s - sp.from), e: Math.min(secs, offset + Math.min(sh.e, sp.to) - sp.from), layout: sh.layout,
       accent: sh.accent != null ? words[sh.accent]?.w ?? null : null, figure: sh.figure,
       screen: sh.screen ? await screenLinks(sh.screen) : null,
     });
