@@ -61,7 +61,11 @@ export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: numbe
     const shot: Shot = { w0: sen.w0, w1: sen.w1, s: sen.s, e: sen.e, layout, accent, screen: layout === 'screen' || layout === 'split' ? screen : null, figure: layout === 'number' || layout === 'split' ? figure : null };
     const prev = shots[shots.length - 1];
     // Too short to read as its own shot: it keeps the previous layout (its accent word still counts).
-    if (prev && shot.e - shot.s < MIN_SHOT_S) { shot.layout = prev.layout; shot.screen = prev.screen; shot.figure = prev.figure; }
+    // A figure or a huge word belongs to the sentence that says it, so after one the short shot becomes a card.
+    if (prev && shot.e - shot.s < MIN_SHOT_S) {
+      if (prev.layout === 'number' || prev.layout === 'word') { shot.layout = 'card'; shot.screen = null; shot.figure = null; }
+      else { shot.layout = prev.layout; shot.screen = prev.screen; shot.figure = prev.figure; }
+    }
     shots.push(shot);
   }
   return shots;
