@@ -17,6 +17,7 @@ import { extractAudio, frames, presigned, probe, renderClip, type Probe, type Sp
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { pickStills, planVlog, redoClip, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
+import type { Shot } from '@/lib/unedit-shots';
 import { GENOVUS_BLOG_ID, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 
 export type Stage = 'uploaded' | 'transcribing' | 'finding' | 'rendering' | 'review' | 'publishing' | 'published' | 'failed';
@@ -158,7 +159,9 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       if (next) {
         const words = await readWords(v);
         const spans: Span[] = [...(next.hook_start_s != null && next.hook_end_s != null ? [{ from: Number(next.hook_start_s), to: Number(next.hook_end_s) }] : []), { from: Number(next.start_s), to: Number(next.end_s) }];
-        const out = await renderClip(src, spans, words, probeOf(v));
+        // Unedit Pro: the shot plan's accent words get the orange caption and a punch-in (clips planned before it have none).
+        const shots = ((next.features as { shots?: Shot[] })?.shots ?? []);
+        const out = await renderClip(src, spans, words, probeOf(v), { accents: shots.map((s) => s.accent).filter((a): a is number => a != null) });
         try {
           const bytes = await fs.readFile(out.file);
           const path = `${dir(v)}/clips/${next.n}-${Date.now()}.mp4`;

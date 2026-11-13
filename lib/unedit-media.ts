@@ -22,7 +22,7 @@ const FPS = 30;
 const W = 1080;
 const H = 1920;
 
-export type Word = { w: string; s: number; e: number; c?: number };
+export type Word = { w: string; s: number; e: number; c?: number; /** Unedit Pro: the shot's accent word */ a?: boolean };
 export type Probe = { duration: number; width: number; height: number; rotation: number; vcodec: string; acodec: string };
 export type Span = { from: number; to: number };
 
@@ -35,7 +35,7 @@ export async function presigned(pathname: string, mins = 120): Promise<string> {
 
 async function ffmpeg(args: string[], cwd?: string, timeoutMs = 600_000): Promise<string> {
   try {
-    const { stderr } = await run(String(ffmpegPath), ['-y', '-hide_banner', '-loglevel', 'error', ...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs });
+    const { stderr } = await run(String(ffmpegPath), ['-nostdin', '-y', '-hide_banner', '-loglevel', 'error', ...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs });
     return String(stderr);
   } catch (e) {
     const err = e as { stderr?: string; message?: string };
@@ -76,10 +76,17 @@ export async function extractAudio(url: string): Promise<Buffer> {
 const FONT = 'Archivo SemiBold Expanded ExtraBold';
 const assTime = (t: number) => { const cs = Math.max(0, Math.round(t * 100)); const h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, s = Math.floor(cs / 100) % 60; return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`; };
 const assText = (t: string) => t.replace(/[{}\\]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+// Unedit Pro's accent word: Genovus orange (#FF6A2B, BGR in ASS) before and after it is spoken, a touch larger, and in
+// italic serif when lib/fonts carries Instrument Serif Italic (open source, OFL); else the brand face in orange.
+const ACCENT_TTF = 'instrument-serif-italic.ttf';
+const ACCENT = '&H002B6AFF&';
+const accentText = (t: string, serif: boolean) => serif
+  ? `{\\fnInstrument Serif\\i1\\fs112\\1c${ACCENT}\\2c${ACCENT}}${t.replace(/[{}\\]/g, '').trim().toLowerCase()}{\\r}`
+  : `{\\fs96\\1c${ACCENT}\\2c${ACCENT}}${assText(t)}{\\r}`;
 
 /** Word-by-word captions: phrases of up to 3 words (a new phrase after a sentence end or a pause), each word lighting
  *  up as it is spoken (karaoke timing), in the brand display face with an outline that reads on any background. */
-export function captionsAss(words: Word[]): string {
+export function captionsAss(words: Word[], serif = false): string {
   const phrases: Word[][] = [];
   let cur: Word[] = [];
   for (const [i, w] of words.entries()) {
@@ -94,7 +101,7 @@ export function captionsAss(words: Word[]): string {
     const next = phrases[i + 1]?.[0].s ?? Infinity;
     const t1 = Math.min(Math.max(p[p.length - 1].e + 0.25, t0 + 0.5), next);
     // \k durations in centiseconds, from each word's start to the next word's start (the last runs to the line end).
-    const ks = p.map((w, k) => `{\\k${Math.max(1, Math.round(((k + 1 < p.length ? p[k + 1].s : t1) - (k ? w.s : t0)) * 100))}}${assText(w.w)}`);
+    const ks = p.map((w, k) => `{\\k${Math.max(1, Math.round(((k + 1 < p.length ? p[k + 1].s : t1) - (k ? w.s : t0)) * 100))}}${w.a ? accentText(w.w, serif) : assText(w.w)}`);
     return `Dialogue: 0,${assTime(t0)},${assTime(t1)},Cap,,0,0,0,,${ks.join(' ')}`;
   });
   return [
@@ -119,18 +126,42 @@ export function wordsForSpans(words: Word[], spans: Span[]): Word[] {
   return out;
 }
 
-async function fontsDir(dir: string) {
+/** Copies the caption fonts next to the subtitles; true when the serif accent face is available. */
+async function fontsDir(dir: string): Promise<boolean> {
   const fd = path.join(dir, 'fonts');
   await fs.mkdir(fd);
   await fs.copyFile(path.join(process.cwd(), 'lib/fonts/archivo-expanded-800.ttf'), path.join(fd, 'archivo-expanded-800.ttf'));
+  return fs.copyFile(path.join(process.cwd(), 'lib/fonts', ACCENT_TTF), path.join(fd, ACCENT_TTF)).then(() => true, () => false);
+}
+
+/** Punch-in on accent words: the frame eases to 107% as the word starts and back out after it (at most 12 per clip,
+ *  windows on the clip's own timeline). An ffmpeg expression for the scale factor, or null when there are none. */
+export function zoomExpr(words: Word[]): string | null {
+  const wins: [number, number][] = [];
+  for (const w of words) {
+    if (!w.a) continue;
+    const a = Math.max(0, w.s - 0.05), b = w.e + 0.6;
+    const last = wins[wins.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b); else wins.push([a, b]);
+  }
+  if (!wins.length) return null;
+  // Commas inside a filter option are escaped for the filtergraph parser.
+  const terms = wins.slice(0, 12).map(([a, b]) => `clip((t-${a.toFixed(2)})/0.2\\,0\\,1)*clip((${b.toFixed(2)}-t)/0.3\\,0\\,1)`);
+  return `1+0.07*${terms.reduce((acc, t) => (acc ? `max(${acc}\\,${t})` : t), '')}`;
 }
 
 /** Render one 9:16 clip from the recording to a local MP4 (the caller stores it). Spans play in order: a hook
  *  span first when the moment was rebuilt to open on its strongest line. */
-export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe): Promise<{ file: string; dir: string; secs: number }> {
+export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean } = {}): Promise<{ file: string; dir: string; secs: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clip-'));
-  await fontsDir(dir);
-  await fs.writeFile(path.join(dir, 'c.ass'), captionsAss(wordsForSpans(words, spans)));
+  const serif = await fontsDir(dir);
+  // Accent words are marked by their index in the whole transcript, before the words are re-timed onto the clip.
+  const marks = new Set(opts.accents ?? []);
+  const timed = wordsForSpans(marks.size ? words.map((w, i) => (marks.has(i) ? { ...w, a: true } : w)) : words, spans);
+  // Unedit Pro's graphics pass draws its own captions over a clean cut (captions: false).
+  const captions = opts.captions !== false;
+  if (captions) await fs.writeFile(path.join(dir, 'c.ass'), captionsAss(timed, serif));
+  const zoom = zoomExpr(timed);
   const portrait = src.height >= src.width;
   // Portrait phone video fills 9:16; landscape is center-cropped (a talking head sits in the middle).
   const frame = portrait
@@ -143,7 +174,8 @@ export async function renderClip(url: string, spans: Span[], words: Word[], src:
     fc.push(`[${i}:v]${frame},setsar=1,fps=${FPS},format=yuv420p[v${i}]`, `[${i}:a]aresample=48000,aformat=channel_layouts=stereo[a${i}]`);
   });
   fc.push(`${spans.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${spans.length}:v=1:a=1[vc][ac]`);
-  fc.push('[vc]ass=c.ass:fontsdir=fonts[v]', '[ac]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]');
+  const punch = zoom ? `scale=w='2*trunc(${W}*(${zoom})/2)':h='2*trunc(${H}*(${zoom})/2)':eval=frame,crop=${W}:${H},` : '';
+  fc.push(`[vc]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[ac]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]');
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
   await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'clip.mp4'], dir);
   return { file: path.join(dir, 'clip.mp4'), dir, secs };

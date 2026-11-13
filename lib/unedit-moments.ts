@@ -5,12 +5,13 @@
 // run too short or long, overlap, or break the copy rules are dropped. ANTHROPIC_API_BASE points tests at a stand-in.
 import 'server-only';
 import type { Word } from '@/lib/unedit-media';
+import { playOrder, screenMenu, SHOTS_RULES, toShots, type RawShot, type Shot } from '@/lib/unedit-shots';
 
 export type Sentence = { i: number; s: number; e: number; text: string; w0: number; w1: number };
 export type Pick = {
   from: number; to: number; hookFrom: number | null; hookTo: number | null;
   title: string; caption: string; copy: { instagram: string; facebook: string; youtube: string };
-  features: { hook: string; topic: string; why: string; at: number };
+  features: { hook: string; topic: string; why: string; at: number; shots: Shot[] };
 };
 export type Plan = { clips: Pick[]; episode: { title: string; description: string; tags: string[] }; thumbs: string[]; cents: number; dropped: string[] };
 
@@ -45,7 +46,10 @@ function prompt(ss: Sentence[], opts: { who: string; redo?: { title: string; fro
     'Pick as many clips as the talk truly supports, up to 6. Fewer good clips beat more weak ones. Clips must not overlap.',
     'Copy rules: plain, confident, in the speaker\'s voice. No guarantees, no prices or savings claims, no "best rates", no claims the speaker did not make. Hashtags only at the end of Instagram copy, at most 3.',
     'The thumbnail lines are for the full video: each 4 words or fewer, distinct from the title, drawn from the talk.',
-    'Return only JSON, no prose: {"clips":[{"from":<first sentence #>,"to":<last sentence #>,"hook":<sentence # or null>,"hook_to":<sentence # or null>,"title":"<6 words max>","caption":"<one line under 90 chars>","instagram":"<caption>","facebook":"<caption>","youtube":"<Shorts title under 90 chars>","hook_type":"question|claim|story|number|contrast","topic":"<2-4 words>","why":"<one line>"}],"episode":{"title":"<under 90 chars>","description":"<2-4 sentences>","tags":["..."]},"thumbs":["","",""]}',
+    SHOTS_RULES,
+    `Screen codes (real Genovus screens):
+${screenMenu()}`,
+    'Return only JSON, no prose: {"clips":[{"from":<first sentence #>,"to":<last sentence #>,"hook":<sentence # or null>,"hook_to":<sentence # or null>,"title":"<6 words max>","caption":"<one line under 90 chars>","instagram":"<caption>","facebook":"<caption>","youtube":"<Shorts title under 90 chars>","hook_type":"question|claim|story|number|contrast","topic":"<2-4 words>","why":"<one line>","shots":[{"s":0,"layout":"face","accent":"","screen":null,"figure":null}]}],"episode":{"title":"<under 90 chars>","description":"<2-4 sentences>","tags":["..."]},"thumbs":["","",""]}',
   ].join('\n');
   const lines = ss.map((x) => `[${x.i} ${mmss(x.s)}–${mmss(x.e)}] ${x.text}`).join('\n');
   const user = opts.redo
@@ -60,7 +64,7 @@ async function claude(system: string, user: string): Promise<{ text: string; cen
   const r = await fetch(`${BASE()}/v1/messages`, {
     method: 'POST',
     headers: { 'x-api-key': k, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL(), max_tokens: 6000, system, messages: [{ role: 'user', content: user }] }),
+    body: JSON.stringify({ model: MODEL(), max_tokens: 12000, system, messages: [{ role: 'user', content: user }] }),
     signal: AbortSignal.timeout(240_000),
   });
   const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number }; error?: { message?: string } };
@@ -69,7 +73,7 @@ async function claude(system: string, user: string): Promise<{ text: string; cen
   return { text: (j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join(''), cents };
 }
 
-type RawClip = { from?: number; to?: number; hook?: number | null; hook_to?: number | null; title?: string; caption?: string; instagram?: string; facebook?: string; youtube?: string; hook_type?: string; topic?: string; why?: string };
+type RawClip = { from?: number; to?: number; hook?: number | null; hook_to?: number | null; title?: string; caption?: string; instagram?: string; facebook?: string; youtube?: string; hook_type?: string; topic?: string; why?: string; shots?: RawShot[] };
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
 /** Turn the model's sentence picks into timed clips, enforcing length, no overlap and the copy rules. */
@@ -92,7 +96,7 @@ export function toPicks(raw: RawClip[], ss: Sentence[], taken: { from: number; t
     const copy = { instagram: str(c.instagram, 2000), facebook: str(c.facebook, 2000), youtube: str(c.youtube, 95) || title };
     const caption = str(c.caption, 120);
     if ([title, caption, ...Object.values(copy)].some((t) => BANNED.test(t))) { dropped.push(`${title}: copy broke the wording rules`); continue; }
-    picks.push({ from, to, hookFrom, hookTo, title, caption, copy, features: { hook: str(c.hook_type, 20) || 'claim', topic: str(c.topic, 40), why: str(c.why, 160), at: Math.round((from / Math.max(1, ss[ss.length - 1].e)) * 100) / 100 } });
+    picks.push({ from, to, hookFrom, hookTo, title, caption, copy, features: { hook: str(c.hook_type, 20) || 'claim', topic: str(c.topic, 40), why: str(c.why, 160), at: Math.round((from / Math.max(1, ss[ss.length - 1].e)) * 100) / 100, shots: toShots(c.shots, ss, playOrder(ss, from, to, hookFrom, hookTo)) } });
   }
   return { picks, dropped };
 }

@@ -44,7 +44,9 @@ for (const s of SENT) { for (const w of s.split(' ')) { words.push({ word: w.rep
 const ctl = { dgFail: false, dgCalls: 0, aiCalls: [], mcPosts: [] };
 const plan = {
   clips: [
-    { from: 0, to: 4, hook: 3, hook_to: 3, title: 'The five minute rule', caption: 'Speed beats volume.', instagram: 'Answer fast or lose the lead. #insurance', facebook: 'Answer fast or lose the lead.', youtube: 'The five minute rule for agencies', hook_type: 'claim', topic: 'speed to lead', why: 'clear stakes' },
+    { from: 0, to: 4, hook: 3, hook_to: 3, title: 'The five minute rule', caption: 'Speed beats volume.', instagram: 'Answer fast or lose the lead. #insurance', facebook: 'Answer fast or lose the lead.', youtube: 'The five minute rule for agencies', hook_type: 'claim', topic: 'speed to lead', why: 'clear stakes',
+      // Unedit Pro shot plan, with mistakes code must repair: a non-face opener, a filler accent, an invented screen, a figure never said.
+      shots: [{ s: 3, layout: 'word', accent: 'someone' }, { s: 0, layout: 'word', accent: 'lose' }, { s: 1, layout: 'card', accent: 'the' }, { s: 2, layout: 'screen', accent: 'quote', screen: 'agency-leads' }, { s: 3, layout: 'number', accent: 'already', figure: '9000' }, { s: 4, layout: 'split', accent: 'faster', screen: 'made-up-screen' }] },
     { from: 5, to: 8, hook: null, title: 'Under a minute', caption: 'How we answer every lead.', instagram: 'Every lead answered in under a minute.', facebook: 'Every lead answered in under a minute.', youtube: 'Answer every lead in under a minute', hook_type: 'story', topic: 'the system', why: 'shows the how' },
     { from: 9, to: 9, title: 'Too short', caption: 'x', instagram: 'x', facebook: 'x', youtube: 'x' },
     { from: 9, to: 12, title: 'Guaranteed results', caption: 'Guaranteed to work.', instagram: 'Guaranteed!', facebook: 'x', youtube: 'x' },
@@ -167,6 +169,14 @@ try {
   check(c1.hook_start_s != null && Number(c1.hook_start_s) > Number(c1.start_s), 'clip 1 opens on its hook (a later sentence moved to the front)');
   check(Number(c1.start_s) <= words[0].start && Number(c2.start_s) > Number(c1.end_s), 'clip times come from the words and do not overlap');
   check(clips.every((c) => c.status === 'ready' && c.blob_path), 'both clips are rendered');
+  {
+    const shots = c1.features?.shots ?? [];
+    const lay = shots.map((x) => x.layout).join(',');
+    check(shots.length === 6 && shots[0].layout === 'face' && shots.every((x) => Number.isInteger(x.w0) && x.e > x.s), `clip 1 has a shot per played sentence, opening on face (${lay})`);
+    check(shots.some((x) => x.screen === 'agency-leads') && !shots.some((x) => x.screen === 'made-up-screen') && !shots.some((x) => x.figure === '9000'), 'shots keep only real library screens and figures the speaker said');
+    check(shots.filter((x) => x.accent != null).length >= 3 && shots.every((x) => x.accent == null || (x.accent >= x.w0 && x.accent <= x.w1)) && shots[2]?.accent == null, 'accent words are word indexes inside their own sentence; a filler pick is dropped');
+    check((c2.features?.shots ?? []).length > 0 && c2.features.shots.every((x) => x.accent == null), 'a clip planned without shots still gets plain face shots');
+  }
   // The rendered clip: 1080×1920, the hook's length plus the moment's, with audio.
   const clipFile = path.join(media, 'clip1.mp4');
   const presign = async (p) => { const { issueSignedToken, presignUrl } = await import('@vercel/blob'); const until = Date.now() + 600_000; const tok = await issueSignedToken({ pathname: p, operations: ['get'], validUntil: until }); return (await presignUrl(tok, { operation: 'get', pathname: p, access: 'private', validUntil: until })).presignedUrl; };
