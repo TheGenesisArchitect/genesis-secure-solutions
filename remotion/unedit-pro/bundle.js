@@ -181,7 +181,7 @@ function Captions({ words, shots, serif }) {
     return t >= p[0].s && t < Math.min(Math.max(p[p.length - 1].e + 0.25, p[0].s + 0.5), ((_a = list[i + 1]) == null ? void 0 : _a[0].s) ?? Infinity);
   });
   if (!cur) return null;
-  const shot = shots.find((s) => t >= s.s && t < s.e) ?? shots[shots.length - 1];
+  const shot = [...shots].reverse().find((s) => t >= s.s) ?? shots[0];
   const light = shot && (shot.layout === "card" || shot.layout === "number");
   const bottom = (shot == null ? void 0 : shot.layout) === "card" ? 330 : (shot == null ? void 0 : shot.layout) === "split" ? 1e3 : (shot == null ? void 0 : shot.layout) === "screen" ? 330 : 470;
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 90, right: 90, bottom, textAlign: "center", fontFamily: F.display, fontWeight: 800, fontSize: 84, lineHeight: 1.12, textTransform: "uppercase", textWrap: "balance" }, children: cur.map((w, k) => {
