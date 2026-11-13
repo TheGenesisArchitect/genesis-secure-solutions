@@ -50,8 +50,9 @@ await new Promise((r) => (ws.onopen = r));
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 const ev = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? 'evaluate failed'); return r.result?.result?.value; };
 await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
-// Taps show as a soft ripple; the Next.js dev indicator never belongs in a frame.
+// Taps show as a soft ripple; the Next.js dev indicator and the What's-new toast never belong in a frame.
 await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+  try { sessionStorage.setItem('genovus-whats-new', 'done'); } catch {}
   const hide = document.createElement('style'); hide.textContent = 'nextjs-portal{display:none!important}';
   document.addEventListener('DOMContentLoaded', () => document.head.appendChild(hide));
   addEventListener('pointerdown', (e) => {

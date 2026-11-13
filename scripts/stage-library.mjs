@@ -36,6 +36,32 @@ const AGENCY_NOTES = [
   { kind: 'action_item', status: 'done', source: 'helix', text: 'Follow up with Maria Delgado about adding her teen driver.' },
 ];
 
+export const UNEDIT_DEMO = 'a11b0000-0000-4000-8000-000000000001';
+const UD = 'studio/vlogs/library-demo';
+const UNEDIT_CLIPS = [
+  { title: 'One take, a week of posts', caption: 'I never opened an editor.', secs: 11.5, from: 0, to: 11.5 },
+  { title: 'Three hours to edit', caption: 'So most agencies never post.', secs: 8.4, from: 12, to: 20.4 },
+  { title: 'Nothing posts until you approve', caption: 'People approve anything that goes out.', secs: 4.3, from: 140, to: 144.3 },
+];
+
+async function stageUnedit(db, tenantId, uid) {
+  must(await db.from('unedit_vlogs').delete().eq('id', UNEDIT_DEMO), 'clear demo recording');
+  const zero = '0'.repeat(64);
+  must(await db.from('unedit_vlogs').insert({
+    id: UNEDIT_DEMO, tenant_id: tenantId, title: 'How Unedit works', file_name: 'how-unedit-works.mp4',
+    blob_path: `${UD}/source.mp4`, blob_url: `${UD}/source.mp4`, bytes: 186_400_000, fingerprint: `186400000:${zero}:${'1'.repeat(64)}`,
+    duration_s: 182.4, width: 1080, height: 1920, rotation: 0, vcodec: 'h264', stage: 'review', provider: 'deepgram', words: 468,
+    episode: { title: 'How Unedit works: one take in, a week of posts out', description: 'One take on a phone becomes captioned clips, a full episode and three thumbnails on one card. Nothing posts until you approve.', tags: ['genovus', 'unedit', 'build log'] },
+    thumbs: [['ONE TAKE', 'dark'], ['NO EDITOR', 'orange'], ['YOU APPROVE', 'light']].map(([text, look], i) => ({ blob: `${UD}/thumbs/${i + 1}-${look}.jpg`, text, t: [0.6, 1.4, 10.2][i], look })),
+    thumb_pick: 0, cost_cents: 41, created_by: uid,
+  }), 'demo recording');
+  must(await db.from('unedit_clips').insert(UNEDIT_CLIPS.map((c, i) => ({
+    tenant_id: tenantId, vlog_id: UNEDIT_DEMO, n: i + 1, start_s: c.from, end_s: c.to, title: c.title, caption: c.caption,
+    copy: { instagram: c.caption, facebook: c.caption, youtube: c.title }, features: { hook: 'claim', topic: 'unedit', pro: true, shots: [] },
+    blob_path: `${UD}/clips/${i + 1}.mp4`, secs: c.secs, status: i === 0 ? 'approved' : 'ready',
+  }))), 'demo clips');
+}
+
 export async function stageLibrary(origin = 'http://localhost:3911') {
   if (!/sckbuj/.test(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')) throw new Error('refusing: the Screen Library is staged on the preview database only');
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -68,6 +94,11 @@ export async function stageLibrary(origin = 'http://localhost:3911') {
   // The Enterprise screens: inquiries, sample care plans, what Helix knows, the prospect call list.
   const ent = await stageEnterprise(db);
   console.log(`staged enterprise: ${ent.inquiries} inquiries, ${ent.care} sample care plans, ${ent.memory} Helix memories, ${ent.prospects} prospects`);
+
+  // Unedit: one sample recording in review (three Unedit Pro clips, three thumbnails), media from
+  // scripts/stage-unedit-media.mts under studio/vlogs/library-demo. Verify runs' recordings stay off camera.
+  must(await db.from('unedit_vlogs').delete().ilike('file_name', 'verify-%'), 'clear verify recordings');
+  await stageUnedit(db, house.id, uid);
 
   // Preview test leftovers never belong on camera: a stand-in morning brief, and a note's "no AI provider" error.
   const { data: briefs } = await db.from('helix_briefs').select('tenant_id, day, body').eq('tenant_id', house.id);

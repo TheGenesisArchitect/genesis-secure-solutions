@@ -636,6 +636,65 @@
       ]
     },
     {
+      "code": "ent-unedit",
+      "title": "Unedit: record one take, or pick a video; Genovus does the rest",
+      "side": "enterprise",
+      "chapter": "studio",
+      "route": "/console/studio/unedit",
+      "devices": [
+        "phone",
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 2800
+        },
+        {
+          "scroll": {
+            "to": 420,
+            "ms": 2000
+          }
+        },
+        {
+          "wait": 1600
+        }
+      ]
+    },
+    {
+      "code": "ent-unedit-card",
+      "title": "Unedit review card: the clips, the full video and thumbnails, one Approve",
+      "side": "enterprise",
+      "chapter": "studio",
+      "route": "/console/studio/unedit/a11b0000-0000-4000-8000-000000000001",
+      "devices": [
+        "phone",
+        "desktop"
+      ],
+      "steps": [
+        {
+          "wait": 3200
+        },
+        {
+          "scroll": {
+            "to": 900,
+            "ms": 3200
+          }
+        },
+        {
+          "wait": 1400
+        },
+        {
+          "scroll": {
+            "to": 1700,
+            "ms": 2600
+          }
+        },
+        {
+          "wait": 1600
+        }
+      ]
+    },
+    {
       "code": "ent-prospects",
       "title": "Prospects: agencies that fit Genovus, by carrier and state",
       "side": "enterprise",

@@ -245,6 +245,34 @@
       "secs": 0.8,
       "captured_at": "2026-10-14T05:00:41.628Z",
       "captured_on": "62e8671"
+    },
+    "ent-unedit:phone": {
+      "clip": "studio/library/ent-unedit-phone.mp4",
+      "still": "studio/library/ent-unedit-phone.jpg",
+      "secs": 13.8,
+      "captured_at": "2026-11-13T02:56:42.257Z",
+      "captured_on": "51b970b"
+    },
+    "ent-unedit:desktop": {
+      "clip": "studio/library/ent-unedit-desktop.mp4",
+      "still": "studio/library/ent-unedit-desktop.jpg",
+      "secs": 12.2,
+      "captured_at": "2026-11-13T02:57:02.696Z",
+      "captured_on": "51b970b"
+    },
+    "ent-unedit-card:phone": {
+      "clip": "studio/library/ent-unedit-card-phone.mp4",
+      "still": "studio/library/ent-unedit-card-phone.jpg",
+      "secs": 24.9,
+      "captured_at": "2026-11-13T02:57:40.119Z",
+      "captured_on": "51b970b"
+    },
+    "ent-unedit-card:desktop": {
+      "clip": "studio/library/ent-unedit-card-desktop.mp4",
+      "still": "studio/library/ent-unedit-card-desktop.jpg",
+      "secs": 17.2,
+      "captured_at": "2026-11-13T02:58:11.975Z",
+      "captured_on": "51b970b"
     }
   }
 }
