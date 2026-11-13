@@ -24,7 +24,13 @@ const FPS = 30;
 const GOP = FPS * 2;
 
 export type Part = { k: number; segs: Seg[]; status: 'todo' | 'done'; blob?: string; secs?: number; ms?: number };
-export type EpisodePlan = { size: { width: number; height: number }; src: { width: number; height: number }; face: Box | null; grade: Grade; parts: number; secs: number; path?: string; at?: string; error?: string | null; sdr?: string };
+/** One graphic on the episode's (edited) timeline: T and D in seconds; `off` is where it sits in the rendered reel. */
+export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue'; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number };
+/** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
+export type ReelChunk = { from: number; to: number; path?: string };
+export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string | null; chapters?: string };
+export const REEL_CHUNK_S = 40;
+export type EpisodePlan = { size: { width: number; height: number }; src: { width: number; height: number }; face: Box | null; grade: Grade; parts: number; secs: number; path?: string; at?: string; error?: string | null; sdr?: string; graphics?: Graphics };
 
 /** Group the camera pieces into parts of about PART_S seconds. Parts break between pieces, never inside one (each
  *  piece is framed once, so a part edge can't re-frame mid-shot); only a piece far longer than a part is split, and
@@ -88,7 +94,7 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
 }
 
 /** The soundtrack of everything kept, joined with short fades, cleaned and set to -14 LUFS (two passes). */
-async function soundtrack(url: string, keep: Span[], dir: string): Promise<string> {
+async function soundtrack(url: string, keep: Span[], dir: string, sfx: { at: number; file: string; vol: number }[] = []): Promise<string> {
   const n = keep.length;
   const parts = keep.map((k, i) => {
     const d = k.to - k.from;
@@ -105,15 +111,22 @@ async function soundtrack(url: string, keep: Span[], dir: string): Promise<strin
     : 'loudnorm=I=-14:TP=-1.5:LRA=11';
   await ffmpeg(['-i', 'raw.flac', '-af', `${ln},aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo`, '-c:a', 'aac', '-b:a', '192k', 'sound.m4a'], dir, 300_000);
   await fs.rm(path.join(dir, 'raw.flac'), { force: true });
-  return 'sound.m4a';
+  // The graphics' sounds, under the voice (which stays at -14 LUFS): each delayed to its moment, then one mix.
+  const have = [];
+  for (const x of sfx) if (await fs.access(x.file).then(() => true, () => false)) have.push(x);
+  if (!have.length) return 'sound.m4a';
+  const ins = have.flatMap((x) => ['-i', x.file]);
+  const fx = have.map((x, i) => `[${i + 1}:a]aresample=48000,aformat=channel_layouts=stereo,volume=${x.vol},adelay=${Math.round(x.at * 1000)}|${Math.round(x.at * 1000)}[f${i}]`);
+  await ffmpeg(['-i', 'sound.m4a', ...ins, '-filter_complex', `${fx.join(';')};[0:a]${have.map((_, i) => `[f${i}]`).join('')}amix=inputs=${have.length + 1}:normalize=0:duration=first,alimiter=limit=0.95[a]`, '-map', '[a]', '-c:a', 'aac', '-b:a', '192k', 'mixed.m4a'], dir, 300_000);
+  return 'mixed.m4a';
 }
 
 /** Join the rendered parts (read from their links, in order) with the soundtrack, streaming the finished episode to
  *  `upload` as fragmented MP4: a long 1440p episode is bigger than a function's scratch disk, so it never lands there. */
-export async function assemble(soundUrl: string, keep: Span[], partUrls: string[], upload: (body: ReadableStream<Uint8Array>) => Promise<unknown>): Promise<void> {
+export async function assemble(soundUrl: string, keep: Span[], partUrls: string[], upload: (body: ReadableStream<Uint8Array>) => Promise<unknown>, sfx: { at: number; file: string; vol: number }[] = []): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-epall-'));
   try {
-    const sound = await soundtrack(soundUrl, keep, dir);
+    const sound = await soundtrack(soundUrl, keep, dir, sfx);
     // Presigned links carry no quotes; the concat list still escapes any, as the format requires.
     const line = (u: string) => `file '${u.split("'").join("'\\''")}'`;
     await fs.writeFile(path.join(dir, 'parts.txt'), partUrls.map(line).join('\n'));
@@ -127,4 +140,69 @@ export async function assemble(soundUrl: string, keep: Span[], partUrls: string[
     const code = await exited;
     if (code !== 0) throw new Error(`ffmpeg: ${err.trim().split('\n').slice(-2).join(' ').slice(0, 300) || `exit ${code}`}`);
   } finally { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); }
+}
+
+// ---- the graphics layer ---------------------------------------------------------------------------------------------
+
+/** A moment on the recording, on the episode's edited timeline (null when the edit cut it). */
+export function epTime(t: number, keep: Span[]): number | null {
+  let off = 0;
+  for (const k of keep) {
+    if (t >= k.from - 0.05 && t <= k.to + 0.05) return off + Math.min(Math.max(0, t - k.from), k.to - k.from);
+    off += k.to - k.from;
+  }
+  return null;
+}
+
+/** Lay the reel out: every graphic back to back (0.1 s apart), in the order the reel renders them, and cut it into
+ *  chunks that each end between two graphics. */
+export function layReel(items: EpGraphic[]): { items: EpGraphic[]; reels: ReelChunk[] } {
+  let at = 0;
+  const laid = items.map((g) => { const out = { ...g, off: Math.round(at * 1000) / 1000 }; at += g.D + 0.1; return out; });
+  const reels: ReelChunk[] = [];
+  for (const g of laid) {
+    const last = reels[reels.length - 1];
+    if (last && g.off! + g.D - last.from <= REEL_CHUNK_S) last.to = Math.round((g.off! + g.D) * 1000) / 1000;
+    else reels.push({ from: g.off!, to: Math.round((g.off! + g.D) * 1000) / 1000 });
+  }
+  return { items: laid, reels };
+}
+
+/** The part's stretches of the reel: each graphic that overlaps the part, where it starts in the part, where to seek
+ *  in the reel, and for how long. */
+export function partOverlays(items: EpGraphic[], reels: ReelChunk[], p0: number, p1: number): { start: number; seek: number; len: number; chunk: number }[] {
+  return items.filter((g) => g.off != null && g.T < p1 && g.T + g.D > p0).map((g) => {
+    const from = Math.max(g.T, p0), to = Math.min(g.T + g.D, p1);
+    const chunk = Math.max(0, reels.findIndex((r) => g.off! >= r.from - 0.001 && g.off! < r.to));
+    return { chunk, start: Math.round((from - p0) * 1000) / 1000, seek: Math.round((g.off! - reels[chunk].from + (from - g.T)) * 1000) / 1000, len: Math.round((to - from) * 1000) / 1000 };
+  }).filter((o) => o.len > 0.05);
+}
+
+/** Lay the reel's stretches over a rendered part (re-encoded once). The reel is VP8 with alpha, so it is decoded with
+ *  libvpx (ffmpeg's own VP8 decoder drops the alpha). */
+export async function overlayPart(dir: string, reelUrls: string[], overlays: { start: number; seek: number; len: number; chunk: number }[]): Promise<void> {
+  if (!overlays.length) return;
+  const inputs: string[] = ['-i', 'part.mp4'];
+  const fc: string[] = [];
+  let last = '0:v';
+  overlays.forEach((o, i) => {
+    inputs.push('-c:v', 'libvpx', '-ss', o.seek.toFixed(3), '-t', o.len.toFixed(3), '-i', reelUrls[o.chunk]);
+    fc.push(`[${i + 1}:v]format=yuva420p,setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass:format=auto[o${i}]`);
+    last = `o${i}`;
+  });
+  await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', `[${last}]`, '-an',
+    '-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360',
+    '-movflags', '+faststart', 'graphic.mp4'], dir, 600_000);
+  await fs.rename(path.join(dir, 'graphic.mp4'), path.join(dir, 'part.mp4'));
+}
+
+/** The episode's effect sounds: each graphic's sound slot at its moment (a riser starts early so it peaks on the word,
+ *  a whoosh a little early), from the sound files shipped with the Genovus Motion bundle. */
+export function effectSounds(items: EpGraphic[]): { at: number; file: string; vol: number }[] {
+  const LEAD: Record<string, number> = { riser: 0.9, whoosh: 0.25 };
+  const VOL: Record<string, number> = { hit: 0.42, whoosh: 0.4, riser: 0.36, pop: 0.32, click: 0.4, tick: 0.3, swish: 0.4, sting: 0.34 };
+  return items.filter((g) => g.sound && VOL[g.sound] != null).map((g) => ({
+    at: Math.max(0, g.T - (LEAD[g.sound!] ?? 0)), vol: VOL[g.sound!],
+    file: path.join(process.cwd(), 'remotion/unedit-pro/public/sfx', `${g.sound}.wav`),
+  }));
 }

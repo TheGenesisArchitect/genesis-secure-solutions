@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 5017
+/***/ 7502
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -70526,13 +70526,116 @@ const UneditPro = ({ src, words, shots, cues = [], serif = false, sfx = false })
   ] });
 };
 
+;// ./src/UneditEpisodeCues.tsx
+
+
+
+
+
+
+
+const FPS = 30;
+const calculateEpisodeCuesMetadata = ({ props }) => ({
+  durationInFrames: Math.max(1, Math.round((Math.max(0, ...props.items.map((i) => i.at + i.dur)) + 0.2) * FPS)),
+  fps: FPS,
+  width: props.width,
+  height: props.height
+});
+function UneditEpisodeCues_useIn(delay = 0) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  return (0,esm.spring)({ frame: frame - delay, fps, config: { damping: 16, stiffness: 150, mass: 0.8 } });
+}
+function UneditEpisodeCues_useOut(dur) {
+  const frame = (0,esm.useCurrentFrame)();
+  return (0,esm.interpolate)(frame, [dur - 10, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+}
+function Title({ item, dur, u }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const out = UneditEpisodeCues_useOut(dur);
+  const words = item.text.split(" ");
+  const size = Math.min(110 * u, fitText({ text: item.text.toUpperCase(), withinWidth: 1500 * u, fontFamily: F.display, fontWeight: 800, validateFontIsLoaded: false }).fontSize);
+  const rule = (0,esm.interpolate)(frame, [2, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { opacity: out }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 120 * u, bottom: 150 * u, right: 700 * u }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { width: `${rule * 220 * u}px`, height: 12 * u, background: ACCENT, borderRadius: 6 * u, marginBottom: 26 * u } }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: `0 ${22 * u}px` }, children: words.map((w, i) => {
+        const q = (0,esm.spring)({ frame: frame - 4 - i * 2, fps, config: { damping: 14, stiffness: 190 } });
+        return /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: F.display, fontWeight: 800, fontSize: size, lineHeight: 1.04, color: "#fff", textTransform: "uppercase", opacity: q, transform: `translateY(${(0,esm.interpolate)(q, [0, 1], [50 * u, 0])}px)`, textShadow: "0 10px 50px rgba(0,0,0,.7)" }, children: w }, i);
+      }) }),
+      item.sub ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 18 * u, fontFamily: SERIF, fontStyle: "italic", fontSize: 64 * u, color: GOLD, opacity: (0,esm.interpolate)(frame, [14, 26], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), textShadow: "0 6px 30px rgba(0,0,0,.7)" }, children: item.sub }) : null
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeak, { durationInFrames: Math.round(FPS * 1.1), seed: 5, hueShift: 0, style: { opacity: 0.3, mixBlendMode: "screen" } })
+  ] });
+}
+function Lower({ item, dur, u }) {
+  const p = UneditEpisodeCues_useIn();
+  const out = UneditEpisodeCues_useOut(dur);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 110 * u, bottom: 120 * u, display: "flex", alignItems: "center", gap: 28 * u, padding: `${26 * u}px ${44 * u}px`, borderRadius: 30 * u, ...GLASS, background: "rgba(14,16,22,.78)", opacity: out, transform: `translateX(${(0,esm.interpolate)(p, [0, 1], [-900 * u, 0])}px)` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: (0,esm.staticFile)("brand/genovus-egg.svg"), style: { width: 62 * u, height: 78 * u } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 54 * u, letterSpacing: "0.06em", color: "#fff", lineHeight: 1 }, children: item.text.toUpperCase() }),
+      item.sub ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10 * u, fontFamily: F.body, fontWeight: 500, fontSize: 32 * u, color: "#D9D6CF" }, children: item.sub }) : null
+    ] })
+  ] });
+}
+function Chapter({ item, dur, u }) {
+  const p = UneditEpisodeCues_useIn();
+  const out = UneditEpisodeCues_useOut(dur);
+  const size = Math.min(92 * u, fitText({ text: item.text.toUpperCase(), withinWidth: 980 * u, fontFamily: F.display, fontWeight: 800, validateFontIsLoaded: false }).fontSize);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 120 * u, top: 150 * u, maxWidth: 1050 * u, padding: `${34 * u}px ${46 * u}px ${30 * u}px`, borderRadius: 36 * u, ...GLASS, background: "rgba(14,16,22,.74)", opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [-60 * u, 0])}px)` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: F.mono, fontWeight: 500, fontSize: 30 * u, letterSpacing: "0.2em", color: GOLD }, children: [
+      "CHAPTER ",
+      String(item.n ?? 1).padStart(2, "0")
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10 * u, fontFamily: F.display, fontWeight: 800, fontSize: size, color: "#fff", textTransform: "uppercase", lineHeight: 1.05 }, children: item.text }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 6 * u, width: 520 * u }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Marker, { width: Math.round(520 * u), delay: 10 }) })
+  ] });
+}
+function End({ item, dur, u }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const p = UneditEpisodeCues_useIn();
+  const out = UneditEpisodeCues_useOut(dur + 20);
+  const pulse = 1 + Math.sin(frame / 6) * 0.03;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { opacity: out, background: `rgba(10,12,16,${(0,esm.interpolate)(p, [0, 1], [0, 0.55])})` }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 0, right: 0, top: "30%", display: "grid", justifyItems: "center", gap: 30 * u, transform: `scale(${(0,esm.interpolate)(p, [0, 1], [0.85, 1])})` }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: (0,esm.staticFile)("brand/genovus-egg.svg"), style: { width: 120 * u, height: 150 * u, transform: `scale(${pulse})` } }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: 120 * u, color: "#fff", textTransform: "uppercase", textAlign: "center", lineHeight: 1.02, maxWidth: 2e3 * u }, children: item.text }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { padding: `${20 * u}px ${48 * u}px`, borderRadius: 999, background: ACCENT, fontFamily: F.display, fontWeight: 800, fontSize: 58 * u, color: "#111", letterSpacing: "0.04em" }, children: item.sub ?? "GENOVUS.IO" })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeak, { durationInFrames: Math.round(FPS * 1.2), seed: 9, hueShift: 0, style: { opacity: 0.28, mixBlendMode: "screen" } })
+  ] });
+}
+function CueStage({ cue, dur }) {
+  const { width, height } = (0,esm.useVideoConfig)();
+  const landscape = width > height;
+  const scale = landscape ? height * 0.92 / 1920 : width / 1080;
+  const left = landscape ? width - 1080 * scale - height * 0.05 : 0;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left, top: landscape ? height * 0.04 : 0, width: 1080, height: 1920, transform: `scale(${scale})`, transformOrigin: "top left" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(MovingBlur, { dur, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(CueGraphic, { cue: { ...cue, t: 0, end: dur / FPS }, dur }) }) });
+}
+const UneditEpisodeCues = ({ items }) => {
+  const { width, height } = (0,esm.useVideoConfig)();
+  const u = Math.min(width, height) / 1440;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { backgroundColor: "transparent" }, children: items.map((it, i) => {
+    const from = Math.round(it.at * FPS);
+    const dur = Math.max(10, Math.round(it.dur * FPS));
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
+  }) });
+};
+
 ;// ./src/pro/Root.tsx
 
 
 
 
+
+const emptyEp = { width: 2560, height: 1440, items: [] };
 const empty = { src: "", secs: 1, words: [], shots: [{ s: 0, e: 1, layout: "face" }] };
-const ProRoot = () => /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditPro", component: UneditPro, calculateMetadata: calculateProMetadata, durationInFrames: 30, fps: 30, width: 1080, height: 1920, defaultProps: empty });
+const ProRoot = () => /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditPro", component: UneditPro, calculateMetadata: calculateProMetadata, durationInFrames: 30, fps: 30, width: 1080, height: 1920, defaultProps: empty }),
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditEpisodeCues", component: UneditEpisodeCues, calculateMetadata: calculateEpisodeCuesMetadata, durationInFrames: 30, fps: 30, width: 2560, height: 1440, defaultProps: emptyEp })
+] });
 
 ;// ./src/pro/index.ts
 
@@ -90797,7 +90900,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(5017);
+/******/ 	__webpack_require__(7502);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

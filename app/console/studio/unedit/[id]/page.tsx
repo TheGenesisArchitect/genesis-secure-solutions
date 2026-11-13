@@ -38,6 +38,7 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
     // Episode Pro: what the edit took out, and how far the polished episode has rendered.
     polish: vlog.edit && vlog.episode_plan ? {
       secs: Number(vlog.edit.secs), removed: Number(vlog.edit.removed), ready: Boolean(vlog.episode_path), error: vlog.episode_plan.error ?? null,
+      graphics: vlog.episode_plan.graphics?.items.length ?? 0, graphicsError: vlog.episode_plan.graphics?.error ?? null, chapters: Boolean(vlog.episode_plan.graphics?.chapters),
       parts: (parts ?? []).length, done: (parts ?? []).filter((x) => x.status === 'done').length,
       cuts: vlog.edit.cuts.reduce<Record<string, number>>((a, c) => ({ ...a, [c.why]: (a[c.why] ?? 0) + 1 }), {}),
     } : null, episode: vlog.episode ?? {}, thumbs, thumbPick: vlog.thumb_pick, live: metricoolLive(), approvedAt: vlog.approved_at,

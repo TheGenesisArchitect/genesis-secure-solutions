@@ -140,6 +140,38 @@ export async function redoClip(words: Word[], clip: { title: string; from: numbe
   return { pick: picks[0] ?? null, why: dropped[0] ?? '', cents: r.cents };
 }
 
+export type Chapter = { s: number; title: string };
+export type EpisodeDirection = { chapters: Chapter[]; cues: Cue[]; cents: number };
+
+/** The long-form director: chapters and the episode's cues, over the sentences the episode keeps. Long-form is paced
+ *  wider than a clip (a cue every 8 s at most, about six a minute), so the episode breathes. */
+export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus'): Promise<EpisodeDirection> {
+  const ss = sentences(words);
+  const keep = keepSentences.filter((i) => ss[i]);
+  if (keep.length < 3) return { chapters: [], cues: [], cents: 0 };
+  const tags = tagWords(words);
+  const system = [
+    `You are the editor for ${who}'s long-form YouTube episodes. The video is real footage of a real person talking to camera, already cut tight.`,
+    'Split the episode into chapters a viewer would skip between (3 to 8 for an episode over two minutes; none under one minute): each starts at a sentence where the topic turns, with a title of 2 to 5 words in the speaker\'s own terms. The first chapter starts at the first sentence.',
+    CUES_RULES,
+    'Long-form pacing: a cue at most every 8 seconds of talk; the moments that would make a viewer lean in, not every keyword.',
+    `Screen codes (real Genovus screens):\n${screenMenu()}`,
+    'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}]}',
+  ].join('\n');
+  const lines = keep.map((i) => ss[i]).map((x) => `[${x.i} ${mmss(x.s)}] ${taggedText(words, tags, x.w0, x.w1)}`).join('\n');
+  const r = await claude(system, `Transcript (numbered sentences the episode keeps):\n${lines}`);
+  const m = r.text.match(/\{[\s\S]*\}/);
+  const j = m ? (JSON.parse(m[0]) as { chapters?: { s?: number; title?: string }[]; cues?: RawCue[] }) : {};
+  const kept = new Set(keep);
+  const chapters = (Array.isArray(j.chapters) ? j.chapters : [])
+    .map((c) => ({ s: Number(c.s), title: str(c.title, 48) }))
+    .filter((c) => kept.has(c.s) && c.title && c.title.split(' ').length <= 6)
+    .sort((a, b) => a.s - b.s)
+    .filter((c, i, all) => i === 0 || c.s !== all[i - 1].s);
+  const cues = toCues(j.cues, ss, keep, words, tags, screenCodes(), { gap: 8, max: Math.max(3, Math.ceil((secs / 60) * 6)) });
+  return { chapters: secs >= 60 ? chapters : [], cues, cents: r.cents };
+}
+
 /** Pick which stills make the best thumbnails (a clear, expressive face, eyes open, not mid-blink or blurred).
  *  Returns indexes into `stills`, best first; without a Claude key, the first ones. */
 export async function pickStills(stills: Buffer[], want = 3): Promise<{ order: number[]; cents: number }> {

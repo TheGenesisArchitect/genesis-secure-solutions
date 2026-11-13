@@ -17,13 +17,14 @@ import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
 import { extractAudio, frames, presigned, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
-import { pickStills, planVlog, redoClip, type Pick } from '@/lib/unedit-moments';
+import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Edit } from '@/lib/unedit-edit';
 import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Look } from '@/lib/unedit-look';
-import { assemble, partSeconds, partsOf, renderPart, shotCrops, type EpisodePlan, type Part } from '@/lib/unedit-episode';
+import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, partSeconds, partsOf, renderPart, shotCrops, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
+import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { GENOVUS_BLOG_ID, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 
@@ -149,8 +150,10 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const ins = await dbx().from('unedit_clips').insert(rows);
       if (ins.error) throw new Error(ins.error.message);
       // Episode Pro: what the full episode keeps, how it looks, and its parts (rendered in parallel after the clips).
-      const pro = await planEpisode(v, words, plan.falseStarts);
-      await advance(v.id, 'rendering', { title: plan.episode.title, episode: { ...plan.episode, dropped: plan.dropped, thumb_lines: plan.thumbs }, ...pro });
+      const pro = await planEpisode(v, words, plan.falseStarts, plan.episode.title);
+      const chapters = pro.episode_plan?.graphics?.chapters;
+      const description = chapters ? `${plan.episode.description}\n\n${chapters}` : plan.episode.description;
+      await advance(v.id, 'rendering', { title: plan.episode.title, episode: { ...plan.episode, description, dropped: plan.dropped, thumb_lines: plan.thumbs }, ...pro });
       await log('planned', subject, { clips: plan.clips.length, dropped: plan.dropped.length, cents: plan.cents });
       return `Picked ${plan.clips.length} clip${plan.clips.length === 1 ? '' : 's'}.`;
     }
@@ -245,7 +248,7 @@ const partPath = (v: { id: string }, k: number) => `${dir(v)}/episode/part-${Str
 
 /** The episode's edit, look and parts, from the transcript (at the end of 'finding'). A recording with too little
  *  talk left after the edit keeps posting as recorded (no plan). */
-async function planEpisode(v: Vlog, words: Word[], falseStarts: string[]): Promise<{ edit: Edit; look: Look | null; episode_plan: EpisodePlan | null; episode_path: null }> {
+async function planEpisode(v: Vlog, words: Word[], falseStarts: string[], title = ''): Promise<{ edit: Edit; look: Look | null; episode_plan: EpisodePlan | null; episode_path: null }> {
   const edit = editList(words, Number(v.duration_s ?? 0), falseStarts);
   // UNEDIT_EPISODE=off turns Episode Pro off without a redeploy: the episode posts as recorded, clips keep the edit.
   if (process.env.UNEDIT_EPISODE === 'off' || !edit.keep.length || edit.secs < 15) return { edit, look: null, episode_plan: null, episode_path: null };
@@ -259,7 +262,66 @@ async function planEpisode(v: Vlog, words: Word[], falseStarts: string[]): Promi
   const ins = await dbx().from('unedit_episode_parts').insert(parts.map((p) => ({ vlog_id: v.id, k: p.k, tenant_id: v.tenant_id, segs: p.segs })));
   if (ins.error) throw new Error(ins.error.message);
   await log('episode-planned', v.id, { keep: edit.keep.length, secs: edit.secs, removed: edit.removed, cuts: edit.cuts.length, parts: parts.length, face: Boolean(look.face), grade: look.grade });
-  return { edit, look, episode_plan: { size: episodeSize(src), src, face: look.face, grade: look.grade, sdr, parts: parts.length, secs: edit.secs }, episode_path: null };
+  // The graphics layer: the long-form director's chapters and cues, plus the title, lower-third and end card.
+  let graphics: Graphics | undefined;
+  try {
+    // Graphics render in the Remotion sandbox (UNEDIT_PRO); UNEDIT_EPISODE_GRAPHICS=off turns just them off.
+    if (proConfigured() && process.env.UNEDIT_EPISODE_GRAPHICS !== 'off') graphics = await planGraphics(v, words, edit, title);
+  } catch (e) {
+    graphics = { items: [], error: `the graphics plan failed: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) };
+  }
+  return { edit, look, episode_plan: { size: episodeSize(src), src, face: look.face, grade: look.grade, sdr, parts: parts.length, secs: edit.secs, graphics }, episode_path: null };
+}
+
+const END_CTA = () => (process.env.UNEDIT_END_CTA || 'Follow for more').trim();
+const LOWER = () => (process.env.UNEDIT_LOWER_THIRD || 'Genovus').trim();
+const LOWER_SUB = () => (process.env.UNEDIT_LOWER_THIRD_SUB || 'genovus.io').trim();
+const ts = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+/** Every graphic on the episode's timeline. Cues never land on top of the title, lower-third, a chapter card or the
+ *  end card. Chapters become YouTube chapters (0:00 first, at least 3, each at least 10 s) for the description. */
+async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string): Promise<Graphics> {
+  const secs = edit.secs;
+  const ss = sentences(words);
+  const keepSentences = ss.filter((x) => epTime(x.s, edit.keep) != null && epTime(x.e, edit.keep) != null).map((x) => x.i);
+  const dir = await directEpisode(words, keepSentences, secs);
+  await spend(v.id, dir.cents, 'episode director (Claude)');
+  const items: EpGraphic[] = [];
+  if (title && secs > 12) items.push({ T: 0.2, D: 3.4, kind: 'title', text: title, sound: 'whoosh' });
+  if (secs > 20) items.push({ T: 4, D: 4, kind: 'lower', text: LOWER(), sub: LOWER_SUB(), sound: 'swish' });
+  // Chapters: on the edited timeline, 10 s apart at least; the first is the episode's start.
+  const chaps: { t: number; c: Chapter }[] = [];
+  for (const c of dir.chapters) {
+    const t = epTime(ss[c.s]?.s ?? -1, edit.keep);
+    if (t == null) continue;
+    const at = chaps.length ? t : 0;
+    if (chaps.length && at - chaps[chaps.length - 1].t < 10) continue;
+    chaps.push({ t: at, c });
+  }
+  chaps.forEach((x, i) => { if (i > 0 && x.t > 9 && x.t < secs - 8) items.push({ T: x.t, D: 3.2, kind: 'chapter', n: i + 1, text: x.c.title, sound: 'whoosh' }); });
+  if (secs > 20) items.push({ T: Math.max(0, secs - 4.5), D: 4.5, kind: 'end', text: END_CTA(), sub: 'GENOVUS.IO', sound: 'sting' });
+  const busy = items.map((g) => [g.T - 0.5, g.T + g.D + 0.5]);
+  for (const c of dir.cues) {
+    const T = epTime(c.s, edit.keep);
+    if (T == null) continue;
+    const end = epTime(c.e, edit.keep) ?? T + 2;
+    const D = Math.min(4, Math.max(1.6, end - T + 0.5));
+    if (busy.some(([a, b]) => T < b && T + D > a)) continue;
+    // The cue as Genovus Motion draws it, starting at its own frame 0 (list items: seconds after the cue starts).
+    const items2 = c.items?.map((it) => {
+      const first = it.split(' ')[0].toLowerCase().replace(/[^a-z0-9$%']/g, '');
+      const k = words.findIndex((w, i) => i >= c.w && w.w.toLowerCase().replace(/[^a-z0-9$%']/g, '') === first);
+      const at = k >= 0 ? epTime(words[k].s, edit.keep) : null;
+      return { text: it, t: at != null ? Math.max(0, at - T) : 0 };
+    });
+    const cue = { t: 0, end: D, kind: c.kind, text: c.text, icon: c.icon, items: items2, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam };
+    items.push({ T, D, kind: 'cue', text: c.text, cue, sound: c.sound });
+    busy.push([T - 0.5, T + D + 0.5]);
+  }
+  items.sort((a, b) => a.T - b.T);
+  const chapters = chaps.length >= 3 ? `Chapters\n${chaps.map((x) => `${ts(x.t)} ${x.c.title}`).join('\n')}` : undefined;
+  const laid = layReel(items);
+  return { items: laid.items, reels: laid.reels, chapters, error: null };
 }
 
 /** A clip's framing and grade from the recording's look: a face-aware 9:16 crop of a landscape source. */
@@ -280,6 +342,33 @@ async function kickPart(origin: string, id: string, k: number): Promise<void> {
 
 /** One step of the episode: start workers on parts that need one, or (all parts done) join the episode. */
 async function episodeStep(v: Vlog, origin: string): Promise<string> {
+  const g = v.episode_plan?.graphics;
+  // The graphics reel first (one sandbox render for the whole episode), so every part can use it. A failed reel
+  // never stops the episode: it finishes without graphics and the card says so.
+  const todo = g?.reels?.findIndex((r) => !r.path) ?? -1;
+  if (g?.items.length && g.reels && todo >= 0 && !g.error) {
+    const t0 = Date.now();
+    try {
+      const size = v.episode_plan!.size;
+      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue }));
+      const r = g.reels[todo];
+      // One chunk of the reel per step (each a sandbox render inside its time limit).
+      const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
+      const path = `${dir(v)}/episode/graphics-${todo}-${Date.now()}.webm`;
+      await put(path, bytes, { access: 'private', contentType: 'video/webm', addRandomSuffix: false, allowOverwrite: true, multipart: true });
+      const reels = g.reels.map((x, i) => (i === todo ? { ...x, path } : x));
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...v.episode_plan, graphics: { ...g, reels } } }).eq('id', v.id);
+      await log('episode-graphics', v.id, { chunk: todo, of: g.reels.length, ms: Date.now() - t0, bytes: bytes.length });
+      await release(v.id);
+      return `Rendered the episode's graphics (part ${todo + 1} of ${g.reels.length}).`;
+    } catch (e) {
+      const why = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...v.episode_plan, graphics: { ...g, error: `the graphics didn't render (${why})` } } }).eq('id', v.id);
+      console.error(`[unedit] ${v.id} episode graphics: ${why}`);
+      await release(v.id);
+      return `The episode's graphics didn't render (${why}); the episode continues without them.`;
+    }
+  }
   const { data } = await dbx().from('unedit_episode_parts').select('k, status, lease_until, attempts, error, blob_path').eq('vlog_id', v.id).order('k');
   const parts = (data ?? []) as { k: number; status: string; lease_until: string | null; attempts: number; error: string | null; blob_path: string | null }[];
   if (!parts.length) throw new Error('The episode has no parts to render. Retry plans it again.');
@@ -309,7 +398,8 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
   const urls = await Promise.all(parts.map((p) => presigned(p.blob_path ?? partPath(v, p.k), 120)));
   const sound = await presigned(v.audio_blob ?? v.blob_path, 120);
   try {
-    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }));
+    const graphicsOn = Boolean(g?.reels?.length && g.reels.every((r) => r.path) && !g.error);
+    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }), graphicsOn ? effectSounds(g!.items) : []);
   } catch (e) { return await giveUp(`joining the parts: ${e instanceof Error ? e.message : String(e)}`); }
   await dbx().from('unedit_vlogs').update({ episode_path: path, episode_plan: { ...v.episode_plan, path, at: new Date().toISOString() } }).eq('id', v.id);
   await log('episode-ready', v.id, { path, parts: parts.length, secs: v.episode_plan?.secs, ms: Date.now() - t0 });
@@ -339,6 +429,15 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     await spend(id, cents, `episode part ${k + 1} framing (Claude)`);
     const out = await renderPart(src, part, crops, v.episode_plan);
     try {
+      // The graphics reel's stretches for this part's place in the episode (its start is the length of the parts before it).
+      const g = v.episode_plan.graphics;
+      if (g?.reels?.length && g.reels.every((r) => r.path) && !g.error && g.items.length) {
+        const { data: before } = await dbx().from('unedit_episode_parts').select('segs').eq('vlog_id', id).lt('k', k);
+        const p0 = (before ?? []).flatMap((b) => b.segs as Part['segs']).reduce((a, s) => a + (s.to - s.from), 0);
+        const overlays = partOverlays(g.items, g.reels, p0, p0 + out.secs);
+        const urls = await Promise.all(g.reels.map((r) => presigned(r.path!, 120)));
+        if (overlays.length) await overlayPart(out.dir, urls, overlays).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
+      }
       const path = partPath(v, k);
       await put(path, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
       await dbx().from('unedit_episode_parts').update({ status: 'done', blob_path: path, secs: Math.round(out.secs * 100) / 100, ms: Date.now() - t0, error: null, lease_until: null }).eq('vlog_id', id).eq('k', k);

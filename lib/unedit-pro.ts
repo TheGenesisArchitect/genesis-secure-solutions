@@ -23,7 +23,7 @@ export type ProProps = { src: string; secs: number; words: Word[]; shots: ProSho
 const ENTRIES = (assets as { entries: Record<string, { clip?: string; still?: string }> }).entries ?? {};
 
 /** A library screen as presigned links: the phone capture (it fills a 9:16 panel), else the desktop one. */
-async function screenLinks(code: string): Promise<ProShot['screen']> {
+export async function screenLinks(code: string): Promise<ProShot['screen']> {
   const phone = ENTRIES[`${code}:phone`];
   const a = phone ?? ENTRIES[`${code}:desktop`];
   if (!a?.still) return null;
@@ -88,9 +88,15 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
   return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], cues: outCues, serif: true, sfx: process.env.UNEDIT_SFX !== 'off' };
 }
 
-/** Render in a fresh Vercel Sandbox and return the MP4 bytes. The sandbox lives at most 13 minutes and is stopped
- *  when done; setup (system packages, Chrome) is part of each render for now. */
+/** Render a clip's graphics pass (UneditPro, H.264) in a fresh Vercel Sandbox. */
 export async function renderPro(props: ProProps): Promise<Buffer> {
+  return renderOnSandbox('UneditPro', props as unknown as Record<string, unknown>, { codec: 'h264', crf: 20 });
+}
+
+/** Render one Genovus Motion composition in a fresh Vercel Sandbox and return the file's bytes. The sandbox lives
+ *  at most 13 minutes and is stopped when done; setup (system packages, Chrome) is part of each render for now.
+ *  The episode's graphics reel renders transparent: VP8 with alpha (yuva420p, PNG frames). */
+export async function renderOnSandbox(compositionId: string, inputProps: Record<string, unknown>, out: { codec: 'h264' | 'vp8'; crf?: number; alpha?: boolean; frameRange?: [number, number] }): Promise<Buffer> {
   // ESM-only package: loaded on demand, so a server bundle that requires its externals still works.
   const { addBundleToSandbox, createSandbox, renderMediaOnVercel } = await import('@remotion/vercel');
   const sandbox = await createSandbox({ timeoutInMilliseconds: 13 * 60_000 });
@@ -105,8 +111,9 @@ export async function renderPro(props: ProProps): Promise<Buffer> {
     const map = await fs.readFile(path.join(bundleDir, 'bundle.js.map')).catch(() => Buffer.from('{"version":3,"sources":[],"names":[],"mappings":""}'));
     await sandbox.writeFiles([{ path: 'remotion-bundle/bundle.js.map', content: map }]);
     const { sandboxFilePath } = await renderMediaOnVercel({
-      sandbox, compositionId: 'UneditPro', inputProps: props as unknown as Record<string, unknown>,
-      codec: 'h264', crf: 20, timeoutInMilliseconds: 8 * 60_000,
+      sandbox, compositionId, inputProps, codec: out.codec, crf: out.crf ?? null, timeoutInMilliseconds: 8 * 60_000,
+      ...(out.alpha ? { pixelFormat: 'yuva420p' as const, imageFormat: 'png' as const } : {}),
+      ...(out.frameRange ? { frameRange: out.frameRange } : {}),
     });
     const bytes = await sandbox.readFileToBuffer({ path: sandboxFilePath }, { signal: AbortSignal.timeout(180_000) });
     if (!bytes?.length) throw new Error('The render finished without a video file.');

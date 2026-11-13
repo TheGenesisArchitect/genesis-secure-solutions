@@ -101,7 +101,7 @@ const PRIORITY: CueKind[] = ['counter', 'list', 'tap', 'logo', 'question', 'cta'
 const MAX_PER_CLIP = 8;
 
 /** Repair the director's cues for one clip into code-checked cues on words inside the clip's sentences. */
-export function toCues(raw: RawCue[] | undefined, ss: { i: number; w0: number; w1: number }[], order: number[], words: Word[], tags: Tag[][], screens: Set<string>): Cue[] {
+export function toCues(raw: RawCue[] | undefined, ss: { i: number; w0: number; w1: number }[], order: number[], words: Word[], tags: Tag[][], screens: Set<string>, pace: { gap: number; max: number } = { gap: MAJOR_GAP, max: MAX_PER_CLIP }): Cue[] {
   const allowed = new Set(order);
   const out: Cue[] = [];
   for (const r of Array.isArray(raw) ? raw : []) {
@@ -152,7 +152,7 @@ export function toCues(raw: RawCue[] | undefined, ss: { i: number; w0: number; w
   // every kept cue is at least MAJOR_GAP from the others, at most MAX_PER_CLIP, in time order.
   const kept: Cue[] = [];
   for (const c of out.sort((a, b) => PRIORITY.indexOf(a.kind) - PRIORITY.indexOf(b.kind) || a.s - b.s)) {
-    if (kept.length >= MAX_PER_CLIP || kept.some((k) => Math.abs(k.s - c.s) < MAJOR_GAP)) continue;
+    if (kept.length >= pace.max || kept.some((k) => Math.abs(k.s - c.s) < pace.gap)) continue;
     kept.push(c);
   }
   return kept.sort((a, b) => a.s - b.s);
