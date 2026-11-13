@@ -20,6 +20,8 @@ export const costCents = (p: Provider, seconds: number) => Math.max(1, Math.ceil
 
 async function deepgram(mp3: Buffer): Promise<Word[]> {
   const q = new URLSearchParams({ model: 'nova-3', smart_format: 'true', punctuate: 'true', language: 'en' });
+  // Our own names, so the transcript (and every caption) spells them right: "Genovus", never "Genova".
+  for (const t of ['Genovus', 'Unedit', 'Unedit Pro', 'Helix', 'Metricool']) q.append('keyterm', t);
   const r = await fetch(`${DG()}/v1/listen?${q}`, { method: 'POST', headers: { authorization: `Token ${key('deepgram')}`, 'content-type': 'audio/mpeg' }, body: new Uint8Array(mp3), signal: AbortSignal.timeout(540_000) });
   const j = (await r.json().catch(() => ({}))) as { err_msg?: string; results?: { channels?: { alternatives?: { words?: { word: string; punctuated_word?: string; start: number; end: number; confidence?: number }[] }[] }[] } };
   if (!r.ok) throw new Error(`Deepgram: ${j.err_msg || `HTTP ${r.status}`}`);

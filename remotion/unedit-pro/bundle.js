@@ -121,7 +121,7 @@ function useEnter() {
 function ScreenInsert({ screen, from }) {
   const frame = (0,esm.useCurrentFrame)();
   const push = (0,esm.interpolate)(frame, [0, 8 * PRO_FPS], [1, 1.08], { extrapolateRight: "clamp" });
-  const fit = { width: "100%", height: "100%", objectFit: screen.wide ? "contain" : "cover", objectPosition: "top", transform: `scale(${push})`, transformOrigin: "50% 20%" };
+  const fit = { width: "100%", height: "100%", objectFit: "cover", objectPosition: screen.wide ? "left top" : "top", transform: `scale(${push})`, transformOrigin: screen.wide ? "0% 0%" : "50% 20%" };
   return screen.clip ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: screen.clip, muted: true, startFrom: 0, style: fit }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: screen.still, style: fit }, from);
 }
 function Bubble({ src, from, top = 110, size = 300 }) {
@@ -183,8 +183,8 @@ function Captions({ words, shots, serif }) {
   if (!cur) return null;
   const shot = shots.find((s) => t >= s.s && t < s.e) ?? shots[shots.length - 1];
   const light = shot && (shot.layout === "card" || shot.layout === "number");
-  const bottom = (shot == null ? void 0 : shot.layout) === "card" ? 330 : (shot == null ? void 0 : shot.layout) === "split" ? 1010 : (shot == null ? void 0 : shot.layout) === "screen" ? 330 : 470;
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 90, right: 90, ...(shot == null ? void 0 : shot.layout) === "split" ? { top: bottom } : { bottom }, textAlign: "center", fontFamily: F.display, fontWeight: 800, fontSize: 84, lineHeight: 1.12, textTransform: "uppercase", textWrap: "balance" }, children: cur.map((w, k) => {
+  const bottom = (shot == null ? void 0 : shot.layout) === "card" ? 330 : (shot == null ? void 0 : shot.layout) === "split" ? 1e3 : (shot == null ? void 0 : shot.layout) === "screen" ? 330 : 470;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 90, right: 90, bottom, textAlign: "center", fontFamily: F.display, fontWeight: 800, fontSize: 84, lineHeight: 1.12, textTransform: "uppercase", textWrap: "balance" }, children: cur.map((w, k) => {
     const said = t >= w.s;
     const base = { color: light ? INK : said ? GOLD : "#fff", opacity: light && !said && !w.a ? 0.38 : 1, textShadow: light ? "none" : "0 4px 18px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.9)", WebkitTextStroke: light ? void 0 : "3px rgba(0,0,0,.85)", paintOrder: "stroke fill" };
     const accent = serif ? { fontFamily: SERIF, fontStyle: "italic", fontWeight: 400, textTransform: "none", fontSize: 108, color: ACCENT, WebkitTextStroke: light ? void 0 : "2px rgba(0,0,0,.6)" } : { color: ACCENT, fontSize: 94 };
