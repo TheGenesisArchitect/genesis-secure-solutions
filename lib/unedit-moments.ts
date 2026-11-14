@@ -6,7 +6,7 @@
 import 'server-only';
 import type { Word } from '@/lib/unedit-media';
 import { playOrder, screenCodes, screenMenu, SHOTS_RULES, toShots, type RawShot, type Shot } from '@/lib/unedit-shots';
-import { stylebookPrompt, RULES as STYLE_RULES } from '@/data/unedit-stylebook';
+import { PACKAGES, stylebookPrompt, RULES as STYLE_RULES } from '@/data/unedit-stylebook';
 import { CUES_RULES, tagWords, taggedText, toCues, type Cue, type RawCue, type Tag } from '@/lib/unedit-cues';
 
 export type Sentence = { i: number; s: number; e: number; text: string; w0: number; w1: number };
@@ -161,8 +161,12 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     'Split the episode into chapters a viewer would skip between (3 to 8 for an episode over two minutes; none under one minute): each starts at a sentence where the topic turns, with a title of 2 to 5 words in the speaker\'s own terms. The first chapter starts at the first sentence.',
     CUES_RULES,
     'Long-form pacing: a cue at most every 8 seconds of talk; the moments that would make a viewer lean in, not every keyword.',
+    stylebookPrompt(pkg),
+    ...(PACKAGES[pkg]?.slots.kinetic ? [`"kinetic": write 1 or ${STYLE_RULES.maxKinetic} phrases of ${STYLE_RULES.kineticWords[0]} to ${STYLE_RULES.kineticWords[1]} CONSECUTIVE words copied exactly from one sentence (punctuation may differ): the hook or the thesis, the first one within the first 40 seconds. "accent" is the 0-based index of the payoff word drawn in orange.`] : []),
+    ...(PACKAGES[pkg]?.slots.emphasis ? [`"emphasis": write 1 to ${STYLE_RULES.maxEmphasis} single words (${STYLE_RULES.emphasisMin}+ letters, copied exactly from the sentence where it is said): the concrete thing or key idea a whole passage is about (coffee, faith, money), never filler.`] : []),
+    'Every word you place on screen must be the speaker\'s own; chapter titles are 2 to 5 words a viewer would click.',
     `Screen codes (real Genovus screens):\n${screenMenu()}`,
-    'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}]}',
+    'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}],"kinetic":[{"s":<sentence #>,"text":"…","accent":0}],"emphasis":[{"s":<sentence #>,"word":"…"}]}',
   ].join('\n');
   const lines = keep.map((i) => ss[i]).map((x) => `[${x.i} ${mmss(x.s)}] ${taggedText(words, tags, x.w0, x.w1)}`).join('\n');
   const r = await claude(system, `Transcript (numbered sentences the episode keeps):\n${lines}`);

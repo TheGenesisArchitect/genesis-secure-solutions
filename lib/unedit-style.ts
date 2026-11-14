@@ -12,17 +12,17 @@ export const packageOf = (name?: string | null) => (name && PACKAGES[name] ? nam
 /** Text behind the speaker needs the production cut-out (UNEDIT_CUTOUT=on). */
 export const cutoutOn = () => process.env.UNEDIT_CUTOUT === 'on';
 
-/** Where the speaker's face sits on the finished episode frame (fractions), across the medium and close framings. */
+/** Where the speaker's features sit on the finished episode frame (fractions): the eyes-to-mouth core of the head box
+ *  (the box runs hat to chin), in the medium framing most shots use. Close-ups are short and the quality check looks
+ *  at the real pixels; this is the cheap first pass. */
 export function faceOnFrame(face: Box | null, src: { width: number; height: number }, size: { width: number; height: number }): Zone | null {
   if (!face) return null;
-  const boxes = [FILL.medium, FILL.close].map((fill) => {
-    const c = framing(face, src, size, fill);
-    const x0 = (face.x * src.width - c.x) / c.w, y0 = (face.y * src.height - c.y) / c.h;
-    return { x0, y0, x1: x0 + (face.w * src.width) / c.w, y1: y0 + (face.h * src.height) / c.h };
-  });
-  const x0 = Math.max(0, Math.min(...boxes.map((b) => b.x0))), y0 = Math.max(0, Math.min(...boxes.map((b) => b.y0)));
-  const x1 = Math.min(1, Math.max(...boxes.map((b) => b.x1))), y1 = Math.min(1, Math.max(...boxes.map((b) => b.y1)));
-  return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+  const c = framing(face, src, size, FILL.medium);
+  const x0 = (face.x * src.width - c.x) / c.w, y0 = (face.y * src.height - c.y) / c.h;
+  const w = (face.w * src.width) / c.w, h = (face.h * src.height) / c.h;
+  const core = { x: x0 + w * 0.2, y: y0 + h * 0.3, w: w * 0.6, h: h * 0.5 };
+  const cx0 = Math.max(0, core.x), cy0 = Math.max(0, core.y), cx1 = Math.min(1, core.x + core.w), cy1 = Math.min(1, core.y + core.h);
+  return cx1 > cx0 && cy1 > cy0 ? { x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0 } : null;
 }
 
 const overlap = (a: Zone, b: Zone) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));

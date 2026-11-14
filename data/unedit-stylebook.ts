@@ -10,7 +10,7 @@
 // every graphic follows one system. A mix is just a package whose slots come from different directions.
 // Bump STYLEBOOK_VERSION whenever a rule changes; every episode records the version it was planned with.
 
-export const STYLEBOOK_VERSION = '2026-11-14.1';
+export const STYLEBOOK_VERSION = '2026-11-14.2';
 
 /** Slots a package fills. title/lower/chapter/end exist today; kinetic and emphasis are written by the director. */
 export type Slot = 'title' | 'lower' | 'chapter' | 'kinetic' | 'emphasis' | 'end';
@@ -104,8 +104,8 @@ export const DEFAULT_PACKAGE = 'signature';
 
 /** Rules the code enforces on every episode (lib/unedit-style.ts). */
 export const RULES = {
-  /** A front graphic may cover at most this share of the speaker's face box; past it, the style falls back. */
-  faceCover: 0.12,
+  /** A front graphic may cover at most this share of the speaker's features (eyes to mouth); past it, the style falls back. */
+  faceCover: 0.2,
   /** Title-safe: front text stays inside this inset (fractions of the frame). */
   safe: 0.035,
   /** Seconds kept clear between any two graphics. */

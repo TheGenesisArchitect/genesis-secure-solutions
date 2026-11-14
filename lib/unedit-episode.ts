@@ -93,7 +93,7 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
     const move = motion ? shotMotion(d, motion.cuts.map((c) => c - at).filter((c) => c >= -0.02 && c < d - 0.1), motion.push, W, H) : null;
     at += d;
     await ffmpeg(['-threads', '4', '-ss', s.from.toFixed(3), '-t', d.toFixed(3), '-i', url,
-      '-vf', move ? `${cropF(crops[i])},fps=${FPS},${move},setsar=1,${look},format=yuv420p` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
+      '-vf', move ? `${cropF(crops[i])},${move},setsar=1,${look},format=yuv420p` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
       '-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
     shots.push(out);
   }
@@ -110,13 +110,18 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
 export function shotMotion(d: number, punches: number[], push: { after: number; amount: number } | null, W: number, H: number): string | null {
   const frames = Math.max(1, Math.round(d * FPS));
   const terms: string[] = [];
-  if (push && d > push.after) terms.push(`${push.amount}*n/${frames}`);
+  const pushing = Boolean(push && d > push.after);
+  if (pushing) terms.push(`${push!.amount}*n/${frames}`);
   const ps = punches.map((c) => Math.max(0, Math.round(c * FPS)));
   for (const p of ps) terms.push(`if(gte(n,${p}),0.08*max(0,1-(n-${p})/10.5),0)`);
   if (!terms.length) return null;
+  // Scale ONCE to a frame just big enough for the largest zoom, then animate the zoom from there: the per-frame scale
+  // works on a ~1.13× episode frame, never on the 8K source (that ran the part workers out of memory).
+  const zmax = 1 + (pushing ? push!.amount : 0) + (ps.length ? 0.08 : 0);
+  const Ws = 2 * Math.ceil((W * zmax) / 2), Hs = 2 * Math.ceil((H * zmax) / 2);
   const z = `(1+${terms.join('+')})`;
   const blur = ps.flatMap((p) => [`gblur=sigma=12:enable='between(n,${p},${p + 1})'`, `gblur=sigma=5:enable='between(n,${p + 2},${p + 3})'`]);
-  return [`scale=w='2*trunc(${W}*${z}/2)':h=-2:eval=frame:flags=lanczos`, `crop=${W}:${H}:(in_w-${W})/2:(in_h-${H})*0.38`, ...blur].join(',');
+  return [`scale=${Ws}:${Hs}:flags=lanczos`, `fps=${FPS}`, `scale=w='2*trunc(${W}*${z}/2)':h=-2:eval=frame:flags=bicubic`, `crop=${W}:${H}:(in_w-${W})/2:(in_h-${H})*0.38`, ...blur].join(',');
 }
 
 /** The quietest stretch the edit cut out (a pause, not a false start): the room's own sound, looped under the voice
