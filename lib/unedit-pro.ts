@@ -114,8 +114,10 @@ export async function renderOnSandbox(compositionId: string, inputProps: Record<
       sandbox, compositionId, inputProps, codec: out.codec, crf: out.crf ?? null, timeoutInMilliseconds: 8 * 60_000,
       ...(out.alpha ? { pixelFormat: 'yuva420p' as const, imageFormat: 'png' as const } : {}),
       ...(out.frameRange ? { frameRange: out.frameRange } : {}),
-      // VP8 must land in a .webm (the default /tmp/video.mp4 is refused); the reel carries no sound.
-      ...(out.codec === 'vp8' ? { outputFile: '/tmp/video.webm', muted: true } : {}),
+      // VP8 must land in a .webm (the default /tmp/video.mp4 is refused); the reel carries no sound. A keyframe every
+      // second: part workers seek into the reel, and a seek past the last keyframe decodes nothing (the encoder
+      // otherwise places almost none on still graphics).
+      ...(out.codec === 'vp8' ? { outputFile: '/tmp/video.webm', muted: true, gopSize: 30 } : {}),
     });
     const bytes = await sandbox.readFileToBuffer({ path: sandboxFilePath }, { signal: AbortSignal.timeout(180_000) });
     if (!bytes?.length) throw new Error('The render finished without a video file.');
