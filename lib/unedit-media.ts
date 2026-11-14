@@ -38,8 +38,10 @@ export async function ffmpeg(args: string[], cwd?: string, timeoutMs = 600_000):
     const { stderr } = await run(String(ffmpegPath), ['-nostdin', '-y', '-hide_banner', '-loglevel', 'error', ...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs });
     return String(stderr);
   } catch (e) {
-    const err = e as { stderr?: string; message?: string };
-    throw new Error(`ffmpeg: ${String(err.stderr || err.message || 'failed').trim().split('\n').slice(-3).join(' ').slice(0, 300)}`);
+    const err = e as { stderr?: string; message?: string; signal?: string | null; code?: number | string };
+    // A killed ffmpeg prints nothing: say so first (production stores the first 400 characters), not the command line.
+    if (!String(err.stderr ?? '').trim()) throw new Error(`ffmpeg ${err.signal ? `was killed (${err.signal}${err.signal === 'SIGKILL' ? ', most likely out of memory' : ''})` : `stopped with code ${err.code ?? '?'} and no message`}`);
+    throw new Error(`ffmpeg: ${String(err.stderr).trim().split('\n').slice(-3).join(' ').slice(0, 300)}`);
   }
 }
 

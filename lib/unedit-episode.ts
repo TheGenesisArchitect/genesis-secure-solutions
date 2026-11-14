@@ -137,9 +137,9 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
     const end = s.len0 != null && (s.at0 ?? 0) + d < s.len0 - 0.02 ? d : d - 0.1; // mid-shot (split), a punch may start up to the edge
     const move = motion ? shotMotion(d, motion.cuts.map((c) => c - at).filter((c) => c >= -0.36 && c < end), motion.push, W, H, s.at0 ?? 0, s.len0 ?? d) : null;
     at += d;
-    await ffmpeg(['-threads', '4', '-ss', s.from.toFixed(3), '-t', d.toFixed(3), '-i', url,
+    await ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', d.toFixed(3), '-i', url,
       '-vf', move ? `${cropF(crops[i])},${move},setsar=1,${look},format=yuv420p` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
-      '-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
+      '-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
     shots.push(out);
   }
   await fs.writeFile(path.join(dir, 'shots.txt'), shots.map((f) => `file '${f}'`).join('\n'));
@@ -318,7 +318,7 @@ export function partOverlays(items: EpGraphic[], reels: ReelChunk[], p0: number,
   }).filter((o) => o.len > 0.05);
 }
 
-const X264 = ['-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709];
+const X264 = ['-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709];
 
 /** A behind-the-speaker window: the part's footage with the graphic over it, then the speaker (cut out by the matte)
  *  on top again, rendered as its own short clip that replaces those frames of the part. */
