@@ -513,7 +513,7 @@ async function makeThumbs(v: Vlog, src: string) {
   for (const [k, still] of big.entries()) {
     const look = LOOKS[k % LOOKS.length];
     const text = lines[k % lines.length];
-    const jpg = await renderThumb(still, text, look);
+    const jpg = await renderThumb(still, text, look, v.episode_plan?.graphics?.pkg ?? null);
     const path = `${dir(v)}/thumbs/${k + 1}-${look}.jpg`;
     await put(path, jpg, { access: 'private', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true });
     thumbs.push({ blob: path, text, t: at[order[k]], look });
