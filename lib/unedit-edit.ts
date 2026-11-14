@@ -11,7 +11,9 @@ import type { Span, Word } from '@/lib/unedit-media';
 
 export type Cut = { from: number; to: number; why: 'head' | 'tail' | 'command' | 'filler' | 'pause' | 'false start' };
 export type Camera = 'medium' | 'close';
-export type Seg = { from: number; to: number; cam: Camera; /** a split piece: framed from the whole piece's middle */ mid?: number };
+export type Seg = { from: number; to: number; cam: Camera; /** a split piece: framed from the whole piece's middle */ mid?: number;
+  /** a split piece: where it starts inside the whole shot and the shot's full length (so a push-in carries across the
+   *  split), and the head box found once for the whole shot (so both halves frame the same) */ at0?: number; len0?: number; box?: { x: number; y: number; w: number; h: number } | null };
 export type Edit = { keep: Span[]; cuts: Cut[]; segs: Seg[]; secs: number; removed: number };
 
 const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, '');

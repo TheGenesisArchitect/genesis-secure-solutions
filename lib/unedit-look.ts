@@ -143,9 +143,9 @@ export function framing(face: Box | null, src: { width: number; height: number }
   return { w: even(cw), h: even(ch), x: even(x), y: even(y) };
 }
 
-/** The episode's output size: the source's shape, at 1440 lines when the source has them (else its own size). */
+/** The episode's output size: the source's shape, at 4K (2160 lines) when the source has them (else 1080, else its own size). */
 export function episodeSize(src: { width: number; height: number }): { width: number; height: number } {
-  const want = Number(process.env.UNEDIT_EPISODE_LINES || 1440);
+  const want = Number(process.env.UNEDIT_EPISODE_LINES || 2160);
   const short = Math.min(src.width, src.height);
   const lines = short >= want ? want : short >= 1080 ? 1080 : short;
   return src.width >= src.height ? { width: even((lines * src.width) / src.height), height: even(lines) } : { width: even(lines), height: even((lines * src.height) / src.width) };

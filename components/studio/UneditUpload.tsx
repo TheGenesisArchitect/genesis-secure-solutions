@@ -74,7 +74,7 @@ export function UneditUpload() {
         <button type="button" className="ue-rec" onClick={() => cam.current?.click()} aria-label="Record a video"><i /></button>
       )}
       <h3>Unedit</h3>
-      <p className="muted">{busy ? 'Keep this page open until the upload finishes. A dropped part is retried on its own.' : 'One take, start to finish. Record it here, or pick a video you already shot. Genovus handles everything after you stop.'}</p>
+      <p className="muted">{busy ? 'Keep this page open until the upload finishes. A dropped part is retried on its own.' : 'One take, start to finish. Record it here, or pick a video you already shot. Genovus handles everything after you stop. Best: 4K at 30 fps (as sharp as the finished episode, and faster to finish than 8K).'}</p>
       {!busy ? <button type="button" className="btn ghost" onClick={() => pick.current?.click()}>Choose a video</button> : null}
     </div>
   );

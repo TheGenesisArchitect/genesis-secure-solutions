@@ -8,6 +8,7 @@
 //             loudness set to YouTube's -14 LUFS with a two-pass loudnorm
 import 'server-only';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import ffmpegPath from 'ffmpeg-static';
 import fs from 'node:fs/promises';
@@ -20,7 +21,14 @@ import { FILL, faceBoxes, framing, gradeFilter, type Box, type Crop, type Grade 
 import { matte, matteFilter } from '@/lib/unedit-cutout';
 
 // Seconds per part, by how heavy the source is to decode (an 8K frame is 16 times a 1080p one).
-export const partSeconds = (src: { width: number; height: number }) => { const px = src.width * src.height; return px > 16e6 ? 14 : px > 4e6 ? 25 : 45; };
+// Parts are sized so every worker gets one (the slowest part sets the wait), never so short that start-up dominates,
+// never so long that a heavy source runs out of time.
+export const WORKERS = () => Number(process.env.UNEDIT_EPISODE_WORKERS || 16);
+export const partSeconds = (src: { width: number; height: number }, secs = 0) => {
+  const px = src.width * src.height;
+  const [floor, cap] = px > 16e6 ? [5, 14] : px > 4e6 ? [6, 25] : [10, 45];
+  return secs > 0 ? Math.min(cap, Math.max(floor, secs / WORKERS())) : cap;
+};
 const FPS = 30;
 const GOP = FPS * 2;
 
@@ -35,12 +43,22 @@ export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string
   pkg?: string; stylebook?: string; /** plan the graphics fresh in the next step */ replan?: boolean; base?: Omit<EpGraphic, 'style' | 'layer' | 'off'>[]; notes?: string[]; gl?: boolean;
   /** Chapter changes on the edited timeline: the footage gets a zoom-blur punch there. */ cuts?: number[];
   /** The quality check after the episode is built. */ qa?: { at: string; ok: boolean; issues: string[]; fixed: number; cents: number } };
-export const REEL_CHUNK_S = 40;
+export const REEL_CHUNK_S = 20; // the chunks render side by side, so shorter chunks finish sooner (4K PNG frames are heavy)
 export type EpisodePlan = { size: { width: number; height: number }; src: { width: number; height: number }; face: Box | null; grade: Grade; parts: number; secs: number; path?: string; at?: string; error?: string | null; sdr?: string; graphics?: Graphics };
 
-/** Group the camera pieces into parts of about PART_S seconds. Parts break between pieces, never inside one (each
- *  piece is framed once, so a part edge can't re-frame mid-shot); only a piece far longer than a part is split, and
- *  its halves carry the piece's own middle (`mid`) so both are framed from the same still. */
+/** The episode's parts: as short as the source allows, but never more than there are workers (a part left over would
+ *  wait for a whole second round). */
+export function planParts(segs: Seg[], src: { width: number; height: number }, secs: number): Part[] {
+  let s = partSeconds(src, secs);
+  const cap = partSeconds(src);
+  let parts = partsOf(segs, s);
+  while (parts.length > WORKERS() && s < cap) { s = Math.min(cap, s * 1.06); parts = partsOf(segs, s); }
+  return parts;
+}
+
+/** Group the camera pieces into parts of about PART_S seconds. Parts break between pieces; a piece longer than a part
+ *  and a half is split into even pieces on frame edges, and each piece carries the whole shot's middle (`mid`, one
+ *  framing for all of them) and its place in the shot (`at0`, `len0`, so the push-in runs on across the split). */
 export function partsOf(segs: Seg[], PART_S: number): Part[] {
   const parts: Part[] = [];
   let cur: Seg[] = [];
@@ -49,11 +67,13 @@ export function partsOf(segs: Seg[], PART_S: number): Part[] {
   for (const s0 of segs) {
     const d = s0.to - s0.from;
     if (len > 0 && len + d > PART_S * 1.5) close();
-    if (d > PART_S * 2) {
+    if (d > PART_S * 1.5) {
+      close();
       const mid = Math.round(((s0.from + s0.to) / 2) * 100) / 100;
-      for (let f = s0.from; f < s0.to - 0.01;) {
-        const to = Math.min(s0.to, Math.round((f + PART_S) * 30) / 30);
-        cur.push({ ...s0, from: f, to, mid });
+      const n = Math.ceil(d / PART_S);
+      for (let i = 0, f = s0.from; i < n; i++) {
+        const to = i === n - 1 ? s0.to : Math.round((s0.from + (d * (i + 1)) / n) * 30) / 30;
+        cur.push({ ...s0, from: f, to, mid, at0: Math.round((f - s0.from) * 1000) / 1000, len0: Math.round(d * 1000) / 1000 });
         len += to - f;
         close();
         f = to;
@@ -73,10 +93,33 @@ const cropF = (c: Crop) => `crop=${c.w}:${c.h}:${c.x}:${c.y}`;
 /** Frame every shot in a part on the speaker as they are in that shot: Claude marks the head on a still from the
  *  middle of each shot; a shot where nobody is found uses the recording's usual position. */
 export async function shotCrops(url: string, part: Part, plan: Pick<EpisodePlan, 'size' | 'src' | 'face'>): Promise<{ crops: Crop[]; cents: number }> {
-  const mids = part.segs.map((s) => s.mid ?? Math.round(((s.from + s.to) / 2) * 100) / 100);
+  // A split shot's head box was found once when the parts were planned (splitBoxes), so its pieces frame alike.
+  const need = part.segs.map((s, i) => (s.box === undefined ? i : -1)).filter((i) => i >= 0);
+  const mids = need.map((i) => { const s = part.segs[i]; return s.mid ?? Math.round(((s.from + s.to) / 2) * 100) / 100; });
+  const stills = mids.length ? await frames(url, mids, 768, true).catch(() => [] as Buffer[]) : [];
+  const { boxes, cents } = mids.length && stills.length === mids.length ? await faceBoxes(stills) : { boxes: mids.map(() => null), cents: 0 };
+  const found = new Map(need.map((i, j) => [i, boxes[j] ?? null]));
+  return { crops: part.segs.map((s, i) => framing((s.box !== undefined ? s.box : found.get(i)) ?? plan.face, plan.src, plan.size, FILL[s.cam])), cents };
+}
+
+/** Find the head once per split shot (one still at its middle) and write it on every piece of that shot. */
+export async function splitBoxes(url: string, parts: Part[]): Promise<number> {
+  const mids = [...new Set(parts.flatMap((p) => p.segs.filter((s) => s.mid != null && s.len0 != null).map((s) => s.mid!)))];
+  if (!mids.length) return 0;
   const stills = await frames(url, mids, 768, true).catch(() => [] as Buffer[]);
-  const { boxes, cents } = stills.length === mids.length ? await faceBoxes(stills) : { boxes: mids.map(() => null), cents: 0 };
-  return { crops: part.segs.map((s, i) => framing(boxes[i] ?? plan.face, plan.src, plan.size, FILL[s.cam])), cents };
+  if (stills.length !== mids.length) return 0; // each part finds its own (the old way)
+  const { boxes, cents } = await faceBoxes(stills);
+  const by = new Map(mids.map((m, i) => [m, boxes[i] ?? null]));
+  for (const p of parts) for (const s of p.segs) if (s.mid != null && s.len0 != null) s.box = by.get(s.mid) ?? null;
+  return cents;
+}
+
+/** A fingerprint of everything a part's picture depends on (its shots, size, grade and motion, not the graphics), so a
+ *  stored picture is reused after a quality-check fix or a package switch and never after a change that alters it. */
+export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'>, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): string {
+  const secs = part.segs.reduce((a, s) => a + (s.to - s.from), 0);
+  const m = motion ? { p0: Math.round(motion.p0 * 1000), push: motion.push, cuts: motion.cuts.filter((c) => c > motion.p0 - 0.5 && c < motion.p0 + secs).map((c) => Math.round((c - motion.p0) * 1000)) } : null;
+  return createHash('sha256').update(JSON.stringify({ v: 1, segs: part.segs, size: plan.size, grade: plan.grade, sdr: plan.sdr ?? '', m })).digest('hex').slice(0, 16);
 }
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
@@ -90,7 +133,9 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
   for (const [i, s] of part.segs.entries()) {
     const out = `s${String(i).padStart(3, '0')}.mp4`;
     const d = s.to - s.from;
-    const move = motion ? shotMotion(d, motion.cuts.map((c) => c - at).filter((c) => c >= -0.02 && c < d - 0.1), motion.push, W, H) : null;
+    // A punch that began just before this piece (a split shot) still finishes its blur and settle here.
+    const end = s.len0 != null && (s.at0 ?? 0) + d < s.len0 - 0.02 ? d : d - 0.1; // mid-shot (split), a punch may start up to the edge
+    const move = motion ? shotMotion(d, motion.cuts.map((c) => c - at).filter((c) => c >= -0.36 && c < end), motion.push, W, H, s.at0 ?? 0, s.len0 ?? d) : null;
     at += d;
     await ffmpeg(['-threads', '4', '-ss', s.from.toFixed(3), '-t', d.toFixed(3), '-i', url,
       '-vf', move ? `${cropF(crops[i])},${move},setsar=1,${look},format=yuv420p` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
@@ -107,21 +152,30 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
  *  a slow push-in across a shot held longer than push.after seconds (so a face shot never sits static), and at a
  *  chapter change a zoom-blur punch (in 8 %, settling over 0.35 s, blurred for its first frames) — the scene change.
  *  Null when the shot needs neither (it keeps the plain scale). */
-export function shotMotion(d: number, punches: number[], push: { after: number; amount: number } | null, W: number, H: number): string | null {
-  const frames = Math.max(1, Math.round(d * FPS));
+export function shotMotion(d: number, punches: number[], push: { after: number; amount: number } | null, W: number, H: number, at0 = 0, len0 = d): string | null {
+  // The push runs over the whole shot: a piece of a split shot starts where the piece before it stopped.
+  const frames = Math.max(1, Math.round(len0 * FPS));
+  const n0 = Math.round(at0 * FPS);
   const terms: string[] = [];
-  const pushing = Boolean(push && d > push.after);
-  if (pushing) terms.push(`${push!.amount}*n/${frames}`);
-  const ps = punches.map((c) => Math.max(0, Math.round(c * FPS)));
-  for (const p of ps) terms.push(`if(gte(n,${p}),0.08*max(0,1-(n-${p})/10.5),0)`);
+  const pushing = Boolean(push && len0 > push.after);
+  if (pushing) terms.push(`${push!.amount}*(n+${n0})/${frames}`);
+  const ps = punches.map((c) => Math.round(c * FPS));
+  for (const p of ps) terms.push(`if(gte(n,${p}),0.08*max(0,1-(n-(${p}))/10.5),0)`);
   if (!terms.length) return null;
-  // Scale ONCE to a frame just big enough for the largest zoom, then animate the zoom from there: the per-frame scale
-  // works on a ~1.13× episode frame, never on the 8K source (that ran the part workers out of memory).
+  // Scale ONCE to a frame just big enough for the largest zoom, then animate the zoom from there: the per-frame work
+  // runs on a ~1.13× episode frame, never on the 8K source (that ran the part workers out of memory).
   const zmax = 1 + (pushing ? push!.amount : 0) + (ps.length ? 0.08 : 0);
   const Ws = 2 * Math.ceil((W * zmax) / 2), Hs = 2 * Math.ceil((H * zmax) / 2);
-  const z = `(1+${terms.join('+')})`;
-  const blur = ps.flatMap((p) => [`gblur=sigma=12:enable='between(n,${p},${p + 1})'`, `gblur=sigma=5:enable='between(n,${p + 2},${p + 3})'`]);
-  return [`scale=${Ws}:${Hs}:flags=lanczos`, `fps=${FPS}`, `scale=w='2*trunc(${W}*${z}/2)':h=-2:eval=frame:flags=bicubic`, `crop=${W}:${H}:(in_w-${W})/2:(in_h-${H})*0.38`, ...blur].join(',');
+  const z = `(1+${terms.join('+').replace(/(^|[^a-z])n(?![a-z])/g, '$1in')})`; // perspective counts frames as `in`
+  const blur = ps.filter((p) => p + 3 >= 0).flatMap((p) => [`gblur=sigma=12:enable='between(n,${p},${p + 1})'`, `gblur=sigma=5:enable='between(n,${p + 2},${p + 3})'`]);
+  // The zoom is a per-frame perspective map at a FIXED frame size (sub-pixel smooth; linear matches cubic, SSIM 0.999, 24% faster). A per-frame scale that
+  // changes the frame size doesn't work: the crop after it keeps the first frame's size, so the push drifted to the
+  // top-left and a part that starts mid-shot was anchored differently from the one before it. Centred across, 38%
+  // down (the face's side of the frame).
+  const X = `(${Ws}-${Ws}/${z})/2`, Y = `(${Hs}-${Hs}/${z})*0.38`, B = `${Y}+${Hs}/${z}`;
+  return [`scale=${Ws}:${Hs}:flags=lanczos`, `fps=${FPS}`,
+    `perspective=x0='${X}':y0='${Y}':x1='${Ws}-${X}':y1='${Y}':x2='${X}':y2='${B}':x3='${Ws}-${X}':y3='${B}':interpolation=linear:eval=frame`,
+    `scale=${W}:${H}:flags=lanczos`, ...blur].join(',');
 }
 
 /** The quietest stretch the edit cut out (a pause, not a false start): the room's own sound, looped under the voice
