@@ -96,7 +96,7 @@ export async function renderPro(props: ProProps): Promise<Buffer> {
 /** Render one Genovus Motion composition in a fresh Vercel Sandbox and return the file's bytes. The sandbox lives
  *  at most 13 minutes and is stopped when done; setup (system packages, Chrome) is part of each render for now.
  *  The episode's graphics reel renders transparent: VP8 with alpha (yuva420p, PNG frames). */
-export async function renderOnSandbox(compositionId: string, inputProps: Record<string, unknown>, out: { codec: 'h264' | 'vp8'; crf?: number; alpha?: boolean; frameRange?: [number, number] }): Promise<Buffer> {
+export async function renderOnSandbox(compositionId: string, inputProps: Record<string, unknown>, out: { codec: 'h264' | 'vp8'; crf?: number; alpha?: boolean; frameRange?: [number, number]; gl?: boolean }): Promise<Buffer> {
   // ESM-only package: loaded on demand, so a server bundle that requires its externals still works.
   const { addBundleToSandbox, createSandbox, renderMediaOnVercel } = await import('@remotion/vercel');
   const sandbox = await createSandbox({ timeoutInMilliseconds: 13 * 60_000 });
@@ -114,6 +114,8 @@ export async function renderOnSandbox(compositionId: string, inputProps: Record<
       sandbox, compositionId, inputProps, codec: out.codec, crf: out.crf ?? null, timeoutInMilliseconds: 8 * 60_000,
       ...(out.alpha ? { pixelFormat: 'yuva420p' as const, imageFormat: 'png' as const } : {}),
       ...(out.frameRange ? { frameRange: out.frameRange } : {}),
+      // three.js graphics (the 3D close) need WebGL; the sandbox has no GPU, so Chrome renders it through SwiftShader.
+      ...(out.gl ? { chromiumOptions: { gl: 'swangle' as const } } : {}),
       // VP8 must land in a .webm (the default /tmp/video.mp4 is refused); the reel carries no sound. A keyframe every
       // second: part workers seek into the reel, and a seek past the last keyframe decodes nothing (the encoder
       // otherwise places almost none on still graphics).

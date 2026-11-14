@@ -25,10 +25,15 @@ const GOP = FPS * 2;
 
 export type Part = { k: number; segs: Seg[]; status: 'todo' | 'done'; blob?: string; secs?: number; ms?: number };
 /** One graphic on the episode's (edited) timeline: T and D in seconds; `off` is where it sits in the rendered reel. */
-export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue'; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number };
+export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue' | 'kinetic' | 'emphasis'; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number;
+  /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
 export type ReelChunk = { from: number; to: number; path?: string };
-export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string | null; chapters?: string };
+export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string | null; chapters?: string;
+  /** The show package and style-book version it was styled with; `base` is the unstyled plan, so the card can restyle. */
+  pkg?: string; stylebook?: string; base?: Omit<EpGraphic, 'style' | 'layer' | 'off'>[]; notes?: string[]; gl?: boolean;
+  /** Chapter changes on the edited timeline: the footage gets a zoom-blur punch there. */ cuts?: number[];
+  /** The quality check after the episode is built. */ qa?: { at: string; ok: boolean; issues: string[]; fixed: number; cents: number } };
 export const REEL_CHUNK_S = 40;
 export type EpisodePlan = { size: { width: number; height: number }; src: { width: number; height: number }; face: Box | null; grade: Grade; parts: number; secs: number; path?: string; at?: string; error?: string | null; sdr?: string; graphics?: Graphics };
 

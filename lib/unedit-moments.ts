@@ -6,6 +6,7 @@
 import 'server-only';
 import type { Word } from '@/lib/unedit-media';
 import { playOrder, screenCodes, screenMenu, SHOTS_RULES, toShots, type RawShot, type Shot } from '@/lib/unedit-shots';
+import { stylebookPrompt, RULES as STYLE_RULES } from '@/data/unedit-stylebook';
 import { CUES_RULES, tagWords, taggedText, toCues, type Cue, type RawCue, type Tag } from '@/lib/unedit-cues';
 
 export type Sentence = { i: number; s: number; e: number; text: string; w0: number; w1: number };
@@ -141,14 +142,19 @@ export async function redoClip(words: Word[], clip: { title: string; from: numbe
 }
 
 export type Chapter = { s: number; title: string };
-export type EpisodeDirection = { chapters: Chapter[]; cues: Cue[]; cents: number };
+/** The director's words for the show package: a kinetic phrase (the speaker's own words, one in the accent color)
+ *  and single emphasis words, each on the sentence where it is said (w = the word's global index). */
+export type Kinetic = { s: number; w: number; text: string; accent: number };
+export type Emphasis = { s: number; w: number; word: string };
+export type EpisodeDirection = { chapters: Chapter[]; cues: Cue[]; kinetic: Kinetic[]; emphasis: Emphasis[]; cents: number };
+const wnorm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}$%']/gu, '');
 
 /** The long-form director: chapters and the episode's cues, over the sentences the episode keeps. Long-form is paced
  *  wider than a clip (a cue every 8 s at most, about six a minute), so the episode breathes. */
-export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus'): Promise<EpisodeDirection> {
+export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature'): Promise<EpisodeDirection> {
   const ss = sentences(words);
   const keep = keepSentences.filter((i) => ss[i]);
-  if (keep.length < 3) return { chapters: [], cues: [], cents: 0 };
+  if (keep.length < 3) return { chapters: [], cues: [], kinetic: [], emphasis: [], cents: 0 };
   const tags = tagWords(words);
   const system = [
     `You are the editor for ${who}'s long-form YouTube episodes. The video is real footage of a real person talking to camera, already cut tight.`,
@@ -161,7 +167,7 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
   const lines = keep.map((i) => ss[i]).map((x) => `[${x.i} ${mmss(x.s)}] ${taggedText(words, tags, x.w0, x.w1)}`).join('\n');
   const r = await claude(system, `Transcript (numbered sentences the episode keeps):\n${lines}`);
   const m = r.text.match(/\{[\s\S]*\}/);
-  const j = m ? (JSON.parse(m[0]) as { chapters?: { s?: number; title?: string }[]; cues?: RawCue[] }) : {};
+  const j = m ? (JSON.parse(m[0]) as { chapters?: { s?: number; title?: string }[]; cues?: RawCue[]; kinetic?: { s?: number; text?: string; accent?: number }[]; emphasis?: { s?: number; word?: string }[] }) : {};
   const kept = new Set(keep);
   const chapters = (Array.isArray(j.chapters) ? j.chapters : [])
     .map((c) => ({ s: Number(c.s), title: str(c.title, 48) }))
@@ -169,7 +175,29 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     .sort((a, b) => a.s - b.s)
     .filter((c, i, all) => i === 0 || c.s !== all[i - 1].s);
   const cues = toCues(j.cues, ss, keep, words, tags, screenCodes(), { gap: 8, max: Math.max(3, Math.ceil((secs / 60) * 6)) });
-  return { chapters: secs >= 60 ? chapters : [], cues, cents: r.cents };
+  // The package's words must be the speaker's own: a kinetic phrase is consecutive words of its sentence, an emphasis
+  // word is a word of its sentence. Anything else is dropped, never invented.
+  const kinetic: Kinetic[] = [];
+  for (const k of Array.isArray(j.kinetic) ? j.kinetic : []) {
+    const sen = ss[Number(k?.s)];
+    const want = str(k?.text, 60).split(' ').map(wnorm).filter(Boolean);
+    if (!sen || !kept.has(sen.i) || want.length < STYLE_RULES.kineticWords[0] || want.length > STYLE_RULES.kineticWords[1]) continue;
+    for (let i = sen.w0; i + want.length - 1 <= sen.w1; i++) {
+      if (want.every((t, d) => wnorm(words[i + d].w) === t)) {
+        const shown = words.slice(i, i + want.length).map((x) => x.w.replace(/[,;:]$/, ''));
+        kinetic.push({ s: sen.i, w: i, text: shown.join(' '), accent: Math.min(want.length - 1, Math.max(0, Math.round(Number(k.accent ?? want.length - 1)) || 0)) });
+        break;
+      }
+    }
+  }
+  const emphasis: Emphasis[] = [];
+  for (const e of Array.isArray(j.emphasis) ? j.emphasis : []) {
+    const sen = ss[Number(e?.s)];
+    const want = wnorm(str(e?.word, 30));
+    if (!sen || !kept.has(sen.i) || want.replace(/[^\p{L}]/gu, '').length < STYLE_RULES.emphasisMin) continue;
+    for (let i = sen.w0; i <= sen.w1; i++) if (wnorm(words[i].w) === want) { emphasis.push({ s: sen.i, w: i, word: words[i].w.replace(/[^\p{L}\p{N}'-]/gu, '').toLowerCase() }); break; }
+  }
+  return { chapters: secs >= 60 ? chapters : [], cues, kinetic: kinetic.slice(0, STYLE_RULES.maxKinetic), emphasis: emphasis.slice(0, STYLE_RULES.maxEmphasis), cents: r.cents };
 }
 
 /** Pick which stills make the best thumbnails (a clear, expressive face, eyes open, not mid-blink or blurred).

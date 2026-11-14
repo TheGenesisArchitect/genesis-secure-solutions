@@ -8,7 +8,12 @@ import { useRouter } from 'next/navigation';
 
 export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
 export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null };
-export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null };
+/** The show packages (data/unedit-stylebook.ts), as the card offers them. */
+const SHOW_PACKAGES = [
+  { id: 'signature', label: 'Genovus Signature (mix)' }, { id: 'keynote', label: 'Keynote' }, { id: 'documentary', label: 'Documentary' },
+  { id: 'kinetic', label: 'Agency kinetic' }, { id: 'classic', label: 'Classic' },
+];
+export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
 const STEPS: [string, string][] = [['uploaded', 'Uploaded'], ['transcribing', 'Transcribed'], ['finding', 'Moments found'], ['rendering', 'Clips cut'], ['review', 'Your review'], ['publishing', 'Sent']];
@@ -73,9 +78,18 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
       <section className="ue-episode">
         <div className="ue-ep-video">
           {vlog.source ? <video src={vlog.source} controls playsInline preload="metadata" /> : <div className="ue-blank" />}
-          {vlog.polish?.ready ? (
+          {vlog.polish?.ready ? (<>
             <span className="muted">Full video · {mmss(vlog.polish.secs)} · polished: {polishSummary(vlog.polish)} · reframed, color-graded, audio leveled{vlog.polish.graphics && !vlog.polish.graphicsError ? ` · ${vlog.polish.graphics} graphics with sound` : ''}{vlog.polish.chapters ? ' · YouTube chapters in the description' : ''}{vlog.polish.graphicsError ? ` · no graphics this time (${vlog.polish.graphicsError})` : ''}{vlog.polish.graphicsError && vlog.polish.graphics ? <> <button type="button" className="btn" disabled={!review || busy === 'ep-retry'} onClick={() => send({ tool: 'retry_episode' }, 'ep-retry')}>Add graphics again</button></> : null}</span>
-          ) : (
+            {vlog.polish.pkg ? (
+              <span className="muted">
+                Show package{' '}
+                <select aria-label="Show package" value={vlog.polish.pkg} disabled={!review || busy === 'ep-pkg'} onChange={(e) => send({ tool: 'set_package', pkg: e.target.value }, 'ep-pkg')}>
+                  {SHOW_PACKAGES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+                {vlog.polish.qa ? <> · quality check: {vlog.polish.qa.ok ? 'passed' : `${vlog.polish.qa.issues.length} to look at`}{vlog.polish.qa.fixed ? ` (${vlog.polish.qa.fixed} fixed)` : ''}{!vlog.polish.qa.ok ? <> — {vlog.polish.qa.issues.slice(0, 3).join('; ')}</> : null}</> : null}
+              </span>
+            ) : null}
+          </>) : (
             vlog.polish?.error ? (
               <span className="ue-stop" role="alert">
                 <span>The polished episode didn’t finish ({vlog.polish.error}). The full video goes to YouTube as recorded unless you try again.</span>

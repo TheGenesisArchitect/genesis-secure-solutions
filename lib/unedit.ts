@@ -22,7 +22,9 @@ import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Edit } from '@/lib/unedit-edit';
-import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Look } from '@/lib/unedit-look';
+import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
+import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
+import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, partSeconds, partsOf, renderPart, shotCrops, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
@@ -266,7 +268,7 @@ async function planEpisode(v: Vlog, words: Word[], falseStarts: string[], title 
   let graphics: Graphics | undefined;
   try {
     // Graphics render in the Remotion sandbox (UNEDIT_PRO); UNEDIT_EPISODE_GRAPHICS=off turns just them off.
-    if (proConfigured() && process.env.UNEDIT_EPISODE_GRAPHICS !== 'off') graphics = await planGraphics(v, words, edit, title);
+    if (proConfigured() && process.env.UNEDIT_EPISODE_GRAPHICS !== 'off') graphics = await planGraphics(v, words, edit, title, { face: look.face, src, size: episodeSize(src) });
   } catch (e) {
     graphics = { items: [], error: `the graphics plan failed: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) };
   }
@@ -278,17 +280,21 @@ const LOWER = () => (process.env.UNEDIT_LOWER_THIRD || 'Genovus').trim();
 const LOWER_SUB = () => (process.env.UNEDIT_LOWER_THIRD_SUB || 'genovus.io').trim();
 const ts = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
-/** Every graphic on the episode's timeline. Cues never land on top of the title, lower-third, a chapter card or the
- *  end card. Chapters become YouTube chapters (0:00 first, at least 3, each at least 10 s) for the description. */
-async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string): Promise<Graphics> {
+const KICKER = () => (process.env.UNEDIT_TITLE_KICKER || 'Genovus · Studio').trim();
+
+/** Every graphic on the episode's timeline, before styling: the title, lower-third, chapters and end card, the
+ *  director's kinetic phrases and emphasis words, and the clip cues. Chapters become YouTube chapters (0:00 first, at
+ *  least 3, each at least 10 s) for the description. The show package styles them (lib/unedit-style.ts). */
+async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number } }): Promise<Graphics> {
   const secs = edit.secs;
   const ss = sentences(words);
   const keepSentences = ss.filter((x) => epTime(x.s, edit.keep) != null && epTime(x.e, edit.keep) != null).map((x) => x.i);
-  const dir = await directEpisode(words, keepSentences, secs);
+  const pkg = packageOf(null);
+  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg);
   await spend(v.id, dir.cents, 'episode director (Claude)');
-  const items: EpGraphic[] = [];
-  if (title && secs > 12) items.push({ T: 0.2, D: 3.4, kind: 'title', text: title, sound: 'whoosh' });
-  if (secs > 20) items.push({ T: 4, D: 4, kind: 'lower', text: LOWER(), sub: LOWER_SUB(), sound: 'swish' });
+  const base: BaseGraphic[] = [];
+  if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: title, sub: KICKER(), sound: 'whoosh' });
+  if (secs > 20) base.push({ T: 4, D: 4, kind: 'lower', text: LOWER(), sub: LOWER_SUB(), sound: 'swish' });
   // Chapters: on the edited timeline, 10 s apart at least; the first is the episode's start.
   const chaps: { t: number; c: Chapter }[] = [];
   for (const c of dir.chapters) {
@@ -298,15 +304,17 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string): 
     if (chaps.length && at - chaps[chaps.length - 1].t < 10) continue;
     chaps.push({ t: at, c });
   }
-  chaps.forEach((x, i) => { if (i > 0 && x.t > 9 && x.t < secs - 8) items.push({ T: x.t, D: 3.2, kind: 'chapter', n: i + 1, text: x.c.title, sound: 'whoosh' }); });
-  if (secs > 20) items.push({ T: Math.max(0, secs - 4.5), D: 4.5, kind: 'end', text: END_CTA(), sub: 'GENOVUS.IO', sound: 'sting' });
-  const busy = items.map((g) => [g.T - 0.5, g.T + g.D + 0.5]);
+  chaps.forEach((x, i) => { if (i > 0 && x.t > 9 && x.t < secs - 8) base.push({ T: x.t, D: 3.2, kind: 'chapter', n: i + 1, text: x.c.title, sound: 'whoosh' }); });
+  if (secs > 20) base.push({ T: Math.max(0, secs - 4.5), D: 4.5, kind: 'end', text: END_CTA(), sub: 'GENOVUS.IO', sound: 'sting' });
+  // The director's words for the package: a kinetic phrase lands as its first word is said, an emphasis word a beat
+  // before it is said (so it is on screen when the word is).
+  for (const k of dir.kinetic) { const T = epTime(words[k.w].s, edit.keep); if (T != null) base.push({ T: Math.max(0, T - 0.1), D: 2.7, kind: 'kinetic', text: k.text, accent: k.accent, sound: 'pop' }); }
+  for (const e of dir.emphasis) { const T = epTime(words[e.w].s, edit.keep); if (T != null) base.push({ T: Math.max(0, T - 0.4), D: 3, kind: 'emphasis', text: e.word, sound: null }); }
   for (const c of dir.cues) {
     const T = epTime(c.s, edit.keep);
     if (T == null) continue;
     const end = epTime(c.e, edit.keep) ?? T + 2;
     const D = Math.min(4, Math.max(1.6, end - T + 0.5));
-    if (busy.some(([a, b]) => T < b && T + D > a)) continue;
     // The cue as Genovus Motion draws it, starting at its own frame 0 (list items: seconds after the cue starts).
     const items2 = c.items?.map((it) => {
       const first = it.split(' ')[0].toLowerCase().replace(/[^a-z0-9$%']/g, '');
@@ -315,13 +323,19 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string): 
       return { text: it, t: at != null ? Math.max(0, at - T) : 0 };
     });
     const cue = { t: 0, end: D, kind: c.kind, text: c.text, icon: c.icon, items: items2, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam };
-    items.push({ T, D, kind: 'cue', text: c.text, cue, sound: c.sound });
-    busy.push([T - 0.5, T + D + 0.5]);
+    base.push({ T, D, kind: 'cue', text: c.text, cue, sound: c.sound });
   }
-  items.sort((a, b) => a.T - b.T);
   const chapters = chaps.length >= 3 ? `Chapters\n${chaps.map((x) => `${ts(x.t)} ${x.c.title}`).join('\n')}` : undefined;
+  return { ...styled(base, pkg, frame, secs), chapters, error: null };
+}
+
+/** Style the plan with a show package and lay out the reel (also used when the card changes the package). */
+function styled(base: BaseGraphic[], pkg: string, frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number } }, secs: number): Omit<Graphics, 'chapters' | 'error'> {
+  const ctx = { landscape: frame.size.width > frame.size.height, cutout: cutoutOn(), face: faceOnFrame(frame.face, frame.src, frame.size) };
+  const { items, notes, gl } = styleGraphics(base, pkg, ctx, secs);
   const laid = layReel(items);
-  return { items: laid.items, reels: laid.reels, chapters, error: null };
+  const cuts = RULES.transitionAtChapters ? items.filter((g) => g.kind === 'chapter' && g.T > 1).map((g) => Math.round(g.T * 1000) / 1000) : [];
+  return { items: laid.items, reels: laid.reels, pkg, stylebook: STYLEBOOK_VERSION, base, notes, gl, cuts };
 }
 
 /** A clip's framing and grade from the recording's look: a face-aware 9:16 crop of a landscape source. */
@@ -350,10 +364,10 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     const t0 = Date.now();
     try {
       const size = v.episode_plan!.size;
-      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue }));
+      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent }));
       const r = g.reels[todo];
       // One chunk of the reel per step (each a sandbox render inside its time limit).
-      const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
+      const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
       const path = `${dir(v)}/episode/graphics-${todo}-${Date.now()}.webm`;
       await put(path, bytes, { access: 'private', contentType: 'video/webm', addRandomSuffix: false, allowOverwrite: true, multipart: true });
       const reels = g.reels.map((x, i) => (i === todo ? { ...x, path } : x));
@@ -488,6 +502,7 @@ type Tap =
   | { tool: 'edit_episode'; title?: string; description?: string }
   | { tool: 'retry' }
   | { tool: 'retry_episode' }
+  | { tool: 'set_package'; pkg: string }
   | { tool: 'approve' };
 
 /** One tap on the card, by a staff member. Returns what changed, in words. */
@@ -536,6 +551,21 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       const episode = { ...vlog.episode, ...(t.title ? { title: t.title.slice(0, 95) } : {}), ...(t.description != null ? { description: t.description.slice(0, 4500) } : {}) };
       await dbx().from('unedit_vlogs').update({ episode }).eq('id', id);
       return 'Saved.';
+    }
+    case 'set_package': {
+      // A different show package: restyle the planned graphics (no new director call) and render them again.
+      inReview();
+      const ep = vlog.episode_plan;
+      const gr = ep?.graphics;
+      if (!ep || ep.error || !gr?.base?.length) throw new Error('This episode has no graphics plan to restyle.');
+      if (!PACKAGES[t.pkg]) throw new Error('Unknown show package.');
+      if (gr.pkg === t.pkg && !gr.error) return `Already ${PACKAGES[t.pkg].label}.`;
+      const graphics: Graphics = { ...gr, ...styled(gr.base as BaseGraphic[], t.pkg, { face: ep.face, src: ep.src, size: ep.size }, ep.secs), error: null, qa: undefined };
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+      await log('set-package', id, { pkg: t.pkg, by });
+      await kick(origin, id);
+      return `Restyling the episode as ${PACKAGES[t.pkg].label}.`;
     }
     case 'retry_episode': {
       // The polished episode stopped (the clips went on to review): fresh tries for its failed parts, before approval.
