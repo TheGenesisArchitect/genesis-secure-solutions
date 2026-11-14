@@ -72,6 +72,12 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
       else {
         const s = STYLES[id];
         item = { ...item, style: id, layer: s.layer, D: s.dur, sound: s.sound };
+        // Left-anchored type stops short of the speaker's head (the head runs wider than the eyes-to-mouth core).
+        if (s.layer === 'front' && !s.cover && ctx.face && s.zone.x < 0.3 && s.zone.y < ctx.face.y + ctx.face.h * 1.6) {
+          const headLeft = ctx.face.x - ctx.face.w / 3;
+          const room = headLeft - RULES.safe - s.zone.x;
+          if (room < s.zone.w) item.maxW = Math.max(0.22, Math.round(room * 1000) / 1000);
+        }
       }
       if (g.kind === 'end') item.T = Math.max(0, secs - item.D);
       if (g.kind === 'kinetic' && kinetic >= RULES.maxKinetic) continue;

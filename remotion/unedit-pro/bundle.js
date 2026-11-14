@@ -70601,8 +70601,10 @@ function Scrim({ side, amount, opacity }) {
   const bg = side === "left" ? `linear-gradient(90deg, rgba(6,7,10,${a}) 0%, rgba(6,7,10,${a * 0.55}) 32%, rgba(6,7,10,0) 62%)` : side === "bottom" ? `linear-gradient(0deg, rgba(6,7,10,${a}) 0%, rgba(6,7,10,${a * 0.5}) 28%, rgba(6,7,10,0) 55%)` : `radial-gradient(120% 90% at 50% 50%, rgba(6,7,10,${a * 0.7}) 0%, rgba(6,7,10,${a}) 100%)`;
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: bg, opacity } });
 }
-function TitleCalm({ kicker, headline, dur, scrim = true }) {
-  const { t, u, height } = useT();
+function TitleCalm({ kicker, headline, dur, scrim = true, maxW }) {
+  const { t, u, width: fw, height } = useT();
+  const boxW = Math.min(980 * u, maxW ? maxW * fw : Infinity);
+  const type = Math.max(0.72, Math.min(1, boxW / (980 * u)));
   const IN = 1.2, OUT = 0.55, HOLD = Math.max(0, dur - IN - OUT);
   const ch = height / 100;
   const k = tw(t, 0, 0.5, E.p2Out);
@@ -70613,12 +70615,12 @@ function TitleCalm({ kicker, headline, dur, scrim = true }) {
   const fade = 1 - out;
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
     scrim ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Scrim, { side: "left", opacity: Math.min(k, fade) }) : null,
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 150 * u, bottom: 190 * u, width: 980 * u, transform: `translateY(${lockY}px)`, opacity: fade }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 150 * u, bottom: 190 * u, width: boxW, transform: `translateY(${lockY}px)`, opacity: fade }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: HF.mono, fontWeight: 500, fontSize: 26 * u, letterSpacing: "0.18em", color: "rgba(235,238,245,0.78)", textTransform: "uppercase", opacity: k, transform: `translateY(${(1 - k) * 2.2 * ch}px)`, marginBottom: 26 * u, display: "flex", alignItems: "center", gap: 16 * u }, children: [
         /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 36 * u, height: 3 * u, background: HF.orange, display: "inline-block" } }),
         kicker
       ] }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 600, fontSize: 112 * u, lineHeight: 0.94, letterSpacing: "-0.045em", color: HF.cream, textWrap: "balance", opacity: h, transform: `translateY(${(1 - h) * 3.2 * ch}px)`, textShadow: `0 ${2 * u}px ${30 * u}px rgba(0,0,0,.35)` }, children: headline })
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 600, fontSize: 112 * u * type, lineHeight: 0.94, letterSpacing: "-0.045em", color: HF.cream, textWrap: "balance", opacity: h, transform: `translateY(${(1 - h) * 3.2 * ch}px)`, textShadow: `0 ${2 * u}px ${30 * u}px rgba(0,0,0,.35)` }, children: headline })
     ] })
   ] });
 }
@@ -150675,7 +150677,7 @@ const ChapterLeak = () => /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeak, { durat
 function Styled({ it, s }) {
   switch (it.style) {
     case "title.calm":
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(TitleCalm, { kicker: it.sub ?? "", headline: it.text, dur: s });
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(TitleCalm, { kicker: it.sub ?? "", headline: it.text, dur: s, maxW: it.maxW });
     case "title.prism":
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(PrismTitle, { kicker: it.sub ? it.sub.toUpperCase() : void 0, title: it.text, dur: s, size: 150, font: HF.serif, weight: 400, italic: true, y: 0.3, bow: 4 });
     case "lower.mask":
@@ -150685,7 +150687,7 @@ function Styled({ it, s }) {
     case "chapter.calm":
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0,jsx_runtime.jsx)(ChapterLeak, {}),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(TitleCalm, { kicker: chapterKicker(it.n), headline: it.text, dur: s })
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(TitleCalm, { kicker: chapterKicker(it.n), headline: it.text, dur: s, maxW: it.maxW })
       ] });
     case "chapter.prism-serif":
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [

@@ -27,7 +27,7 @@ const GOP = FPS * 2;
 export type Part = { k: number; segs: Seg[]; status: 'todo' | 'done'; blob?: string; secs?: number; ms?: number };
 /** One graphic on the episode's (edited) timeline: T and D in seconds; `off` is where it sits in the rendered reel. */
 export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue' | 'kinetic' | 'emphasis'; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number;
-  /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number };
+  /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number; /** left-anchored type: widest it may run (fraction of the frame), so it stops short of the speaker */ maxW?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
 export type ReelChunk = { from: number; to: number; path?: string };
 export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string | null; chapters?: string;
@@ -280,14 +280,16 @@ async function behindWindow(dir: string, reelUrl: string, o: Overlay, n: number,
 /** Lay the reel's stretches over a rendered part (re-encoded once). The reel is VP8 with alpha, so it is decoded with
  *  libvpx (ffmpeg's own VP8 decoder drops the alpha). A behind graphic (UNEDIT_CUTOUT=on) is first composited under
  *  the cut-out speaker in its own window clip; if that fails, it is laid in front like any other. */
-export async function overlayPart(dir: string, reelUrls: string[], overlays: Overlay[], size?: { width: number; height: number }): Promise<void> {
+/** Seconds of matting per second of behind graphics, as budgeted (measured ~20 s/s on one core; padded). */
+const CUTOUT_S_PER_S = 30;
+export async function overlayPart(dir: string, reelUrls: string[], overlays: Overlay[], size?: { width: number; height: number }, cutoutBy = 0): Promise<void> {
   if (!overlays.length) return;
   const inputs: string[] = ['-i', 'part.mp4'];
   const fc: string[] = [];
   let last = '0:v';
   for (const [i, o] of overlays.entries()) {
     let win: string | null = null;
-    if (o.behind && size) win = await behindWindow(dir, reelUrls[o.chunk], o, i, size).catch((e) => { console.error(`[unedit] cut-out window ${i}: ${e instanceof Error ? e.message : e}`); return null; });
+    if (o.behind && size && Date.now() + o.len * CUTOUT_S_PER_S * 1000 < cutoutBy) win = await behindWindow(dir, reelUrls[o.chunk], o, i, size).catch((e) => { console.error(`[unedit] cut-out window ${i}: ${e instanceof Error ? e.message : e}`); return null; });
     if (win) {
       inputs.push('-i', win);
       fc.push(`[${i + 1}:v]setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass[o${i}]`);

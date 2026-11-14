@@ -247,6 +247,8 @@ function clipRow(v: Vlog, n: number, c: Pick) {
 const PARALLEL = Number(process.env.UNEDIT_EPISODE_WORKERS || 8);
 const PART_LEASE_MIN = 14;
 const PART_TRIES = 3;
+/** The cut-out must be finished this long after a part starts (the function stops at 800 s). */
+const CUTOUT_BUDGET_MS = 600_000;
 const partPath = (v: { id: string }, k: number) => `${dir(v)}/episode/part-${String(k).padStart(3, '0')}.mp4`;
 
 /** The episode's edit, look and parts, from the transcript (at the end of 'finding'). A recording with too little
@@ -383,7 +385,7 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     const t0 = Date.now();
     try {
       const size = v.episode_plan!.size;
-      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent }));
+      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW }));
       const r = g.reels[todo];
       // One chunk of the reel per step (each a sandbox render inside its time limit).
       const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
@@ -474,6 +476,13 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     .select('*').maybeSingle();
   if (!claimed) return `Part ${k} is taken or done.`;
   const tries = Number(claimed.attempts ?? 0) + 1;
+  if (tries > PART_TRIES) {
+    // Every earlier try was killed (out of time or memory: nothing was thrown, so nothing was recorded). Stop here
+    // instead of re-claiming forever; the step reports it on the card.
+    await dbx().from('unedit_episode_parts').update({ status: 'failed', error: `stopped after ${PART_TRIES} tries ran out of time or memory`, lease_until: null }).eq('vlog_id', id).eq('k', k);
+    await release(id); await kick(origin, id);
+    return `Part ${k + 1} stopped after ${PART_TRIES} tries.`;
+  }
   await dbx().from('unedit_episode_parts').update({ attempts: tries }).eq('vlog_id', id).eq('k', k);
   const t0 = Date.now();
   try {
@@ -496,7 +505,9 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
       if (g?.reels?.length && g.reels.every((r) => r.path) && !g.error && g.items.length) {
         const overlays = partOverlays(g.items, g.reels, p0, p0 + out.secs);
         const urls = await Promise.all(g.reels.map((r) => presigned(r.path!, 120)));
-        if (overlays.length) await overlayPart(out.dir, urls, overlays, v.episode_plan.size).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
+        // Text behind the speaker only on a first try and while the part has time for it (a retry, or a slow part,
+        // lays those graphics in front instead).
+        if (overlays.length) await overlayPart(out.dir, urls, overlays, v.episode_plan.size, tries === 1 ? t0 + CUTOUT_BUDGET_MS : 0).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
       }
       const path = partPath(v, k);
       await put(path, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
