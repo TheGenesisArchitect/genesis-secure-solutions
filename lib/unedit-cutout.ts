@@ -10,11 +10,14 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ffmpegPath from 'ffmpeg-static';
 import { presigned } from '@/lib/unedit-media';
 
 const MW = 640, MH = 352, MFPS = 10;
 /** Where the model lives in private Blob (uploaded once by scripts/upload-cutout-model.mjs). */
+/** onnxruntime-web's WebAssembly files for the pinned version (uploaded by scripts/upload-cutout-model.mjs). */
+const RUNTIME_DIR = 'models/onnxruntime-web-1.22.0';
 const MODEL_PATH = () => (process.env.UNEDIT_CUTOUT_MODEL || 'models/modnet-photographic-portrait-matting.onnx').trim();
 
 type Session = { run: (feeds: Record<string, unknown>) => Promise<Record<string, { data: Float32Array }>>; inputNames: readonly string[]; outputNames: readonly string[] };
@@ -28,8 +31,18 @@ async function load() {
     if (!r.ok) throw new Error(`the cut-out model didn't download (${r.status})`);
     await fs.writeFile(file, Buffer.from(await r.arrayBuffer()));
   }
+  // The WebAssembly runtime's two files come from Blob too, into /tmp: the deployed function's file tracing dropped
+  // them (production failed with "Cannot find module .../ort-wasm-simd-threaded.mjs"), so nothing relies on it.
+  const rt: Record<'mjs' | 'wasm', string> = { mjs: path.join(os.tmpdir(), 'ort-wasm-simd-threaded.mjs'), wasm: path.join(os.tmpdir(), 'ort-wasm-simd-threaded.wasm') };
+  for (const [k, f] of Object.entries(rt)) {
+    if (await fs.stat(f).then((x) => x.size > 1000, () => false)) continue;
+    const r = await fetch(await presigned(`${RUNTIME_DIR}/${path.basename(f)}`, 10), { signal: AbortSignal.timeout(120_000) });
+    if (!r.ok) throw new Error(`the cut-out runtime (${k}) didn't download (${r.status})`);
+    await fs.writeFile(f, Buffer.from(await r.arrayBuffer()));
+  }
   const ort = await import('onnxruntime-web');
   ort.env.wasm.numThreads = 1;
+  ort.env.wasm.wasmPaths = { mjs: pathToFileURL(rt.mjs).href, wasm: pathToFileURL(rt.wasm).href };
   const s = (await ort.InferenceSession.create(file, { executionProviders: ['wasm'] })) as unknown as Session;
   return { s, Tensor: ort.Tensor as unknown as new (type: 'float32', data: Float32Array, dims: number[]) => unknown };
 }
