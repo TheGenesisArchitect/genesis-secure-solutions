@@ -25,8 +25,9 @@ import { editList, within, type Edit } from '@/lib/unedit-edit';
 import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
-import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, partSeconds, partsOf, renderPart, shotCrops, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
+import { MUSIC, assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, partSeconds, partsOf, renderPart, shotCrops, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
+import { qaEpisode } from '@/lib/unedit-qa';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { GENOVUS_BLOG_ID, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 
@@ -413,9 +414,33 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
   const sound = await presigned(v.audio_blob ?? v.blob_path, 120);
   try {
     const graphicsOn = Boolean(g?.reels?.length && g.reels.every((r) => r.path) && !g.error);
-    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }), graphicsOn ? effectSounds(g!.items) : []);
+    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }), graphicsOn ? effectSounds(g!.items) : [], MUSIC() ? (/^https?:/.test(MUSIC()) ? MUSIC() : await presigned(MUSIC(), 120)) : null);
   } catch (e) { return await giveUp(`joining the parts: ${e instanceof Error ? e.message : String(e)}`); }
-  await dbx().from('unedit_vlogs').update({ episode_path: path, episode_plan: { ...v.episode_plan, path, at: new Date().toISOString() } }).eq('id', v.id);
+  // The quality check (lib/unedit-qa.ts): a finishing editor's look at every graphic on the finished episode. A graphic
+  // that fails is left out and the episode re-renders once; after that, anything left is reported on the card.
+  let plan: EpisodePlan = { ...v.episode_plan!, path, at: new Date().toISOString() };
+  if (g && !g.error && g.items.length && process.env.UNEDIT_QA !== 'off') {
+    const qa = await qaEpisode(await presigned(path, 60), g.items);
+    await spend(v.id, qa.cents, 'episode quality check (Claude)');
+    const say = (x: { i: number; problem: string }) => `${g.items[x.i].kind} “${g.items[x.i].text}”: ${x.problem}`;
+    const drops = qa.issues.filter((x) => x.drop).map((x) => g.items[x.i]);
+    const fixedBefore = g.qa?.fixed ?? 0;
+    if (drops.length && !fixedBefore && g.base?.length) {
+      const gone = (b: BaseGraphic) => drops.some((d) => d.kind === b.kind && Math.abs(d.T - b.T) < 0.6 && d.text === b.text);
+      const ep = v.episode_plan!;
+      const graphics: Graphics = { ...g, ...styled((g.base as BaseGraphic[]).filter((b) => !gone(b)), g.pkg ?? packageOf(null), { face: ep.face, src: ep.src, size: ep.size }, ep.secs), error: null,
+        qa: { at: new Date().toISOString(), ok: false, issues: qa.issues.map(say), fixed: drops.length, cents: qa.cents } };
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', v.id);
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics }, episode_path: null }).eq('id', v.id);
+      await log('episode-qa', v.id, { issues: qa.issues.length, dropped: drops.length, refix: true });
+      await release(v.id);
+      return `Quality check: left out ${drops.length} graphic${drops.length === 1 ? '' : 's'}; rendering the episode again.`;
+    }
+    const left = qa.issues.map(say);
+    plan = { ...plan, graphics: { ...g, qa: { at: new Date().toISOString(), ok: !left.length, issues: left, fixed: fixedBefore, cents: qa.cents + (g.qa?.cents ?? 0) } } };
+    await log('episode-qa', v.id, { checked: qa.checked, issues: left.length, fixedBefore });
+  }
+  await dbx().from('unedit_vlogs').update({ episode_path: path, episode_plan: plan }).eq('id', v.id);
   await log('episode-ready', v.id, { path, parts: parts.length, secs: v.episode_plan?.secs, ms: Date.now() - t0 });
   await release(v.id);
   return `Finished the episode (${parts.length} parts).`;
@@ -441,13 +466,16 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     const part: Part = { k, segs: claimed.segs as Part['segs'], status: 'todo' };
     const { crops, cents } = await shotCrops(src, part, v.episode_plan);
     await spend(id, cents, `episode part ${k + 1} framing (Claude)`);
-    const out = await renderPart(src, part, crops, v.episode_plan);
+    // The part's place in the episode: its start is the length of the parts before it.
+    const { data: before } = await dbx().from('unedit_episode_parts').select('segs').eq('vlog_id', id).lt('k', k);
+    const p0 = (before ?? []).flatMap((b) => b.segs as Part['segs']).reduce((a, s) => a + (s.to - s.from), 0);
+    const g = v.episode_plan.graphics;
+    // Pacing (style book): slow push-ins on long shots, a zoom-blur punch at each chapter change. UNEDIT_MOTION=off skips both.
+    const motion = process.env.UNEDIT_MOTION === 'off' ? undefined : { p0, cuts: g?.error ? [] : g?.cuts ?? [], push: { after: RULES.pushAfter, amount: RULES.pushAmount } };
+    const out = await renderPart(src, part, crops, v.episode_plan, motion);
     try {
-      // The graphics reel's stretches for this part's place in the episode (its start is the length of the parts before it).
-      const g = v.episode_plan.graphics;
+      // The graphics reel's stretches for this part's place in the episode.
       if (g?.reels?.length && g.reels.every((r) => r.path) && !g.error && g.items.length) {
-        const { data: before } = await dbx().from('unedit_episode_parts').select('segs').eq('vlog_id', id).lt('k', k);
-        const p0 = (before ?? []).flatMap((b) => b.segs as Part['segs']).reduce((a, s) => a + (s.to - s.from), 0);
         const overlays = partOverlays(g.items, g.reels, p0, p0 + out.secs);
         const urls = await Promise.all(g.reels.map((r) => presigned(r.path!, 120)));
         if (overlays.length) await overlayPart(out.dir, urls, overlays).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));

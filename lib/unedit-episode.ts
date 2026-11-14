@@ -80,15 +80,19 @@ export async function shotCrops(url: string, part: Part, plan: Pick<EpisodePlan,
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
  *  memory at a time, threads capped), then the shots join without re-encoding. */
-export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'>): Promise<{ file: string; dir: string; secs: number }> {
+export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'>, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): Promise<{ file: string; dir: string; secs: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-ep-'));
   const { width: W, height: H } = plan.size;
   const look = `${plan.sdr ? `${plan.sdr},` : ''}${gradeFilter(plan.grade)},unsharp=5:5:0.3`;
   const shots: string[] = [];
+  let at = motion?.p0 ?? 0; // the shot's start on the episode's timeline
   for (const [i, s] of part.segs.entries()) {
     const out = `s${String(i).padStart(3, '0')}.mp4`;
-    await ffmpeg(['-threads', '4', '-ss', s.from.toFixed(3), '-t', (s.to - s.from).toFixed(3), '-i', url,
-      '-vf', `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
+    const d = s.to - s.from;
+    const move = motion ? shotMotion(d, motion.cuts.map((c) => c - at).filter((c) => c >= -0.02 && c < d - 0.1), motion.push, W, H) : null;
+    at += d;
+    await ffmpeg(['-threads', '4', '-ss', s.from.toFixed(3), '-t', d.toFixed(3), '-i', url,
+      '-vf', move ? `${cropF(crops[i])},fps=${FPS},${move},setsar=1,${look},format=yuv420p` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
       '-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
     shots.push(out);
   }
@@ -98,40 +102,110 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
   return { file: path.join(dir, 'part.mp4'), dir, secs: part.segs.reduce((a, s) => a + (s.to - s.from), 0) };
 }
 
-/** The soundtrack of everything kept, joined with short fades, cleaned and set to -14 LUFS (two passes). */
-async function soundtrack(url: string, keep: Span[], dir: string, sfx: { at: number; file: string; vol: number }[] = []): Promise<string> {
+/** A shot's camera move, as one per-frame scale and a fixed crop (zooming about the speaker's eye line, 38 % down):
+ *  a slow push-in across a shot held longer than push.after seconds (so a face shot never sits static), and at a
+ *  chapter change a zoom-blur punch (in 8 %, settling over 0.35 s, blurred for its first frames) — the scene change.
+ *  Null when the shot needs neither (it keeps the plain scale). */
+export function shotMotion(d: number, punches: number[], push: { after: number; amount: number } | null, W: number, H: number): string | null {
+  const frames = Math.max(1, Math.round(d * FPS));
+  const terms: string[] = [];
+  if (push && d > push.after) terms.push(`${push.amount}*n/${frames}`);
+  const ps = punches.map((c) => Math.max(0, Math.round(c * FPS)));
+  for (const p of ps) terms.push(`if(gte(n,${p}),0.08*max(0,1-(n-${p})/10.5),0)`);
+  if (!terms.length) return null;
+  const z = `(1+${terms.join('+')})`;
+  const blur = ps.flatMap((p) => [`gblur=sigma=12:enable='between(n,${p},${p + 1})'`, `gblur=sigma=5:enable='between(n,${p + 2},${p + 3})'`]);
+  return [`scale=w='2*trunc(${W}*${z}/2)':h=-2:eval=frame:flags=lanczos`, `crop=${W}:${H}:(in_w-${W})/2:(in_h-${H})*0.38`, ...blur].join(',');
+}
+
+/** The quietest stretch the edit cut out (a pause, not a false start): the room's own sound, looped under the voice
+ *  so the joins never drop to dead digital silence. Null when no gap is quiet enough (under -42 dB). */
+async function roomTone(url: string, keep: Span[], dir: string): Promise<{ from: number; to: number } | null> {
+  const gaps = keep.slice(1).map((k, i) => ({ from: keep[i].to, to: k.from })).filter((g) => g.to - g.from >= 0.9)
+    .sort((a, b) => (b.to - b.from) - (a.to - a.from)).slice(0, 6)
+    .map((g) => { const mid = (g.from + g.to) / 2; return { from: mid - 0.3, to: mid + 0.3 }; });
+  const vols = await Promise.all(gaps.map(async (g) => {
+    const out = await ffmpeg(['-loglevel', 'info', '-ss', g.from.toFixed(3), '-t', '0.6', '-vn', '-i', url, '-af', 'volumedetect', '-f', 'null', '-'], dir, 60_000).catch(() => '');
+    const m = out.match(/mean_volume:\s*(-?[\d.]+) dB/);
+    return m ? Number(m[1]) : 0;
+  }));
+  let best = -1;
+  vols.forEach((v, i) => { if (v < -42 && (best < 0 || v < vols[best])) best = i; });
+  return best >= 0 ? gaps[best] : null;
+}
+
+/** The music bed (UNEDIT_MUSIC: a licensed track's Blob path; off when unset): looped to the episode, faded in and
+ *  out, and ducked under the voice by a sidechain compressor keyed on the voice. UNEDIT_MUSIC_DB sets its level. */
+export const MUSIC = () => (process.env.UNEDIT_MUSIC || '').trim();
+const MUSIC_DB = () => Number(process.env.UNEDIT_MUSIC_DB || -22);
+
+/** The soundtrack of everything kept, joined with short fades over room tone, cleaned (rumble, noise, sibilance),
+ *  gently leveled and set to -14 LUFS (two passes); then the music bed and the graphics' sounds mix under it and the
+ *  final mix is measured again, so it still lands at -14 LUFS. */
+export async function soundtrack(url: string, keep: Span[], dir: string, sfx: { at: number; file: string; vol: number }[] = [], music: string | null = null): Promise<string> {
   const n = keep.length;
+  const total = keep.reduce((a, k) => a + (k.to - k.from), 0);
+  const tone = await roomTone(url, keep, dir).catch(() => null);
   const parts = keep.map((k, i) => {
     const d = k.to - k.from;
     return `[s${i}]atrim=start=${k.from.toFixed(3)}:end=${k.to.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st=${Math.max(0, d - 0.01).toFixed(3)}:d=0.01[k${i}]`;
   });
-  const join = `[0:a]aresample=48000,aformat=channel_layouts=stereo,asplit=${n}${keep.map((_, i) => `[s${i}]`).join('')};${parts.join(';')};${keep.map((_, i) => `[k${i}]`).join('')}concat=n=${n}:v=0:a=1,highpass=f=80,afftdn=nf=-28`;
+  const splits = n + (tone ? 1 : 0);
+  const clean = 'highpass=f=80,afftdn=nf=-28,deesser=i=0.35:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.2:attack=12:release=220:knee=4';
+  let graph = `[0:a]aresample=48000,aformat=channel_layouts=stereo,asplit=${splits}${Array.from({ length: splits }, (_, i) => `[s${i}]`).join('')};${parts.join(';')};${keep.map((_, i) => `[k${i}]`).join('')}concat=n=${n}:v=0:a=1,${clean}`;
+  if (tone) {
+    // The room tone: its own denoise, a little under its real level, looped across the whole episode.
+    const len = Math.round((tone.to - tone.from) * 48000);
+    graph += `[v];[s${n}]atrim=start=${tone.from.toFixed(3)}:end=${tone.to.toFixed(3)},asetpts=PTS-STARTPTS,highpass=f=80,afftdn=nf=-28,afade=t=in:d=0.05,afade=t=out:st=0.55:d=0.05,volume=0.6,aloop=loop=-1:size=${len},atrim=0:${total.toFixed(3)}[t];[v][t]amix=inputs=2:normalize=0:duration=first`;
+  }
   // Pass 1: measure. Pass 2: correct linearly to the measurement (no pumping).
-  await ffmpeg(['-vn', '-i', url, '-filter_complex', `${join}[a]`, '-map', '[a]', '-c:a', 'flac', 'raw.flac'], dir, 600_000);
-  const m = await ffmpeg(['-loglevel', 'info', '-i', 'raw.flac', '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-'], dir, 300_000);
-  const j = m.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/);
-  const v = j ? (JSON.parse(j[0]) as Record<string, string>) : null;
+  await ffmpeg(['-vn', '-i', url, '-filter_complex', `${graph}[a]`, '-map', '[a]', '-c:a', 'flac', 'raw.flac'], dir, 600_000);
+  const v = await loudness('raw.flac', dir);
   const ln = v
     ? `loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=${v.input_i}:measured_TP=${v.input_tp}:measured_LRA=${v.input_lra}:measured_thresh=${v.input_thresh}:offset=${v.target_offset}:linear=true`
     : 'loudnorm=I=-14:TP=-1.5:LRA=11';
-  await ffmpeg(['-i', 'raw.flac', '-af', `${ln},aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo`, '-c:a', 'aac', '-b:a', '192k', 'sound.m4a'], dir, 300_000);
+  await ffmpeg(['-i', 'raw.flac', '-af', `${ln},aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo`, '-c:a', 'flac', 'voice.flac'], dir, 300_000);
   await fs.rm(path.join(dir, 'raw.flac'), { force: true });
-  // The graphics' sounds, under the voice (which stays at -14 LUFS): each delayed to its moment, then one mix.
   const have = [];
   for (const x of sfx) if (await fs.access(x.file).then(() => true, () => false)) have.push(x);
-  if (!have.length) return 'sound.m4a';
-  const ins = have.flatMap((x) => ['-i', x.file]);
-  const fx = have.map((x, i) => `[${i + 1}:a]aresample=48000,aformat=channel_layouts=stereo,volume=${x.vol},adelay=${Math.round(x.at * 1000)}|${Math.round(x.at * 1000)}[f${i}]`);
-  await ffmpeg(['-i', 'sound.m4a', ...ins, '-filter_complex', `${fx.join(';')};[0:a]${have.map((_, i) => `[f${i}]`).join('')}amix=inputs=${have.length + 1}:normalize=0:duration=first,alimiter=limit=0.95[a]`, '-map', '[a]', '-c:a', 'aac', '-b:a', '192k', 'mixed.m4a'], dir, 300_000);
+  if (!have.length && !music) {
+    await ffmpeg(['-i', 'voice.flac', '-c:a', 'aac', '-b:a', '192k', 'sound.m4a'], dir, 300_000);
+    return 'sound.m4a';
+  }
+  // Under the voice: the graphics' sounds (each delayed to its moment) and the music bed (ducked by the voice).
+  const ins = ['-i', 'voice.flac', ...have.flatMap((x) => ['-i', x.file]), ...(music ? ['-stream_loop', '-1', '-i', music] : [])];
+  const chains = have.map((x, i) => `[${i + 1}:a]aresample=48000,aformat=channel_layouts=stereo,volume=${x.vol},adelay=${Math.round(x.at * 1000)}|${Math.round(x.at * 1000)}[f${i}]`);
+  const under = have.map((_, i) => `[f${i}]`);
+  let voiceOut = '[0:a]';
+  if (music) {
+    chains.unshift('[0:a]asplit=2[vo][key]');
+    voiceOut = '[vo]';
+    chains.push(`[${have.length + 1}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,volume=${MUSIC_DB()}dB,afade=t=in:d=2,afade=t=out:st=${Math.max(0, total - 3).toFixed(3)}:d=3[bed]`,
+      '[bed][key]sidechaincompress=threshold=0.02:ratio=6:attack=25:release=450[duck]');
+    under.push('[duck]');
+  }
+  chains.push(`${voiceOut}${under.join('')}amix=inputs=${under.length + 1}:normalize=0:duration=first[mx]`);
+  await ffmpeg([...ins, '-filter_complex', chains.join(';'), '-map', '[mx]', '-t', total.toFixed(3), '-c:a', 'flac', 'mix.flac'], dir, 300_000);
+  // The mix measured again: a linear trim back to -14 LUFS, a limiter for the peaks.
+  const f = await loudness('mix.flac', dir);
+  const gain = f ? Math.max(-6, Math.min(6, -14 - Number(f.input_i))) : 0;
+  await ffmpeg(['-i', 'mix.flac', '-af', `volume=${gain.toFixed(2)}dB,alimiter=limit=0.89:level=false`, '-c:a', 'aac', '-b:a', '192k', 'mixed.m4a'], dir, 300_000);
+  await fs.rm(path.join(dir, 'mix.flac'), { force: true });
   return 'mixed.m4a';
+}
+
+async function loudness(file: string, dir: string): Promise<Record<string, string> | null> {
+  const m = await ffmpeg(['-loglevel', 'info', '-i', file, '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-'], dir, 300_000);
+  const j = m.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/);
+  return j ? (JSON.parse(j[0]) as Record<string, string>) : null;
 }
 
 /** Join the rendered parts (read from their links, in order) with the soundtrack, streaming the finished episode to
  *  `upload` as fragmented MP4: a long 1440p episode is bigger than a function's scratch disk, so it never lands there. */
-export async function assemble(soundUrl: string, keep: Span[], partUrls: string[], upload: (body: ReadableStream<Uint8Array>) => Promise<unknown>, sfx: { at: number; file: string; vol: number }[] = []): Promise<void> {
+export async function assemble(soundUrl: string, keep: Span[], partUrls: string[], upload: (body: ReadableStream<Uint8Array>) => Promise<unknown>, sfx: { at: number; file: string; vol: number }[] = [], music: string | null = null): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-epall-'));
   try {
-    const sound = await soundtrack(soundUrl, keep, dir, sfx);
+    const sound = await soundtrack(soundUrl, keep, dir, sfx, music);
     // Presigned links carry no quotes; the concat list still escapes any, as the format requires.
     const line = (u: string) => `file '${u.split("'").join("'\\''")}'`;
     await fs.writeFile(path.join(dir, 'parts.txt'), partUrls.map(line).join('\n'));
