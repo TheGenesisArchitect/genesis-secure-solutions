@@ -281,6 +281,14 @@ const LOWER = () => (process.env.UNEDIT_LOWER_THIRD || 'Genovus').trim();
 const LOWER_SUB = () => (process.env.UNEDIT_LOWER_THIRD_SUB || 'genovus.io').trim();
 const ts = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
+/** The title as it goes on screen (style book: an opener over 8 words wraps into the speaker): the part after a colon
+ *  ("Anthony's Studio Vlog: Chips, Coffee…" → "Chips, Coffee…"), else the first 8 words. The YouTube title is unchanged. */
+export function screenTitle(t: string): string {
+  const after = t.includes(':') ? t.slice(t.indexOf(':') + 1).trim() : t;
+  const words = (after.split(/\s+/).length >= 2 ? after : t).split(/\s+/).filter(Boolean);
+  return words.length <= 8 ? words.join(' ') : `${words.slice(0, 8).join(' ').replace(/[,;:–—-]+$/, '')}…`;
+}
+
 const KICKER = () => (process.env.UNEDIT_TITLE_KICKER || 'Genovus · Studio').trim();
 
 /** Every graphic on the episode's timeline, before styling: the title, lower-third, chapters and end card, the
@@ -294,7 +302,7 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   const dir = await directEpisode(words, keepSentences, secs, undefined, pkg);
   await spend(v.id, dir.cents, 'episode director (Claude)');
   const base: BaseGraphic[] = [];
-  if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: title, sub: KICKER(), sound: 'whoosh' });
+  if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: screenTitle(title), sub: KICKER(), sound: 'whoosh' });
   if (secs > 20) base.push({ T: 4, D: 4, kind: 'lower', text: LOWER(), sub: LOWER_SUB(), sound: 'swish' });
   // Chapters: on the edited timeline, 10 s apart at least; the first is the episode's start.
   const chaps: { t: number; c: Chapter }[] = [];
