@@ -17,6 +17,7 @@ import { BT709, ffmpeg, type Span } from '@/lib/unedit-media';
 import type { Seg } from '@/lib/unedit-edit';
 import { frames } from '@/lib/unedit-media';
 import { FILL, faceBoxes, framing, gradeFilter, type Box, type Crop, type Grade } from '@/lib/unedit-look';
+import { matte, matteFilter } from '@/lib/unedit-cutout';
 
 // Seconds per part, by how heavy the source is to decode (an 8K frame is 16 times a 1080p one).
 export const partSeconds = (src: { width: number; height: number }) => { const px = src.width * src.height; return px > 16e6 ? 14 : px > 4e6 ? 25 : 45; };
@@ -31,7 +32,7 @@ export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapt
 export type ReelChunk = { from: number; to: number; path?: string };
 export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string | null; chapters?: string;
   /** The show package and style-book version it was styled with; `base` is the unstyled plan, so the card can restyle. */
-  pkg?: string; stylebook?: string; base?: Omit<EpGraphic, 'style' | 'layer' | 'off'>[]; notes?: string[]; gl?: boolean;
+  pkg?: string; stylebook?: string; /** plan the graphics fresh in the next step */ replan?: boolean; base?: Omit<EpGraphic, 'style' | 'layer' | 'off'>[]; notes?: string[]; gl?: boolean;
   /** Chapter changes on the edited timeline: the footage gets a zoom-blur punch there. */ cuts?: number[];
   /** The quality check after the episode is built. */ qa?: { at: string; ok: boolean; issues: string[]; fixed: number; cents: number } };
 export const REEL_CHUNK_S = 40;
@@ -249,28 +250,49 @@ export function layReel(items: EpGraphic[]): { items: EpGraphic[]; reels: ReelCh
 
 /** The part's stretches of the reel: each graphic that overlaps the part, where it starts in the part, where to seek
  *  in the reel, and for how long. */
-export function partOverlays(items: EpGraphic[], reels: ReelChunk[], p0: number, p1: number): { start: number; seek: number; len: number; chunk: number }[] {
+export type Overlay = { start: number; seek: number; len: number; chunk: number; behind: boolean };
+export function partOverlays(items: EpGraphic[], reels: ReelChunk[], p0: number, p1: number): Overlay[] {
   return items.filter((g) => g.off != null && g.T < p1 && g.T + g.D > p0).map((g) => {
     const from = Math.max(g.T, p0), to = Math.min(g.T + g.D, p1);
     const chunk = Math.max(0, reels.findIndex((r) => g.off! >= r.from - 0.001 && g.off! < r.to));
-    return { chunk, start: Math.round((from - p0) * 1000) / 1000, seek: Math.round((g.off! - reels[chunk].from + (from - g.T)) * 1000) / 1000, len: Math.round((to - from) * 1000) / 1000 };
+    return { chunk, start: Math.round((from - p0) * 1000) / 1000, seek: Math.round((g.off! - reels[chunk].from + (from - g.T)) * 1000) / 1000, len: Math.round((to - from) * 1000) / 1000, behind: g.layer === 'behind' };
   }).filter((o) => o.len > 0.05);
 }
 
+const X264 = ['-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709];
+
+/** A behind-the-speaker window: the part's footage with the graphic over it, then the speaker (cut out by the matte)
+ *  on top again, rendered as its own short clip that replaces those frames of the part. */
+async function behindWindow(dir: string, reelUrl: string, o: Overlay, n: number, size: { width: number; height: number }): Promise<string> {
+  const m = await matte(path.join(dir, 'part.mp4'), o.start, o.len, dir, `matte${n}`);
+  const out = `win${n}.mp4`;
+  await ffmpeg(['-ss', o.start.toFixed(3), '-t', o.len.toFixed(3), '-i', 'part.mp4', '-c:v', 'libvpx', '-ss', o.seek.toFixed(3), '-t', o.len.toFixed(3), '-i', reelUrl, '-i', m,
+    '-filter_complex', `[0:v]setpts=PTS-STARTPTS,split=2[a][b];[1:v]format=yuva420p,setpts=PTS-STARTPTS[g];[a][g]overlay=format=auto[bg];${matteFilter('2:v', size.width, size.height, 'm')};[b][m]alphamerge[fg];[bg][fg]overlay=format=auto,format=yuv420p[o]`,
+    '-map', '[o]', '-an', ...X264, '-crf', '15', out], dir, 600_000);
+  return out;
+}
+
 /** Lay the reel's stretches over a rendered part (re-encoded once). The reel is VP8 with alpha, so it is decoded with
- *  libvpx (ffmpeg's own VP8 decoder drops the alpha). */
-export async function overlayPart(dir: string, reelUrls: string[], overlays: { start: number; seek: number; len: number; chunk: number }[]): Promise<void> {
+ *  libvpx (ffmpeg's own VP8 decoder drops the alpha). A behind graphic (UNEDIT_CUTOUT=on) is first composited under
+ *  the cut-out speaker in its own window clip; if that fails, it is laid in front like any other. */
+export async function overlayPart(dir: string, reelUrls: string[], overlays: Overlay[], size?: { width: number; height: number }): Promise<void> {
   if (!overlays.length) return;
   const inputs: string[] = ['-i', 'part.mp4'];
   const fc: string[] = [];
   let last = '0:v';
-  overlays.forEach((o, i) => {
-    inputs.push('-c:v', 'libvpx', '-ss', o.seek.toFixed(3), '-t', o.len.toFixed(3), '-i', reelUrls[o.chunk]);
-    fc.push(`[${i + 1}:v]format=yuva420p,setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass:format=auto[o${i}]`);
+  for (const [i, o] of overlays.entries()) {
+    let win: string | null = null;
+    if (o.behind && size) win = await behindWindow(dir, reelUrls[o.chunk], o, i, size).catch((e) => { console.error(`[unedit] cut-out window ${i}: ${e instanceof Error ? e.message : e}`); return null; });
+    if (win) {
+      inputs.push('-i', win);
+      fc.push(`[${i + 1}:v]setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass[o${i}]`);
+    } else {
+      inputs.push('-c:v', 'libvpx', '-ss', o.seek.toFixed(3), '-t', o.len.toFixed(3), '-i', reelUrls[o.chunk]);
+      fc.push(`[${i + 1}:v]format=yuva420p,setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass:format=auto[o${i}]`);
+    }
     last = `o${i}`;
-  });
-  await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', `[${last}]`, '-an',
-    '-c:v', 'libx264', '-threads', '4', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360',
+  }
+  await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', `[${last}]`, '-an', ...X264, '-crf', '19', '-g', String(GOP), '-video_track_timescale', '15360',
     '-movflags', '+faststart', 'graphic.mp4'], dir, 600_000);
   await fs.rename(path.join(dir, 'graphic.mp4'), path.join(dir, 'part.mp4'));
 }

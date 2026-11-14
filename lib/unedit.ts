@@ -286,11 +286,11 @@ const KICKER = () => (process.env.UNEDIT_TITLE_KICKER || 'Genovus · Studio').tr
 /** Every graphic on the episode's timeline, before styling: the title, lower-third, chapters and end card, the
  *  director's kinetic phrases and emphasis words, and the clip cues. Chapters become YouTube chapters (0:00 first, at
  *  least 3, each at least 10 s) for the description. The show package styles them (lib/unedit-style.ts). */
-async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number } }): Promise<Graphics> {
+async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number } }, pkgName: string | null = null): Promise<Graphics> {
   const secs = edit.secs;
   const ss = sentences(words);
   const keepSentences = ss.filter((x) => epTime(x.s, edit.keep) != null && epTime(x.e, edit.keep) != null).map((x) => x.i);
-  const pkg = packageOf(null);
+  const pkg = packageOf(pkgName);
   const dir = await directEpisode(words, keepSentences, secs, undefined, pkg);
   await spend(v.id, dir.cents, 'episode director (Claude)');
   const base: BaseGraphic[] = [];
@@ -357,6 +357,16 @@ async function kickPart(origin: string, id: string, k: number): Promise<void> {
 
 /** One step of the episode: start workers on parts that need one, or (all parts done) join the episode. */
 async function episodeStep(v: Vlog, origin: string): Promise<string> {
+  if (v.episode_plan?.graphics?.replan && v.edit) {
+    // The card asked for a show package on an episode planned before the style book: plan its graphics fresh.
+    const ep = v.episode_plan;
+    let graphics: Graphics;
+    try { graphics = await planGraphics(v, await readWords(v), v.edit, v.episode?.title ?? v.title ?? '', { face: ep.face, src: ep.src, size: ep.size }, ep.graphics!.pkg ?? null); }
+    catch (e) { graphics = { items: [], error: `the graphics plan failed: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) }; }
+    await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics } }).eq('id', v.id);
+    await release(v.id);
+    return `Planned the episode's graphics (${graphics.items.length}).`;
+  }
   const g = v.episode_plan?.graphics;
   // The graphics reel first (one sandbox render for the whole episode), so every part can use it. A failed reel
   // never stops the episode: it finishes without graphics and the card says so.
@@ -478,7 +488,7 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
       if (g?.reels?.length && g.reels.every((r) => r.path) && !g.error && g.items.length) {
         const overlays = partOverlays(g.items, g.reels, p0, p0 + out.secs);
         const urls = await Promise.all(g.reels.map((r) => presigned(r.path!, 120)));
-        if (overlays.length) await overlayPart(out.dir, urls, overlays).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
+        if (overlays.length) await overlayPart(out.dir, urls, overlays, v.episode_plan.size).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
       }
       const path = partPath(v, k);
       await put(path, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
@@ -585,10 +595,14 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       inReview();
       const ep = vlog.episode_plan;
       const gr = ep?.graphics;
-      if (!ep || ep.error || !gr?.base?.length) throw new Error('This episode has no graphics plan to restyle.');
+      if (!ep || ep.error || !vlog.edit) throw new Error('This episode has no polished version to restyle.');
       if (!PACKAGES[t.pkg]) throw new Error('Unknown show package.');
-      if (gr.pkg === t.pkg && !gr.error) return `Already ${PACKAGES[t.pkg].label}.`;
-      const graphics: Graphics = { ...gr, ...styled(gr.base as BaseGraphic[], t.pkg, { face: ep.face, src: ep.src, size: ep.size }, ep.secs), error: null, qa: undefined };
+      if (gr?.pkg === t.pkg && !gr.error) return `Already ${PACKAGES[t.pkg].label}.`;
+      const frame = { face: ep.face, src: ep.src, size: ep.size };
+      // An episode planned before the style book has no base plan: the director plans it fresh (words and all).
+      const graphics: Graphics = gr?.base?.length
+        ? { ...gr, ...styled(gr.base as BaseGraphic[], t.pkg, frame, ep.secs), error: null, qa: undefined }
+        : { items: [], pkg: t.pkg, replan: true, error: null }; // planned in the episode step (a director call can outlast this request)
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
       await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
       await log('set-package', id, { pkg: t.pkg, by });

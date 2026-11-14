@@ -38,12 +38,13 @@ const nextConfig: NextConfig = {
     // Unedit: ffmpeg for clips, audio and stills; the brand font as TTF for burned-in captions (libass), WOFF for thumbnails.
     // Unedit Pro: the Remotion bundle it uploads into a Vercel Sandbox per render (built from Genovus Motion).
     '/api/studio/unedit/[id]/step': ['./node_modules/ffmpeg-static/ffmpeg*', './lib/fonts/*.ttf', './lib/fonts/*.woff', './remotion/unedit-pro/**/*'],
-    // Episode Pro's part workers: ffmpeg only (framing, grade and encode).
-    '/api/studio/unedit/[id]/part/[k]': ['./node_modules/ffmpeg-static/ffmpeg*'],
+    // Episode Pro's part workers: ffmpeg (framing, grade and encode) and, for text behind the speaker, the cut-out's
+    // WebAssembly runtime (the MODNet model itself downloads from private Blob on first use).
+    '/api/studio/unedit/[id]/part/[k]': ['./node_modules/ffmpeg-static/ffmpeg*', './node_modules/onnxruntime-web/dist/ort.node.min.mjs', './node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', './node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', './node_modules/onnxruntime-web/package.json'],
   },
   // ffmpeg-static resolves its binary path at runtime; keep it out of the bundle so the path stays real.
   // Remotion's renderer and its Vercel Sandbox driver load native binaries and the sandbox SDK at runtime.
-  serverExternalPackages: ['ffmpeg-static', '@remotion/vercel', '@remotion/renderer', '@vercel/sandbox'],
+  serverExternalPackages: ['ffmpeg-static', '@remotion/vercel', '@remotion/renderer', '@vercel/sandbox', 'onnxruntime-web'],
   poweredByHeader: false,
   // Friendly doors under the genovus.io mothership: app. for agencies, partners. for carriers. Everything
   // lives on genovus.io itself so one sign-in covers the whole ecosystem.
