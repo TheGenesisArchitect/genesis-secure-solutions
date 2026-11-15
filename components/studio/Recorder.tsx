@@ -134,7 +134,7 @@ export function Recorder({ scripts, initial }: { scripts: Script[]; initial: str
       const blob = new Blob(chunks.current, { type });
       const ext = type.includes('mp4') ? 'mp4' : 'webm';
       const name = `${mode === 'screen' ? 'screen' : 'take'}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.${ext}`;
-      setTake({ url: URL.createObjectURL(blob), file: new File([blob], name, { type }) });
+      setTake({ url: URL.createObjectURL(blob), file: new File([blob], name, { type: type.split(';')[0] }) });
       setPhase('review');
       wake.current?.release().catch(() => {}); wake.current = null;
       stopAll();

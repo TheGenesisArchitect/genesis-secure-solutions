@@ -21,7 +21,7 @@ export async function unedit(body: Record<string, unknown>) {
 
 /** Upload and register a recording. Returns the recording's id (an earlier upload of the same file: that one). */
 export async function uploadRecording(f: File, onProgress: (pct: number, note: string) => void): Promise<{ id: string; existing: boolean; say?: string }> {
-  if (!/^video\//.test(f.type) && !/\.(mp4|mov|m4v|webm)$/i.test(f.name)) throw new Error('Pick a video file.');
+  if (!/^video\//.test(f.type) && !/\.(mp4|mov|m4v|webm|3gp)$/i.test(f.name)) throw new Error('Pick a video file.');
   if (f.size > 4096 * 1024 * 1024) throw new Error('Unedit takes recordings up to 4 GB.');
   onProgress(0, 'Checking the file…');
   const fp = await fingerprint(f);
@@ -29,9 +29,14 @@ export async function uploadRecording(f: File, onProgress: (pct: number, note: s
   if (seen.id) return { id: seen.id, existing: true, say: 'You already uploaded this recording; here it is.' };
   onProgress(0, 'Uploading…');
   const ext = (f.name.match(/\.(mp4|mov|m4v|webm)$/i)?.[1] ?? (f.type.includes('quicktime') ? 'mov' : f.type.includes('webm') ? 'webm' : 'mp4')).toLowerCase();
+  // Storage accepts exactly these types. A browser recording is labelled with its codecs ("video/mp4;codecs=avc1…"),
+  // and some phones label takes oddly (video/3gpp, empty): either one was refused as "Content type mismatch"
+  // (2026-11-15), so the label comes from the extension unless it is already one of the four.
+  const plain = (f.type || '').split(';')[0].trim().toLowerCase();
+  const contentType = ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm'].includes(plain) ? plain : ({ mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/x-m4v' } as Record<string, string>)[ext] ?? 'video/mp4';
   const base = f.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'recording';
   const blob = await upload(`studio/vlogs/uploads/${base}.${ext}`, f, {
-    access: 'private', handleUploadUrl: '/api/studio/upload', multipart: true, contentType: f.type || 'video/mp4',
+    access: 'private', handleUploadUrl: '/api/studio/upload', multipart: true, contentType,
     onUploadProgress: (e) => onProgress(Math.round(e.percentage), 'Uploading…'),
   });
   onProgress(100, 'Starting…');
