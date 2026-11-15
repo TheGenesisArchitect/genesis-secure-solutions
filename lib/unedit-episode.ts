@@ -338,8 +338,9 @@ async function behindWindow(dir: string, reelUrl: string, o: Overlay, n: number,
  *  the cut-out speaker in its own window clip; if that fails, it is laid in front like any other. */
 /** Seconds of matting per second of behind graphics, as budgeted (measured ~20 s/s on one core; padded). */
 const CUTOUT_S_PER_S = 30;
-export async function overlayPart(dir: string, reelUrls: string[], overlays: Overlay[], size?: { width: number; height: number }, cutoutBy = 0): Promise<void> {
-  if (!overlays.length) return;
+export async function overlayPart(dir: string, reelUrls: string[], overlays: Overlay[], size?: { width: number; height: number }, cutoutBy = 0, captions = false): Promise<void> {
+  // captions: a c.ass (with its fonts/ folder) is in `dir`; it burns in on the same encode as the graphics.
+  if (!overlays.length && !captions) return;
   const inputs: string[] = ['-i', 'part.mp4'];
   const fc: string[] = [];
   let last = '0:v';
@@ -355,6 +356,7 @@ export async function overlayPart(dir: string, reelUrls: string[], overlays: Ove
     }
     last = `o${i}`;
   }
+  if (captions) { fc.push(`[${last}]ass=c.ass:fontsdir=fonts[cap]`); last = 'cap'; }
   await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', `[${last}]`, '-an', ...X264, '-crf', '19', '-g', String(GOP), '-video_track_timescale', '15360',
     '-movflags', '+faststart', 'graphic.mp4'], dir, 600_000);
   await fs.rename(path.join(dir, 'graphic.mp4'), path.join(dir, 'part.mp4'));

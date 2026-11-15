@@ -136,6 +136,41 @@ export function captionsAss(words: Word[], serif = false): string {
   ].join('\n');
 }
 
+/** The long-form episode's captions (16:9, any size): word by word like the clips, up to 4 words a card, the spoken
+ *  word in Genovus gold, sized to the frame and set low in the safe zone. Accent words (the director's emphasis) turn
+ *  orange. `words` are on the part's own timeline. */
+export function episodeCaptionsAss(words: Word[], size: { width: number; height: number }, serif = false): string {
+  const H = size.height, Wd = size.width;
+  const phrases: Word[][] = [];
+  let cur: Word[] = [];
+  for (const [i, w] of words.entries()) {
+    const prev = words[i - 1];
+    const chars = cur.reduce((a, x) => a + x.w.length + 1, 0);
+    const brk = cur.length >= 4 || chars + w.w.length > 26 || (prev && (/[.!?]$/.test(prev.w) || w.s - prev.e > 0.5));
+    if (cur.length && brk) { phrases.push(cur); cur = []; }
+    cur.push(w);
+  }
+  if (cur.length) phrases.push(cur);
+  const fs_ = Math.round(H * 0.078), accentFs = Math.round(fs_ * 1.1);
+  const accent = (t: string) => (serif ? `{\\fnInstrument Serif\\i1\\fs${Math.round(accentFs * 1.15)}\\1c${ACCENT}\\2c${ACCENT}}${t.replace(/[{}\\]/g, '').trim().toLowerCase()}{\\r}` : `{\\fs${accentFs}\\1c${ACCENT}\\2c${ACCENT}}${assText(t)}{\\r}`);
+  const lines = phrases.map((p, i) => {
+    const t0 = p[0].s;
+    const next = phrases[i + 1]?.[0].s ?? Infinity;
+    const t1 = Math.min(Math.max(p[p.length - 1].e + 0.2, t0 + 0.45), next);
+    const ks = p.map((w, k) => `{\\k${Math.max(1, Math.round(((k + 1 < p.length ? p[k + 1].s : t1) - (k ? w.s : t0)) * 100))}}${w.a ? accent(w.w) : assText(w.w)}`);
+    // A quick pop on each card: from 92% to full size in 120 ms.
+    return `Dialogue: 0,${assTime(t0)},${assTime(t1)},Cap,,0,0,0,,{\\fscx92\\fscy92\\t(0,120,\\fscx100\\fscy100)}${ks.join(' ')}`;
+  });
+  return [
+    '[Script Info]', 'ScriptType: v4.00+', `PlayResX: ${Wd}`, `PlayResY: ${H}`, 'WrapStyle: 0', 'ScaledBorderAndShadow: yes', '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    `Style: Cap,${FONT},${fs_},&H001AA3FF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,0,0,1,${Math.max(3, Math.round(H * 0.0056))},${Math.max(1, Math.round(H * 0.0022))},2,${Math.round(Wd * 0.1)},${Math.round(Wd * 0.1)},${Math.round(H * 0.09)},1`,
+    '', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...lines, '',
+  ].join('\n');
+}
+
 /** Words that fall inside the spans, re-timed onto the clip's own timeline (spans play back to back). */
 export function wordsForSpans(words: Word[], spans: Span[]): Word[] {
   const out: Word[] = [];
@@ -148,7 +183,7 @@ export function wordsForSpans(words: Word[], spans: Span[]): Word[] {
 }
 
 /** Copies the caption fonts next to the subtitles; true when the serif accent face is available. */
-async function fontsDir(dir: string): Promise<boolean> {
+export async function fontsDir(dir: string): Promise<boolean> {
   const fd = path.join(dir, 'fonts');
   await fs.mkdir(fd);
   await fs.copyFile(path.join(process.cwd(), 'lib/fonts/archivo-expanded-800.ttf'), path.join(fd, 'archivo-expanded-800.ttf'));

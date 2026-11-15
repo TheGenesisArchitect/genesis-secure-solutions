@@ -17,7 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { extractAudio, frames, presigned, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { episodeCaptionsAss, extractAudio, fontsDir, frames, presigned, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -566,14 +566,16 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
         await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: tries - 1, lease_until: null, ms: Date.now() - t0 }).eq('vlog_id', id).eq('k', k);
         return `Part ${k + 1}'s picture is stored; it waits for the graphics.`;
       }
+      // Word-by-word captions for this part (burned in on the same encode as the graphics).
+      const caps = CAPTIONS_ON() ? await writePartCaptions(v, out.dir, p0, out.secs, g && !g.error ? g.items : []).catch((e) => { console.error(`[unedit] ${id} part ${k} captions: ${e instanceof Error ? e.message : e}`); return false; }) : false;
       // The graphics reel's stretches for this part's place in the episode.
       if (g?.reels?.length && g.reels.every((r) => r.path) && !g.error && g.items.length) {
         const overlays = partOverlays(g.items, g.reels, p0, p0 + out.secs);
         const urls = await Promise.all(g.reels.map((r) => presigned(r.path!, 120)));
         // Text behind the speaker only on a first try and while the part has time for it (a retry, or a slow part,
         // lays those graphics in front instead). The budget counts from when the overlay starts.
-        if (overlays.length) await overlayPart(out.dir, urls, overlays, v.episode_plan.size, tries === 1 ? Math.min(t0 + CUTOUT_BUDGET_MS, Date.now() + CUTOUT_ALONE_MS) : 0).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
-      }
+        if (overlays.length || caps) await overlayPart(out.dir, urls, overlays, v.episode_plan.size, tries === 1 ? Math.min(t0 + CUTOUT_BUDGET_MS, Date.now() + CUTOUT_ALONE_MS) : 0, caps).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
+      } else if (caps) await overlayPart(out.dir, [], [], v.episode_plan.size, 0, true).catch((e) => console.error(`[unedit] ${id} part ${k} captions: ${e instanceof Error ? e.message : e}`));
       const path_ = partPath(v, k);
       await put(path_, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
       await dbx().from('unedit_episode_parts').update({ status: 'done', blob_path: path_, secs: Math.round(out.secs * 100) / 100, ms: Date.now() - t0, error: null, lease_until: null }).eq('vlog_id', id).eq('k', k);
@@ -588,6 +590,34 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     console.error(`[unedit] ${id} episode part ${k}: ${msg}`);
     return `Part ${k + 1} failed: ${msg}`;
   }
+}
+
+// ---- the episode's captions ------------------------------------------------------------------------------------
+const CAPTIONS_ON = () => process.env.UNEDIT_EPISODE_CAPTIONS !== 'off';
+/** Graphics that sit low in the frame or fill it: captions step aside while one is on screen. */
+const CAPTION_CLEAR = new Set(['title', 'lower', 'kinetic', 'ticker', 'end', 'globe', 'chapter']);
+/** Write this part's c.ass (and its fonts) into `dir`: the words said in it, on the part's own timeline, minus the
+ *  windows where a low or full-frame graphic is up; the director's emphasis and kinetic words in orange. False when
+ *  the part has no words to caption. */
+async function writePartCaptions(v: Vlog, dir: string, p0: number, secs: number, items: EpGraphic[]): Promise<boolean> {
+  if (!v.edit || !v.episode_plan) return false;
+  const words = await readWords(v);
+  const keep = v.edit.keep;
+  const clear = items.filter((g) => CAPTION_CLEAR.has(g.kind)).map((g) => [g.T - 0.15, g.T + g.D + 0.1] as const);
+  const key = items.filter((g) => g.kind === 'emphasis' || g.kind === 'kinetic').map((g) => ({ T: g.T, D: g.D, words: new Set(g.text.toLowerCase().split(/\s+/).map((x) => x.replace(/[^a-z0-9$%']/g, ''))) }));
+  const out: Word[] = [];
+  for (const w of words) {
+    const a = epTime(w.s, keep), b = epTime(Math.max(w.s, w.e - 0.02), keep);
+    if (a == null || b == null || a < p0 - 0.01 || a >= p0 + secs) continue;
+    if (clear.some(([x, y]) => a < y && b > x)) continue;
+    const bare = w.w.toLowerCase().replace(/[^a-z0-9$%']/g, '');
+    const accent = key.some((e) => a >= e.T - 1 && a <= e.T + e.D + 1 && e.words.has(bare));
+    out.push({ w: w.w, s: Math.max(0, a - p0), e: Math.min(secs, Math.max(b, a + 0.05) - p0), a: accent });
+  }
+  if (!out.length) return false;
+  const serif = await fontsDir(dir);
+  await fs.writeFile(path.join(dir, 'c.ass'), episodeCaptionsAss(out, v.episode_plan.size, serif));
+  return true;
 }
 
 /** Three thumbnail options: Claude picks the three best stills of the speaker from eight, each gets a line and a look. */
