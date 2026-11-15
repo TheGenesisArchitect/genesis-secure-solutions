@@ -66,6 +66,11 @@ export default async function Studio() {
   const inqBy = (s: string) => (inq ?? []).filter((i) => i.source === s).length;
   return (
     <ConsoleShell title="Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { label: 'Studio' }]}>
+      <Link href="/console/studio/newsroom" className="ue-entry">
+        <span className="ue-entry-dot" aria-hidden="true" />
+        <span><b>Newsroom</b><span className="muted">Helix researches your beats live. Pick a story, press Produce, and the next recording is ready to cut.</span></span>
+        <span className="btn small primary">Open</span>
+      </Link>
       <Link href="/console/studio/unedit" className="ue-entry">
         <span className="ue-entry-dot" aria-hidden="true" />
         <span><b>Unedit</b><span className="muted">Record one take. Get the clips, the full video and thumbnails on one Approve card.</span></span>

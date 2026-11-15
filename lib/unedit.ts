@@ -27,6 +27,7 @@ import { editList, within, type Edit } from '@/lib/unedit-edit';
 import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
+import { claimForUpload } from '@/lib/newsroom';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
@@ -86,6 +87,8 @@ export async function registerVlog(f: { blobPath: string; blobUrl: string; bytes
     throw new Error(error.message);
   }
   await log('upload', data.id as string, { bytes: f.bytes, file: f.fileName });
+  // Newsroom: a production waiting for the next upload hands this recording its sources sheet.
+  await claimForUpload(tenant, data.id as string).catch((e) => console.error('[unedit] newsroom sheet not attached:', e instanceof Error ? e.message : e));
   return { id: data.id as string, existing: false };
 }
 
