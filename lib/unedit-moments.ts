@@ -3,6 +3,7 @@
 // titles and copy for each network, plus the full video's title and description and three thumbnail lines.
 // Code, not the model, owns the cuts: picks are sentence numbers, turned into times from the words, and clips that
 // run too short or long, overlap, or break the copy rules are dropped. ANTHROPIC_API_BASE points tests at a stand-in.
+import { jsonMatch } from '@/lib/json-reply';
 import 'server-only';
 import type { Word } from '@/lib/unedit-media';
 import { playOrder, screenCodes, screenMenu, SHOTS_RULES, toShots, type RawShot, type Shot } from '@/lib/unedit-shots';
@@ -106,7 +107,7 @@ export function toPicks(raw: RawClip[], ss: Sentence[], taken: { from: number; t
 }
 
 function parse(text: string): { clips: RawClip[]; episode: { title?: string; description?: string; tags?: unknown[] }; thumbs: unknown[]; falseStarts: string[] } {
-  const m = text.match(/\{[\s\S]*\}/);
+  const m = jsonMatch(text);
   if (!m) throw new Error('Claude did not return the clip plan.');
   const j = JSON.parse(m[0]) as { clips?: RawClip[]; episode?: { title?: string; description?: string; tags?: unknown[] }; thumbs?: unknown[]; false_starts?: unknown[] };
   return { clips: Array.isArray(j.clips) ? j.clips : [], episode: j.episode ?? {}, thumbs: Array.isArray(j.thumbs) ? j.thumbs : [], falseStarts: (Array.isArray(j.false_starts) ? j.false_starts : []).map((x) => str(x, 200)).filter((x) => x.split(' ').length >= 2).slice(0, 20) };
@@ -179,7 +180,7 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
   ].join('\n');
   const lines = keep.map((i) => ss[i]).map((x) => `[${x.i} ${mmss(x.s)}] ${taggedText(words, tags, x.w0, x.w1)}`).join('\n');
   const r = await claude(system, `Transcript (numbered sentences the episode keeps):\n${lines}`);
-  const m = r.text.match(/\{[\s\S]*\}/);
+  const m = jsonMatch(r.text);
   const j = m ? (JSON.parse(m[0]) as { chapters?: { s?: number; title?: string }[]; cues?: RawCue[]; kinetic?: { s?: number; text?: string; accent?: number }[]; emphasis?: { s?: number; word?: string }[]; broll?: { s?: number; prompt?: string }[] }) : {};
   const kept = new Set(keep);
   const chapters = (Array.isArray(j.chapters) ? j.chapters : [])
@@ -236,7 +237,7 @@ export async function pickStills(stills: Buffer[], want = 3): Promise<{ order: n
     });
     const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
     if (!r.ok) return fallback;
-    const m = (j.content ?? []).map((b) => b.text ?? '').join('').match(/\{[\s\S]*\}/);
+    const m = jsonMatch((j.content ?? []).map((b) => b.text ?? '').join(''));
     const order = (m ? (JSON.parse(m[0]).order as unknown[]) : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < stills.length);
     const uniq = [...new Set([...order, ...fallback.order])].slice(0, want);
     return { order: uniq, cents: Math.ceil(((j.usage?.input_tokens ?? 0) * PRICE.in + (j.usage?.output_tokens ?? 0) * PRICE.out) / 1_000_000) };

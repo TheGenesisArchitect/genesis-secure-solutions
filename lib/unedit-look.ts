@@ -6,6 +6,7 @@
 //           neutral), the face's brightness and the saturation; each turns into one bounded correction (a partial
 //           white balance, a midtone lift for the face, a saturation trim). The bounds keep it a polish, never a look.
 // One grade is used for the episode, the clips and the thumbnails, so everything from one take matches.
+import { jsonMatch } from '@/lib/json-reply';
 import 'server-only';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -74,7 +75,7 @@ export async function faceBoxes(stills: Buffer[]): Promise<{ boxes: (Box | null)
     const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
     const cents = Math.ceil(((j.usage?.input_tokens ?? 0) * PRICE.in + (j.usage?.output_tokens ?? 0) * PRICE.out) / 1_000_000);
     if (!r.ok) return { boxes: stills.map(() => null), cents };
-    const m = (j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').match(/\{[\s\S]*\}/);
+    const m = jsonMatch((j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join(''));
     const raw = m ? ((JSON.parse(m[0]) as { boxes?: unknown[] }).boxes ?? []) : [];
     const boxes = stills.map((_, i) => {
       const b = raw[i] as Partial<Box> | null | undefined;

@@ -3,6 +3,7 @@
 // text over the face, text that doesn't read against the footage, text cut off by the frame, two graphics colliding.
 // The geometry rules already ran in code (lib/unedit-style.ts); this is the second pass. Fixed actions only: a graphic
 // that fails is dropped and the episode re-renders ONCE; anything after that is reported on the card, never looped.
+import { jsonMatch } from '@/lib/json-reply';
 import 'server-only';
 import { frames } from '@/lib/unedit-media';
 import type { EpGraphic } from '@/lib/unedit-episode';
@@ -50,7 +51,7 @@ export async function qaEpisode(episodeUrl: string, items: EpGraphic[]): Promise
     const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
     const cents = Math.ceil(((j.usage?.input_tokens ?? 0) * PRICE.in + (j.usage?.output_tokens ?? 0) * PRICE.out) / 1_000_000);
     if (!r.ok) return { checked: 0, issues: [], cents };
-    const m = (j.content ?? []).map((b) => b.text ?? '').join('').match(/\{[\s\S]*\}/);
+    const m = jsonMatch((j.content ?? []).map((b) => b.text ?? '').join(''));
     const raw = (m ? (JSON.parse(m[0]).issues as unknown[]) : []) ?? [];
     const issues: QaIssue[] = [];
     for (const x of Array.isArray(raw) ? raw : []) {

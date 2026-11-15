@@ -10,6 +10,7 @@
 //              and posts. "Use for my next upload" puts the sheet on the next Unedit recording.
 // Everything fetched from the web is data: page text never becomes instructions. Spend counts against the Studio
 // budget (newsroom_runs feeds studio_spent_cents) and a daily newsroom cap.
+import { jsonMatch } from '@/lib/json-reply';
 import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
@@ -105,7 +106,7 @@ const normUrl = (u: string) => u.replace(/#.*$/, '').replace(/[?&]utm_[^&]+/g, '
 const norm = (s: string) => s.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim();
 const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 function json<T>(text: string): T {
-  const m = text.match(/\{[\s\S]*\}/);
+  const m = jsonMatch(text);
   if (!m) throw new Error('Helix did not return the result.');
   return JSON.parse(m[0]) as T;
 }
