@@ -146,7 +146,9 @@ export type Chapter = { s: number; title: string };
  *  and single emphasis words, each on the sentence where it is said (w = the word's global index). */
 export type Kinetic = { s: number; w: number; text: string; accent: number };
 export type Emphasis = { s: number; w: number; word: string };
-export type EpisodeDirection = { chapters: Chapter[]; cues: Cue[]; kinetic: Kinetic[]; emphasis: Emphasis[]; cents: number };
+/** A B-roll moment: a short illustration cut in over the speaker's voice at sentence `s`. */
+export type Broll = { s: number; prompt: string };
+export type EpisodeDirection = { chapters: Chapter[]; cues: Cue[]; kinetic: Kinetic[]; emphasis: Emphasis[]; broll: Broll[]; cents: number };
 const wnorm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}$%']/gu, '');
 
 /** The long-form director: chapters and the episode's cues, over the sentences the episode keeps. Long-form is paced
@@ -154,7 +156,7 @@ const wnorm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}$%']/gu, '');
 export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature'): Promise<EpisodeDirection> {
   const ss = sentences(words);
   const keep = keepSentences.filter((i) => ss[i]);
-  if (keep.length < 3) return { chapters: [], cues: [], kinetic: [], emphasis: [], cents: 0 };
+  if (keep.length < 3) return { chapters: [], cues: [], kinetic: [], emphasis: [], broll: [], cents: 0 };
   const tags = tagWords(words);
   const system = [
     `You are the editor for ${who}'s long-form YouTube episodes. The video is real footage of a real person talking to camera, already cut tight.`,
@@ -165,13 +167,14 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     ...(PACKAGES[pkg]?.slots.kinetic ? [`"kinetic": write 1 or ${STYLE_RULES.maxKinetic} phrases of ${STYLE_RULES.kineticWords[0]} to ${STYLE_RULES.kineticWords[1]} CONSECUTIVE words copied exactly from one sentence (punctuation may differ): the hook or the thesis, the first one within the first 40 seconds. "accent" is the 0-based index of the payoff word drawn in orange.`] : []),
     ...(PACKAGES[pkg]?.slots.emphasis ? [`"emphasis": write 1 to ${STYLE_RULES.maxEmphasis} single words (${STYLE_RULES.emphasisMin}+ letters, copied exactly from the sentence where it is said): the concrete thing or key idea a whole passage is about (coffee, faith, money), never filler.`] : []),
     'Every word you place on screen must be the speaker\'s own; chapter titles are 2 to 5 words a viewer would click.',
+    `"broll": up to ${Math.max(1, Math.floor(secs / 25))} moments (at least 15 seconds apart, none in the first 6 seconds) where a 4-second illustration should cut in while the speaker keeps talking: a sentence about an idea, object, kind of place or metaphor that a picture would make vivid. "prompt" describes the shot for a video model: ABSTRACT or GENERIC only (an object, hands, a setting, a metaphor), never a real or recognisable person, face, brand, logo, real place or real event, and no text in frame; cinematic, shallow depth of field, slow camera move, warm tungsten light with teal shadows, 35mm film look.`,
     `Screen codes (real Genovus screens):\n${screenMenu()}`,
-    'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}],"kinetic":[{"s":<sentence #>,"text":"…","accent":0}],"emphasis":[{"s":<sentence #>,"word":"…"}]}',
+    'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}],"kinetic":[{"s":<sentence #>,"text":"…","accent":0}],"emphasis":[{"s":<sentence #>,"word":"…"}],"broll":[{"s":<sentence #>,"prompt":"…"}]}',
   ].join('\n');
   const lines = keep.map((i) => ss[i]).map((x) => `[${x.i} ${mmss(x.s)}] ${taggedText(words, tags, x.w0, x.w1)}`).join('\n');
   const r = await claude(system, `Transcript (numbered sentences the episode keeps):\n${lines}`);
   const m = r.text.match(/\{[\s\S]*\}/);
-  const j = m ? (JSON.parse(m[0]) as { chapters?: { s?: number; title?: string }[]; cues?: RawCue[]; kinetic?: { s?: number; text?: string; accent?: number }[]; emphasis?: { s?: number; word?: string }[] }) : {};
+  const j = m ? (JSON.parse(m[0]) as { chapters?: { s?: number; title?: string }[]; cues?: RawCue[]; kinetic?: { s?: number; text?: string; accent?: number }[]; emphasis?: { s?: number; word?: string }[]; broll?: { s?: number; prompt?: string }[] }) : {};
   const kept = new Set(keep);
   const chapters = (Array.isArray(j.chapters) ? j.chapters : [])
     .map((c) => ({ s: Number(c.s), title: str(c.title, 48) }))
@@ -201,7 +204,11 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     if (!sen || !kept.has(sen.i) || want.replace(/[^\p{L}]/gu, '').length < STYLE_RULES.emphasisMin) continue;
     for (let i = sen.w0; i <= sen.w1; i++) if (wnorm(words[i].w) === want) { emphasis.push({ s: sen.i, w: i, word: words[i].w.replace(/[^\p{L}\p{N}'-]/gu, '').toLowerCase() }); break; }
   }
-  return { chapters: secs >= 60 ? chapters : [], cues, kinetic: kinetic.slice(0, STYLE_RULES.maxKinetic), emphasis: emphasis.slice(0, STYLE_RULES.maxEmphasis), cents: r.cents };
+  // B-roll: real sentences of the kept talk only; the standards ride in the prompt (abstract or generic only).
+  const broll: Broll[] = (Array.isArray(j.broll) ? j.broll : []).map((b) => ({ s: Number(b?.s), prompt: str(b?.prompt, 600) }))
+    .filter((b) => kept.has(b.s) && b.prompt.length > 20 && !/\b(logo|text that reads|words on screen)\b/i.test(b.prompt))
+    .slice(0, Math.max(1, Math.floor(secs / 25)));
+  return { chapters: secs >= 60 ? chapters : [], cues, kinetic: kinetic.slice(0, STYLE_RULES.maxKinetic), emphasis: emphasis.slice(0, STYLE_RULES.maxEmphasis), broll, cents: r.cents };
 }
 
 /** Pick which stills make the best thumbnails (a clear, expressive face, eyes open, not mid-blink or blurred).

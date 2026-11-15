@@ -69,10 +69,10 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
   // Full-frame inserts (the figure on the globe) own the screen, so they are settled first: one at a time, and
   // finished before the end card (which takes the last ~4.5 s). Everything else then keeps clear of them.
   const globes: [number, number][] = [];
-  for (const g of base.filter((b) => b.kind === 'globe').sort((a, b) => a.T - b.T)) {
+  for (const g of base.filter((b) => b.kind === 'globe' || b.kind === 'broll').sort((a, b) => a.T - b.T)) {
     const T = Math.max(g.T, globes.length ? globes[globes.length - 1][1] + RULES.gap : 0);
     const D = Math.min(g.D, secs - 5 - T);
-    if (D < 2.5) { notes.push(`globe at ${g.T.toFixed(1)}s left out: no room before the end card`); continue; }
+    if (D < 2.5) { notes.push(`${g.kind} at ${g.T.toFixed(1)}s left out: no room before the end card`); continue; }
     globes.push([T, T + D]);
     busy.push([T - RULES.gap, T + D + RULES.gap]);
     out.push({ ...g, T, D });
@@ -89,7 +89,7 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
     return null;
   };
   for (const g of [...base].sort((a, b) => rank(a.kind) - rank(b.kind) || a.T - b.T)) {
-    if (g.kind === 'globe') continue;
+    if (g.kind === 'globe' || g.kind === 'broll') continue;
     let item: EpGraphic = { ...g };
     if (g.kind === 'source') {
       const c = clearOfGlobes({ ...item, D: Math.min(item.D, secs - item.T) });

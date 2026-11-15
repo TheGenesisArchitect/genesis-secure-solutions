@@ -28,6 +28,7 @@ import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
+import { runwayConfigured, runwayTask, runwayTextVideo } from '@/lib/runway';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
@@ -350,6 +351,19 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
     const cue = { t: 0, end: D, kind: c.kind, text: c.text, icon: c.icon, items: items2, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam };
     base.push({ T, D, kind: 'cue', text: c.text, cue, sound: c.sound });
   }
+  // B-roll: each director moment starts a Runway illustration now (it renders while the parts do); the step waits for
+  // the clips before the reel. Abstract or generic shots only, labelled "Illustration" on screen. UNEDIT_BROLL=off.
+  if (BROLL_ON() && runwayConfigured()) {
+    for (const b of dir.broll) {
+      const T = epTime(ss[b.s]?.s ?? -1, edit.keep);
+      if (T == null || T < 6 || T > secs - 10) continue;
+      try {
+        const job = await runwayTextVideo({ prompt: b.prompt, duration: 4 });
+        await spend(v.id, BROLL_CENTS, 'B-roll illustration (Runway)');
+        base.push({ T: T + 0.3, D: 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id }, sound: 'whoosh' });
+      } catch (e) { console.error(`[unedit] ${v.id} B-roll not started: ${e instanceof Error ? e.message : e}`); }
+    }
+  }
   // Newsroom: every fact on the approved sources sheet, where its words are said (never placed by a model).
   const placed = v.sources?.length ? placeNews(v.sources, words, (s) => epTime(s, edit.keep), secs) : { items: [], notes: [] };
   for (const n of placed.items) base.push({ T: n.T, D: n.D, kind: n.kind, text: n.text, news: n.news, sound: n.sound });
@@ -417,7 +431,9 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     await startParts(v.id, origin);
     try {
       const size = v.episode_plan!.size;
-      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, news: x.news }));
+      await settleBroll(v, g);
+      const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : null);
+      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, news: x.news, media: await brollLink(x) })));
       const done = await Promise.all(todo.map(async (i) => {
         const r = g.reels![i];
         const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
@@ -590,6 +606,32 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     console.error(`[unedit] ${id} episode part ${k}: ${msg}`);
     return `Part ${k + 1} failed: ${msg}`;
   }
+}
+
+// ---- B-roll ----------------------------------------------------------------------------------------------------
+const BROLL_ON = () => process.env.UNEDIT_BROLL !== 'off';
+const BROLL_CENTS = 40; // Veo 3.1 Fast through Runway: 10 credits a second, 4 s
+/** Wait (up to ~4 minutes in all) for the episode's B-roll jobs, store each clip in Blob, and record it on the plan
+ *  (mutating `g`). A job that fails or runs out of time leaves its slot empty: the speaker stays on screen. */
+async function settleBroll(v: Vlog, g: Graphics): Promise<void> {
+  const open = g.items.filter((x) => x.kind === 'broll' && x.broll?.task && !x.broll.path && !x.broll.failed);
+  if (!open.length) return;
+  const until = Date.now() + 240_000;
+  await Promise.all(open.map(async (x, n) => {
+    try {
+      let t = await runwayTask(x.broll!.task!);
+      while (!['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(t.status) && Date.now() < until) { await new Promise((r) => setTimeout(r, 6000)); t = await runwayTask(x.broll!.task!); }
+      if (t.status !== 'SUCCEEDED' || !t.output?.[0]) { x.broll!.failed = t.failure ?? `still ${t.status.toLowerCase()}`; return; }
+      const r = await fetch(t.output[0], { signal: AbortSignal.timeout(90_000) });
+      if (!r.ok) throw new Error(`download ${r.status}`);
+      const p = `${dir(v)}/episode/broll-${n}-${Date.now()}.mp4`;
+      await put(p, Buffer.from(await r.arrayBuffer()), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true });
+      x.broll!.path = p;
+    } catch (e) { x.broll!.failed = (e instanceof Error ? e.message : String(e)).slice(0, 160); }
+  }));
+  const { data: cur } = await dbx().from('unedit_vlogs').select('episode_plan').eq('id', v.id).single();
+  const ep = (cur?.episode_plan ?? v.episode_plan) as EpisodePlan;
+  if (ep.graphics) await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics: { ...ep.graphics, items: g.items } } }).eq('id', v.id);
 }
 
 // ---- the episode's captions ------------------------------------------------------------------------------------

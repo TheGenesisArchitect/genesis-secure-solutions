@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 9504
+/***/ 3862
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -150843,7 +150843,25 @@ function FigureGlobe({ phase, dur, caption }) {
   ] });
 }
 
+;// ./src/hf/broll.tsx
+
+
+
+
+
+function BrollInsert({ src, dur, label = "Illustration" }) {
+  const { t, u } = useT();
+  if (!src) return null;
+  const a = tw(t, 0, 0.18, E.p2Out), z = tw(t, dur - 0.2, 0.2, E.p2In);
+  const push = mix(1, 1.06, tw(t, 0, dur, E.sineInOut));
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { backgroundColor: "#000", opacity: a * (1 - z) }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { transform: `scale(${push})` }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src, muted: true, style: { width: "100%", height: "100%", objectFit: "cover" } }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", right: 40 * u, top: 36 * u, fontFamily: HF.mono, fontSize: 18 * u, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.86)", background: "rgba(0,0,0,0.45)", padding: `${6 * u}px ${12 * u}px`, borderRadius: 999 }, children: label })
+  ] });
+}
+
 ;// ./src/UneditEpisodeCues.tsx
+
 
 
 
@@ -151006,7 +151024,7 @@ const UneditEpisodeCues = ({ items }) => {
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { backgroundColor: "transparent" }, children: items.map((it, i) => {
     const from = Math.round(it.at * FPS);
     const dur = Math.max(10, Math.round(it.dur * FPS));
-    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: isNews(it.kind) ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(News, { it, s: dur / FPS }) }) : it.style ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Styled, { it, s: dur / FPS }) }) : it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: it.kind === "broll" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(BrollInsert, { src: it.media, dur: dur / FPS }) }) : isNews(it.kind) ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(News, { it, s: dur / FPS }) }) : it.style ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Styled, { it, s: dur / FPS }) }) : it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
   }) });
 };
 
@@ -171286,7 +171304,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(9504);
+/******/ 	__webpack_require__(3862);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

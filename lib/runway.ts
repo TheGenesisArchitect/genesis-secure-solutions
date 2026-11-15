@@ -43,6 +43,11 @@ export function runwayVideo(p: { model: 'seedance2_5' | 'gen4.5' | 'gen4_turbo' 
   return call<{ id: string }>('/image_to_video', { body: { model: p.model, promptImage, promptText: p.prompt, ratio: p.ratio, ...(p.duration ? { duration: p.duration } : {}), ...(p.audio != null ? { audio: p.audio } : {}), ...(p.seed != null ? { seed: p.seed } : {}) } });
 }
 
+/** Text to video (Veo 3.1 Fast, no audio, 1920x1080): Unedit's B-roll illustrations. 10 credits a second. */
+export function runwayTextVideo(p: { prompt: string; duration: 4 | 6 | 8 }) {
+  return call<{ id: string }>('/text_to_video', { body: { model: 'veo3.1_fast', promptText: p.prompt.slice(0, 1000), ratio: '1920:1080', duration: p.duration, audio: false } });
+}
+
 /** A still from text plus tagged reference images (@marcus, @office…), for keyframes that keep identities locked. */
 export function runwayImage(p: { model?: 'gen4_image' | 'gen4_image_turbo'; prompt: string; ratio: string; refs: { uri: string; tag?: string }[]; seed?: number }) {
   return call<{ id: string }>('/text_to_image', { body: { model: p.model ?? 'gen4_image', promptText: p.prompt, ratio: p.ratio, referenceImages: p.refs, ...(p.seed != null ? { seed: p.seed } : {}) } });
