@@ -25,6 +25,7 @@ import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Edit } from '@/lib/unedit-edit';
 import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
+import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { MUSIC, assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
@@ -42,6 +43,8 @@ export type Vlog = {
   thumbs: { blob: string; text: string; t: number; look: string }[]; thumb_pick: number | null; cost_cents: number; created_at: string; approved_at: string | null;
   // Episode Pro (null on recordings made before it: their episode posts as recorded)
   audio_blob: string | null; edit: Edit | null; look: Look | null; episode_plan: EpisodePlan | null; episode_path: string | null;
+  /** Newsroom: the approved sources sheet (lib/unedit-news.ts); null on ordinary recordings. */
+  sources?: NewsEntry[] | null;
 };
 export type Clip = {
   id: string; vlog_id: string; n: number; start_s: number; end_s: number; hook_start_s: number | null; hook_end_s: number | null;
@@ -343,8 +346,12 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
     const cue = { t: 0, end: D, kind: c.kind, text: c.text, icon: c.icon, items: items2, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam };
     base.push({ T, D, kind: 'cue', text: c.text, cue, sound: c.sound });
   }
+  // Newsroom: every fact on the approved sources sheet, where its words are said (never placed by a model).
+  const placed = v.sources?.length ? placeNews(v.sources, words, (s) => epTime(s, edit.keep), secs) : { items: [], notes: [] };
+  for (const n of placed.items) base.push({ T: n.T, D: n.D, kind: n.kind, text: n.text, news: n.news, sound: n.sound });
   const chapters = chaps.length >= 3 ? `Chapters\n${chaps.map((x) => `${ts(x.t)} ${x.c.title}`).join('\n')}` : undefined;
-  return { ...styled(base, pkg, frame, secs), chapters, error: null };
+  const s = styled(base, pkg, frame, secs);
+  return { ...s, notes: [...placed.notes, ...(s.notes ?? [])], chapters, error: null };
 }
 
 /** Style the plan with a show package and lay out the reel (also used when the card changes the package). */
@@ -406,7 +413,7 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     await startParts(v.id, origin);
     try {
       const size = v.episode_plan!.size;
-      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW }));
+      const items = g.items.map((x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, news: x.news }));
       const done = await Promise.all(todo.map(async (i) => {
         const r = g.reels![i];
         const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
@@ -611,6 +618,7 @@ type Tap =
   | { tool: 'retry' }
   | { tool: 'retry_episode' }
   | { tool: 'set_package'; pkg: string }
+  | { tool: 'set_sources'; sheet: string }
   | { tool: 'approve' };
 
 /** One tap on the card, by a staff member. Returns what changed, in words. */
@@ -678,6 +686,25 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       await log('set-package', id, { pkg: t.pkg, by });
       await kick(origin, id);
       return `Restyling the episode as ${PACKAGES[t.pkg].label}.`;
+    }
+    case 'set_sources': {
+      // Newsroom: the approved sources sheet. Saved as parsed entries; a line that doesn't parse stops the save, so
+      // nothing half-sourced reaches the episode. If the episode is already polished, its graphics are planned again.
+      if (vlog.stage === 'published' || vlog.stage === 'publishing') throw new Error('This campaign is already approved.');
+      const { entries, errors } = parseSheet(String(t.sheet ?? '').slice(0, 20_000));
+      if (errors.length) throw new Error(`Fix the sources sheet first: ${errors.slice(0, 3).join('; ')}.`);
+      const ep = vlog.episode_plan;
+      const replan = vlog.stage === 'review' && ep && !ep.error && vlog.edit;
+      await dbx().from('unedit_vlogs').update({
+        sources: entries.length ? entries : null,
+        ...(replan ? { episode_plan: { ...ep, graphics: { items: [], pkg: ep.graphics?.pkg, replan: true, error: null } }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null } : {}),
+      }).eq('id', id);
+      if (replan) {
+        await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+        await kick(origin, id);
+      }
+      await log('set-sources', id, { entries: entries.length, by });
+      return `${entries.length} sourced ${entries.length === 1 ? 'item' : 'items'} saved${replan ? '; replanning the episode’s graphics' : '; they go on the episode when it’s polished'}.`;
     }
     case 'retry_episode': {
       // The polished episode stopped (the clips went on to review): fresh tries for its failed parts, before approval.

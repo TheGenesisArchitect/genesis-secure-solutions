@@ -59,12 +59,36 @@ export type BaseGraphic = Omit<EpGraphic, 'style' | 'layer' | 'off'>;
 export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCtx, secs: number): { items: EpGraphic[]; notes: string[]; gl: boolean } {
   const pkg = packageOf(pkgName);
   const notes: string[] = [];
-  const rank = (k: EpGraphic['kind']) => (['title', 'lower', 'chapter', 'end'].includes(k) ? 0 : k === 'kinetic' ? 1 : k === 'emphasis' ? 2 : 3);
+  // Newsroom facts outrank decoration: a quote, timeline or ticker comes right after the anchors, and a source chip is
+  // a small overlay that never competes for the screen (it is placed last and never dropped for a clash).
+  const rank = (k: EpGraphic['kind']) => (['title', 'lower', 'chapter', 'end'].includes(k) ? 0 : k === 'quote' || k === 'timeline' || k === 'ticker' ? 0.5 : k === 'kinetic' ? 1 : k === 'emphasis' ? 2 : k === 'source' ? 4 : 3);
+  const news = (k: EpGraphic['kind']) => k === 'source' || k === 'quote' || k === 'timeline' || k === 'ticker';
   const out: EpGraphic[] = [];
   const busy: [number, number][] = [];
   let kinetic = 0, emphasis = 0;
   for (const g of [...base].sort((a, b) => rank(a.kind) - rank(b.kind) || a.T - b.T)) {
     let item: EpGraphic = { ...g };
+    if (g.kind === 'source') {
+      if (item.T < secs - 1) out.push({ ...item, D: Math.min(item.D, secs - item.T) });
+      continue;
+    }
+    if (news(g.kind)) {
+      // Left-anchored panels stop short of the speaker's head, like front titles.
+      if (g.kind !== 'ticker' && ctx.face) {
+        const room = ctx.face.x - ctx.face.w / 3 - RULES.safe - 0.0625;
+        if (room < 0.45) item.maxW = Math.max(0.24, Math.round(room * 1000) / 1000);
+      }
+      // A fact is never dropped for a clash: it waits up to 2 s for the screen to clear, else shares it (noted).
+      const hit = busy.filter(([a, b]) => item.T < b && item.T + item.D > a);
+      if (hit.length) {
+        const free = Math.max(...hit.map(([, b]) => b));
+        if (free - item.T <= 2 && free + item.D <= secs) item.T = free;
+        else notes.push(`${g.kind} at ${g.T.toFixed(1)}s shares the screen with another graphic`);
+      }
+      busy.push([item.T - RULES.gap, item.T + item.D + RULES.gap]);
+      out.push(item);
+      continue;
+    }
     if (g.kind !== 'cue') {
       const { id, skipped } = resolveStyle(g.kind as Slot, pkg, ctx);
       if (skipped.length) notes.push(`${g.kind} at ${g.T.toFixed(1)}s: ${skipped.join('; ')}`);

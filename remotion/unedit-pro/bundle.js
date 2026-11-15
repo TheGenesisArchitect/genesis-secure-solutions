@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 4916
+/***/ 6082
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -150577,7 +150577,196 @@ function ExtrudedMark({ dur, tagline, finish = "chrome" }) {
   ] });
 }
 
+;// ./src/hf/news.tsx
+
+
+
+
+
+const PANEL = "rgba(10,11,15,0.86)";
+const LINE = "rgba(255,255,255,0.14)";
+const shadow = (u) => `0 ${24 * u}px ${60 * u}px rgba(0,0,0,0.45)`;
+function inOut(t, dur, inDur = 0.45, outDur = 0.35) {
+  return { a: tw(t, 0, inDur, E.p3Out), z: tw(t, dur - outDur, outDur, E.p2In) };
+}
+function SourceChip({ text, dur, label = "Source" }) {
+  const { t, u } = useT();
+  const { a, z } = inOut(t, dur, 0.4, 0.3);
+  if (t > dur) return null;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    position: "absolute",
+    left: 120 * u,
+    top: 92 * u,
+    display: "flex",
+    alignItems: "center",
+    gap: 14 * u,
+    padding: `${11 * u}px ${20 * u}px ${11 * u}px ${16 * u}px`,
+    background: PANEL,
+    border: `${1.5 * u}px solid ${LINE}`,
+    borderRadius: 999,
+    boxShadow: shadow(u),
+    clipPath: `inset(0 ${(1 - a) * 100}% 0 0 round ${40 * u}px)`,
+    opacity: 1 - z,
+    transform: `translateX(${mix(-18 * u, 0, a) - z * 12 * u}px)`
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 10 * u, height: 10 * u, borderRadius: 999, background: HF.orange, boxShadow: `0 0 ${14 * u}px ${HF.orange}` } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: HF.mono, fontWeight: 500, fontSize: 19 * u, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(235,238,245,0.7)" }, children: label }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: HF.inter, fontWeight: 600, fontSize: 25 * u, color: HF.cream, whiteSpace: "nowrap" }, children: text })
+  ] }) });
+}
+function QuoteCard({ quote, who, when, dur, maxW }) {
+  const { t, u, width } = useT();
+  const { a, z } = inOut(t, dur, 0.5, 0.4);
+  if (t > dur) return null;
+  const w = Math.min(860 * u, maxW ? maxW * width : Infinity);
+  const words = quote.split(/\s+/).filter(Boolean);
+  const size = Math.max(40, Math.min(64, 64 - Math.max(0, words.length - 14) * 1.6)) * u * Math.max(0.8, w / (860 * u));
+  const by = tw(t, 0.45 + words.length * 0.045, 0.4, E.p2Out);
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    position: "absolute",
+    left: 120 * u,
+    top: "24%",
+    width: w,
+    padding: `${40 * u}px ${44 * u}px ${36 * u}px ${48 * u}px`,
+    background: PANEL,
+    borderRadius: 20 * u,
+    borderLeft: `${6 * u}px solid ${HF.orange}`,
+    boxShadow: shadow(u),
+    clipPath: `inset(${(1 - a) * 50}% 0 ${(1 - a) * 50}% 0 round ${20 * u}px)`,
+    opacity: 1 - z,
+    transform: `translateY(${-z * 16 * u}px)`
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.serif, fontSize: 130 * u, lineHeight: 0.6, color: HF.orange, height: 54 * u, opacity: a }, children: "\u201C" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.serif, fontStyle: "italic", fontSize: size, lineHeight: 1.12, color: HF.cream, display: "flex", flexWrap: "wrap", gap: `0 ${0.26 * size}px` }, children: words.map((wd, i) => {
+      const p = tw(t, 0.3 + i * 0.045, 0.35, E.p2Out);
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { opacity: p, transform: `translateY(${(1 - p) * 14 * u}px)` }, children: wd }, i);
+    }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginTop: 26 * u, fontFamily: HF.mono, fontWeight: 500, fontSize: 22 * u, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(235,238,245,0.78)", opacity: by, transform: `translateY(${(1 - by) * 10 * u}px)` }, children: [
+      "\u2014 ",
+      who,
+      when ? ` \xB7 ${when}` : ""
+    ] })
+  ] }) });
+}
+function NewsTimeline({ title, items, dur, maxW }) {
+  const { t, u, width } = useT();
+  const { a, z } = inOut(t, dur, 0.4, 0.45);
+  if (t > dur) return null;
+  const w = Math.min(820 * u, maxW ? maxW * width : Infinity);
+  const ROW = 128 * u;
+  const lastIn = items.reduce((k, it, i) => t >= it.t ? i : k, -1);
+  const rail = lastIn < 0 ? 0 : (lastIn + tw(t, items[lastIn].t, 0.5, E.p2Out)) / Math.max(1, items.length);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: w + 240 * u, background: "linear-gradient(90deg, rgba(6,7,10,0.72) 0%, rgba(6,7,10,0.5) 60%, rgba(6,7,10,0) 100%)", opacity: a * (1 - z) } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 130 * u, top: "18%", width: w, opacity: 1 - z, transform: `translateY(${-z * 14 * u}px)` }, children: [
+      title ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: HF.mono, fontWeight: 500, fontSize: 24 * u, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(235,238,245,0.78)", display: "flex", alignItems: "center", gap: 16 * u, marginBottom: 36 * u, opacity: a }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 36 * u, height: 3 * u, background: HF.orange } }),
+        title
+      ] }) : null,
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", paddingLeft: 46 * u }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 9 * u, top: 12 * u, width: 3 * u, height: items.length * ROW - 40 * u, background: LINE } }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 9 * u, top: 12 * u, width: 3 * u, height: Math.max(0, rail * (items.length * ROW - 40 * u)), background: HF.orange, boxShadow: `0 0 ${12 * u}px ${HF.orange}` } }),
+        items.map((it, i) => {
+          const p = tw(t, it.t, 0.5, E.p3Out);
+          const dot = tw(t, it.t, 0.35, E.backOut(2.2));
+          return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", height: ROW, opacity: mix(0, 1, p), transform: `translateX(${(1 - p) * 26 * u}px)` }, children: [
+            /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: -46 * u, top: 4 * u, width: 22 * u, height: 22 * u, borderRadius: 999, background: HF.orange, transform: `scale(${dot})`, boxShadow: `0 0 ${16 * u}px ${HF.orange}` } }),
+            /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontWeight: 500, fontSize: 24 * u, letterSpacing: "0.1em", color: HF.orange, textTransform: "uppercase" }, children: it.date }),
+            /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 600, fontSize: 40 * u, lineHeight: 1.08, letterSpacing: "-0.02em", color: HF.cream, marginTop: 8 * u, textShadow: `0 ${2 * u}px ${18 * u}px rgba(0,0,0,.4)` }, children: it.text })
+          ] }, i);
+        })
+      ] })
+    ] })
+  ] });
+}
+function NewsTicker({ desk, headline, label = "Sourced", items, dur }) {
+  const { t, u } = useT();
+  if (t > dur) return null;
+  const shell = tw(t, 0, 0.52, E.p4Out);
+  const brand = tw(t, 0.08, 0.42, E.p3Out);
+  const head = tw(t, 0.18, 0.62, E.p3Out);
+  const lab = tw(t, 0.55, 0.28, E.p2Out);
+  const flash1 = tw(t, 0.34, 0.86, E.p2InOut);
+  const flash2 = tw(t, Math.min(3.42, dur * 0.5), 0.72, E.p2InOut);
+  const out = tw(t, dur - 0.38, 0.34, E.p3In);
+  const crawl = 520 * u - Math.max(0, t - 0.62) * 230 * u;
+  const pulse = 1 + 0.32 * Math.abs(Math.sin((t - 0.58) / 0.42 * (Math.PI / 2)));
+  const loop = [...items, ...items, ...items];
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+    position: "absolute",
+    left: 96 * u,
+    right: 96 * u,
+    bottom: 72 * u,
+    height: 200 * u,
+    opacity: shell * (1 - out),
+    transform: `translateY(${(1 - shell) * 260 * u + out * 170 * u}px)`,
+    filter: `drop-shadow(0 ${28 * u}px ${44 * u}px rgba(0,0,0,0.32))`
+  }, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    position: "absolute",
+    inset: 0,
+    overflow: "hidden",
+    borderRadius: 26 * u,
+    border: `${1.5 * u}px solid rgba(255,255,255,0.16)`,
+    background: `linear-gradient(180deg, rgba(20,20,24,0.97), rgba(8,8,10,0.98)), linear-gradient(90deg, rgba(255,138,30,0.5), transparent 38%)`
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: -260 * u,
+      width: 210 * u,
+      zIndex: 3,
+      transform: `translateX(${(flash1 * 2040 + flash2 * 2040) * u}px) skewX(-16deg)`,
+      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent)"
+    } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 0, right: 0, top: 0, height: 116 * u, display: "flex" }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { width: 290 * u, display: "flex", alignItems: "center", justifyContent: "center", gap: 16 * u, background: `linear-gradient(135deg, ${HF.orange}, ${HF.deep})`, opacity: brand, transform: `translateX(${(1 - brand) * -80 * u}px)` }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: (0,esm.staticFile)("brand/genovus-egg.svg"), style: { width: 30 * u, height: 38 * u, transform: `scale(${pulse})` } }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.inter, fontWeight: 800, fontSize: 22 * u, letterSpacing: "0.16em", color: "#140b05", textTransform: "uppercase", lineHeight: 1.05 }, children: desk })
+      ] }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { flex: 1, display: "flex", alignItems: "center", padding: `0 ${40 * u}px`, overflow: "hidden" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        fontFamily: HF.inter,
+        fontWeight: 800,
+        fontSize: 44 * u,
+        lineHeight: 1.02,
+        color: "#fff",
+        whiteSpace: "nowrap",
+        opacity: head,
+        transform: `translateY(${(1 - head) * 26 * u}px)`,
+        clipPath: `inset(0 ${(1 - head) * 100}% 0 0)`
+      }, children: headline }) })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 0, right: 0, bottom: 0, height: 84 * u, display: "flex", alignItems: "center", borderTop: `${1 * u}px solid rgba(255,255,255,0.11)`, background: "rgba(2,2,4,0.6)" }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        width: 290 * u,
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#3a1a06",
+        borderRight: `${1 * u}px solid rgba(255,255,255,0.14)`,
+        fontFamily: HF.inter,
+        fontWeight: 900,
+        fontSize: 22 * u,
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+        color: "#fff",
+        opacity: lab,
+        transform: `translateY(${(1 - lab) * 18 * u}px)`
+      }, children: label }),
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", flex: 1, height: "100%", overflow: "hidden", background: "#070708" }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 34 * u, top: 0, height: "100%", display: "flex", alignItems: "center", gap: 30 * u, whiteSpace: "nowrap", transform: `translateX(${crawl}px)` }, children: loop.map((x, i) => /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: 14 * u, padding: `${11 * u}px ${18 * u}px`, borderRadius: 999, border: `${1 * u}px solid rgba(255,255,255,0.08)`, background: "#101012", color: "#fff", fontFamily: HF.inter, fontWeight: 600, fontSize: 28 * u }, children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 9 * u, height: 9 * u, borderRadius: 999, background: HF.orange, boxShadow: `0 0 ${18 * u}px ${HF.orange}` } }),
+          x
+        ] }, i)) }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", inset: 0, background: `linear-gradient(90deg, #070708 0, transparent ${80 * u}px, transparent calc(100% - ${80 * u}px), #070708 100%)` } })
+      ] })
+    ] })
+  ] }) }) });
+}
+
 ;// ./src/UneditEpisodeCues.tsx
+
 
 
 
@@ -150714,13 +150903,29 @@ function Styled({ it, s }) {
       return null;
   }
 }
+const isNews = (k) => k === "source" || k === "quote" || k === "timeline" || k === "ticker";
+function News({ it, s }) {
+  const n = it.news ?? {};
+  switch (it.kind) {
+    case "source":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(SourceChip, { text: it.text, dur: s });
+    case "quote":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(QuoteCard, { quote: it.text, who: n.who ?? "", when: n.when, dur: s, maxW: it.maxW });
+    case "timeline":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(NewsTimeline, { title: n.title, items: n.items ?? [], dur: s, maxW: it.maxW });
+    case "ticker":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(NewsTicker, { desk: n.desk ?? "Genovus", headline: it.text, label: n.label, items: n.crawl ?? [], dur: s });
+    default:
+      return null;
+  }
+}
 const UneditEpisodeCues = ({ items }) => {
   const { width, height } = (0,esm.useVideoConfig)();
   const u = Math.min(width, height) / 1440;
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { backgroundColor: "transparent" }, children: items.map((it, i) => {
     const from = Math.round(it.at * FPS);
     const dur = Math.max(10, Math.round(it.dur * FPS));
-    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: it.style ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Styled, { it, s: dur / FPS }) }) : it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: isNews(it.kind) ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(News, { it, s: dur / FPS }) }) : it.style ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Styled, { it, s: dur / FPS }) }) : it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
   }) });
 };
 
@@ -171000,7 +171205,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(4916);
+/******/ 	__webpack_require__(6082);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

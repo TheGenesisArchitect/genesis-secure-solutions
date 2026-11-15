@@ -1,5 +1,6 @@
 // One Unedit recording: its card (components/studio/UneditCard.tsx). Media is shown through short-lived presigned
 // links to private storage, made here on the server for the Genovus team only.
+import { sheetText } from '@/lib/unedit-news';
 import { notFound } from 'next/navigation';
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { requireStaff } from '@/lib/session';
@@ -40,9 +41,11 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
       secs: Number(vlog.edit.secs), removed: Number(vlog.edit.removed), ready: Boolean(vlog.episode_path), error: vlog.episode_plan.error ?? null,
       graphics: vlog.episode_plan.graphics?.items.length ?? 0, graphicsError: vlog.episode_plan.graphics?.error ?? null, chapters: Boolean(vlog.episode_plan.graphics?.chapters),
       pkg: vlog.episode_plan.graphics?.pkg ?? 'classic', qa: vlog.episode_plan.graphics?.qa ?? null,
+      newsNotes: (vlog.episode_plan.graphics?.notes ?? []).filter((n) => /^(source|quote|timeline|ticker) /.test(n)),
       parts: (parts ?? []).length, done: (parts ?? []).filter((x) => x.status === 'done').length,
       cuts: vlog.edit.cuts.reduce<Record<string, number>>((a, c) => ({ ...a, [c.why]: (a[c.why] ?? 0) + 1 }), {}),
     } : null, episode: vlog.episode ?? {}, thumbs, thumbPick: vlog.thumb_pick, live: metricoolLive(), approvedAt: vlog.approved_at,
+    sources: sheetText(vlog.sources),
   };
   const cardClips: CardClip[] = clips.map((c, i) => ({ id: c.id, n: c.n, title: c.title, caption: c.caption, secs: c.secs != null ? Number(c.secs) : null, hook: c.hook_start_s != null, status: c.status, note: c.note, error: c.error, src: clipSrc[i], copy: c.copy ?? {}, start: Number(c.start_s), end: Number(c.end_s) }));
   const nOf = new Map(clips.map((c) => [c.id, c.n]));

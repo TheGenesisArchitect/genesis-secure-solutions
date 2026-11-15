@@ -13,7 +13,8 @@ const SHOW_PACKAGES = [
   { id: 'signature', label: 'Genovus Signature (mix)' }, { id: 'keynote', label: 'Keynote' }, { id: 'documentary', label: 'Documentary' },
   { id: 'kinetic', label: 'Agency kinetic' }, { id: 'classic', label: 'Classic' },
 ];
-export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null };
+export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null; newsNotes?: string[] } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null;
+  /** Newsroom: the approved sources sheet as text (lib/unedit-news.ts format). */ sources?: string };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
 const STEPS: [string, string][] = [['uploaded', 'Uploaded'], ['transcribing', 'Transcribed'], ['finding', 'Moments found'], ['rendering', 'Clips cut'], ['review', 'Your review'], ['publishing', 'Sent']];
@@ -117,6 +118,7 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
               <p className="muted ue-small">To test all three: in YouTube Studio, open the video → Test &amp; Compare → add these three files. YouTube picks the winner by watch time.</p>
             </>
           ) : null}
+          <SourcesSheet value={vlog.sources ?? ''} notes={vlog.polish?.newsNotes ?? []} disabled={busy === 'sources' || ['publishing', 'published'].includes(vlog.stage)} onSave={(sheet) => send({ tool: 'set_sources', sheet }, 'sources')} />
         </div>
       </section>
 
@@ -214,5 +216,26 @@ function EditLine({ label, value, multiline, disabled, onSave }: { label: string
       {multiline ? <textarea className="textarea" rows={3} value={v} disabled={disabled} onChange={(e) => setV(e.target.value)} /> : <input className="input" value={v} disabled={disabled} onChange={(e) => setV(e.target.value)} />}
       {changed && !disabled ? <button type="button" className="btn small" onClick={() => onSave(v)}>Save</button> : null}
     </label>
+  );
+}
+
+/** Newsroom: the approved facts the episode shows on screen, each tied to the words said when it appears. Only what is
+ *  on this sheet is shown: a source chip, an attributed quote, a dated timeline or a ticker. */
+function SourcesSheet({ value, notes, disabled, onSave }: { value: string; notes: string[]; disabled: boolean; onSave: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  return (
+    <details className="ue-sources" open={Boolean(value) || undefined}>
+      <summary className="eyebrow">Newsroom sources · {value ? `${value.split(/\r?\n/).filter(Boolean).length} on screen` : 'none'}</summary>
+      <p className="muted ue-small">One line each, fields split by “ | ”. The spoken words place it.<br />
+        <code>source | spoken words | NVIDIA board statement · Nov 8, 2026</code><br />
+        <code>quote | spoken words | exact quote | who said it | when</code><br />
+        <code>timeline | spoken words | title | Nov 8: what happened @ spoken words ; Nov 12: … @ …</code><br />
+        <code>ticker | spoken words | headline | label | item ; item ; item</code></p>
+      <label className="sr-only" htmlFor="ue-sources-text">Sources sheet</label>
+      <textarea id="ue-sources-text" rows={6} value={text} onChange={(e) => setText(e.target.value)} disabled={disabled} spellCheck={false} style={{ width: '100%', fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: 13 }} />
+      {notes.length ? <p className="ue-stop" role="status">{notes.slice(0, 4).join('; ')}</p> : null}
+      <button type="button" className="btn small primary" disabled={disabled || text === value} onClick={() => onSave(text)}>Save sources</button>
+    </details>
   );
 }

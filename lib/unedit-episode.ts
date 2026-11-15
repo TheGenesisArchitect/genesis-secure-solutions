@@ -15,6 +15,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { BT709, ffmpeg, type Span } from '@/lib/unedit-media';
+import type { NewsData, NewsKind } from '@/lib/unedit-news';
 import type { Seg } from '@/lib/unedit-edit';
 import { frames } from '@/lib/unedit-media';
 import { FILL, faceBoxes, framing, gradeFilter, type Box, type Crop, type Grade } from '@/lib/unedit-look';
@@ -34,7 +35,8 @@ const GOP = FPS * 2;
 
 export type Part = { k: number; segs: Seg[]; status: 'todo' | 'done'; blob?: string; secs?: number; ms?: number };
 /** One graphic on the episode's (edited) timeline: T and D in seconds; `off` is where it sits in the rendered reel. */
-export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue' | 'kinetic' | 'emphasis'; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number;
+export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue' | 'kinetic' | 'emphasis' | NewsKind; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number;
+  /** Newsroom items (lib/unedit-news.ts): the quote's attribution, a timeline's dated beats, a ticker's crawl. */ news?: NewsData;
   /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number; /** left-anchored type: widest it may run (fraction of the frame), so it stops short of the speaker */ maxW?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
 export type ReelChunk = { from: number; to: number; path?: string };
@@ -363,8 +365,9 @@ export async function overlayPart(dir: string, reelUrls: string[], overlays: Ove
 export function effectSounds(items: EpGraphic[]): { at: number; file: string; vol: number }[] {
   const LEAD: Record<string, number> = { riser: 0.9, whoosh: 0.25 };
   const VOL: Record<string, number> = { hit: 0.42, whoosh: 0.4, riser: 0.36, pop: 0.32, click: 0.4, tick: 0.3, swish: 0.4, sting: 0.34 };
-  return items.filter((g) => g.sound && VOL[g.sound] != null).map((g) => ({
-    at: Math.max(0, g.T - (LEAD[g.sound!] ?? 0)), vol: VOL[g.sound!],
-    file: path.join(process.cwd(), 'remotion/unedit-pro/public/sfx', `${g.sound}.wav`),
-  }));
+  const file = (s: string) => path.join(process.cwd(), 'remotion/unedit-pro/public/sfx', `${s}.wav`);
+  const out = items.filter((g) => g.sound && VOL[g.sound] != null).map((g) => ({ at: Math.max(0, g.T - (LEAD[g.sound!] ?? 0)), vol: VOL[g.sound!], file: file(g.sound!) }));
+  // A timeline ticks as each dated beat lands.
+  for (const g of items) if (g.kind === 'timeline') for (const it of g.news?.items ?? []) out.push({ at: g.T + it.t, vol: 0.26, file: file('tick') });
+  return out;
 }
