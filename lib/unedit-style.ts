@@ -61,8 +61,8 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
   const notes: string[] = [];
   // Newsroom facts outrank decoration: a quote, timeline or ticker comes right after the anchors, and a source chip is
   // a small overlay that never competes for the screen (it is placed last and never dropped for a clash).
-  const rank = (k: EpGraphic['kind']) => (['title', 'lower', 'chapter', 'end'].includes(k) ? 0 : k === 'quote' || k === 'timeline' || k === 'ticker' ? 0.5 : k === 'kinetic' ? 1 : k === 'emphasis' ? 2 : k === 'source' ? 4 : 3);
-  const news = (k: EpGraphic['kind']) => k === 'source' || k === 'quote' || k === 'timeline' || k === 'ticker';
+  const rank = (k: EpGraphic['kind']) => (['title', 'lower', 'chapter', 'end'].includes(k) ? 0 : k === 'quote' || k === 'timeline' || k === 'ticker' || k === 'globe' ? 0.5 : k === 'kinetic' ? 1 : k === 'emphasis' ? 2 : k === 'source' ? 4 : 3);
+  const news = (k: EpGraphic['kind']) => k === 'source' || k === 'quote' || k === 'timeline' || k === 'ticker' || k === 'globe';
   const out: EpGraphic[] = [];
   const busy: [number, number][] = [];
   let kinetic = 0, emphasis = 0;
@@ -74,7 +74,7 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
     }
     if (news(g.kind)) {
       // Left-anchored panels stop short of the speaker's head, like front titles.
-      if (g.kind !== 'ticker' && ctx.face) {
+      if (g.kind !== 'ticker' && g.kind !== 'globe' && ctx.face) {
         const room = ctx.face.x - ctx.face.w / 3 - RULES.safe - 0.0625;
         if (room < 0.45) item.maxW = Math.max(0.24, Math.round(room * 1000) / 1000);
       }

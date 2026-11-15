@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 6082
+/***/ 9504
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -150765,7 +150765,86 @@ function NewsTicker({ desk, headline, label = "Sourced", items, dur }) {
   ] }) }) });
 }
 
+;// ./src/hf/globe.tsx
+
+
+
+
+
+
+const N = 1500;
+const rnd = (i) => {
+  const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+const BODY = "M45 33h10v12H45ZM31 47c6-5 32-5 38 0l11 13 4 80-7 2-5-58 2 88-12 2-2 82h-8l-2-78-2 78h-8l-2-82-12-2 2-88-5 58-7-2 4-80Z";
+function FigureGlobe({ phase, dur, caption }) {
+  const { t, u, width: W, height: H } = useT();
+  const pts = (0,react.useMemo)(() => Array.from({ length: N }, (_, i) => {
+    const y = 1 - (i + 0.5) * (2 / N), r = Math.sqrt(1 - y * y), th = i * Math.PI * (3 - Math.sqrt(5));
+    return { x: Math.cos(th) * r, y, z: Math.sin(th) * r, s: rnd(i), k: rnd(i + 999) };
+  }), []);
+  const fadeIn = tw(t, 0, 0.35, E.p2Out), fadeOut = tw(t, dur - 0.3, 0.3, E.p2In);
+  const push = mix(1, 1.06, tw(t, 0, dur, E.sineInOut));
+  const cx = W / 2, cy = H * 0.68, R = H * 0.29;
+  const a = 0.35 + t * 0.12, tilt = 0.32;
+  const ca = Math.cos(a), sa = Math.sin(a), ct = Math.cos(tilt), st = Math.sin(tilt);
+  const fallP = phase === "fall" ? tw(t, 0.35, 1.3, E.p2InOut) : 0;
+  const dim = phase === "fall" ? mix(1, 0.35, tw(t, 0.6, 0.8, E.p2Out)) * mix(1, 1.25, tw(t, dur - 1, 0.7, E.p2Out)) : 1;
+  const litP = phase === "lit" ? tw(t, 0.25, Math.max(0.8, dur - 1.1), E.sineInOut) : 0;
+  const egg = phase === "lit" ? tw(t, dur - 1.2, 0.6, E.backOut(1.6)) : 0;
+  const dots = pts.map((p, i) => {
+    const x1 = p.x * ca + p.z * sa, z1 = -p.x * sa + p.z * ca;
+    const y2 = p.y * ct - z1 * st, z2 = p.y * st + z1 * ct;
+    if (z2 < -0.05) return null;
+    const depth = (z2 + 1) / 2;
+    const lit = phase === "lit" && p.s < litP;
+    const pulse = lit ? 0.75 + 0.25 * Math.sin(t * 3 + p.k * 6.28) : 1;
+    const rr = (lit ? 2.6 : 1.5 + depth * 1.3) * u;
+    const fill = lit ? `rgba(255,${Math.round(150 + p.k * 60)},60,${(0.55 + depth * 0.45) * pulse})` : `rgba(160,170,190,${(0.12 + depth * 0.38) * dim})`;
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx: cx + x1 * R, cy: cy - y2 * R, r: rr, fill, style: lit ? { filter: `drop-shadow(0 0 ${4 * u}px rgba(255,140,40,0.9))` } : void 0 }, i);
+  });
+  const figH = H * 0.27, figW = figH * (100 / 260);
+  const fx = cx - figW / 2, fy = cy - R - figH + H * 0.012;
+  const parts = phase === "fall" ? Array.from({ length: 140 }, (_, i) => {
+    const px = fx + rnd(i + 3) * figW, py = fy + rnd(i + 7) * figH;
+    const d = fallP * (0.6 + rnd(i + 11) * 0.9);
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx: px + d * (rnd(i + 13) - 0.3) * W * 0.25, cy: py - d * (0.2 + rnd(i + 17)) * H * 0.35, r: (1.2 + rnd(i + 19) * 2.4) * u, fill: `rgba(255,${Math.round(150 + rnd(i) * 80)},90,${(1 - fallP) * 0.9})` }, `p${i}`);
+  }) : null;
+  const figure = phase === "lit" ? 0 : phase === "fall" ? 1 - tw(t, 0.3, 0.6, E.p2In) : 1;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: `radial-gradient(70% 70% at 50% 62%, #1b1410 0%, #0a0807 55%, #050404 100%)`, opacity: fadeIn * (1 - fadeOut) }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { transform: `scale(${push})`, transformOrigin: `50% ${phase === "alone" ? 30 : 55}%` }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, style: { position: "absolute", inset: 0 }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("radialGradient", { id: "atmo", cx: "50%", cy: "50%", r: "50%", children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)("stop", { offset: "78%", stopColor: "rgba(255,138,30,0)" }),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)("stop", { offset: "92%", stopColor: `rgba(255,138,30,${0.08 + litP * 0.25})` }),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)("stop", { offset: "100%", stopColor: "rgba(255,138,30,0)" })
+        ] }) }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx, cy, r: R * 1.12, fill: "url(#atmo)" }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx, cy, r: R, fill: "rgba(12,10,9,0.92)", stroke: `rgba(255,255,255,${0.08 * dim})`, strokeWidth: 1.5 * u }),
+        dots,
+        figure > 0 ? (
+          // Backlit: a soft orange halo behind a near-black silhouette, the way a single hard light from behind reads.
+          /* @__PURE__ */ (0,jsx_runtime.jsxs)("g", { transform: `translate(${fx} ${fy}) scale(${figW / 100} ${figH / 260})`, opacity: figure, children: [
+            /* @__PURE__ */ (0,jsx_runtime.jsxs)("g", { style: { filter: `blur(${5 * u}px)` }, opacity: 0.9, children: [
+              /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx: 50, cy: 20, r: 15, fill: HF.orange }),
+              /* @__PURE__ */ (0,jsx_runtime.jsx)("path", { d: BODY, fill: HF.orange, transform: "translate(50 150) scale(1.06) translate(-50 -150)" })
+            ] }),
+            /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx: 50, cy: 20, r: 13, fill: "#070505" }),
+            /* @__PURE__ */ (0,jsx_runtime.jsx)("path", { d: BODY, fill: "#070505" })
+          ] })
+        ) : null,
+        parts
+      ] }),
+      phase !== "lit" ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: cx - W * 0.2, top: 0, width: W * 0.4, height: fy + figH, background: "linear-gradient(180deg, rgba(255,220,180,0.10), rgba(255,220,180,0) 85%)", clipPath: "polygon(42% 0, 58% 0, 75% 100%, 25% 100%)", opacity: figure * 0.9 } }) : null,
+      egg > 0 ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: (0,esm.staticFile)("brand/genovus-egg.svg"), style: { position: "absolute", left: cx - 40 * u * egg, top: cy - 52 * u * egg, width: 80 * u * egg, height: 104 * u * egg, filter: `drop-shadow(0 0 ${30 * u}px rgba(255,138,30,0.9))` } }) : null
+    ] }),
+    caption ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, right: 0, bottom: H * 0.07, textAlign: "center", fontFamily: HF.serif, fontStyle: "italic", fontSize: 64 * u, color: HF.cream, opacity: tw(t, 0.5, 0.6, E.p2Out) * (1 - fadeOut), textShadow: `0 ${4 * u}px ${30 * u}px rgba(0,0,0,0.8)` }, children: caption }) : null
+  ] });
+}
+
 ;// ./src/UneditEpisodeCues.tsx
+
 
 
 
@@ -150903,7 +150982,7 @@ function Styled({ it, s }) {
       return null;
   }
 }
-const isNews = (k) => k === "source" || k === "quote" || k === "timeline" || k === "ticker";
+const isNews = (k) => k === "source" || k === "quote" || k === "timeline" || k === "ticker" || k === "globe";
 function News({ it, s }) {
   const n = it.news ?? {};
   switch (it.kind) {
@@ -150915,6 +150994,8 @@ function News({ it, s }) {
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(NewsTimeline, { title: n.title, items: n.items ?? [], dur: s, maxW: it.maxW });
     case "ticker":
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(NewsTicker, { desk: n.desk ?? "Genovus", headline: it.text, label: n.label, items: n.crawl ?? [], dur: s });
+    case "globe":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(FigureGlobe, { phase: n.phase ?? "alone", dur: s, caption: it.text || void 0 });
     default:
       return null;
   }
@@ -171205,7 +171286,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(6082);
+/******/ 	__webpack_require__(9504);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

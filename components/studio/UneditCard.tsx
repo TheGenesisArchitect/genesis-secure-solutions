@@ -231,7 +231,8 @@ function SourcesSheet({ value, notes, disabled, onSave }: { value: string; notes
         <code>source | spoken words | NVIDIA board statement · Nov 8, 2026</code><br />
         <code>quote | spoken words | exact quote | who said it | when</code><br />
         <code>timeline | spoken words | title | Nov 8: what happened @ spoken words ; Nov 12: … @ …</code><br />
-        <code>ticker | spoken words | headline | label | item ; item ; item</code></p>
+        <code>ticker | spoken words | headline | label | item ; item ; item</code><br />
+        <code>globe | spoken words | alone, fall or lit | optional caption</code></p>
       <label className="sr-only" htmlFor="ue-sources-text">Sources sheet</label>
       <textarea id="ue-sources-text" rows={6} value={text} onChange={(e) => setText(e.target.value)} disabled={disabled} spellCheck={false} style={{ width: '100%', fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: 13 }} />
       {notes.length ? <p className="ue-stop" role="status">{notes.slice(0, 4).join('; ')}</p> : null}
