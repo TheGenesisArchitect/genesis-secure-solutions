@@ -30,12 +30,15 @@ const CUES = new Set(['record', 'recording', 'action', 'cut', 'rolling', 'go']);
 const EDGE_S = 15;
 const ALONE_S = 0.6;
 
-const PAD = 0.08;        // silence kept on each side of a cut, so a join never clips a word
-const BREATH = 0.45;     // the longest pause kept between two words
-const PAUSE_OVER = 0.8;  // a pause longer than this shrinks to BREATH
-const MIN_KEEP = 0.3;    // a kept piece shorter than this joins the cut around it
-const CAM_HOLD = 2.5;    // the least time on one camera before a cut may change it
-const CAM_MAX = 8;       // the longest time on one camera before it changes at a sentence end
+// Pace: "tight" (the default) cuts like the reference edits (a change every 1-3 s: short pauses go, cameras turn
+// over fast); UNEDIT_PACE=natural keeps the gentler timing for story and faith episodes.
+const NATURAL = process.env.UNEDIT_PACE === 'natural';
+const PAD = 0.08;                          // silence kept on each side of a cut, so a join never clips a word
+const BREATH = NATURAL ? 0.45 : 0.3;       // the longest pause kept between two words
+const PAUSE_OVER = NATURAL ? 0.8 : 0.55;   // a pause longer than this shrinks to BREATH
+const MIN_KEEP = 0.3;                      // a kept piece shorter than this joins the cut around it
+const CAM_HOLD = NATURAL ? 2.5 : 2;        // the least time on one camera before a cut may change it
+const CAM_MAX = NATURAL ? 8 : 6;           // the longest time on one camera before it changes at a sentence end
 
 /** Word indexes that are a hands-free command: a listed phrase anywhere, or a lone cue word near either end. */
 export function commandWords(words: Word[], duration: number): Set<number> {
