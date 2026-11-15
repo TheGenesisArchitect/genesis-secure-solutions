@@ -277,9 +277,10 @@ export async function joinPieces(dir: string, pieces: string[], out: string): Pr
   for (const f of pieces) await fs.rm(path.join(dir, f), { force: true });
 }
 
-/** The light last pass over `dir`/joined.mkv: punch-ins on accent words, captions, loudness, into clip.mp4. The
- *  joined intermediate is kept (the caller may finish it twice: with and without captions). */
-export async function finishClip(dir: string, words: Word[], spans: Span[], opts: ClipOpts, out = 'clip.mp4'): Promise<{ file: string; dir: string; secs: number }> {
+/** The light last pass over `dir`/joined.mkv, or over stored groups read in order straight from their links (`urls`:
+ *  nothing large lands on the function's small disk): punch-ins on accent words, captions, loudness, into clip.mp4.
+ *  The input is kept (the caller may finish it twice: with and without captions). */
+export async function finishClip(dir: string, words: Word[], spans: Span[], opts: ClipOpts, out = 'clip.mp4', urls?: string[]): Promise<{ file: string; dir: string; secs: number }> {
   const serif = await fontsDir(dir).catch(() => true);
   // Accent words are marked by their index in the whole transcript, before the words are re-timed onto the clip.
   const marks = new Set(opts.accents ?? []);
@@ -291,7 +292,12 @@ export async function finishClip(dir: string, words: Word[], spans: Span[], opts
   const punch = zoom ? `scale=w='2*trunc(${W}*(${zoom})/2)':h='2*trunc(${H}*(${zoom})/2)':eval=frame,crop=${W}:${H},` : '';
   const fc = [`[0:v]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[0:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]'];
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
-  await ffmpeg(['-y', '-i', 'joined.mkv', '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], dir);
+  let input = ['-i', 'joined.mkv'];
+  if (urls?.length) {
+    await fs.writeFile(path.join(dir, 'groups.txt'), urls.map((u) => `file '${u.replace(/'/g, "'\\''")}'`).join('\n'));
+    input = ['-f', 'concat', '-safe', '0', '-protocol_whitelist', 'file,http,https,tcp,tls,crypto', '-i', 'groups.txt'];
+  }
+  await ffmpeg(['-y', ...input, '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], dir);
   return { file: path.join(dir, out), dir, secs };
 }
 

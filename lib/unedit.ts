@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, finishClip, fontsDir, frames, joinPieces, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -193,10 +193,10 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         const look = clipLook(v);
         // A long clip from an 8K recording renders as ~8 s groups in parallel workers (one function could not decode it
         // all inside its time limit); this step waits on a short lease until every group is stored, then joins them.
-        let joined: string | null = null;
+        let groups: string[] | null = null;
         if (needsFanout(v, spans)) {
-          joined = await clipGroupsJoined(v, next, spans, look, origin);
-          if (!joined) {
+          groups = await clipGroupsJoined(v, next, spans, look, origin);
+          if (!groups) {
             await release(v.id, { lease_until: new Date(Date.now() + 40_000).toISOString() });
             return `Clip ${next.n}: its pieces are rendering in parallel.`;
           }
@@ -205,7 +205,11 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         const shots = ((next.features as { shots?: Shot[] })?.shots ?? []);
         const accents = shots.map((s) => s.accent).filter((a): a is number => a != null);
         const cut = async (captions: boolean) => {
-          if (joined) { const o = await finishClip(joined, words, spans, { accents, captions, ...look }, captions ? 'clip.mp4' : 'base.mp4'); return { bytes: await fs.readFile(o.file), secs: o.secs }; }
+          if (groups) {
+            await sweepTmp();
+            const d = await fs.mkdtemp(`${os.tmpdir()}/unedit-clipfinish-`);
+            try { const o = await finishClip(d, words, spans, { accents, captions, ...look }, 'clip.mp4', groups); return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
+          }
           const o = await renderClip(src, spans, words, probeOf(v), { accents, captions, ...look });
           try { return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(o.dir, { recursive: true, force: true }).catch(() => {}); }
         };
@@ -226,7 +230,6 @@ export async function step(v: Vlog, origin: string): Promise<string> {
           }
         }
         made ??= { ...(await cut(true)), pro: false };
-        if (joined) await fs.rm(joined, { recursive: true, force: true }).catch(() => {});
         const path = `${dir(v)}/clips/${next.n}-${Date.now()}.mp4`;
         await put(path, made.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
         await dbx().from('unedit_clips').update({ blob_path: path, secs: Math.round(made.secs * 10) / 10, status: 'ready', error: proError, features: { ...(next.features ?? {}), pro: made.pro } }).eq('id', next.id);
@@ -421,9 +424,9 @@ const groupPaths = (v: Vlog, c: Clip, spans: Span[], look: unknown) => {
   const key = createHash('sha256').update(JSON.stringify({ spans, look })).digest('hex').slice(0, 12);
   return clipGroups(spans).map((_, g) => `${dir(v)}/clips/${c.n}-${key}-g${g}.mkv`);
 };
-/** Every group stored: download and join them into a local joined.mkv (returns its folder). Otherwise kick a worker
- *  on each missing group (unless one started in the last 14 minutes) and return null. */
-async function clipGroupsJoined(v: Vlog, c: Clip, spans: Span[], look: unknown, origin: string): Promise<string | null> {
+/** Every group stored: their links (the last pass reads them in order, straight from storage). Otherwise kick a
+ *  worker on each missing group (unless one started in the last 14 minutes) and return null. */
+async function clipGroupsJoined(v: Vlog, c: Clip, spans: Span[], look: unknown, origin: string): Promise<string[] | null> {
   const paths = groupPaths(v, c, spans, look);
   const have = await Promise.all(paths.map((p) => head(p).then(() => true, () => false)));
   if (have.some((h) => !h)) {
@@ -436,20 +439,7 @@ async function clipGroupsJoined(v: Vlog, c: Clip, spans: Span[], look: unknown, 
     }));
     return null;
   }
-  await sweepTmp();
-  const d = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clipjoin-'));
-  try {
-    const files: string[] = [];
-    for (const [g, p] of paths.entries()) {
-      const r = await fetch(await presigned(p, 30), { signal: AbortSignal.timeout(180_000) });
-      if (!r.ok) throw new Error(`clip piece ${g + 1} didn't download (${r.status})`);
-      const f = `g${String(g).padStart(3, '0')}.mkv`;
-      await fs.writeFile(path.join(d, f), Buffer.from(await r.arrayBuffer()));
-      files.push(f);
-    }
-    await joinPieces(d, files, 'joined.mkv');
-    return d;
-  } catch (e) { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); throw e; }
+  return Promise.all(paths.map((p) => presigned(p, 60)));
 }
 async function kickGroup(origin: string, id: string, n: number, g: number): Promise<void> {
   if (!process.env.CRON_SECRET) return;
