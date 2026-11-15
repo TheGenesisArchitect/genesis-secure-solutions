@@ -10,7 +10,7 @@
 import type { Span, Word } from '@/lib/unedit-media';
 
 export type Cut = { from: number; to: number; why: 'head' | 'tail' | 'command' | 'filler' | 'pause' | 'false start' };
-export type Camera = 'medium' | 'close';
+export type Camera = 'wide' | 'medium' | 'close';
 export type Seg = { from: number; to: number; cam: Camera; /** a split piece: framed from the whole piece's middle */ mid?: number;
   /** a split piece: where it starts inside the whole shot and the shot's full length (so a push-in carries across the
    *  split), and the head box found once for the whole shot (so both halves frame the same) */ at0?: number; len0?: number; box?: { x: number; y: number; w: number; h: number } | null };
@@ -35,7 +35,7 @@ const BREATH = 0.45;     // the longest pause kept between two words
 const PAUSE_OVER = 0.8;  // a pause longer than this shrinks to BREATH
 const MIN_KEEP = 0.3;    // a kept piece shorter than this joins the cut around it
 const CAM_HOLD = 2.5;    // the least time on one camera before a cut may change it
-const CAM_MAX = 9;       // the longest time on one camera before it changes at a sentence end
+const CAM_MAX = 8;       // the longest time on one camera before it changes at a sentence end
 
 /** Word indexes that are a hands-free command: a listed phrase anywhere, or a lone cue word near either end. */
 export function commandWords(words: Word[], duration: number): Set<number> {
@@ -140,14 +140,19 @@ const round = (x: number) => Math.round(x * 1000) / 1000;
 const frame = (x: number) => Math.round(Math.round(x * 30) / 30 * 1e6) / 1e6;
 
 /** Which camera each kept piece uses. A join changes camera (hiding the jump) once the current camera has held
- *  CAM_HOLD seconds; a piece that runs past CAM_MAX on one camera changes at a sentence end inside it. */
+ *  CAM_HOLD seconds; a piece that runs past CAM_MAX on one camera changes at a sentence end inside it. The cameras
+ *  run medium, close, medium, wide and round again: two framings carry the talk, and every fourth change opens up
+ *  to a wide, so the episode has three sizes of shot, like a cut between real cameras. */
+const ROTATION: Camera[] = ['medium', 'close', 'medium', 'wide'];
 export function cameras(keep: Span[], words: Word[]): Seg[] {
   const ends = words.filter((w) => /[.!?]["')\]]?$/.test(w.w)).map((w) => w.e);
   const segs: Seg[] = [];
-  let cam: Camera = 'medium';
+  let r = 0;
+  let cam: Camera = ROTATION[0];
+  const next = () => { r = (r + 1) % ROTATION.length; return ROTATION[r]; };
   let held = 0;
   for (const [i, k] of keep.entries()) {
-    if (i > 0 && held >= CAM_HOLD) { cam = cam === 'medium' ? 'close' : 'medium'; held = 0; }
+    if (i > 0 && held >= CAM_HOLD) { cam = next(); held = 0; }
     let from = k.from;
     // Long piece: change camera at sentence ends, so no shot holds forever.
     for (const e of ends) {
@@ -155,7 +160,7 @@ export function cameras(keep: Span[], words: Word[]): Seg[] {
       if (held + (e - from) >= CAM_MAX) {
         const at = frame(e + 0.06);
         segs.push({ from, to: at, cam });
-        cam = cam === 'medium' ? 'close' : 'medium';
+        cam = next();
         held = 0;
         from = at;
       }

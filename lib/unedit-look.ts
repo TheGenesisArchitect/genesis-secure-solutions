@@ -27,7 +27,7 @@ const even = (x: number) => Math.max(2, 2 * Math.round(x / 2));
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 
 /** How much of the frame's height the head takes, per framing (top of the hat to the chin). */
-export const FILL = { medium: 0.6, close: 0.82, clip: 0.62 } as const;
+export const FILL = { wide: 0.44, medium: 0.6, close: 0.82, clip: 0.62 } as const;
 
 export const NEUTRAL: Grade = { temp: 6500, mix: 0, lift: 0, sat: 1, contrast: 1.03 };
 
