@@ -10,6 +10,7 @@ import { effectSounds, epTime, type EpGraphic } from '@/lib/unedit-episode';
 import { musicBed } from '@/lib/unedit-music';
 import type { Vlog } from '@/lib/unedit';
 import { StudioLive, type LiveClip, type LiveTrack, type LiveCrew } from '@/components/studio/StudioLive';
+import { UneditNav } from '@/components/studio/UneditNav';
 
 export const metadata = { title: 'Studio Live' };
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,8 @@ export default async function StudioLivePage({ params }: { params: Promise<{ id:
   ];
   const title = v.episode?.title || v.title || 'Recording';
   return (
-    <ConsoleShell title={`Studio Live · ${title}`} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'Unedit' }, { href: `/console/studio/unedit/${id}`, label: title }, { label: 'Studio Live' }]}>
+    <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: title }]}>
+      <UneditNav active="recordings" recording={{ id, view: 'live', title }} />
       <StudioLive id={id} title={title} src={src} polished={Boolean(v.episode_path)} secs={secs} stage={v.stage} working={working} review={v.stage === 'review'} pkg={g?.pkg ?? null} tracks={tracks} crew={crew} needs={needs} />
     </ConsoleShell>
   );

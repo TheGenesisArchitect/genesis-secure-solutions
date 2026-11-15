@@ -48,8 +48,6 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
       <div className="sl-top">
         <span className={`sl-state ${working ? 'work' : review ? 'review' : ''}`}>{working ? '● Working' : review ? 'Ready for review' : stage}</span>
         <span className="muted">{polished ? 'Polished episode' : 'The recording (the polished episode replaces it when it finishes)'} · {mmss(secs)}</span>
-        <span style={{ flex: 1 }} />
-        <a className="btn" href={`/console/studio/unedit/${id}`}>Open the card</a>
       </div>
 
       <div className="sl-grid">
@@ -107,7 +105,7 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
           <section className="sl-card needs">
             <span className="nr-label hot">Needs you · {needs.length}</span>
             {needs.length ? needs.map((n, i) => <span key={i} className="sl-need">{n}</span>) : <span className="nr-ok">All clear.</span>}
-            <a className="btn primary" href={`/console/studio/unedit/${id}`}>Review and approve on the card</a>
+            <a className="btn primary" href={`/console/studio/unedit/${id}`}>Review and approve</a>
           </section>
         </aside>
       </div>

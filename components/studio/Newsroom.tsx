@@ -205,7 +205,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
                 <span className="muted nr-small">Angle: {prod.angle} · {(prod.cost / 100).toFixed(2)} USD · {new Date(prod.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
               </div>
             ) : <p className="muted nr-small">Produce builds only from approved facts. Unedit places the sources sheet on your recording where you say each fact.</p>}
-            <a className="btn" href="/console/studio/unedit">Go to Unedit to upload</a>
+            <a className="btn" href="/console/studio/unedit/record">Record it now</a>
           </aside>
         </div>
       ) : null}

@@ -8,6 +8,7 @@ import { db } from '@/lib/supabase/server';
 import { presigned } from '@/lib/unedit-media';
 import { metricoolLive } from '@/lib/metricool';
 import { UneditCard, type CardClip, type CardPost, type CardVlog } from '@/components/studio/UneditCard';
+import { UneditNav } from '@/components/studio/UneditNav';
 import type { Clip, UPost, Vlog } from '@/lib/unedit';
 
 export const metadata = { title: 'Unedit' };
@@ -52,7 +53,8 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
   const posts: CardPost[] = ((ps ?? []) as UPost[]).map((p) => ({ id: p.id, platform: p.platform, kind: p.kind, title: p.title, clip: p.clip_id ? nOf.get(p.clip_id) ?? null : null, status: p.status, mc_status: p.mc_status, mc_error: p.mc_error, posted_url: p.posted_url }));
   const title = vlog.episode?.title || vlog.title || 'Recording';
   return (
-    <ConsoleShell title={title} crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'Unedit' }, { label: title }]}>
+    <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: title }]}>
+      <UneditNav active="recordings" recording={{ id: vlog.id, view: 'review', title }} />
       <UneditCard vlog={card} clips={cardClips} posts={posts} />
     </ConsoleShell>
   );

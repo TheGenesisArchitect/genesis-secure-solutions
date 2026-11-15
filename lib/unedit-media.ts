@@ -62,7 +62,15 @@ export const BT709 = ['-colorspace', 'bt709', '-color_primaries', 'bt709', '-col
 export async function probe(url: string): Promise<Probe> {
   const out = await run(String(ffmpegPath), ['-hide_banner', '-i', url], { maxBuffer: 8 * 1024 * 1024, timeout: 60_000 })
     .then((r) => String(r.stderr)).catch((e: { stderr?: string }) => String(e.stderr ?? ''));
-  const dur = out.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  let dur = out.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  // A recording made in the browser (MediaRecorder WebM) has no duration in its header ("Duration: N/A"): read the
+  // length by passing over its audio once (copy, no decode) and taking the last timestamp.
+  if (!dur && /Duration:\s*N\/A/.test(out)) {
+    const pass = await run(String(ffmpegPath), ['-hide_banner', '-i', url, '-map', '0:a:0', '-c', 'copy', '-f', 'null', '-'], { maxBuffer: 16 * 1024 * 1024, timeout: 240_000 })
+      .then((r) => String(r.stderr)).catch((e: { stderr?: string }) => String(e.stderr ?? ''));
+    const times = [...pass.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)];
+    dur = times.length ? times[times.length - 1] : null;
+  }
   const v = out.match(/Stream #[^\n]*Video:\s*([a-z0-9_]+)[^\n]*?\s(\d{2,5})x(\d{2,5})/);
   const a = out.match(/Stream #[^\n]*Audio:\s*([a-z0-9_]+)/);
   const rot = out.match(/rotation of (-?\d+(?:\.\d+)?) degrees/) ?? out.match(/rotate\s*:\s*(-?\d+)/);
