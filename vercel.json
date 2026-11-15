@@ -52,6 +52,9 @@
     },
     "app/api/studio/unedit/[id]/part/[k]/route.ts": {
       "memory": 3009
+    },
+    "app/api/studio/unedit/[id]/clippiece/[n]/[g]/route.ts": {
+      "memory": 3009
     }
   }
 }

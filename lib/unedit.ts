@@ -12,12 +12,13 @@
 // Approve tap, and real footage is never labeled AI-generated.
 import 'server-only';
 import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { head, put } from '@vercel/blob';
 import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { episodeCaptionsAss, extractAudio, fontsDir, frames, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, finishClip, fontsDir, frames, joinPieces, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -188,15 +189,23 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const next = (await dbx().from('unedit_clips').select('*').eq('vlog_id', v.id).eq('status', 'rendering').order('n').limit(1)).data?.[0] as Clip | undefined;
       if (next) {
         const words = await readWords(v);
-        const raw: Span[] = [...(next.hook_start_s != null && next.hook_end_s != null ? [{ from: Number(next.hook_start_s), to: Number(next.hook_end_s) }] : []), { from: Number(next.start_s), to: Number(next.end_s) }];
-        // Episode Pro's edit applies to clips too: no uh/um, false starts or long pauses inside a clip.
-        const edited = v.edit ? within(raw, v.edit.keep) : [];
-        const spans = edited.length ? edited : raw;
+        const spans = clipSpans(v, next);
         const look = clipLook(v);
+        // A long clip from an 8K recording renders as ~8 s groups in parallel workers (one function could not decode it
+        // all inside its time limit); this step waits on a short lease until every group is stored, then joins them.
+        let joined: string | null = null;
+        if (needsFanout(v, spans)) {
+          joined = await clipGroupsJoined(v, next, spans, look, origin);
+          if (!joined) {
+            await release(v.id, { lease_until: new Date(Date.now() + 40_000).toISOString() });
+            return `Clip ${next.n}: its pieces are rendering in parallel.`;
+          }
+        }
         // Unedit Pro: the shot plan's accent words get the orange caption and a punch-in (clips planned before it have none).
         const shots = ((next.features as { shots?: Shot[] })?.shots ?? []);
         const accents = shots.map((s) => s.accent).filter((a): a is number => a != null);
         const cut = async (captions: boolean) => {
+          if (joined) { const o = await finishClip(joined, words, spans, { accents, captions, ...look }, captions ? 'clip.mp4' : 'base.mp4'); return { bytes: await fs.readFile(o.file), secs: o.secs }; }
           const o = await renderClip(src, spans, words, probeOf(v), { accents, captions, ...look });
           try { return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(o.dir, { recursive: true, force: true }).catch(() => {}); }
         };
@@ -217,6 +226,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
           }
         }
         made ??= { ...(await cut(true)), pro: false };
+        if (joined) await fs.rm(joined, { recursive: true, force: true }).catch(() => {});
         const path = `${dir(v)}/clips/${next.n}-${Date.now()}.mp4`;
         await put(path, made.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
         await dbx().from('unedit_clips').update({ blob_path: path, secs: Math.round(made.secs * 10) / 10, status: 'ready', error: proError, features: { ...(next.features ?? {}), pro: made.pro } }).eq('id', next.id);
@@ -395,6 +405,79 @@ async function kickPart(origin: string, id: string, k: number): Promise<void> {
   const r = await fetch(`${base}/api/studio/unedit/${id}/part/${k}`, { method: 'POST', redirect: 'manual', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(20_000) })
     .catch((e) => { console.error(`[unedit] ${id} part ${k} kick failed: ${e instanceof Error ? e.message : e}`); return null; });
   if (r && !r.ok) console.error(`[unedit] ${id} part ${k} kick answered ${r.status} from ${base}`);
+}
+
+// ---- long 8K clips: rendered in groups by parallel workers ------------------------------------------------------
+/** A clip's spans on the recording: the hook first (when it has one), then the moment, with the edit applied (no uh/um,
+ *  false starts or long pauses inside a clip). */
+function clipSpans(v: Vlog, c: Clip): Span[] {
+  const raw: Span[] = [...(c.hook_start_s != null && c.hook_end_s != null ? [{ from: Number(c.hook_start_s), to: Number(c.hook_end_s) }] : []), { from: Number(c.start_s), to: Number(c.end_s) }];
+  const edited = v.edit ? within(raw, v.edit.keep) : [];
+  return edited.length ? edited : raw;
+}
+/** 8K decodes slowly on a function (a 56 s clip did not finish inside 800 s): past 15 s of 8K footage, fan out. */
+const needsFanout = (v: Vlog, spans: Span[]) => Math.max(Number(v.width ?? 0), Number(v.height ?? 0)) > 4000 && spans.reduce((a, s) => a + (s.to - s.from), 0) > 15;
+const groupPaths = (v: Vlog, c: Clip, spans: Span[], look: unknown) => {
+  const key = createHash('sha256').update(JSON.stringify({ spans, look })).digest('hex').slice(0, 12);
+  return clipGroups(spans).map((_, g) => `${dir(v)}/clips/${c.n}-${key}-g${g}.mkv`);
+};
+/** Every group stored: download and join them into a local joined.mkv (returns its folder). Otherwise kick a worker
+ *  on each missing group (unless one started in the last 14 minutes) and return null. */
+async function clipGroupsJoined(v: Vlog, c: Clip, spans: Span[], look: unknown, origin: string): Promise<string | null> {
+  const paths = groupPaths(v, c, spans, look);
+  const have = await Promise.all(paths.map((p) => head(p).then(() => true, () => false)));
+  if (have.some((h) => !h)) {
+    await Promise.all(paths.map(async (p, g) => {
+      if (have[g]) return;
+      const lock = await head(`${p}.lock`).catch(() => null);
+      if (lock && Date.now() - new Date(lock.uploadedAt).getTime() < 14 * 60_000) return;
+      await put(`${p}.lock`, String(Date.now()), { access: 'private', contentType: 'text/plain', addRandomSuffix: false, allowOverwrite: true });
+      await kickGroup(origin, v.id, c.n, g);
+    }));
+    return null;
+  }
+  await sweepTmp();
+  const d = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clipjoin-'));
+  try {
+    const files: string[] = [];
+    for (const [g, p] of paths.entries()) {
+      const r = await fetch(await presigned(p, 30), { signal: AbortSignal.timeout(180_000) });
+      if (!r.ok) throw new Error(`clip piece ${g + 1} didn't download (${r.status})`);
+      const f = `g${String(g).padStart(3, '0')}.mkv`;
+      await fs.writeFile(path.join(d, f), Buffer.from(await r.arrayBuffer()));
+      files.push(f);
+    }
+    await joinPieces(d, files, 'joined.mkv');
+    return d;
+  } catch (e) { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); throw e; }
+}
+async function kickGroup(origin: string, id: string, n: number, g: number): Promise<void> {
+  if (!process.env.CRON_SECRET) return;
+  const base = process.env.VERCEL_ENV === 'production' ? siteOrigin() : origin;
+  const r = await fetch(`${base}/api/studio/unedit/${id}/clippiece/${n}/${g}`, { method: 'POST', redirect: 'manual', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(20_000) })
+    .catch((e) => { console.error(`[unedit] ${id} clip ${n} group ${g} kick failed: ${e instanceof Error ? e.message : e}`); return null; });
+  if (r && !r.ok) console.error(`[unedit] ${id} clip ${n} group ${g} kick answered ${r.status} from ${base}`);
+}
+/** A group worker: render one group of a clip's spans and store it (lib/unedit-media.ts clipPieces). */
+export async function renderClipGroup(id: string, n: number, g: number): Promise<string> {
+  const { data: v0 } = await dbx().from('unedit_vlogs').select('*').eq('id', id).single();
+  const { data: c0 } = await dbx().from('unedit_clips').select('*').eq('vlog_id', id).eq('n', n).single();
+  if (!v0 || !c0) return 'No such clip.';
+  const v = v0 as Vlog, c = c0 as Clip;
+  const spans = clipSpans(v, c);
+  const look = clipLook(v);
+  const groups = clipGroups(spans);
+  const p = groupPaths(v, c, spans, look)[g];
+  if (!p || !groups[g]) return `Clip ${n} has no group ${g + 1}.`;
+  if (await head(p).then(() => true, () => false)) return `Clip ${n} group ${g + 1} is already stored.`;
+  await sweepTmp();
+  const d = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clipgroup-'));
+  const t0 = Date.now();
+  try {
+    await clipPieces(d, await presigned(v.blob_path, 60), groups[g], probeOf(v), look, 'group.mkv');
+    await put(p, await fs.readFile(path.join(d, 'group.mkv')), { access: 'private', contentType: 'video/x-matroska', addRandomSuffix: false, allowOverwrite: true, multipart: true });
+    return `Clip ${n} group ${g + 1} of ${groups.length} in ${Math.round((Date.now() - t0) / 1000)} s.`;
+  } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
 }
 
 /** Start a worker on every part that needs one (up to the worker limit). */

@@ -235,8 +235,52 @@ export async function renderClip(url: string, spans: Span[], words: Word[], src:
   // A failed render removes its own folder (its pieces are large); a finished one is removed by the caller.
   try { return await renderClipIn(dir, url, spans, words, src, opts); } catch (e) { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); throw e; }
 }
-async function renderClipIn(dir: string, url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null }): Promise<{ file: string; dir: string; secs: number }> {
-  const serif = await fontsDir(dir);
+type ClipOpts = { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null };
+async function renderClipIn(dir: string, url: string, spans: Span[], words: Word[], src: Probe, opts: ClipOpts): Promise<{ file: string; dir: string; secs: number }> {
+  await clipPieces(dir, url, spans, src, opts, 'joined.mkv');
+  return finishClip(dir, words, spans, opts);
+}
+
+/** The clip's frame filter: framed (a face-aware crop of landscape, or portrait padded), tone-mapped and graded at 1080x1920. */
+function clipFrame(src: Probe, opts: ClipOpts): string {
+  const portrait = src.height >= src.width;
+  const c = opts.crop;
+  return (c && !portrait
+    ? `crop=${c.w}:${c.h}:${c.x}:${c.y},scale=${W}:${H}:flags=lanczos`
+    : portrait
+      ? `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`
+      : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '');
+}
+
+/** Render spans of the recording into one near-lossless 1080x1920 intermediate (`out` in `dir`), piece by piece: each
+ *  span decodes alone (an 8K HDR decoder is large; several at once ran a function out of memory), with PCM sound so
+ *  the pieces join without a gap or a click. A long clip from 8K renders as several groups in parallel workers
+ *  (unedit.ts renderClipGroup) that are joined the same way. */
+export async function clipPieces(dir: string, url: string, spans: Span[], src: Probe, opts: ClipOpts, out: string): Promise<void> {
+  const frame = clipFrame(src, opts);
+  const pieces: string[] = [];
+  for (const [i, sp] of spans.entries()) {
+    const f = `p${String(i).padStart(3, '0')}.mkv`;
+    await ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3), '-i', url,
+      '-vf', `${frame},setsar=1,fps=${FPS},format=yuv420p`, '-af', 'aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo',
+      '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', f], dir);
+    pieces.push(f);
+  }
+  await joinPieces(dir, pieces, out);
+}
+
+/** Join intermediates (same format) in order, without re-encoding; the inputs are removed. */
+export async function joinPieces(dir: string, pieces: string[], out: string): Promise<void> {
+  const list = `${out}.txt`;
+  await fs.writeFile(path.join(dir, list), pieces.map((f) => `file '${f}'`).join('\n'));
+  await ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', out], dir);
+  for (const f of pieces) await fs.rm(path.join(dir, f), { force: true });
+}
+
+/** The light last pass over `dir`/joined.mkv: punch-ins on accent words, captions, loudness, into clip.mp4. The
+ *  joined intermediate is kept (the caller may finish it twice: with and without captions). */
+export async function finishClip(dir: string, words: Word[], spans: Span[], opts: ClipOpts, out = 'clip.mp4'): Promise<{ file: string; dir: string; secs: number }> {
+  const serif = await fontsDir(dir).catch(() => true);
   // Accent words are marked by their index in the whole transcript, before the words are re-timed onto the clip.
   const marks = new Set(opts.accents ?? []);
   const timed = wordsForSpans(marks.size ? words.map((w, i) => (marks.has(i) ? { ...w, a: true } : w)) : words, spans);
@@ -244,34 +288,31 @@ async function renderClipIn(dir: string, url: string, spans: Span[], words: Word
   const captions = opts.captions !== false;
   if (captions) await fs.writeFile(path.join(dir, 'c.ass'), captionsAss(timed, serif));
   const zoom = zoomExpr(timed);
-  const portrait = src.height >= src.width;
-  // Portrait phone video fills 9:16; landscape is center-cropped (a talking head sits in the middle).
-  const c = opts.crop;
-  const frame = (c && !portrait
-    ? `crop=${c.w}:${c.h}:${c.x}:${c.y},scale=${W}:${H}:flags=lanczos`
-    : portrait
-      ? `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`
-      : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '');
-  // Piece by piece: each span decodes alone (an 8K HDR decoder is large; several at once ran a function out of
-  // memory), framed, tone-mapped and graded at 1080×1920 into a near-lossless intermediate with PCM sound, so the
-  // pieces join without a gap or a click. One light pass then adds the punch-ins, captions and loudness.
-  const pieces: string[] = [];
-  for (const [i, sp] of spans.entries()) {
-    const out = `p${String(i).padStart(3, '0')}.mkv`;
-    await ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3), '-i', url,
-      '-vf', `${frame},setsar=1,fps=${FPS},format=yuv420p`, '-af', 'aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo',
-      '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', out], dir);
-    pieces.push(out);
-  }
-  await fs.writeFile(path.join(dir, 'pieces.txt'), pieces.map((f) => `file '${f}'`).join('\n'));
-  await ffmpeg(['-f', 'concat', '-safe', '0', '-i', 'pieces.txt', '-c', 'copy', 'joined.mkv'], dir);
-  for (const f of pieces) await fs.rm(path.join(dir, f), { force: true });
   const punch = zoom ? `scale=w='2*trunc(${W}*(${zoom})/2)':h='2*trunc(${H}*(${zoom})/2)':eval=frame,crop=${W}:${H},` : '';
   const fc = [`[0:v]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[0:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]'];
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
-  await ffmpeg(['-i', 'joined.mkv', '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'clip.mp4'], dir);
-  await fs.rm(path.join(dir, 'joined.mkv'), { force: true });
-  return { file: path.join(dir, 'clip.mp4'), dir, secs };
+  await ffmpeg(['-y', '-i', 'joined.mkv', '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], dir);
+  return { file: path.join(dir, out), dir, secs };
+}
+
+/** Spans grouped into runs of about `max` seconds of footage, in order; a long span is cut into `max`-second pieces
+ *  (the pieces join seamlessly, and captions and punch-ins are timed on the clip's original spans). */
+export function clipGroups(spans: Span[], max = 8): Span[][] {
+  const out: Span[][] = [];
+  let cur: Span[] = [], len = 0;
+  const split = spans.flatMap((sp) => {
+    const n = Math.ceil((sp.to - sp.from) / max - 0.25);
+    if (n <= 1) return [sp];
+    const step = (sp.to - sp.from) / n;
+    return Array.from({ length: n }, (_, i) => ({ from: sp.from + i * step, to: i === n - 1 ? sp.to : sp.from + (i + 1) * step }));
+  });
+  for (const sp of split) {
+    const d = sp.to - sp.from;
+    if (cur.length && len + d > max) { out.push(cur); cur = []; len = 0; }
+    cur.push(sp); len += d;
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 /** Stills from the recording at the given seconds, as JPEGs (width `w`, height kept in proportion). */
