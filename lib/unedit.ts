@@ -366,8 +366,11 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
       const at = k >= 0 ? epTime(words[k].s, edit.keep) : null;
       return { text: it, t: at != null ? Math.max(0, at - T) : 0 };
     });
-    const cue = { t: 0, end: D, kind: c.kind, text: c.text, icon: c.icon, items: items2, value: c.value, prefix: c.prefix, suffix: c.suffix, screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam };
-    base.push({ T, D, kind: 'cue', text: c.text, cue, sound: c.sound });
+    // Words copied from the transcript keep its punctuation; a figure card read "$4,000,000," (22809137). Trailing commas,
+    // semicolons and colons come off whatever goes on screen.
+    const tidy = <T,>(x: T): T => (typeof x === 'string' ? (x.replace(/[,;:\s]+$/, '') as T) : x);
+    const cue = { t: 0, end: D, kind: c.kind, text: tidy(c.text), icon: c.icon, items: items2?.map((it) => ({ ...it, text: tidy(it.text) })), value: tidy(c.value), prefix: c.prefix, suffix: tidy(c.suffix), screen: c.screen ? await screenLinks(c.screen) : null, sound: c.sound, cam: c.cam };
+    base.push({ T, D, kind: 'cue', text: cue.text, cue, sound: c.sound });
   }
   // B-roll: each director moment starts a Runway illustration now (it renders while the parts do); the step waits for
   // the clips before the reel. Abstract or generic shots only, labelled "Illustration" on screen. UNEDIT_BROLL=off.
@@ -729,6 +732,10 @@ async function writePartCaptions(v: Vlog, dir: string, p0: number, secs: number,
   const key = items.filter((g) => g.kind === 'emphasis' || g.kind === 'kinetic').map((g) => ({ T: g.T, D: g.D, words: new Set(g.text.toLowerCase().split(/\s+/).map((x) => x.replace(/[^a-z0-9$%']/g, ''))) }));
   const out: Word[] = [];
   for (const w of words) {
+    // Only words the episode actually keeps: a cut word touching a kept edge (an "um" just after a join) once
+    // flashed on screen for a frame while its sound was gone.
+    const mid = (w.s + w.e) / 2;
+    if (!keep.some((k) => mid >= k.from && mid <= k.to)) continue;
     const a = epTime(w.s, keep), b = epTime(Math.max(w.s, w.e - 0.02), keep);
     if (a == null || b == null || a < p0 - 0.01 || a >= p0 + secs) continue;
     if (clear.some(([x, y]) => a < y && b > x)) continue;

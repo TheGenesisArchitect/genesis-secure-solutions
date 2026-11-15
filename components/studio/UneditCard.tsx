@@ -23,7 +23,7 @@ const NET: Record<string, string> = { instagram: 'Instagram Reel', facebook: 'Fa
 // "0:15 tightened: 1 camera command, 6 uh/um, 3 long pauses, walk-off"
 function polishSummary(p: { removed: number; cuts: Record<string, number> }): string {
   const n = (k: string, one: string, many = `${one}s`) => (p.cuts[k] ? `${p.cuts[k]} ${p.cuts[k] === 1 ? one : many}` : '');
-  const bits = [n('command', 'camera command'), n('filler', 'uh/um', 'uh/ums'), n('false start', 'false start'), n('pause', 'long pause'), p.cuts.head ? 'walk-up' : '', p.cuts.tail ? 'walk-off' : ''].filter(Boolean);
+  const bits = [n('command', 'camera command'), n('filler', 'uh/um', 'uh/ums'), n('false start', 'false start'), n('stutter', 'stutter'), n('pause', 'long pause'), p.cuts.head ? 'walk-up' : '', p.cuts.tail ? 'walk-off' : ''].filter(Boolean);
   return `${mmss(p.removed)} tightened${bits.length ? ` (${bits.join(', ')})` : ''}`;
 }
 const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;

@@ -9,7 +9,7 @@
 //     change of camera when the last change was long enough ago; a long stretch changes camera at a sentence end.
 import type { Span, Word } from '@/lib/unedit-media';
 
-export type Cut = { from: number; to: number; why: 'head' | 'tail' | 'command' | 'filler' | 'pause' | 'false start' };
+export type Cut = { from: number; to: number; why: 'head' | 'tail' | 'command' | 'filler' | 'pause' | 'false start' | 'stutter' };
 export type Camera = 'wide' | 'medium' | 'close';
 export type Seg = { from: number; to: number; cam: Camera; /** a split piece: framed from the whole piece's middle */ mid?: number;
   /** a split piece: where it starts inside the whole shot and the shot's full length (so a push-in carries across the
@@ -19,6 +19,7 @@ export type Edit = { keep: Span[]; cuts: Cut[]; segs: Seg[]; secs: number; remov
 const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, '');
 const FILLER = new Set(['uh', 'um', 'uhm', 'umm', 'uhh', 'uhhh', 'er', 'erm', 'ah', 'ahh', 'hmm', 'hm', 'mm', 'mmm', 'eh']);
 export const isFiller = (w: string) => FILLER.has(norm(w));
+const DOUBLES = new Set(['had', 'that']);
 // Spoken camera and assistant commands (normalized word runs). Matched anywhere in the take.
 const COMMANDS: string[][] = [
   'start recording', 'stop recording', 'start the recording', 'stop the recording', 'end recording', 'end the recording',
@@ -92,6 +93,16 @@ export function editList(words: Word[], duration: number, falseStarts: string[] 
   const drop = commandWords(words, duration);
   const why = new Map<number, Cut['why']>([...drop].map((i) => [i, 'command' as const]));
   words.forEach((w, i) => { if (!why.has(i) && isFiller(w.w)) why.set(i, 'filler'); });
+  // Stutters: a word said twice in a row ("is is", "they're they're", "for for") loses its first saying. A filler
+  // between them doesn't hide it ("the, um, the"). "had had" and "that that" can be grammar, so they stay.
+  for (let i = 0; i < words.length; i++) {
+    if (why.has(i)) continue;
+    const a = norm(words[i].w);
+    if (!a || DOUBLES.has(a)) continue;
+    let j = i + 1;
+    while (j < words.length && why.get(j) === 'filler') j++;
+    if (j < words.length && !why.has(j) && norm(words[j].w) === a && words[j].s - words[i].e < 0.8 && !/[.!?]["')\]]?$/.test(words[i].w)) why.set(i, 'stutter');
+  }
   const used = new Set(why.keys());
   for (const say of falseStarts.slice(0, 20)) for (const i of findRun(words, say, used)) { why.set(i, 'false start'); used.add(i); }
 
@@ -107,8 +118,10 @@ export function editList(words: Word[], duration: number, falseStarts: string[] 
   for (const [i, w] of why) {
     const prev = [...real].reverse().find((k) => k < i);
     const next = real.find((k) => k > i);
-    const from = prev == null ? start : Math.min(words[i].s, words[prev].e + PAD);
-    const to = next == null ? end : Math.max(words[i].e, words[next].s - PAD);
+    // Never into a kept word: the recognizer sometimes stretches a dropped word over its neighbours (a stuttered
+    // "he's" timed 165.62-167.06 swallowed "he's already" on 22809137), so the cut stops at the kept words' edges.
+    const from = prev == null ? start : Math.max(words[prev].e, Math.min(words[i].s, words[prev].e + PAD));
+    const to = next == null ? end : Math.min(words[next].s, Math.max(words[i].e, words[next].s - PAD));
     if (to > from) cuts.push({ from, to, why: w });
   }
   // Long pauses between kept words shrink to a breath.
