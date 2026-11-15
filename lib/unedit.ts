@@ -17,7 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { episodeCaptionsAss, extractAudio, fontsDir, frames, presigned, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { episodeCaptionsAss, extractAudio, fontsDir, frames, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -530,6 +530,7 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     .eq('vlog_id', id).eq('k', k).or(`status.eq.todo,and(status.eq.running,lease_until.lt.${now})`)
     .select('*').maybeSingle();
   if (!claimed) return `Part ${k} is taken or done.`;
+  await sweepTmp(); // a warm instance may hold folders from a part that was killed
   const tries = Number(claimed.attempts ?? 0) + 1;
   if (tries > PART_TRIES) {
     // Every earlier try was killed (out of time or memory: nothing was thrown, so nothing was recorded). Stop here

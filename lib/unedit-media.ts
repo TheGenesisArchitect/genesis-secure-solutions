@@ -209,8 +209,25 @@ export function zoomExpr(words: Word[]): string | null {
 /** Render one 9:16 clip from the recording to a local MP4 (the caller stores it). Spans play in order: a hook
  *  span first when the moment was rebuilt to open on its strongest line. */
 /** opts.crop: Episode Pro's face-aware 9:16 rectangle of a landscape source; opts.grade: its color filter. */
+/** A warm function instance keeps /tmp between calls: clear Unedit work folders left by calls that died (killed for
+ *  time or memory, so their own cleanup never ran) once they are older than 20 minutes. */
+export async function sweepTmp(maxAgeMs = 20 * 60_000): Promise<void> {
+  const root = os.tmpdir();
+  const names = await fs.readdir(root).catch(() => [] as string[]);
+  await Promise.all(names.filter((n) => n.startsWith('unedit-')).map(async (n) => {
+    const p = path.join(root, n);
+    const st = await fs.stat(p).catch(() => null);
+    if (st?.isDirectory() && Date.now() - st.mtimeMs > maxAgeMs) await fs.rm(p, { recursive: true, force: true }).catch(() => {});
+  }));
+}
+
 export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null } = {}): Promise<{ file: string; dir: string; secs: number }> {
+  await sweepTmp();
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clip-'));
+  // A failed render removes its own folder (its pieces are large); a finished one is removed by the caller.
+  try { return await renderClipIn(dir, url, spans, words, src, opts); } catch (e) { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); throw e; }
+}
+async function renderClipIn(dir: string, url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null }): Promise<{ file: string; dir: string; secs: number }> {
   const serif = await fontsDir(dir);
   // Accent words are marked by their index in the whole transcript, before the words are re-timed onto the clip.
   const marks = new Set(opts.accents ?? []);
