@@ -111,17 +111,42 @@ function json<T>(text: string): T {
 }
 
 // ---- thumbnails: the source's own link preview (it always links back) -------------------------------------------
+/** The picture a story's page offers for sharing: its og/twitter image, its image_src link, its JSON-LD image, or (none
+ *  of those) the article's first real photo. We always identify as the Genovus newsroom; a site that refuses us (Medium
+ *  answers 403) gets the designed source tile in the newsroom instead. */
 export async function linkPreview(url: string): Promise<string | null> {
+  return previewWith(url, 'GenovusNewsroom/1.0 (+https://genovus.io)');
+}
+async function previewWith(url: string, ua: string): Promise<string | null> {
   try {
-    const r = await fetch(url, { headers: { 'user-agent': 'GenovusNewsroom/1.0 (+https://genovus.io)' }, signal: AbortSignal.timeout(6000), redirect: 'follow' });
+    const r = await fetch(url, { headers: { 'user-agent': ua, accept: 'text/html,application/xhtml+xml,*/*;q=0.8', 'accept-language': 'en-US,en;q=0.9' }, signal: AbortSignal.timeout(8000), redirect: 'follow' });
     if (!r.ok || !r.body) return null;
     const reader = r.body.getReader();
+    const dec = new TextDecoder();
     let html = '';
-    while (html.length < 400_000) { const { done, value } = await reader.read(); if (done) break; html += new TextDecoder().decode(value); if (/<\/head>/i.test(html)) break; }
+    while (html.length < 600_000) { const { done, value } = await reader.read(); if (done) break; html += dec.decode(value, { stream: true }); }
     reader.cancel().catch(() => undefined);
-    const m = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)(?::src)?["'][^>]*content=["']([^"']+)["']/i) ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i);
-    const img = m?.[1] ? new URL(m[1].replace(/&amp;/g, '&'), url).toString() : null;
-    return img && img.startsWith('https://') ? img.slice(0, 1000) : null;
+    const base = r.url || url;
+    const abs = (u: string | undefined | null) => { if (!u) return null; try { const x = new URL(u.replace(/&amp;/g, '&').trim(), base).toString(); return x.startsWith('https://') ? x.slice(0, 1000) : null; } catch { return null; } };
+    const meta = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)(?::src)?["'][^>]*content=["']([^"']+)["']/i) ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)(?::src)?["']/i);
+    if (abs(meta?.[1])) return abs(meta?.[1]);
+    const link = html.match(/<link[^>]+rel=["']image_src["'][^>]*href=["']([^"']+)["']/i);
+    if (abs(link?.[1])) return abs(link?.[1]);
+    for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+      const j = m[1].match(/"image"\s*:\s*(?:\[\s*)?(?:\{[^}]*?"url"\s*:\s*)?"([^"]+)"/);
+      if (abs(j?.[1])) return abs(j?.[1]);
+    }
+    // The article's first real photo: skip logos, icons, avatars, tracking pixels, SVG and anything declared small.
+    for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+      const tag = m[0];
+      const src = tag.match(/\s(?:data-src|src)=["']([^"']+)["']/i)?.[1];
+      if (!src || /^data:|\.svg(\?|$)|logo|icon|avatar|sprite|pixel|badge|emoji|gravatar|1x1/i.test(src)) continue;
+      const w = Number(tag.match(/\swidth=["']?(\d+)/i)?.[1] ?? 0), h = Number(tag.match(/\sheight=["']?(\d+)/i)?.[1] ?? 0);
+      if ((w && w < 300) || (h && h < 160)) continue;
+      const u = abs(src);
+      if (u) return u;
+    }
+    return null;
   } catch { return null; }
 }
 

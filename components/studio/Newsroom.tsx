@@ -27,6 +27,21 @@ const STATUS_LABEL: Record<string, string> = { new: 'New', drafting: 'Drafting',
 const TAG: Record<string, string> = { confirmed: 'Confirmed', reported: 'Reported', alleged: 'Alleged', opinion: 'Opinion', unsupported: 'Unsupported' };
 const day = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+/** When the publisher offers no picture (or refuses our preview), a designed tile: the beat's colour, the publisher's
+ *  own icon and name, and the headline, so the wire still reads well on camera. */
+function SourceTile({ s }: { s: Pick<NrStory, 'beat' | 'source' | 'url' | 'headline'> }) {
+  const [icon, setIcon] = useState(true);
+  const name = s.source.replace(/\s*\(.*$/, '').trim() || host(s.url);
+  return (
+    <span className={`nr-tile beat-${s.beat}`}>
+      <span className="nr-tile-src">
+        {icon ? <img src={`https://${host(s.url)}/favicon.ico`} alt="" referrerPolicy="no-referrer" onError={() => setIcon(false)} /> : <i>{name.slice(0, 1)}</i>}
+        {name}
+      </span>
+      <span className="nr-tile-head">{s.headline}</span>
+    </span>
+  );
+}
 
 export function Newsroom({ stories, productions, beats, voice, spentToday, dailyCap }: { stories: NrStory[]; productions: NrProduction[]; beats: Beat[]; voice: string[]; spentToday: number; dailyCap: number }) {
   const router = useRouter();
@@ -91,7 +106,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
                 return (
                   <button type="button" key={`${s.id}-${i}`} className={`nr-card${story?.id === s.id ? ' on' : ''}`} onClick={() => setPick(s.id)} aria-hidden={dup || undefined} tabIndex={dup ? -1 : 0}>
                     <span className="nr-thumb">
-                      {s.thumb && !broken[s.id] ? <img src={s.thumb} alt="" referrerPolicy="no-referrer" loading="lazy" onError={() => setBroken((b) => ({ ...b, [s.id]: true }))} /> : <span className="nr-tile">{s.source}</span>}
+                      {s.thumb && !broken[s.id] ? <img src={s.thumb} alt="" referrerPolicy="no-referrer" loading="lazy" onError={() => setBroken((b) => ({ ...b, [s.id]: true }))} /> : <SourceTile s={s} />}
                       <span className="nr-badge">{STATUS_LABEL[s.status] ?? s.status}</span>
                     </span>
                     <span className="nr-meta"><span>{label(s.beat)}{s.sub ? ` · ${s.sub}` : ''}</span><span>{s.source}{s.published_on ? ` · ${day(s.published_on)}` : ''}</span></span>
@@ -160,7 +175,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
           <section className="nr-col" aria-label="Watch and read">
             <span className="nr-step">2 · Watch and read here</span>
             <div className="nr-reader">
-              {story.thumb && !broken[story.id] ? <img src={story.thumb} alt="" referrerPolicy="no-referrer" onError={() => setBroken((b) => ({ ...b, [story.id]: true }))} /> : null}
+              {story.thumb && !broken[story.id] ? <img src={story.thumb} alt="" referrerPolicy="no-referrer" onError={() => setBroken((b) => ({ ...b, [story.id]: true }))} /> : <span className="nr-reader-tile"><SourceTile s={story} /></span>}
               <span className="nr-label dark">Reader view · {story.source}{story.published_on ? ` · ${day(story.published_on)}` : ''}</span>
               <b className="nr-reader-title">{story.headline}</b>
               {story.claims.filter((c) => c.approved).map((c) => <span key={c.id} className="nr-reader-line">· {c.text} <i>({c.source_title || host(c.source_url)})</i></span>)}

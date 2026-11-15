@@ -44,20 +44,20 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
   const seek = (s: number) => { setT(s); if (video.current) video.current.currentTime = s; };
 
   return (
-    <div className="sl">
-      <div className="sl-top">
-        <span className={`sl-state ${working ? 'work' : review ? 'review' : ''}`}>{working ? '● Working' : review ? 'Ready for review' : stage}</span>
+    <div className="stl">
+      <div className="stl-top">
+        <span className={`stl-state ${working ? 'work' : review ? 'review' : ''}`}>{working ? '● Working' : review ? 'Ready for review' : stage}</span>
         <span className="muted">{polished ? 'Polished episode' : 'The recording (the polished episode replaces it when it finishes)'} · {mmss(secs)}</span>
       </div>
 
-      <div className="sl-grid">
-        <section className="sl-helix" aria-label="Helix the Director">
-          <div className="sl-helix-head"><span className="sl-egg" aria-hidden="true" /><div><b>Helix · Director</b><span className="muted">{working ? 'Directing the edit' : needs.length ? `${needs.length} ${needs.length === 1 ? 'thing needs' : 'things need'} you` : 'All clear'}</span></div></div>
-          <div className="sl-log">
-            <p className="sl-msg">This is {title}. {polished ? 'The polished episode is on the monitor.' : 'I’ll put the polished episode on the monitor when it finishes.'} Click any piece on the timeline to see it; I can take it out, restyle the whole episode, or add the graphics again.</p>
-            {log.map((m, i) => <p key={i} className={`sl-msg${m.who === 'You' ? ' you' : ''}`}><b>{m.who}</b> {m.text}</p>)}
+      <div className="stl-grid">
+        <section className="stl-helix" aria-label="Helix the Director">
+          <div className="stl-helix-head"><span className="stl-egg" aria-hidden="true" /><div><b>Helix · Director</b><span className="muted">{working ? 'Directing the edit' : needs.length ? `${needs.length} ${needs.length === 1 ? 'thing needs' : 'things need'} you` : 'All clear'}</span></div></div>
+          <div className="stl-log">
+            <p className="stl-msg">This is {title}. {polished ? 'The polished episode is on the monitor.' : 'I’ll put the polished episode on the monitor when it finishes.'} Click any piece on the timeline to see it; I can take it out, restyle the whole episode, or add the graphics again.</p>
+            {log.map((m, i) => <p key={i} className={`stl-msg${m.who === 'You' ? ' you' : ''}`}><b>{m.who}</b> {m.text}</p>)}
           </div>
-          <div className="sl-asks">
+          <div className="stl-asks">
             <span className="nr-label">Ask Helix</span>
             {PACKAGES.filter(([p]) => p !== pkg).map(([p, l]) => <button type="button" key={p} className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'set_package', pkg: p }, p, `Restyle the episode as ${l}.`)}>Restyle as {l}</button>)}
             <button type="button" className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'retry_episode' }, 'retry', 'Add the graphics again.')}>Add the graphics again</button>
@@ -65,46 +65,46 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
           </div>
         </section>
 
-        <main className="sl-main">
-          <div className="sl-monitor">
+        <main className="stl-main">
+          <div className="stl-monitor">
             {src ? <video ref={video} src={src} controls playsInline preload="metadata" onTimeUpdate={(e) => setT(e.currentTarget.currentTime)} /> : <div className="ue-blank" />}
           </div>
-          <div className="sl-now">{current.length ? current.map((c, i) => <span key={i} className="sl-chip">{c.label}{c.text && c.kind !== 'broll' ? `: ${c.text.slice(0, 40)}` : ''}</span>) : <span className="muted nr-small">{mmss(t)} · on camera</span>}</div>
-          <div className="sl-timeline" aria-label="Timeline">
-            <div className="sl-inner">
-              <div className="sl-ruler">{ruler.map((r) => <span key={r} style={{ left: `${(r / total) * 100}%` }}>{mmss(r)}</span>)}</div>
+          <div className="stl-now">{current.length ? current.map((c, i) => <span key={i} className="stl-chip">{c.label}{c.text && c.kind !== 'broll' ? `: ${c.text.slice(0, 40)}` : ''}</span>) : <span className="muted nr-small">{mmss(t)} · on camera</span>}</div>
+          <div className="stl-timeline" aria-label="Timeline">
+            <div className="stl-inner">
+              <div className="stl-ruler">{ruler.map((r) => <span key={r} style={{ left: `${(r / total) * 100}%` }}>{mmss(r)}</span>)}</div>
               {tracks.map((tr) => (
-                <div key={tr.name} className="sl-row">
-                  <span className="sl-name">{tr.name}</span>
-                  <div className="sl-lane">
+                <div key={tr.name} className="stl-row">
+                  <span className="stl-name">{tr.name}</span>
+                  <div className="stl-lane">
                     {tr.clips.map((c, i) => (
-                      <button type="button" key={i} title={`${c.label}: ${c.text}`} className={`sl-clip t-${tr.name.toLowerCase().replace(/[^a-z]/g, '')}${c.tone ? ` tone-${c.tone}` : ''}${sel === c ? ' on' : ''}`} style={{ left: `${(c.T / total) * 100}%`, width: `max(4px, ${(c.D / total) * 100}%)` }} onClick={() => { setSel(c); seek(c.T + 0.05); }}>{c.label}</button>
+                      <button type="button" key={i} title={`${c.label}: ${c.text}`} className={`stl-clip t-${tr.name.toLowerCase().replace(/[^a-z]/g, '')}${c.tone ? ` tone-${c.tone}` : ''}${sel === c ? ' on' : ''}`} style={{ left: `${(c.T / total) * 100}%`, width: `max(4px, ${(c.D / total) * 100}%)` }} onClick={() => { setSel(c); seek(c.T + 0.05); }}>{c.label}</button>
                     ))}
                   </div>
                 </div>
               ))}
-              <div className="sl-head" style={{ left: `calc(96px + (100% - 96px) * ${Math.min(1, t / total)})` }} aria-hidden="true" />
+              <div className="stl-head" style={{ left: `calc(var(--stl-off, 96px) + (100% - var(--stl-off, 96px)) * ${Math.min(1, t / total)})` }} aria-hidden="true" />
             </div>
           </div>
         </main>
 
-        <aside className="sl-side">
-          <section className="sl-card">
+        <aside className="stl-side">
+          <section className="stl-card">
             <span className="nr-label">Selected{sel ? ` · ${sel.track}` : ''}</span>
             {sel ? (<>
-              <b className="sl-sel-title">{sel.label}</b>
-              <span className="sl-sel-text">{sel.text}</span>
+              <b className="stl-sel-title">{sel.label}</b>
+              <span className="stl-sel-text">{sel.text}</span>
               <span className="muted nr-small">{mmss(sel.T)}–{mmss(sel.T + sel.D)}{sel.state ? ` · ${sel.state}` : ''}</span>
               {sel.removable ? <button type="button" className="btn" disabled={!review || busy !== null} onClick={() => send({ tool: 'drop_graphic', kind: sel.kind, text: sel.raw ?? sel.text, T: sel.T }, 'drop', `Take out the ${sel.label.toLowerCase()} at ${mmss(sel.T)}.`)}>Take it out</button> : null}
             </>) : <span className="muted">Click any piece on the timeline.</span>}
           </section>
-          <section className="sl-card">
+          <section className="stl-card">
             <span className="nr-label">The crew · {crew.length} agents</span>
-            {crew.map((c) => <div key={c.name} className="sl-crew"><span className={`sl-dot ${c.state}`} aria-hidden="true" /><span><b>{c.name}</b><br /><span className="muted">{c.doing}</span></span></div>)}
+            {crew.map((c) => <div key={c.name} className="stl-crew"><span className={`stl-dot ${c.state}`} aria-hidden="true" /><span><b>{c.name}</b><br /><span className="muted">{c.doing}</span></span></div>)}
           </section>
-          <section className="sl-card needs">
+          <section className="stl-card needs">
             <span className="nr-label hot">Needs you · {needs.length}</span>
-            {needs.length ? needs.map((n, i) => <span key={i} className="sl-need">{n}</span>) : <span className="nr-ok">All clear.</span>}
+            {needs.length ? needs.map((n, i) => <span key={i} className="stl-need">{n}</span>) : <span className="nr-ok">All clear.</span>}
             <a className="btn primary" href={`/console/studio/unedit/${id}`}>Review and approve</a>
           </section>
         </aside>
