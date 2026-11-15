@@ -376,9 +376,10 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
       const T = epTime(ss[b.s]?.s ?? -1, edit.keep);
       if (T == null || T < 6 || T > secs - 10) continue;
       try {
-        const job = await runwayTextVideo({ prompt: b.prompt, duration: 4 });
+        const job = await runwayTextVideo({ prompt: b.prompt, duration: 8 });
         await spend(v.id, BROLL_CENTS, 'B-roll illustration (Runway)');
-        base.push({ T: T + 0.3, D: 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id }, sound: 'whoosh' });
+        // An 8 s shot: 4 s of it over a talking head, 6 s when the illustrations carry a faceless video.
+        base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id }, sound: 'whoosh' });
       } catch (e) { console.error(`[unedit] ${v.id} B-roll not started: ${e instanceof Error ? e.message : e}`); }
     }
   }
@@ -689,7 +690,7 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
 
 // ---- B-roll ----------------------------------------------------------------------------------------------------
 const BROLL_ON = () => process.env.UNEDIT_BROLL !== 'off';
-const BROLL_CENTS = 40; // Veo 3.1 Fast through Runway: 10 credits a second, 4 s
+const BROLL_CENTS = 80; // Veo 3.1 Fast through Runway: 10 credits a second, 8 s (the only length at 1080p)
 /** Wait (up to ~4 minutes in all) for the episode's B-roll jobs, store each clip in Blob, and record it on the plan
  *  (mutating `g`). A job that fails or runs out of time leaves its slot empty: the speaker stays on screen. */
 async function settleBroll(v: Vlog, g: Graphics): Promise<void> {

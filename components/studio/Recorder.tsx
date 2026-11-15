@@ -64,7 +64,7 @@ export function Recorder({ scripts, initial }: { scripts: Script[]; initial: str
     try {
       const portrait = window.innerHeight > window.innerWidth;
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: portrait ? 1080 : 1920 }, height: { ideal: portrait ? 1920 : 1080 }, frameRate: { ideal: 30 } },
+        video: { facingMode: 'user', width: { ideal: portrait ? 2160 : 3840 }, height: { ideal: portrait ? 3840 : 2160 }, frameRate: { ideal: 30 } }, // the camera's best, up to 4K
         audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true },
       });
       cam.current = s;
@@ -127,7 +127,8 @@ export function Recorder({ scripts, initial }: { scripts: Script[]; initial: str
       stream = out;
     }
     chunks.current = [];
-    const r = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 192_000 });
+    const big = Math.max(cam.current!.getVideoTracks()[0]?.getSettings().width ?? 0, cam.current!.getVideoTracks()[0]?.getSettings().height ?? 0) >= 3000 && mode === 'camera';
+    const r = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: big ? 35_000_000 : 16_000_000, audioBitsPerSecond: 192_000 });
     r.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
     r.onstop = () => {
       const type = r.mimeType || mime || 'video/webm';

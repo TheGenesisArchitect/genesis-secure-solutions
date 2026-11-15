@@ -157,7 +157,7 @@ const wnorm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}$%']/gu, '');
 export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature', faceless = false): Promise<EpisodeDirection> {
   // Faceless: no camera footage, so the illustrations carry the picture: more of them, closer together (still capped,
   // each one is a paid Runway shot).
-  const brollMax = faceless ? Math.min(6, Math.max(2, Math.floor(secs / 12))) : Math.max(1, Math.floor(secs / 25));
+  const brollMax = faceless ? Math.min(6, Math.max(2, Math.floor(secs / 12))) : Math.min(8, Math.max(1, Math.floor(secs / 25))); // 80¢ each
   const brollGap = faceless ? 8 : 15;
   const ss = sentences(words);
   const keep = keepSentences.filter((i) => ss[i]);

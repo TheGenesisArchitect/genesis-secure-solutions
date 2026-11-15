@@ -43,8 +43,9 @@ export function runwayVideo(p: { model: 'seedance2_5' | 'gen4.5' | 'gen4_turbo' 
   return call<{ id: string }>('/image_to_video', { body: { model: p.model, promptImage, promptText: p.prompt, ratio: p.ratio, ...(p.duration ? { duration: p.duration } : {}), ...(p.audio != null ? { audio: p.audio } : {}), ...(p.seed != null ? { seed: p.seed } : {}) } });
 }
 
-/** Text to video (Veo 3.1 Fast, no audio, 1920x1080): Unedit's B-roll illustrations. 10 credits a second. */
-export function runwayTextVideo(p: { prompt: string; duration: 4 | 6 | 8 }) {
+/** Text to video (Veo 3.1 Fast, no audio, 1920x1080): Unedit's B-roll illustrations. 10 credits a second. At 1080p
+ *  Runway only takes 8-second videos (since 2026-11; 4 s was refused), so Unedit asks for 8 and uses part of it. */
+export function runwayTextVideo(p: { prompt: string; duration: 8 }) {
   return call<{ id: string }>('/text_to_video', { body: { model: 'veo3.1_fast', promptText: p.prompt.slice(0, 1000), ratio: '1920:1080', duration: p.duration, audio: false } });
 }
 

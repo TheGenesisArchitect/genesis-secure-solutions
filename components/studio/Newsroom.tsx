@@ -40,7 +40,7 @@ function Faceless({ prod, busy, send }: { prod: NrProduction; busy: string | nul
   return (
     <div className="nr-faceless">
       <span className="nr-label">Or make it faceless</span>
-      <span className="muted nr-small">An original AI narrator reads {length === 'short' ? 'the opening and the call to action (about 75 seconds)' : 'the whole script'} over the Genovus moving background. Unedit cuts it with captions, your sources on screen and up to 6 labelled illustrations (40¢ each). Posts say the voice is AI.</span>
+      <span className="muted nr-small">An original AI narrator reads {length === 'short' ? 'the opening and the call to action (about 75 seconds)' : 'the whole script'} over the Genovus moving background. Unedit cuts it with captions, your sources on screen and up to 6 labelled illustrations (80¢ each). Posts say the voice is AI.</span>
       <div className="nr-faceless-row">
         <label className="rc-field"><span>Voice</span><select value={voice} onChange={(e) => setVoice(e.target.value)} disabled={busy !== null}>{FACELESS_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></label>
         <span className="rc-modes" role="radiogroup" aria-label="Length">
