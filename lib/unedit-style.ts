@@ -66,24 +66,51 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
   const out: EpGraphic[] = [];
   const busy: [number, number][] = [];
   let kinetic = 0, emphasis = 0;
+  // Full-frame inserts (the figure on the globe) own the screen, so they are settled first: one at a time, and
+  // finished before the end card (which takes the last ~4.5 s). Everything else then keeps clear of them.
+  const globes: [number, number][] = [];
+  for (const g of base.filter((b) => b.kind === 'globe').sort((a, b) => a.T - b.T)) {
+    const T = Math.max(g.T, globes.length ? globes[globes.length - 1][1] + RULES.gap : 0);
+    const D = Math.min(g.D, secs - 5 - T);
+    if (D < 2.5) { notes.push(`globe at ${g.T.toFixed(1)}s left out: no room before the end card`); continue; }
+    globes.push([T, T + D]);
+    busy.push([T - RULES.gap, T + D + RULES.gap]);
+    out.push({ ...g, T, D });
+  }
+  // Keep an item clear of every globe: trim it to end before one, else move it to just after. Null = no room.
+  const clearOfGlobes = (it: EpGraphic): EpGraphic | null => {
+    let x = { ...it };
+    for (let pass = 0; pass < 4; pass++) {
+      const w = globes.find(([a, b]) => x.T < b + RULES.gap && x.T + x.D > a - RULES.gap);
+      if (!w) return x.T + x.D <= secs + 0.01 ? x : null;
+      if (x.T < w[0] && w[0] - RULES.gap - x.T >= 1.2) x = { ...x, D: w[0] - RULES.gap - x.T };
+      else x = { ...x, T: w[1] + RULES.gap };
+    }
+    return null;
+  };
   for (const g of [...base].sort((a, b) => rank(a.kind) - rank(b.kind) || a.T - b.T)) {
+    if (g.kind === 'globe') continue;
     let item: EpGraphic = { ...g };
     if (g.kind === 'source') {
-      if (item.T < secs - 1) out.push({ ...item, D: Math.min(item.D, secs - item.T) });
+      const c = clearOfGlobes({ ...item, D: Math.min(item.D, secs - item.T) });
+      if (c && c.T < secs - 1) out.push(c); else notes.push(`source at ${g.T.toFixed(1)}s has no room clear of the globe`);
       continue;
     }
     if (news(g.kind)) {
       // Left-anchored panels stop short of the speaker's head, like front titles.
-      if (g.kind !== 'ticker' && g.kind !== 'globe' && ctx.face) {
+      if (g.kind !== 'ticker' && ctx.face) {
         const room = ctx.face.x - ctx.face.w / 3 - RULES.safe - 0.0625;
         if (room < 0.45) item.maxW = Math.max(0.24, Math.round(room * 1000) / 1000);
       }
-      // A fact is never dropped for a clash: it waits up to 2 s for the screen to clear, else shares it (noted).
-      const hit = busy.filter(([a, b]) => item.T < b && item.T + item.D > a);
-      if (hit.length) {
+      // A fact is never dropped for a clash: it waits for the screen to clear (as long as it still fits before the
+      // end), else shares it (noted on the card).
+      for (let pass = 0; pass < 4; pass++) {
+        const hit = busy.filter(([a, b]) => item.T < b && item.T + item.D > a);
+        if (!hit.length) break;
         const free = Math.max(...hit.map(([, b]) => b));
-        if (free - item.T <= 2 && free + item.D <= secs) item.T = free;
-        else notes.push(`${g.kind} at ${g.T.toFixed(1)}s shares the screen with another graphic`);
+        if (free + item.D <= secs - 4.5) { item.T = free; continue; }
+        notes.push(`${g.kind} at ${g.T.toFixed(1)}s shares the screen with another graphic`);
+        break;
       }
       busy.push([item.T - RULES.gap, item.T + item.D + RULES.gap]);
       out.push(item);
@@ -104,6 +131,7 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
         }
       }
       if (g.kind === 'end') item.T = Math.max(0, secs - item.D);
+      if (g.kind !== 'end') { const c = clearOfGlobes(item); if (!c) continue; item = c; }
       if (g.kind === 'kinetic' && kinetic >= RULES.maxKinetic) continue;
       if (g.kind === 'emphasis' && emphasis >= RULES.maxEmphasis) continue;
     }

@@ -477,7 +477,9 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     const qa = await qaEpisode(await presigned(path, 60), g.items);
     await spend(v.id, qa.cents, 'episode quality check (Claude)');
     const say = (x: { i: number; problem: string }) => `${g.items[x.i].kind} “${g.items[x.i].text}”: ${x.problem}`;
-    const drops = qa.issues.filter((x) => x.drop).map((x) => g.items[x.i]);
+    // A sourced fact (newsroom chip, quote, timeline, ticker) is never dropped by the check: a person fixes it.
+    const FACTS = new Set(['source', 'quote', 'timeline', 'ticker']);
+    const drops = qa.issues.filter((x) => x.drop && !FACTS.has(g.items[x.i].kind)).map((x) => g.items[x.i]);
     const fixedBefore = g.qa?.fixed ?? 0;
     if (drops.length && !fixedBefore && g.base?.length) {
       const gone = (b: BaseGraphic) => drops.some((d) => d.kind === b.kind && Math.abs(d.T - b.T) < 0.6 && d.text === b.text);

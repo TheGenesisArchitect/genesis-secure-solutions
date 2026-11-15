@@ -97,8 +97,11 @@ export function placeNews(entries: NewsEntry[], words: Word[], epTime: (s: numbe
         return { date: x.date, text: x.text, t: t == null ? 0.4 + i * 1.4 : Math.max(0.3, t - T) };
       });
       for (let i = 1; i < its.length; i++) its[i].t = Math.max(its[i].t, its[i - 1].t + 0.6); // in order, never on top of each other
-      const D = Math.min(14, (its.length ? its[its.length - 1].t : 0) + 3.2);
-      items.push({ T, D, kind: e.kind, text: e.title ?? e.text, news: { title: e.title, items: its }, sound: 'whoosh' });
+      // A timeline holds at most 16 s; a beat said later than that can't land on it, so it is named, not hidden.
+      const fit = its.filter((x) => x.t <= 12.8);
+      for (const x of its.slice(fit.length)) notes.push(`timeline beat "${x.date}" not placed: it's said ${x.t.toFixed(0)} s after the timeline starts (16 s at most)`);
+      const D = (fit.length ? fit[fit.length - 1].t : 0) + 3.2;
+      items.push({ T, D, kind: e.kind, text: e.title ?? e.text, news: { title: e.title, items: fit }, sound: 'whoosh' });
     }
   }
   for (const it of items) if (it.T + it.D > secs) it.D = Math.max(1.5, secs - it.T);
