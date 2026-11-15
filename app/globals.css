@@ -1851,3 +1851,7 @@ button.chip{cursor:pointer}
   .stl-asks .btn{min-height:40px}
   .stl-card{padding:12px}
 }
+
+/* An 8K take, flagged before it uploads (components/studio/UneditUpload.tsx) */
+.ue-big{display:grid;gap:8px;max-width:520px;text-align:left;padding:14px;border-radius:var(--radius);border:1px solid color-mix(in srgb,var(--warn) 50%,transparent);background:color-mix(in srgb,var(--warn) 10%,var(--surface));font-size:13.5px;line-height:1.45}
+.ue-big-row{display:flex;flex-wrap:wrap;gap:8px}
