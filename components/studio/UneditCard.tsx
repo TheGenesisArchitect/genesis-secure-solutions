@@ -58,6 +58,7 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
 
   return (
     <div className="ue-card">
+      <a className="btn ue-live" href={`/console/studio/unedit/${vlog.id}/live`}>Open Studio Live</a>
       <ol className="ue-steps" aria-label="Progress">
         {STEPS.map(([k, label], i) => {
           const done = at > ORDER.indexOf(k) || vlog.stage === 'published';

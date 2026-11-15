@@ -699,6 +699,7 @@ type Tap =
   | { tool: 'retry_episode' }
   | { tool: 'set_package'; pkg: string }
   | { tool: 'set_sources'; sheet: string }
+  | { tool: 'drop_graphic'; kind: string; text: string; T: number }
   | { tool: 'approve' };
 
 /** One tap on the card, by a staff member. Returns what changed, in words. */
@@ -766,6 +767,24 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       await log('set-package', id, { pkg: t.pkg, by });
       await kick(origin, id);
       return `Restyling the episode as ${PACKAGES[t.pkg].label}.`;
+    }
+    case 'drop_graphic': {
+      // Studio Live: take one graphic out. The plan is restyled without it (no new director call) and the parts render
+      // again, reusing their stored pictures, so only the overlay pass runs.
+      inReview();
+      const ep = vlog.episode_plan;
+      const gr = ep?.graphics;
+      if (!ep || ep.error || !vlog.edit || !gr?.base?.length) throw new Error('This episode has no graphics plan to change.');
+      const same = gr.base.map((b, i) => ({ b, i })).filter((x) => x.b.kind === t.kind && x.b.text === t.text);
+      if (!same.length) throw new Error('That graphic is not in the plan.');
+      const pick = same.reduce((a, x) => (Math.abs(x.b.T - Number(t.T)) < Math.abs(a.b.T - Number(t.T)) ? x : a));
+      const base = (gr.base as BaseGraphic[]).filter((_, i) => i !== pick.i);
+      const graphics: Graphics = { ...gr, ...styled(base, gr.pkg ?? packageOf(null), { face: ep.face, src: ep.src, size: ep.size }, ep.secs), error: null, qa: undefined };
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+      await log('drop-graphic', id, { kind: t.kind, text: String(t.text).slice(0, 80), by });
+      await kick(origin, id);
+      return `Took out the ${t.kind === 'broll' ? 'B-roll' : t.kind}; the episode is rendering again (the pictures are reused).`;
     }
     case 'set_sources': {
       // Newsroom: the approved sources sheet. Saved as parsed entries; a line that doesn't parse stops the save, so
