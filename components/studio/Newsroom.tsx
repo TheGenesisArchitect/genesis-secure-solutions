@@ -2,12 +2,13 @@
 // The Genovus Newsroom (app/console/studio/newsroom): the wire as a live ticker, then three sections: the story,
 // watch and read, and the arsenal with one Produce. Every fact shows its status and the passage it came from; live
 // research waits for approval; Produce builds only from approved facts (lib/newsroom.ts enforces it).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FACELESS_VOICES, type FacelessState } from '@/lib/faceless-voices';
 
 export type NrClaim = { id: string; text: string; status: string; attribution: string | null; denial: string | null; source_title: string | null; source_url: string; cited_text: string | null; verified: boolean; approved: boolean };
 export type NrStory = { id: string; beat: string; sub: string | null; headline: string; source: string; url: string; published_on: string | null; thumb: string | null; why: string | null; fit: number | null; status: string; angles: { title: string; line: string }[]; chosen: number | null; build: string[]; voiced: boolean; created_at: string; claims: NrClaim[] };
-export type NrProduction = { id: string; story_id: string; angle: string; formats: string[]; next_upload: boolean; vlog_id: string | null; cost: number; created_at: string;
+export type NrProduction = { id: string; story_id: string; angle: string; formats: string[]; next_upload: boolean; vlog_id: string | null; cost: number; created_at: string; faceless: FacelessState | null;
   outputs: { script?: { part: string; lines: { say: string; source: string }[] }[]; teleprompter?: string; sheet?: string; sheetNotes?: string[]; broll?: { shot: string; why: string; kind: string }[]; article?: { title: string; markdown: string }; social?: { linkedin?: string; x?: string[]; newsletter?: string }; titles?: string[] } };
 type Beat = { id: string; label: string; brief: string; subs?: string[] };
 
@@ -26,6 +27,32 @@ const ARSENAL: [string, string, string, boolean][] = [
 const STATUS_LABEL: Record<string, string> = { new: 'New', drafting: 'Drafting', in_studio: 'In studio', watching: 'Watching', background: 'Background' };
 const TAG: Record<string, string> = { confirmed: 'Confirmed', reported: 'Reported', alleged: 'Alleged', opinion: 'Opinion', unsupported: 'Unsupported' };
 const day = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
+/** Make it faceless: an original narrator voice reads the package over the Genovus moving background, and Unedit cuts
+ *  it like any take (captions, sources on screen, labelled illustrations). Polls while it is being voiced. */
+function Faceless({ prod, busy, send }: { prod: NrProduction; busy: string | null; send: (b: Record<string, unknown>, k: string) => Promise<boolean> }) {
+  const router = useRouter();
+  const [voice, setVoice] = useState<string>(prod.faceless?.voice ?? FACELESS_VOICES[0].id);
+  const [length, setLength] = useState<'short' | 'full'>(prod.faceless?.length ?? 'short');
+  const f = prod.faceless;
+  const voicing = f?.status === 'voicing';
+  useEffect(() => { if (!voicing) return; const t = setInterval(() => router.refresh(), 8000); return () => clearInterval(t); }, [voicing, router]);
+  if (voicing) return <div className="nr-faceless"><span className="nr-label">Faceless</span><span className="nr-ok"><i className="nr-live" aria-hidden="true" /> Helix is voicing it with {f.voice} and building the video ({f.length === 'short' ? 'short' : 'full length'}). It opens in Unedit when it’s ready.</span></div>;
+  return (
+    <div className="nr-faceless">
+      <span className="nr-label">Or make it faceless</span>
+      <span className="muted nr-small">An original AI narrator reads {length === 'short' ? 'the opening and the call to action (about 75 seconds)' : 'the whole script'} over the Genovus moving background. Unedit cuts it with captions, your sources on screen and up to 6 labelled illustrations (40¢ each). Posts say the voice is AI.</span>
+      <div className="nr-faceless-row">
+        <label className="rc-field"><span>Voice</span><select value={voice} onChange={(e) => setVoice(e.target.value)} disabled={busy !== null}>{FACELESS_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></label>
+        <span className="rc-modes" role="radiogroup" aria-label="Length">
+          {(['short', 'full'] as const).map((l) => <button type="button" role="radio" aria-checked={length === l} key={l} className={length === l ? 'on' : ''} disabled={busy !== null} onClick={() => setLength(l)}>{l === 'short' ? 'Short · ~75 s' : 'Full script'}</button>)}
+        </span>
+        <button type="button" className="btn" disabled={busy !== null} onClick={() => send({ tool: 'faceless', production: prod.id, voice, length }, 'faceless')}>{busy === 'faceless' ? 'Starting…' : 'Make it faceless'}</button>
+      </div>
+      {f?.status === 'failed' ? <span className="ue-stop" role="alert">The last try didn’t finish: {f.error}. Try again.</span> : null}
+    </div>
+  );
+}
+
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
 /** When the publisher offers no picture (or refuses our preview), a designed tile: the beat's colour, the publisher's
  *  own icon and name, and the headline, so the wire still reads well on camera. */
@@ -217,10 +244,11 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
                 {prod.vlog_id ? <a className="btn" href={`/console/studio/unedit/${prod.vlog_id}`}>Open the recording in Unedit</a>
                   : prod.next_upload ? <span className="nr-ok">Your next Unedit upload will be cut against this package.</span>
                   : <button type="button" className="btn primary" disabled={busy !== null} onClick={() => send({ tool: 'next_upload', production: prod.id }, 'next')}>Use for my next upload</button>}
+                {!prod.vlog_id ? <Faceless prod={prod} busy={busy} send={send} /> : null}
                 <span className="muted nr-small">Angle: {prod.angle} · {(prod.cost / 100).toFixed(2)} USD · {new Date(prod.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
               </div>
             ) : <p className="muted nr-small">Produce builds only from approved facts. Unedit places the sources sheet on your recording where you say each fact.</p>}
-            <a className="btn" href="/console/studio/unedit/record">Record it now</a>
+            <a className="btn" href={prod && !prod.vlog_id ? `/console/studio/unedit/record?p=${prod.id}` : '/console/studio/unedit/record'}>Record it now</a>
           </aside>
         </div>
       ) : null}

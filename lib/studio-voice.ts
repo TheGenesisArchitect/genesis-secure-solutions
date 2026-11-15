@@ -41,6 +41,12 @@ async function tts(text: string, voice: string, style: string | null): Promise<B
   throw new Error(lastErr);
 }
 
+/** One line in an original prebuilt voice, as WAV (faceless narration, lib/unedit-faceless.ts). */
+export function speak(text: string, voice: string, style: string | null = null): Promise<Buffer> {
+  if (!VOICES.includes(voice)) throw new Error(`Unknown voice ${voice}.`);
+  return tts(text, voice, style);
+}
+
 /** Voice one reserved clip and store it. */
 export async function voiceClip(id: string): Promise<{ ok: boolean; error?: string }> {
   const db = adminDb();

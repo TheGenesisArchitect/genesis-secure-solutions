@@ -29,7 +29,7 @@ export default async function NewsroomPage() {
     angles: x.angles ?? [], chosen: x.chosen_angle, build: x.build ?? [], voiced: x.voiced, created_at: x.created_at,
     claims: (claims ?? []).filter((c) => c.story_id === x.id).map((c) => ({ id: c.id as string, text: c.text as string, status: c.status as string, attribution: c.attribution as string | null, denial: c.denial as string | null, source_title: c.source_title as string | null, source_url: c.source_url as string, cited_text: c.cited_text as string | null, verified: Boolean(c.passage_verified), approved: Boolean(c.approved) })),
   }));
-  const productions: NrProduction[] = (prods ?? []).map((p) => ({ id: p.id as string, story_id: p.story_id as string, angle: p.angle as string, formats: (p.formats as string[]) ?? [], outputs: p.outputs as NrProduction['outputs'], next_upload: Boolean(p.next_upload), vlog_id: (p.vlog_id as string | null) ?? null, cost: Number(p.cost_cents ?? 0), created_at: p.created_at as string }));
+  const productions: NrProduction[] = (prods ?? []).map((p) => ({ id: p.id as string, story_id: p.story_id as string, angle: p.angle as string, formats: (p.formats as string[]) ?? [], outputs: p.outputs as NrProduction['outputs'], next_upload: Boolean(p.next_upload), vlog_id: (p.vlog_id as string | null) ?? null, cost: Number(p.cost_cents ?? 0), created_at: p.created_at as string, faceless: (p.faceless as NrProduction['faceless']) ?? null }));
   const spent = (runs ?? []).reduce((a, r) => a + Number(r.cost_cents ?? 0), 0);
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: 'Newsroom' }]}>

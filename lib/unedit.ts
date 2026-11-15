@@ -25,7 +25,7 @@ import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Edit } from '@/lib/unedit-edit';
-import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
+import { FILL, NEUTRAL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
@@ -49,6 +49,8 @@ export type Vlog = {
   audio_blob: string | null; edit: Edit | null; look: Look | null; episode_plan: EpisodePlan | null; episode_path: string | null;
   /** Newsroom: the approved sources sheet (lib/unedit-news.ts); null on ordinary recordings. */
   sources?: NewsEntry[] | null;
+  /** Faceless (lib/unedit-faceless.ts): narration over the moving background; null on a real take. */
+  faceless?: { voice: string; production: string; length: string } | null;
 };
 export type Clip = {
   id: string; vlog_id: string; n: number; start_s: number; end_s: number; hook_start_s: number | null; hook_end_s: number | null;
@@ -285,9 +287,12 @@ async function planEpisode(v: Vlog, words: Word[], falseStarts: string[], title 
   // UNEDIT_EPISODE=off turns Episode Pro off without a redeploy: the episode posts as recorded, clips keep the edit.
   if (process.env.UNEDIT_EPISODE === 'off' || !edit.keep.length || edit.secs < 15) return { edit, look: null, episode_plan: null, episode_path: null };
   const src0 = await presigned(v.blob_path, 60);
-  const sdr = await toSdr((await probe(src0)).hdr);
-  const look = await analyzeLook(src0, edit.keep, sdr);
-  await spend(v.id, look.cents, 'episode look (Claude)');
+  // Faceless: there is no face to find or grade, and camera sizes would only zoom into the background, so one steady
+  // full frame carries it and the graphics and illustrations do the cutting.
+  if (v.faceless) edit.segs = edit.segs.map((s) => ({ ...s, cam: 'wide' as const }));
+  const sdr = v.faceless ? '' : await toSdr((await probe(src0)).hdr);
+  const look: Look = v.faceless ? { face: null, grade: NEUTRAL, stats: { warmth: 0, faceY: null, sat: 1 }, cents: 0, sdr: '' } : await analyzeLook(src0, edit.keep, sdr);
+  if (look.cents) await spend(v.id, look.cents, 'episode look (Claude)');
   const src = { width: Number(v.width ?? 1920), height: Number(v.height ?? 1080) };
   const parts = planParts(edit.segs, src, edit.secs);
   await spend(v.id, await splitBoxes(src0, parts), 'episode framing of split shots (Claude)');
@@ -329,7 +334,7 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   const ss = sentences(words);
   const keepSentences = ss.filter((x) => epTime(x.s, edit.keep) != null && epTime(x.e, edit.keep) != null).map((x) => x.i);
   const pkg = packageOf(pkgName);
-  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg);
+  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg, Boolean(v.faceless));
   await spend(v.id, dir.cents, 'episode director (Claude)');
   const base: BaseGraphic[] = [];
   if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: screenTitle(title), sub: KICKER(), sound: 'whoosh' });
@@ -955,8 +960,11 @@ export async function distribute(v: Vlog): Promise<{ sent: number; skipped: stri
     const media = p.clip_id ? clipPath.get(p.clip_id) : (v.episode_path ?? v.blob_path);
     if (!media) { await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'No video for this post.' }).eq('id', p.id); out.skipped.push(`${p.platform} ${p.kind}`); continue; }
     const r = await schedulePost({
-      blogId: GENOVUS_BLOG_ID(), network: p.platform, text: p.body, title: p.title ?? undefined, mediaUrl: await presigned(media, mins), when,
-      vertical: p.kind !== 'video', aiGenerated: false, format: p.platform === 'youtube' ? undefined : 'reel',
+      // A faceless video is narrated by an AI voice: the post says so and carries the platform's AI-content flag.
+      blogId: GENOVUS_BLOG_ID(), network: p.platform, text: v.faceless && !/AI voice/i.test(p.body) ? `${p.body}
+
+Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await presigned(media, mins), when,
+      vertical: p.kind !== 'video', aiGenerated: Boolean(v.faceless), format: p.platform === 'youtube' ? undefined : 'reel',
       thumbnailUrl: p.kind === 'video' && thumb ? await presigned(thumb, mins) : undefined,
     });
     if (r.ok) { await dbx().from('unedit_posts').update({ status: 'sent', mc_post_id: r.data.id, mc_status: r.data.status, mc_error: null }).eq('id', p.id); out.sent++; }

@@ -1855,3 +1855,8 @@ button.chip{cursor:pointer}
 /* An 8K take, flagged before it uploads (components/studio/UneditUpload.tsx) */
 .ue-big{display:grid;gap:8px;max-width:520px;text-align:left;padding:14px;border-radius:var(--radius);border:1px solid color-mix(in srgb,var(--warn) 50%,transparent);background:color-mix(in srgb,var(--warn) 10%,var(--surface));font-size:13.5px;line-height:1.45}
 .ue-big-row{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Newsroom: Make it faceless (components/studio/Newsroom.tsx) */
+.nr-faceless{display:grid;gap:8px;padding:12px;border-radius:12px;border:1px dashed var(--line-2);background:var(--sunk)}
+.nr-faceless-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.nr-faceless .nr-live{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--accent-2);margin-right:6px;animation:nr-pulse 1.2s ease-in-out infinite}

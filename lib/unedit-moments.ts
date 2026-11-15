@@ -153,13 +153,19 @@ const wnorm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}$%']/gu, '');
 
 /** The long-form director: chapters and the episode's cues, over the sentences the episode keeps. Long-form is paced
  *  wider than a clip (a cue every 8 s at most, about six a minute), so the episode breathes. */
-export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature'): Promise<EpisodeDirection> {
+export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature', faceless = false): Promise<EpisodeDirection> {
+  // Faceless: no camera footage, so the illustrations carry the picture: more of them, closer together (still capped,
+  // each one is a paid Runway shot).
+  const brollMax = faceless ? Math.min(6, Math.max(2, Math.floor(secs / 12))) : Math.max(1, Math.floor(secs / 25));
+  const brollGap = faceless ? 8 : 15;
   const ss = sentences(words);
   const keep = keepSentences.filter((i) => ss[i]);
   if (keep.length < 3) return { chapters: [], cues: [], kinetic: [], emphasis: [], broll: [], cents: 0 };
   const tags = tagWords(words);
   const system = [
-    `You are the editor for ${who}'s long-form YouTube episodes. The video is real footage of a real person talking to camera, already cut tight.`,
+    faceless
+      ? `You are the editor for ${who}'s faceless explainer videos. There is no camera footage: an original narrator voice (AI, disclosed) reads a news explainer over a moving brand background, so everything the viewer sees comes from your graphics and illustrations. Keep something meaningful on screen.`
+      : `You are the editor for ${who}'s long-form YouTube episodes. The video is real footage of a real person talking to camera, already cut tight.`,
     'Split the episode into chapters a viewer would skip between (3 to 8 for an episode over two minutes; none under one minute): each starts at a sentence where the topic turns, with a title of 2 to 5 words in the speaker\'s own terms. The first chapter starts at the first sentence.',
     CUES_RULES,
     'Long-form pacing: a cue at most every 8 seconds of talk; the moments that would make a viewer lean in, not every keyword.',
@@ -167,7 +173,7 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     ...(PACKAGES[pkg]?.slots.kinetic ? [`"kinetic": write 1 or ${STYLE_RULES.maxKinetic} phrases of ${STYLE_RULES.kineticWords[0]} to ${STYLE_RULES.kineticWords[1]} CONSECUTIVE words copied exactly from one sentence (punctuation may differ): the hook or the thesis, the first one within the first 40 seconds. "accent" is the 0-based index of the payoff word drawn in orange.`] : []),
     ...(PACKAGES[pkg]?.slots.emphasis ? [`"emphasis": write 1 to ${STYLE_RULES.maxEmphasis} single words (${STYLE_RULES.emphasisMin}+ letters, copied exactly from the sentence where it is said): the concrete thing or key idea a whole passage is about (coffee, faith, money), never filler.`] : []),
     'Every word you place on screen must be the speaker\'s own; chapter titles are 2 to 5 words a viewer would click.',
-    `"broll": up to ${Math.max(1, Math.floor(secs / 25))} moments (at least 15 seconds apart, none in the first 6 seconds) where a 4-second illustration should cut in while the speaker keeps talking: a sentence about an idea, object, kind of place or metaphor that a picture would make vivid. "prompt" describes the shot for a video model: ABSTRACT or GENERIC only (an object, hands, a setting, a metaphor), never a real or recognisable person, face, brand, logo, real place or real event, and no text in frame; cinematic, shallow depth of field, slow camera move, warm tungsten light with teal shadows, 35mm film look.`,
+    `"broll": up to ${brollMax} moments (at least ${brollGap} seconds apart, none in the first 6 seconds) where a 4-second illustration should cut in while the speaker keeps talking: a sentence about an idea, object, kind of place or metaphor that a picture would make vivid. "prompt" describes the shot for a video model: ABSTRACT or GENERIC only (an object, hands, a setting, a metaphor), never a real or recognisable person, face, brand, logo, real place or real event, and no text in frame; cinematic, shallow depth of field, slow camera move, warm tungsten light with teal shadows, 35mm film look.`,
     `Screen codes (real Genovus screens):\n${screenMenu()}`,
     'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}],"kinetic":[{"s":<sentence #>,"text":"…","accent":0}],"emphasis":[{"s":<sentence #>,"word":"…"}],"broll":[{"s":<sentence #>,"prompt":"…"}]}',
   ].join('\n');
@@ -207,7 +213,7 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
   // B-roll: real sentences of the kept talk only; the standards ride in the prompt (abstract or generic only).
   const broll: Broll[] = (Array.isArray(j.broll) ? j.broll : []).map((b) => ({ s: Number(b?.s), prompt: str(b?.prompt, 600) }))
     .filter((b) => kept.has(b.s) && b.prompt.length > 20 && !/\b(logo|text that reads|words on screen)\b/i.test(b.prompt))
-    .slice(0, Math.max(1, Math.floor(secs / 25)));
+    .slice(0, brollMax);
   return { chapters: secs >= 60 ? chapters : [], cues, kinetic: kinetic.slice(0, STYLE_RULES.maxKinetic), emphasis: emphasis.slice(0, STYLE_RULES.maxEmphasis), broll, cents: r.cents };
 }
 

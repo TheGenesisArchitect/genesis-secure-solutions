@@ -1,13 +1,16 @@
 // The Genovus Newsroom's actions, Genovus team only: research a beat live, research one story deeper, shape a
 // story (parts, angle, voice), approve or drop a claim, produce the content package, and hand it to the next upload.
-// Research and production can take a few minutes (live web search), hence the long limit.
+// Research and production can take a few minutes (live web search), and a faceless version is voiced and rendered
+// in the background after the answer, hence the long limit.
+import { after } from 'next/server';
 import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { genovusTenant } from '@/lib/unedit';
 import { produce, researchBeat, researchDeeper, useForNextUpload } from '@/lib/newsroom';
+import { buildFaceless, startFaceless, type FacelessLength } from '@/lib/unedit-faceless';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 const UUID = /^[0-9a-f-]{36}$/;
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -71,6 +74,13 @@ export async function POST(req: Request) {
       case 'next_upload': {
         await useForNextUpload(tenant, id('production'));
         return Response.json({ ok: true, say: 'Your next Unedit upload will be cut against this package, with its sources on screen.' });
+      }
+      case 'faceless': {
+        const prod = id('production');
+        const r = await startFaceless(tenant, prod, { voice: String(b.voice ?? ''), length: (b.length === 'full' ? 'full' : 'short') as FacelessLength });
+        const origin = new URL(req.url).origin;
+        after(async () => { console.info(`[newsroom] ${prod} ${await buildFaceless(tenant, prod, origin, by)}`); });
+        return Response.json({ ok: true, say: `Helix is voicing ${r.lines} lines and building the faceless video (about ${money(r.cents)} for the voice). It opens in Unedit when it's ready, usually in a few minutes.` });
       }
       default: return Response.json({ ok: false, error: 'Unknown action.' }, { status: 400 });
     }
