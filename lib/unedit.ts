@@ -26,9 +26,10 @@ import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Edit } from '@/lib/unedit-edit';
 import { FILL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
+import { musicBed } from '@/lib/unedit-music';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
-import { MUSIC, assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
+import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
@@ -466,7 +467,8 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
   const sound = await presigned(v.audio_blob ?? v.blob_path, 120);
   try {
     const graphicsOn = Boolean(g?.reels?.length && g.reels.every((r) => r.path) && !g.error);
-    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }), graphicsOn ? effectSounds(g!.items) : [], MUSIC() ? (/^https?:/.test(MUSIC()) ? MUSIC() : await presigned(MUSIC(), 120)) : null);
+    const bed = await musicBed(); // the approved series score (lib/unedit-music.ts), or none
+    await assemble(sound, v.edit?.keep ?? [], urls, (body) => put(path, body, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true }), graphicsOn ? effectSounds(g!.items) : [], bed ? (/^https?:/.test(bed) ? bed : await presigned(bed, 120)) : null);
   } catch (e) { return await giveUp(`joining the parts: ${e instanceof Error ? e.message : String(e)}`); }
   // The quality check (lib/unedit-qa.ts): a finishing editor's look at every graphic on the finished episode. A graphic
   // that fails is left out and the episode re-renders once; after that, anything left is reported on the card.

@@ -6,6 +6,9 @@ import { Panel, Empty } from '@/components/ui';
 import { requireStaff } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 import { UneditUpload } from '@/components/studio/UneditUpload';
+import { UneditMusic } from '@/components/studio/UneditMusic';
+import { BED_PATH, listDrafts, SCORE_STYLES } from '@/lib/unedit-music';
+import { presigned } from '@/lib/unedit-media';
 
 export const metadata = { title: 'Unedit' };
 export const dynamic = 'force-dynamic';
@@ -20,6 +23,9 @@ const mmss = (t: number | null) => (t ? `${Math.floor(t / 60)}:${String(Math.flo
 export default async function Unedit() {
   await requireStaff();
   const supabase = await db();
+  const music = await listDrafts().catch(() => ({ bed: false, drafts: [] }));
+  const link = (p: string) => presigned(p, 120).catch(() => '');
+  const [bedSrc, draftSrc] = await Promise.all([music.bed ? link(BED_PATH) : Promise.resolve(null), Promise.all(music.drafts.map((d) => link(d.path)))]);
   const [{ data: vlogs }, { data: clips }] = await Promise.all([
     supabase.from('unedit_vlogs').select('id, title, stage, error, duration_s, cost_cents, created_at, episode').order('created_at', { ascending: false }).limit(30),
     supabase.from('unedit_clips').select('vlog_id, status'),
@@ -28,6 +34,9 @@ export default async function Unedit() {
     <ConsoleShell title="Unedit" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { label: 'Unedit' }]}>
       <div className="ue-home">
         <UneditUpload />
+        <Panel title="Series music" sub="An original score under every polished episode. Compose drafts, listen, and pick one.">
+          <UneditMusic bed={bedSrc} drafts={music.drafts.map((d, i) => ({ ...d, src: draftSrc[i] }))} styles={Object.entries(SCORE_STYLES).map(([id, s]) => ({ id, label: s.label }))} />
+        </Panel>
         <Panel title="Your recordings" sub="Each one becomes a campaign: clips with captions, the full video, three thumbnails, one Approve.">
           {vlogs?.length ? (
             <ul className="ue-list">
