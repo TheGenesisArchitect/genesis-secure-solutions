@@ -13,7 +13,7 @@ const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new Cus
 const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 const PACKAGES = [['signature', 'Genovus Signature'], ['documentary', 'Documentary'], ['keynote', 'Keynote'], ['kinetic', 'Agency kinetic']];
 
-export function StudioLive({ id, title, src, polished, secs, stage, working, review, pkg, tracks, crew, needs }: { id: string; title: string; src: string | null; polished: boolean; secs: number; stage: string; working: boolean; review: boolean; pkg: string | null; tracks: LiveTrack[]; crew: LiveCrew[]; needs: string[] }) {
+export function StudioLive({ id, title, src, polished, secs, stage, working, review, pkg, articleMode, tracks, crew, needs }: { id: string; title: string; src: string | null; polished: boolean; secs: number; stage: string; working: boolean; review: boolean; pkg: string | null; articleMode?: 'bubble' | 'cutout' | null; tracks: LiveTrack[]; crew: LiveCrew[]; needs: string[] }) {
   const router = useRouter();
   const video = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
@@ -61,6 +61,7 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
             <span className="nr-label">Ask Helix</span>
             {PACKAGES.filter(([p]) => p !== pkg).map(([p, l]) => <button type="button" key={p} className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'set_package', pkg: p }, p, `Restyle the episode as ${l}.`)}>Restyle as {l}</button>)}
             <button type="button" className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'tighten' }, 'tighten', 'Tighten the edit: take out the restarts, repeats and stumbles.')}>Tighten the edit</button>
+            {articleMode ? <button type="button" className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'set_article_mode', mode: articleMode === 'cutout' ? 'bubble' : 'cutout' }, 'article', articleMode === 'cutout' ? 'Put me in a bubble on the article cut-ins.' : 'Cut me out and stand me beside the articles.')}>{articleMode === 'cutout' ? 'Articles: use the bubble' : 'Articles: cut me out'}</button> : null}
             <button type="button" className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'retry_episode' }, 'retry', 'Add the graphics again.')}>Add the graphics again</button>
             {!review ? <span className="muted nr-small">Helix can change the episode once it’s ready for review.</span> : null}
           </div>

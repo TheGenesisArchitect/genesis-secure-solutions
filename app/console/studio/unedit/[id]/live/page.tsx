@@ -80,7 +80,7 @@ export default async function StudioLivePage({ params }: { params: Promise<{ id:
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: title }]}>
       <UneditNav active="recordings" recording={{ id, view: 'live', title }} />
-      <StudioLive id={id} title={title} src={src} polished={Boolean(v.episode_path)} secs={secs} stage={v.stage} working={working} review={v.stage === 'review'} pkg={g?.pkg ?? null} tracks={tracks} crew={crew} needs={needs} />
+      <StudioLive id={id} title={title} src={src} polished={Boolean(v.episode_path)} secs={secs} stage={v.stage} working={working} review={v.stage === 'review'} pkg={g?.pkg ?? null} articleMode={(g?.items ?? []).some((x) => x.kind === 'article' && x.bubble) ? ((g?.items ?? []).find((x) => x.kind === 'article' && x.bubble)?.bubble?.mode ?? 'bubble') : null} tracks={tracks} crew={crew} needs={needs} />
     </ConsoleShell>
   );
 }

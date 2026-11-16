@@ -611,7 +611,7 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
       const size = v.episode_plan!.size;
       await settleBroll(v, g);
       const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : x.kind === 'article' && x.news?.image?.startsWith('studio/') ? presigned(x.news.image, 120) : null);
-      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, ...(x.kind === 'article' ? { bubble: Boolean(x.bubble) } : {}), news: x.news, media: await brollLink(x) })));
+      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, ...(x.kind === 'article' ? { bubble: x.bubble ? (x.bubble.mode === 'cutout' ? 'cutout' : true) : false } : {}), news: x.news, media: await brollLink(x) })));
       const done = await Promise.all(todo.map(async (i) => {
         const r = g.reels![i];
         const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
@@ -889,6 +889,7 @@ type Tap =
   | { tool: 'retry_episode' }
   | { tool: 'tighten' }
   | { tool: 'post_longform' }
+  | { tool: 'set_article_mode'; mode: 'bubble' | 'cutout' }
   | { tool: 'set_package'; pkg: string }
   | { tool: 'set_sources'; sheet: string }
   | { tool: 'drop_graphic'; kind: string; text: string; T: number }
@@ -996,6 +997,21 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       }
       await log('set-sources', id, { entries: entries.length, by });
       return `${entries.length} sourced ${entries.length === 1 ? 'item' : 'items'} saved${replan ? '; replanning the episode’s graphics' : '; they go on the episode when it’s polished'}.`;
+    }
+    case 'set_article_mode': {
+      // Article cut-ins: the speaker in a corner bubble, or cut out and standing beside the article. The reel and the
+      // parts render again (the plan, words and pictures stay).
+      inReview();
+      const mode = t.mode === 'cutout' ? 'cutout' : 'bubble';
+      const gr = vlog.episode_plan?.graphics;
+      if (!vlog.episode_plan || !gr?.items.some((x) => x.kind === 'article' && x.bubble)) return 'This episode has no article cut-ins with the speaker.';
+      const items = gr.items.map((x) => (x.kind === 'article' && x.bubble ? { ...x, bubble: { ...x.bubble, mode } } : x));
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+      const graphics = { ...gr, items, articleMode: mode, error: null, qa: undefined, reels: gr.reels?.map((x) => ({ from: x.from, to: x.to })) };
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+      await log('article-mode', id, { mode });
+      await kick(origin, id);
+      return mode === 'cutout' ? 'Article cut-ins: you, cut out, beside the article. The episode renders again.' : 'Article cut-ins: you in a corner bubble. The episode renders again.';
     }
     case 'post_longform': {
       // The full episode to YouTube on its own, before (or without) the clips: the polished episode when there is one,

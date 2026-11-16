@@ -150780,6 +150780,7 @@ const hostOf = (url, fallback = "") => {
   }
 };
 function ArticleCut({ headline, publisher, when, url, passage, image, dur, bubble = true }) {
+  const cut = bubble === "cutout";
   const { t, u, width: W, height: H } = useT();
   if (t > dur) return null;
   const inP = tw(t, 0, 0.5, E.p2Out), bg = tw(t, 0, 0.22, E.p2Out), out = tw(t, dur - 0.4, 0.4, E.p2In);
@@ -150787,7 +150788,7 @@ function ArticleCut({ headline, publisher, when, url, passage, image, dur, bubbl
   const hl = tw(t, 0.9, Math.min(2.4, dur * 0.4), E.p2Out);
   const host = hostOf(url, publisher ?? "");
   const d = BUBBLE.d * H, m = BUBBLE.margin * H, ring = 0.011 * H;
-  const cardL = 110 * u, cardW = bubble ? W - cardL - d - m - 150 * u : W - 2 * cardL;
+  const cardL = 110 * u, cardW = cut ? W * 0.56 - cardL : bubble ? W - cardL - d - m - 150 * u : W - 2 * cardL;
   const cardT = void 0, cardH = void 0;
   const ps = (image ? 30 : 36) * u;
   const hs = Math.max(40, Math.min(60, 60 - Math.max(0, headline.length - 60) * 0.35)) * u;
@@ -150823,11 +150824,11 @@ function ArticleCut({ headline, publisher, when, url, passage, image, dur, bubbl
         /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 28 * u, fontFamily: HF.geist, fontSize: ps, lineHeight: 1.5, color: "#2b2620" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { backgroundImage: mark, backgroundRepeat: "no-repeat", backgroundSize: `${hl * 100}% 100%`, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone", padding: `${2 * u}px ${4 * u}px` }, children: passage }) })
       ] })
     ] }),
-    bubble ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", right: m, bottom: m + d + 70 * u, width: d + 60 * u, textAlign: "right", opacity: tw(t, 0.35, 0.5, E.p2Out) }, children: [
+    bubble ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", ...cut ? { left: cardL, top: 30 * u, width: cardW, textAlign: "left", display: "flex", alignItems: "baseline", gap: 16 * u } : { right: m, bottom: m + d + 70 * u, width: d + 60 * u, textAlign: "right" }, opacity: tw(t, 0.35, 0.5, E.p2Out) }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontSize: 19 * u, letterSpacing: "0.2em", color: "rgba(255,255,255,0.6)" }, children: "REPORTED BY" }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10 * u, fontFamily: HF.serif, fontStyle: "italic", fontSize: 52 * u, lineHeight: 1.05, color: HF.cream }, children: publisher ?? host })
     ] }) : null,
-    bubble ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: W - m - d - ring, top: H - m - d - ring, width: d + 2 * ring, height: d + 2 * ring, boxSizing: "border-box", borderRadius: 999, border: `${ring}px solid ${HF.orange}`, boxShadow: `0 0 ${50 * u}px rgba(255,106,43,0.55)`, background: "rgba(0,0,0,0.6)", opacity: tw(t, 0, 0.2, E.p2Out) } }) : null
+    bubble && !cut ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: W - m - d - ring, top: H - m - d - ring, width: d + 2 * ring, height: d + 2 * ring, boxSizing: "border-box", borderRadius: 999, border: `${ring}px solid ${HF.orange}`, boxShadow: `0 0 ${50 * u}px rgba(255,106,43,0.55)`, background: "rgba(0,0,0,0.6)", opacity: tw(t, 0, 0.2, E.p2Out) } }) : null
   ] });
 }
 
@@ -151091,7 +151092,7 @@ function News({ it, s }) {
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(FigureGlobe, { phase: n.phase ?? "alone", dur: s, caption: it.text || void 0 });
     // The article's image comes as the item's media link (a stored copy); the ring only when Unedit lays in a bubble.
     case "article":
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(ArticleCut, { headline: n.title ?? "", publisher: n.who, when: n.when, url: n.url, passage: it.text, image: it.media, dur: s, bubble: it.bubble !== false });
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(ArticleCut, { headline: n.title ?? "", publisher: n.who, when: n.when, url: n.url, passage: it.text, image: it.media, dur: s, bubble: it.bubble === false ? false : it.bubble ?? true });
     default:
       return null;
   }

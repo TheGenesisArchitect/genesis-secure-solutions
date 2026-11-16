@@ -40,7 +40,8 @@ export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapt
   /** Behind-the-speaker type placed in the shot's headroom (lib/unedit-style.ts): the text's vertical centre and, for
    *  the emphasis word, its size (both as fractions of the frame height) and left edge (fraction of the width). */ place?: { y: number; size?: number; x?: number };
   /** article: the square of the speaker's footage shown in the corner bubble (centre x as a fraction of the width;
-   *  top and side as fractions of the height). */ bubble?: { cx: number; top: number; s: number };
+   *  top and side as fractions of the height); mode 'cutout' stands the speaker, cut out, beside the article instead. */
+  bubble?: { cx: number; top: number; s: number; mode?: 'bubble' | 'cutout' };
   /** B-roll: the Runway job making the illustration, then its stored clip (or why it failed). */ broll?: { prompt: string; task?: string; path?: string; failed?: string };
   /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number; /** left-anchored type: widest it may run (fraction of the frame), so it stops short of the speaker */ maxW?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
@@ -317,7 +318,9 @@ export function layReel(items: EpGraphic[]): { items: EpGraphic[]; reels: ReelCh
 
 /** The part's stretches of the reel: each graphic that overlaps the part, where it starts in the part, where to seek
  *  in the reel, and for how long. */
-export type Overlay = { start: number; seek: number; len: number; chunk: number; behind: boolean; bubble?: { cx: number; top: number; s: number } };
+export type Overlay = { start: number; seek: number; len: number; chunk: number; behind: boolean; bubble?: { cx: number; top: number; s: number; mode?: 'bubble' | 'cutout' } };
+/** Cut-out mode: the speaker at this share of the frame, standing bottom-aligned with their centre here (of the width). */
+export const CUTOUT_STAND = { scale: 0.62, x: 0.8 } as const;
 /** The article cut-in's corner bubble (Genovus Motion ArticleCut draws its ring at the same place): diameter and
  *  margin as fractions of the frame height, bottom-right. */
 export const BUBBLE = { d: 0.3, margin: 0.055 } as const;
@@ -342,6 +345,20 @@ async function behindWindow(dir: string, reelUrl: string, o: Overlay, n: number,
   return out;
 }
 
+/** An article cut-in in cut-out mode: the article set over the part's footage, then the speaker, cut out by the matte,
+ *  scaled down and standing bottom-aligned at the right in front of it; rendered as its own clip like a behind window. */
+async function cutoutWindow(dir: string, reelUrl: string, o: Overlay, n: number, size: { width: number; height: number }): Promise<string> {
+  const m = await matte(path.join(dir, 'part.mp4'), o.start, o.len, dir, `matte${n}`);
+  const out = `win${n}.mp4`;
+  const S = CUTOUT_STAND.scale, W = size.width, H = size.height;
+  const x = Math.round(Math.min(W - W * S * 0.55, Math.max(W * 0.5, W * CUTOUT_STAND.x - (o.bubble?.cx ?? 0.5) * W * S)));
+  const y = Math.round(H - H * S);
+  await ffmpeg(['-ss', o.start.toFixed(3), '-t', o.len.toFixed(3), '-i', 'part.mp4', '-c:v', 'libvpx', '-ss', o.seek.toFixed(3), '-t', o.len.toFixed(3), '-i', reelUrl, '-i', m,
+    '-filter_complex', `[0:v]setpts=PTS-STARTPTS,split=2[a][b];[1:v]format=yuva420p,setpts=PTS-STARTPTS[g];[a][g]overlay=format=auto[bg];${matteFilter('2:v', W, H, 'm')};[b][m]alphamerge,scale=${Math.round(W * S / 2) * 2}:${Math.round(H * S / 2) * 2}[fg];[bg][fg]overlay=${x}:${y}:format=auto,format=yuv420p[o]`,
+    '-map', '[o]', '-an', ...X264, '-crf', '15', out], dir, 600_000);
+  return out;
+}
+
 /** Lay the reel's stretches over a rendered part (re-encoded once). The reel is VP8 with alpha, so it is decoded with
  *  libvpx (ffmpeg's own VP8 decoder drops the alpha). A behind graphic (UNEDIT_CUTOUT=on) is first composited under
  *  the cut-out speaker in its own window clip; if that fails, it is laid in front like any other. */
@@ -355,10 +372,17 @@ export async function overlayPart(dir: string, reelUrls: string[], overlays: Ove
   let last = '0:v';
   // Article cut-ins: the speaker's own footage, cropped around the head and masked to a circle, sits in the corner
   // bubble on top of the article (the ring is drawn by the graphic). One copy of the footage per bubble.
-  const bubbles = size ? overlays.map((o, i) => ({ o, i })).filter((x) => x.o.bubble) : [];
+  // Cut-out articles first (matted into their own clips); any that can't be fall back to the bubble.
+  const pre = new Map<number, string>();
+  for (const [i, o] of overlays.entries()) {
+    if (o.bubble?.mode !== 'cutout' || !size) continue;
+    const w = await cutoutWindow(dir, reelUrls[o.chunk], o, i, size).catch((e) => { console.error(`[unedit] cut-out article ${i}: ${e instanceof Error ? e.message : e}`); return null; });
+    if (w) pre.set(i, w);
+  }
+  const bubbles = size ? overlays.map((o, i) => ({ o, i })).filter((x) => x.o.bubble && !pre.has(x.i)) : [];
   if (bubbles.length) { fc.push(`[0:v]split=${bubbles.length + 1}[base]${bubbles.map((b) => `[bs${b.i}]`).join('')}`); last = 'base'; }
   for (const [i, o] of overlays.entries()) {
-    let win: string | null = null;
+    let win: string | null = pre.get(i) ?? null;
     if (o.behind && size && Date.now() + o.len * CUTOUT_S_PER_S * 1000 < cutoutBy) win = await behindWindow(dir, reelUrls[o.chunk], o, i, size).catch((e) => { console.error(`[unedit] cut-out window ${i}: ${e instanceof Error ? e.message : e}`); return null; });
     if (win) {
       inputs.push('-i', win);
@@ -368,7 +392,7 @@ export async function overlayPart(dir: string, reelUrls: string[], overlays: Ove
       fc.push(`[${i + 1}:v]format=yuva420p,setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass:format=auto[o${i}]`);
     }
     last = `o${i}`;
-    if (o.bubble && size) {
+    if (o.bubble && size && !win) {
       const H = size.height, W = size.width;
       const d = Math.round((H * BUBBLE.d) / 2) * 2, r = d / 2 - 2;
       const side = Math.min(H, Math.round(o.bubble.s * H / 2) * 2);
