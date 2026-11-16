@@ -40,7 +40,7 @@ function element(still: string, text: string, look: ThumbLook, type: ThumbType =
     h('div', { style: { position: 'absolute', left: 64, top: 0, bottom: 0, width: 640, display: 'flex', flexDirection: 'column', justifyContent: 'center' } },
       ...(type.rule ? [h('div', { key: 'rule', style: { display: 'flex', width: 120, height: 10, borderRadius: 5, background: look === 'orange' ? '#ffffff' : '#ff8a1e', marginBottom: 28 } })] : []),
       h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: type.serif ? '0 4px' : '0 22px', fontFamily: type.serif ? 'Genovus Serif' : 'Genovus Display', fontStyle: type.serif ? 'italic' : 'normal', fontSize: size, lineHeight: type.serif ? 0.95 : 1.0, color: ink, letterSpacing: type.serif ? -2 : -1 } },
-        ...words.map((w, i) => h('span', { key: i, style: { display: 'flex', marginRight: type.serif && i < words.length - 1 ? 26 : 0, color: i === words.length - 1 ? hot : ink } }, w)))),
+        ...words.map((w, i) => h('span', { key: i, style: { display: 'flex', marginRight: i < words.length - 1 ? (type.serif ? 26 : 24) : 0, color: i === words.length - 1 ? hot : ink } }, w)))),
   );
 }
 
