@@ -63,7 +63,7 @@ ${screenMenu()}`,
   return { system, user };
 }
 
-async function claude(system: string, user: string): Promise<{ text: string; cents: number }> {
+export async function claude(system: string, user: string): Promise<{ text: string; cents: number }> {
   const k = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (!k) throw new Error('ANTHROPIC_API_KEY is not set on this deployment.');
   const r = await fetch(`${BASE()}/v1/messages`, {

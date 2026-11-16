@@ -60,6 +60,7 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
           <div className="stl-asks">
             <span className="nr-label">Ask Helix</span>
             {PACKAGES.filter(([p]) => p !== pkg).map(([p, l]) => <button type="button" key={p} className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'set_package', pkg: p }, p, `Restyle the episode as ${l}.`)}>Restyle as {l}</button>)}
+            <button type="button" className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'tighten' }, 'tighten', 'Tighten the edit: take out the restarts, repeats and stumbles.')}>Tighten the edit</button>
             <button type="button" className="btn small" disabled={!review || busy !== null} onClick={() => send({ tool: 'retry_episode' }, 'retry', 'Add the graphics again.')}>Add the graphics again</button>
             {!review ? <span className="muted nr-small">Helix can change the episode once it’s ready for review.</span> : null}
           </div>

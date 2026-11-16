@@ -24,7 +24,8 @@ import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter,
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
 import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
-import { editList, within, type Edit } from '@/lib/unedit-edit';
+import { editList, within, type Drop, type Edit } from '@/lib/unedit-edit';
+import { cleanTake, keyterms } from '@/lib/unedit-clean';
 import { FILL, NEUTRAL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
@@ -149,7 +150,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const { mp3, m4a } = await extractAudio(src, true);
       const audioPath = `${dir(v)}/audio.m4a`;
       await put(audioPath, m4a, { access: 'private', contentType: 'audio/mp4', addRandomSuffix: false, allowOverwrite: true });
-      const t = await transcribe(mp3, p.duration, provider);
+      const t = await transcribe(mp3, p.duration, provider, keyterms(v.sources, v.title ? [v.title] : []));
       const path = `${dir(v)}/transcript-${provider}.json`;
       await put(path, JSON.stringify({ provider, words: t.words }), { access: 'private', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
       await advance(v.id, 'finding', { provider, transcript_blob: path, words: t.words.length, audio_blob: audioPath });
@@ -157,7 +158,20 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       return `Transcribed ${t.words.length} words with ${provider}.`;
     }
     if (v.stage === 'finding') {
-      const words = await readWords(v);
+      let words = await readWords(v);
+      // The dialogue editor first: misheard names fixed in the transcript (so every caption and plan reads them right)
+      // and the take's restarts, repeats and stumbles marked to cut. A failure here never stops the recording.
+      let drops: Drop[] = [];
+      try {
+        const clean = await cleanTake(words, { title: v.title ?? undefined, terms: keyterms(v.sources), sources: v.sources });
+        await spend(v.id, clean.cents, 'dialogue edit (Claude)');
+        drops = clean.drops;
+        if (clean.fixes.length) {
+          words = words.map((w, i) => { const f = clean.fixes.find((x) => x.i === i); return f ? { ...w, w: f.to } : w; });
+          await put(v.transcript_blob!, JSON.stringify({ provider: v.provider, words, fixes: clean.fixes }), { access: 'private', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
+        }
+        await log('dialogue-edit', subject, { drops: drops.length, fixes: clean.fixes.map((f) => `${f.from} → ${f.to}`), cents: clean.cents });
+      } catch (e) { console.error(`[unedit] ${v.id} dialogue edit skipped: ${e instanceof Error ? e.message : e}`); }
       const plan = await planVlog(words);
       await spend(v.id, plan.cents, 'clip plan (Claude)');
       if (!plan.clips.length) throw new Error(`No clip stood on its own${plan.dropped.length ? ` (${plan.dropped.slice(0, 3).join('; ')})` : ''}. Try a recording with a few clear points.`);
@@ -166,7 +180,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const ins = await dbx().from('unedit_clips').insert(rows);
       if (ins.error) throw new Error(ins.error.message);
       // Episode Pro: what the full episode keeps, how it looks, and its parts (rendered in parallel after the clips).
-      const pro = await planEpisode(v, words, plan.falseStarts, plan.episode.title);
+      const pro = await planEpisode(v, words, plan.falseStarts, plan.episode.title, drops);
       const chapters = pro.episode_plan?.graphics?.chapters;
       const description = chapters ? `${plan.episode.description}\n\n${chapters}` : plan.episode.description;
       await advance(v.id, 'rendering', { title: plan.episode.title, episode: { ...plan.episode, description, dropped: plan.dropped, thumb_lines: plan.thumbs }, ...pro });
@@ -282,8 +296,8 @@ const partPath = (v: { id: string }, k: number) => `${dir(v)}/episode/part-${Str
 
 /** The episode's edit, look and parts, from the transcript (at the end of 'finding'). A recording with too little
  *  talk left after the edit keeps posting as recorded (no plan). */
-async function planEpisode(v: Vlog, words: Word[], falseStarts: string[], title = ''): Promise<{ edit: Edit; look: Look | null; episode_plan: EpisodePlan | null; episode_path: null }> {
-  const edit = editList(words, Number(v.duration_s ?? 0), falseStarts);
+async function planEpisode(v: Vlog, words: Word[], falseStarts: string[], title = '', drops: Drop[] = []): Promise<{ edit: Edit; look: Look | null; episode_plan: EpisodePlan | null; episode_path: null }> {
+  const edit = editList(words, Number(v.duration_s ?? 0), falseStarts, drops);
   // UNEDIT_EPISODE=off turns Episode Pro off without a redeploy: the episode posts as recorded, clips keep the edit.
   if (process.env.UNEDIT_EPISODE === 'off' || !edit.keep.length || edit.secs < 15) return { edit, look: null, episode_plan: null, episode_path: null };
   const src0 = await presigned(v.blob_path, 60);
@@ -486,6 +500,36 @@ export async function renderClipGroup(id: string, n: number, g: number): Promise
   } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
 }
 
+/** Tighten the edit: run the dialogue editor on the take (misheard names fixed in the transcript; restarts, repeats,
+ *  abandoned phrases, corrections and tics cut), re-cut the episode with it, and plan its graphics fresh. Clips keep
+ *  their cut. Asked from Studio Live before approval; the parts render again in the next steps. */
+async function tightenStep(v: Vlog): Promise<string> {
+  let words = await readWords(v);
+  const clean = await cleanTake(words, { title: v.episode?.title ?? v.title ?? undefined, terms: keyterms(v.sources), sources: v.sources });
+  await spend(v.id, clean.cents, 'dialogue edit (Claude)');
+  if (clean.fixes.length) {
+    words = words.map((w, i) => { const f = clean.fixes.find((x) => x.i === i); return f ? { ...w, w: f.to } : w; });
+    await put(v.transcript_blob!, JSON.stringify({ provider: v.provider, words, fixes: clean.fixes }), { access: 'private', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
+  }
+  const old = v.edit!;
+  // The planner's false starts, read back from the old cuts (runs of two or more words).
+  const falseStarts = old.cuts.filter((c) => c.why === 'false start')
+    .map((c) => words.filter((w) => w.s >= c.from - 0.05 && w.e <= c.to + 0.05).map((w) => w.w).join(' ')).filter((t) => t.split(' ').length >= 2);
+  const edit = editList(words, Number(v.duration_s ?? 0), falseStarts, clean.drops);
+  const ep = v.episode_plan!;
+  const parts = planParts(edit.segs, ep.src, edit.secs);
+  await dbx().from('unedit_episode_parts').delete().eq('vlog_id', v.id);
+  const ins = await dbx().from('unedit_episode_parts').insert(parts.map((p) => ({ vlog_id: v.id, k: p.k, tenant_id: v.tenant_id, segs: p.segs })));
+  if (ins.error) throw new Error(ins.error.message);
+  await dbx().from('unedit_vlogs').update({
+    edit, episode_path: null,
+    episode_plan: { ...ep, parts: parts.length, secs: edit.secs, graphics: { items: [], pkg: ep.graphics?.pkg, replan: true, error: null } },
+  }).eq('id', v.id);
+  await log('tightened', v.id, { before: old.secs, after: edit.secs, drops: clean.drops.length, fixes: clean.fixes.map((f) => `${f.from} → ${f.to}`), cents: clean.cents });
+  await release(v.id);
+  return `Tightened the edit: ${Math.round(old.secs - edit.secs)} s shorter, ${clean.drops.length} words cut, ${clean.fixes.length} words fixed.`;
+}
+
 /** Start a worker on every part that needs one (up to the worker limit). */
 async function startParts(id: string, origin: string): Promise<number> {
   const { data } = await dbx().from('unedit_episode_parts').select('k, status, lease_until').eq('vlog_id', id).order('k');
@@ -500,6 +544,7 @@ async function startParts(id: string, origin: string): Promise<number> {
 
 /** One step of the episode: start workers on parts that need one, or (all parts done) join the episode. */
 async function episodeStep(v: Vlog, origin: string): Promise<string> {
+  if (v.edit?.reclean) return await tightenStep(v);
   if (v.episode_plan?.graphics?.replan && v.edit) {
     // The card asked for a show package on an episode planned before the style book: plan its graphics fresh.
     const ep = v.episode_plan;
@@ -790,6 +835,7 @@ type Tap =
   | { tool: 'edit_episode'; title?: string; description?: string }
   | { tool: 'retry' }
   | { tool: 'retry_episode' }
+  | { tool: 'tighten' }
   | { tool: 'set_package'; pkg: string }
   | { tool: 'set_sources'; sheet: string }
   | { tool: 'drop_graphic'; kind: string; text: string; T: number }
@@ -897,6 +943,16 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       }
       await log('set-sources', id, { entries: entries.length, by });
       return `${entries.length} sourced ${entries.length === 1 ? 'item' : 'items'} saved${replan ? '; replanning the episode’s graphics' : '; they go on the episode when it’s polished'}.`;
+    }
+    case 'tighten': {
+      // Tighten the edit (Studio Live): the dialogue editor runs again and the episode is re-cut and re-rendered.
+      inReview();
+      if (!vlog.edit || !vlog.episode_plan || vlog.episode_plan.error) return 'This recording has no episode to tighten.';
+      await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+      await dbx().from('unedit_vlogs').update({ edit: { ...vlog.edit, reclean: true }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+      await log('tighten', id, {});
+      await kick(origin, id);
+      return 'Helix is tightening the edit: restarts, repeats and stumbles out, names checked. The episode renders again after.';
     }
     case 'retry_episode': {
       // The polished episode stopped (the clips went on to review): fresh tries for its failed parts, before approval.

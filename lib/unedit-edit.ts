@@ -9,12 +9,15 @@
 //     change of camera when the last change was long enough ago; a long stretch changes camera at a sentence end.
 import type { Span, Word } from '@/lib/unedit-media';
 
-export type Cut = { from: number; to: number; why: 'head' | 'tail' | 'command' | 'filler' | 'pause' | 'false start' | 'stutter' };
+export type Cut = { from: number; to: number; why: 'head' | 'tail' | 'command' | 'filler' | 'pause' | 'false start' | 'stutter' | 'tic' };
 export type Camera = 'wide' | 'medium' | 'close';
 export type Seg = { from: number; to: number; cam: Camera; /** a split piece: framed from the whole piece's middle */ mid?: number;
   /** a split piece: where it starts inside the whole shot and the shot's full length (so a push-in carries across the
    *  split), and the head box found once for the whole shot (so both halves frame the same) */ at0?: number; len0?: number; box?: { x: number; y: number; w: number; h: number } | null };
-export type Edit = { keep: Span[]; cuts: Cut[]; segs: Seg[]; secs: number; removed: number };
+export type Edit = { keep: Span[]; cuts: Cut[]; segs: Seg[]; secs: number; removed: number;
+  /** The dialogue editor's cuts (lib/unedit-clean.ts), by word: kept so a re-cut keeps them. */ drops?: Drop[];
+  /** Tighten the edit: the next step runs the dialogue editor again and re-cuts the episode. */ reclean?: boolean };
+export type Drop = { i: number; why: 'restart' | 'repeat' | 'abandoned' | 'correction' | 'tic' };
 
 const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, '');
 const FILLER = new Set(['uh', 'um', 'uhm', 'umm', 'uhh', 'uhhh', 'er', 'erm', 'ah', 'ahh', 'hmm', 'hm', 'mm', 'mmm', 'eh']);
@@ -89,19 +92,30 @@ function merge(cuts: Cut[]): Cut[] {
 }
 
 /** The edit: what stays, what was cut and why, and the camera for each kept piece. */
-export function editList(words: Word[], duration: number, falseStarts: string[] = []): Edit {
+export function editList(words: Word[], duration: number, falseStarts: string[] = [], drops: Drop[] = []): Edit {
   const drop = commandWords(words, duration);
   const why = new Map<number, Cut['why']>([...drop].map((i) => [i, 'command' as const]));
   words.forEach((w, i) => { if (!why.has(i) && isFiller(w.w)) why.set(i, 'filler'); });
-  // Stutters: a word said twice in a row ("is is", "they're they're", "for for") loses its first saying. A filler
-  // between them doesn't hide it ("the, um, the"). "had had" and "that that" can be grammar, so they stay.
+  // The dialogue editor's cuts: restarts, abandoned fragments and corrections go as false starts, tics as tics.
+  for (const d of drops) if (words[d.i] && !why.has(d.i)) why.set(d.i, d.why === 'tic' ? 'tic' : d.why === 'repeat' ? 'stutter' : 'false start');
+  // Stutters and restarts: a word or phrase (up to four words) said twice in a row loses its first saying ("is is",
+  // "from a, uh, from a"). Fillers between them don't hide it. "had had" and "that that" can be grammar, so they stay.
   for (let i = 0; i < words.length; i++) {
     if (why.has(i)) continue;
-    const a = norm(words[i].w);
-    if (!a || DOUBLES.has(a)) continue;
-    let j = i + 1;
-    while (j < words.length && why.get(j) === 'filler') j++;
-    if (j < words.length && !why.has(j) && norm(words[j].w) === a && words[j].s - words[i].e < 0.8 && !/[.!?]["')\]]?$/.test(words[i].w)) why.set(i, 'stutter');
+    for (let n = 4; n >= 1; n--) {
+      const A = Array.from({ length: n }, (_, k) => i + k);
+      if (A[n - 1] >= words.length || A.some((k) => why.has(k)) || A.slice(0, -1).some((k) => /[.!?]["')\]]?$/.test(words[k].w))) continue;
+      if (n === 1 && DOUBLES.has(norm(words[i].w))) continue;
+      let j = i + n;
+      while (j < words.length && why.get(j) === 'filler') j++;
+      const B = Array.from({ length: n }, (_, k) => j + k);
+      if (B[n - 1] >= words.length || B.some((k) => why.has(k))) continue;
+      if (!A.every((k, x) => norm(words[k].w) && norm(words[k].w) === norm(words[B[x]].w))) continue;
+      if (words[B[0]].s - words[A[n - 1]].e > 1.2 || /[.!?]["')\]]?$/.test(words[A[n - 1]].w)) continue;
+      for (const k of A) why.set(k, 'stutter');
+      i += n - 1;
+      break;
+    }
   }
   const used = new Set(why.keys());
   for (const say of falseStarts.slice(0, 20)) for (const i of findRun(words, say, used)) { why.set(i, 'false start'); used.add(i); }
@@ -149,7 +163,7 @@ export function editList(words: Word[], duration: number, falseStarts: string[] 
   // time) matches the picture (cut by frames) exactly, however many joins there are.
   keep = keep.map((k) => ({ from: frame(k.from), to: frame(k.to) })).filter((k) => k.to - k.from >= MIN_KEEP);
   const secs = keep.reduce((a, k) => a + (k.to - k.from), 0);
-  return { keep, cuts: merged.map((c) => ({ ...c, from: round(c.from), to: round(c.to) })), segs: cameras(keep, words), secs: round(secs), removed: round(duration - secs) };
+  return { keep, cuts: merged.map((c) => ({ ...c, from: round(c.from), to: round(c.to) })), segs: cameras(keep, words), secs: round(secs), removed: round(duration - secs), ...(drops.length ? { drops } : {}) };
 }
 
 const round = (x: number) => Math.round(x * 1000) / 1000;

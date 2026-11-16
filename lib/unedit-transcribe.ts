@@ -18,11 +18,12 @@ export const defaultProvider = (): Provider => ((process.env.UNEDIT_STT || '').t
 export const providerReady = (p: Provider) => Boolean(key(p));
 export const costCents = (p: Provider, seconds: number) => Math.max(1, Math.ceil((seconds / 60) * CENTS_PER_MIN[p]));
 
-async function deepgram(mp3: Buffer): Promise<Word[]> {
+async function deepgram(mp3: Buffer, terms: string[] = []): Promise<Word[]> {
   // filler_words: "uh" and "um" come back as words, so Episode Pro can cut them (they never reach a caption).
   const q = new URLSearchParams({ model: 'nova-3', smart_format: 'true', punctuate: 'true', filler_words: 'true', language: 'en' });
   // Our own names, so the transcript (and every caption) spells them right: "Genovus", never "Genova".
-  for (const t of ['Genovus', 'Unedit', 'Unedit Pro', 'Helix', 'Metricool']) q.append('keyterm', t);
+  // Plus this recording's own names (a Newsroom story's companies and people), so "DeepSeek" isn't heard as "sea".
+  for (const t of [...new Set(['Genovus', 'Unedit', 'Unedit Pro', 'Helix', 'Metricool', ...terms])].slice(0, 40)) q.append('keyterm', t);
   const r = await fetch(`${DG()}/v1/listen?${q}`, { method: 'POST', headers: { authorization: `Token ${key('deepgram')}`, 'content-type': 'audio/mpeg' }, body: new Uint8Array(mp3), signal: AbortSignal.timeout(540_000) });
   const j = (await r.json().catch(() => ({}))) as { err_msg?: string; results?: { channels?: { alternatives?: { words?: { word: string; punctuated_word?: string; start: number; end: number; confidence?: number }[] }[] }[] } };
   if (!r.ok) throw new Error(`Deepgram: ${j.err_msg || `HTTP ${r.status}`}`);
@@ -49,9 +50,9 @@ async function assemblyai(mp3: Buffer): Promise<Word[]> {
 }
 
 /** Transcribe the talk with one service. Words come back in order, trimmed of empties. */
-export async function transcribe(mp3: Buffer, seconds: number, provider: Provider = defaultProvider()): Promise<Transcript> {
+export async function transcribe(mp3: Buffer, seconds: number, provider: Provider = defaultProvider(), terms: string[] = []): Promise<Transcript> {
   if (!providerReady(provider)) throw new Error(`${provider === 'deepgram' ? 'DEEPGRAM_API_KEY' : 'ASSEMBLYAI_API_KEY'} is not set on this deployment.`);
-  const raw = provider === 'deepgram' ? await deepgram(mp3) : await assemblyai(mp3);
+  const raw = provider === 'deepgram' ? await deepgram(mp3, terms) : await assemblyai(mp3);
   const words = raw.filter((w) => w.w && Number.isFinite(w.s) && Number.isFinite(w.e) && w.e >= w.s).sort((a, b) => a.s - b.s);
   if (!words.length) throw new Error(`${provider === 'deepgram' ? 'Deepgram' : 'AssemblyAI'} heard no speech in this recording.`);
   return { provider, words, seconds, cents: costCents(provider, seconds) };
