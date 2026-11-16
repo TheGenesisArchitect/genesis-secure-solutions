@@ -150783,12 +150783,12 @@ function ArticleCut({ headline, publisher, when, url, passage, image, dur, bubbl
   const { t, u, width: W, height: H } = useT();
   if (t > dur) return null;
   const inP = tw(t, 0, 0.5, E.p2Out), bg = tw(t, 0, 0.22, E.p2Out), out = tw(t, dur - 0.4, 0.4, E.p2In);
-  const scroll = image ? mix(0, -70 * u, tw(t, 0.8, Math.max(1, dur - 1.4), E.sineInOut)) : 0;
+  const scroll = mix(0, -14 * u, tw(t, 0.8, Math.max(1, dur - 1.4), E.sineInOut));
   const hl = tw(t, 0.9, Math.min(2.4, dur * 0.4), E.p2Out);
   const host = hostOf(url, publisher ?? "");
   const d = BUBBLE.d * H, m = BUBBLE.margin * H, ring = 0.011 * H;
   const cardL = 110 * u, cardW = bubble ? W - cardL - d - m - 150 * u : W - 2 * cardL;
-  const cardT = image ? 78 * u : void 0, cardH = image ? H - 156 * u : void 0;
+  const cardT = void 0, cardH = void 0;
   const ps = (image ? 30 : 36) * u;
   const hs = Math.max(40, Math.min(60, 60 - Math.max(0, headline.length - 60) * 0.35)) * u;
   const mark = "linear-gradient(rgba(255,122,26,0.38), rgba(255,122,26,0.38))";
@@ -151102,7 +151102,7 @@ const UneditEpisodeCues = ({ items }) => {
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { backgroundColor: "transparent" }, children: items.map((it, i) => {
     const from = Math.round(it.at * FPS);
     const dur = Math.max(10, Math.round(it.dur * FPS));
-    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: it.kind === "broll" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(BrollInsert, { src: it.media, dur: dur / FPS }) }) : isNews(it.kind) ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(News, { it, s: dur / FPS }) }) : it.style ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Styled, { it, s: dur / FPS }) }) : it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
+    return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from, durationInFrames: dur, name: `${i} ${it.kind}`, children: it.kind === "broll" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(BrollInsert, { src: it.media, dur: dur / FPS }) }) : isNews(it.kind) ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(News, { it, s: dur / FPS }) }) : it.style && !it.style.endsWith(".classic") ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Styled, { it, s: dur / FPS }) }) : it.kind === "title" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Title, { item: it, dur, u }) : it.kind === "lower" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Lower, { item: it, dur, u }) : it.kind === "chapter" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Chapter, { item: it, dur, u }) : it.kind === "end" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(End, { item: it, dur, u }) : it.cue ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CueStage, { cue: it.cue, dur }) : null }, i);
   }) });
 };
 

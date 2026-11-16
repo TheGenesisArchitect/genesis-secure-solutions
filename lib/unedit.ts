@@ -355,7 +355,7 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   const ss = sentences(words);
   const keepSentences = ss.filter((x) => epTime(x.s, edit.keep) != null && epTime(x.e, edit.keep) != null).map((x) => x.i);
   const pkg = packageOf(pkgName);
-  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg, Boolean(v.faceless));
+  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg, Boolean(v.faceless), title || v.title || '');
   await spend(v.id, dir.cents, 'episode director (Claude)');
   const base: BaseGraphic[] = [];
   if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: screenTitle(title), sub: KICKER(), sound: 'whoosh' });
