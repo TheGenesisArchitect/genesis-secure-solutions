@@ -359,6 +359,22 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   const lib = await shotLibrary(v, words);
   const dir = await directEpisode(words, keepSentences, secs, undefined, pkg, Boolean(v.faceless), title || v.title || '', lib.map((l) => ({ code: l.code, prompt: l.prompt })));
   await spend(v.id, dir.cents, 'episode director (Claude)');
+  // Even pacing, guaranteed: any stretch over GAP_MAX seconds with nothing new planned (the director tends to front-
+  // load, and the close of DeepSeek had 57 s with three items) gets a focused second pass on just those sentences;
+  // what it finds joins the plan (chapters only come from the first pass; at most two more illustrations).
+  const sAt = (i: number) => epTime(ss[i]?.s ?? -1, edit.keep);
+  const marks = [0, ...dir.cues.map((c) => epTime(words[c.w].s, edit.keep)), ...dir.kinetic.map((k) => epTime(words[k.w].s, edit.keep)), ...dir.emphasis.map((e) => epTime(words[e.w].s, edit.keep)), ...dir.broll.map((b) => sAt(b.s)), ...dir.chapters.map((c) => sAt(c.s)), secs - 5]
+    .filter((t): t is number => t != null).sort((a, b) => a - b);
+  const gapSentences = keepSentences.filter((i) => { const t = sAt(i); if (t == null) return false; for (let k = 1; k < marks.length; k++) if (marks[k] - marks[k - 1] > GAP_MAX && t > marks[k - 1] + 3 && t < marks[k] - 3) return true; return false; });
+  if (gapSentences.length >= 3) {
+    const gapSecs = gapSentences.reduce((a, i) => a + Math.max(0, (ss[i].e ?? 0) - (ss[i].s ?? 0)), 0);
+    const more = await directEpisode(words, gapSentences, Math.max(30, gapSecs), undefined, pkg, Boolean(v.faceless), title || v.title || '').catch(() => null);
+    if (more) {
+      await spend(v.id, more.cents, 'episode director, pacing pass (Claude)');
+      dir.cues.push(...more.cues); dir.kinetic.push(...more.kinetic); dir.emphasis.push(...more.emphasis); dir.broll.push(...more.broll.slice(0, 2));
+      await log('pacing-pass', v.id, { sentences: gapSentences.length, cues: more.cues.length, kinetic: more.kinetic.length, emphasis: more.emphasis.length, broll: Math.min(2, more.broll.length) });
+    }
+  }
   const base: BaseGraphic[] = [];
   if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: screenTitle(title), sub: KICKER(), sound: 'whoosh' });
   if (secs > 20) base.push({ T: 4, D: 4, kind: 'lower', text: LOWER(), sub: LOWER_SUB(), sound: 'swish' });
@@ -815,6 +831,8 @@ const BROLL_ON = () => process.env.UNEDIT_BROLL !== 'off';
 const BROLL_CENTS = 80; // Veo 3.1 Fast through Runway: 10 credits a second, 8 s (the only length at 1080p)
 
 // ---- the shot library (supabase/migrations/0107_unedit_assets.sql) ------------------------------------------------
+/** The longest stretch of an episode without something new planned on screen before the pacing pass fills it. */
+const GAP_MAX = 18;
 /** After this many approved episodes, the director reuses approved shots that fit. */
 const LIBRARY_AFTER = 3;
 const STOP = new Set(['about', 'their', 'there', 'which', 'while', 'where', 'with', 'from', 'into', 'over', 'under', 'cinematic', 'shallow', 'depth', 'field', 'tungsten', 'shadows', 'natural', 'grain', 'camera', 'slow', 'light', 'warm', 'teal', 'shot', 'film', 'focus', 'frame', 'scene']);
@@ -827,16 +845,20 @@ function assetTags(prompt: string): string[] {
 /** The approved shots the director may reuse for this episode (none until LIBRARY_AFTER episodes are approved): the
  *  ones whose topics best match the talk, never one made for or used in the last two episodes, at most 24. */
 async function shotLibrary(v: Vlog, words: Word[]): Promise<{ id: string; code: string; prompt: string; path: string; uses: number }[]> {
-  const { data } = await dbx().from('unedit_assets').select('id, vlog_id, blob_path, prompt, tags, uses, last_used_vlog, created_at').eq('tenant_id', v.tenant_id).eq('kind', 'broll').eq('approved', true).limit(400);
-  const rows = (data ?? []) as { id: string; vlog_id: string | null; blob_path: string; prompt: string; tags: string[]; uses: number; last_used_vlog: string | null; created_at: string }[];
-  if (new Set(rows.map((r) => r.vlog_id).filter(Boolean)).size < LIBRARY_AFTER) return [];
+  const { data } = await dbx().from('unedit_assets').select('id, vlog_id, blob_path, prompt, tags, uses, last_used_vlog, created_at, approved').eq('tenant_id', v.tenant_id).eq('kind', 'broll').or(`approved.eq.true,vlog_id.eq.${v.id}`).limit(400);
+  const all = (data ?? []) as { id: string; vlog_id: string | null; blob_path: string; prompt: string; tags: string[]; uses: number; last_used_vlog: string | null; created_at: string; approved: boolean }[];
+  // This episode's own shots (a re-plan): always offered, so a re-plan never pays for pictures it already has.
+  const own = all.filter((r) => r.vlog_id === v.id).map((r, i) => ({ id: r.id, code: `O${i + 1}`, prompt: r.prompt, path: r.blob_path, uses: r.uses }));
+  const rows = all.filter((r) => r.approved && r.vlog_id !== v.id);
+  if (new Set(rows.map((r) => r.vlog_id).filter(Boolean)).size < LIBRARY_AFTER) return own;
   const { data: recent } = await dbx().from('unedit_vlogs').select('id').eq('tenant_id', v.tenant_id).neq('id', v.id).not('approved_at', 'is', null).order('approved_at', { ascending: false }).limit(2);
-  const rest = new Set([v.id, ...(recent ?? []).map((r) => r.id as string)]);
+  const rest = new Set([v.id, ...(recent ?? []).map((r) => r.id as string)]); // other episodes' shots rest for two episodes
   const talk = new Set(words.map((w) => w.w.toLowerCase().replace(/[^a-z-]/g, '')).filter((w) => w.length >= 5));
   return rows.filter((r) => !rest.has(r.vlog_id ?? '') && !rest.has(r.last_used_vlog ?? ''))
     .map((r) => ({ r, score: r.tags.filter((t) => talk.has(t)).length - r.uses * 0.25 }))
     .filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 24)
-    .map((x, i) => ({ id: x.r.id, code: `L${i + 1}`, prompt: x.r.prompt, path: x.r.blob_path, uses: x.r.uses }));
+    .map((x, i) => ({ id: x.r.id, code: `L${i + 1}`, prompt: x.r.prompt, path: x.r.blob_path, uses: x.r.uses }))
+    .concat(own);
 }
 
 /** One B-roll shot: through the Studio's Runway Model Router, which picks the best eligible model for each shot (Kling,
