@@ -39,6 +39,8 @@ export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapt
   /** Newsroom items (lib/unedit-news.ts): the quote's attribution, a timeline's dated beats, a ticker's crawl. */ news?: NewsData;
   /** Behind-the-speaker type placed in the shot's headroom (lib/unedit-style.ts): the text's vertical centre and, for
    *  the emphasis word, its size (both as fractions of the frame height) and left edge (fraction of the width). */ place?: { y: number; size?: number; x?: number };
+  /** article: the square of the speaker's footage shown in the corner bubble (centre x as a fraction of the width;
+   *  top and side as fractions of the height). */ bubble?: { cx: number; top: number; s: number };
   /** B-roll: the Runway job making the illustration, then its stored clip (or why it failed). */ broll?: { prompt: string; task?: string; path?: string; failed?: string };
   /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number; /** left-anchored type: widest it may run (fraction of the frame), so it stops short of the speaker */ maxW?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
@@ -315,12 +317,15 @@ export function layReel(items: EpGraphic[]): { items: EpGraphic[]; reels: ReelCh
 
 /** The part's stretches of the reel: each graphic that overlaps the part, where it starts in the part, where to seek
  *  in the reel, and for how long. */
-export type Overlay = { start: number; seek: number; len: number; chunk: number; behind: boolean };
+export type Overlay = { start: number; seek: number; len: number; chunk: number; behind: boolean; bubble?: { cx: number; top: number; s: number } };
+/** The article cut-in's corner bubble (Genovus Motion ArticleCut draws its ring at the same place): diameter and
+ *  margin as fractions of the frame height, bottom-right. */
+export const BUBBLE = { d: 0.3, margin: 0.055 } as const;
 export function partOverlays(items: EpGraphic[], reels: ReelChunk[], p0: number, p1: number): Overlay[] {
   return items.filter((g) => g.off != null && g.T < p1 && g.T + g.D > p0).map((g) => {
     const from = Math.max(g.T, p0), to = Math.min(g.T + g.D, p1);
     const chunk = Math.max(0, reels.findIndex((r) => g.off! >= r.from - 0.001 && g.off! < r.to));
-    return { chunk, start: Math.round((from - p0) * 1000) / 1000, seek: Math.round((g.off! - reels[chunk].from + (from - g.T)) * 1000) / 1000, len: Math.round((to - from) * 1000) / 1000, behind: g.layer === 'behind' };
+    return { chunk, start: Math.round((from - p0) * 1000) / 1000, seek: Math.round((g.off! - reels[chunk].from + (from - g.T)) * 1000) / 1000, len: Math.round((to - from) * 1000) / 1000, behind: g.layer === 'behind', ...(g.kind === 'article' && g.bubble ? { bubble: g.bubble } : {}) };
   }).filter((o) => o.len > 0.05);
 }
 
@@ -348,6 +353,10 @@ export async function overlayPart(dir: string, reelUrls: string[], overlays: Ove
   const inputs: string[] = ['-i', 'part.mp4'];
   const fc: string[] = [];
   let last = '0:v';
+  // Article cut-ins: the speaker's own footage, cropped around the head and masked to a circle, sits in the corner
+  // bubble on top of the article (the ring is drawn by the graphic). One copy of the footage per bubble.
+  const bubbles = size ? overlays.map((o, i) => ({ o, i })).filter((x) => x.o.bubble) : [];
+  if (bubbles.length) { fc.push(`[0:v]split=${bubbles.length + 1}[base]${bubbles.map((b) => `[bs${b.i}]`).join('')}`); last = 'base'; }
   for (const [i, o] of overlays.entries()) {
     let win: string | null = null;
     if (o.behind && size && Date.now() + o.len * CUTOUT_S_PER_S * 1000 < cutoutBy) win = await behindWindow(dir, reelUrls[o.chunk], o, i, size).catch((e) => { console.error(`[unedit] cut-out window ${i}: ${e instanceof Error ? e.message : e}`); return null; });
@@ -359,6 +368,17 @@ export async function overlayPart(dir: string, reelUrls: string[], overlays: Ove
       fc.push(`[${i + 1}:v]format=yuva420p,setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB[g${i}]`, `[${last}][g${i}]overlay=eof_action=pass:format=auto[o${i}]`);
     }
     last = `o${i}`;
+    if (o.bubble && size) {
+      const H = size.height, W = size.width;
+      const d = Math.round((H * BUBBLE.d) / 2) * 2, r = d / 2 - 2;
+      const side = Math.min(H, Math.round(o.bubble.s * H / 2) * 2);
+      const cx = Math.round(Math.min(W - side, Math.max(0, o.bubble.cx * W - side / 2)));
+      const cy = Math.round(Math.min(H - side, o.bubble.top * H));
+      const bx = Math.round(W - H * BUBBLE.margin - d), by = Math.round(H - H * BUBBLE.margin - d);
+      fc.push(`[bs${i}]trim=start=${o.start.toFixed(3)}:duration=${o.len.toFixed(3)},setpts=PTS-STARTPTS+${o.start.toFixed(3)}/TB,crop=${side}:${side}:${cx}:${cy},scale=${d}:${d},format=yuva420p,geq=lum='p(X,Y)':cb='p(X,Y)':cr='p(X,Y)':a='if(lte(hypot(X-${d / 2},Y-${d / 2}),${r}),255,0)'[bb${i}]`,
+        `[${last}][bb${i}]overlay=${bx}:${by}:eof_action=pass[ob${i}]`);
+      last = `ob${i}`;
+    }
   }
   if (captions) { fc.push(`[${last}]ass=c.ass:fontsdir=fonts[cap]`); last = 'cap'; }
   await ffmpeg([...inputs, '-filter_complex', fc.join(';'), '-map', `[${last}]`, '-an', ...X264, '-crf', '19', '-g', String(GOP), '-video_track_timescale', '15360',

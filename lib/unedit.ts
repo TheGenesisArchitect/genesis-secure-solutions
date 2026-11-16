@@ -417,6 +417,21 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   // Newsroom: every fact on the approved sources sheet, where its words are said (never placed by a model).
   const placed = v.sources?.length ? placeNews(v.sources, words, (s) => epTime(s, edit.keep), secs) : { items: [], notes: [] };
   for (const n of placed.items) base.push({ T: n.T, D: n.D, kind: n.kind, text: n.text, news: n.news, sound: n.sound });
+  // An article's preview image is copied into the recording's storage now, so the render never depends on the
+  // publisher's site (a page we couldn't read keeps the designed card without a picture).
+  for (const [k, b] of base.entries()) {
+    if (b.kind !== 'article' || !b.news?.image || !/^https:\/\//.test(b.news.image)) continue;
+    try {
+      const r = await fetch(b.news.image, { headers: { 'user-agent': 'GenovusNewsroom/1.0 (+https://genovus.io)' }, signal: AbortSignal.timeout(15_000) });
+      const type = r.headers.get('content-type') ?? '';
+      if (!r.ok || !/^image\/(jpeg|png|webp)/.test(type)) throw new Error(`${r.status} ${type}`);
+      const bytes = Buffer.from(await r.arrayBuffer());
+      if (bytes.length > 8 * 1024 * 1024) throw new Error('too large');
+      const p = `studio/vlogs/${v.id}/article-${k}.${type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg'}`;
+      await put(p, bytes, { access: 'private', contentType: type.split(';')[0], addRandomSuffix: false, allowOverwrite: true });
+      b.news = { ...b.news, image: p };
+    } catch { b.news = { ...b.news, image: undefined }; }
+  }
   const chapters = chaps.length >= 3 ? `Chapters\n${chaps.map((x) => `${ts(x.t)} ${x.c.title}`).join('\n')}` : undefined;
   const s = styled(base, pkg, { ...frame, edit }, secs);
   return { ...s, notes: [...brollNote, ...placed.notes, ...(s.notes ?? [])], chapters, error: null };
@@ -547,7 +562,7 @@ function headAtFn(frame: { face: Box | null; src: { width: number; height: numbe
   const srcAt = (T: number) => { let off = 0; for (const k of edit.keep) { const d = k.to - k.from; if (T <= off + d) return k.from + Math.max(0, T - off); off += d; } return edit.keep[edit.keep.length - 1].to; };
   const box = (cam: keyof typeof FILL) => {
     const c = framing(face, src, size, FILL[cam]);
-    return { top: Math.max(0, (face.y * src.height - c.y) / c.h), left: Math.max(0, (face.x * src.width - c.x) / c.w), right: Math.min(1, ((face.x + face.w) * src.width - c.x) / c.w) };
+    return { top: Math.max(0, (face.y * src.height - c.y) / c.h), left: Math.max(0, (face.x * src.width - c.x) / c.w), right: Math.min(1, ((face.x + face.w) * src.width - c.x) / c.w), bottom: Math.min(1, ((face.y + face.h) * src.height - c.y) / c.h) };
   };
   return (T: number, D: number) => {
     const bs = [T, T + D / 2, T + Math.max(0, D - 0.1)].map((t) => {
@@ -555,7 +570,7 @@ function headAtFn(frame: { face: Box | null; src: { width: number; height: numbe
       const seg = edit.segs.find((x) => s >= x.from && s < x.to) ?? edit.segs[edit.segs.length - 1];
       return box(seg?.cam ?? 'medium');
     });
-    return { top: Math.min(...bs.map((b) => b.top)), left: Math.min(...bs.map((b) => b.left)), right: Math.max(...bs.map((b) => b.right)) };
+    return { top: Math.min(...bs.map((b) => b.top)), left: Math.min(...bs.map((b) => b.left)), right: Math.max(...bs.map((b) => b.right)), bottom: Math.max(...bs.map((b) => b.bottom)) };
   };
 }
 
@@ -595,8 +610,8 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     try {
       const size = v.episode_plan!.size;
       await settleBroll(v, g);
-      const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : null);
-      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, news: x.news, media: await brollLink(x) })));
+      const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : x.kind === 'article' && x.news?.image?.startsWith('studio/') ? presigned(x.news.image, 120) : null);
+      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, ...(x.kind === 'article' ? { bubble: Boolean(x.bubble) } : {}), news: x.news, media: await brollLink(x) })));
       const done = await Promise.all(todo.map(async (i) => {
         const r = g.reels![i];
         const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
@@ -809,7 +824,7 @@ async function settleBroll(v: Vlog, g: Graphics): Promise<void> {
 // ---- the episode's captions ------------------------------------------------------------------------------------
 const CAPTIONS_ON = () => process.env.UNEDIT_EPISODE_CAPTIONS !== 'off';
 /** Graphics that sit low in the frame or fill it: captions step aside while one is on screen. */
-const CAPTION_CLEAR = new Set(['title', 'lower', 'kinetic', 'ticker', 'end', 'globe', 'chapter']);
+const CAPTION_CLEAR = new Set(['title', 'lower', 'kinetic', 'ticker', 'end', 'globe', 'chapter', 'article']);
 /** Write this part's c.ass (and its fonts) into `dir`: the words said in it, on the part's own timeline, minus the
  *  windows where a low or full-frame graphic is up; the director's emphasis and kinetic words in orange. False when
  *  the part has no words to caption. */

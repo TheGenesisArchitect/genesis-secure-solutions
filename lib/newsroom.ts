@@ -308,6 +308,9 @@ export async function produce(tenant: string, storyId: string, opts: { angle: nu
     if (!tp.includes(norm(p.say))) { sheetNotes.push(`left out "${p.text.slice(0, 50)}": its spoken words aren't in the script`); continue; }
     keep.push(l);
   }
+  // Article cut-ins: the first time the script leans on each article, the episode cuts to it (lib/unedit-news.ts).
+  // Built here from the verified citation, never by the model.
+  keep.push(...await articleLines((raw.script ?? []).flatMap((p) => p.lines ?? []), usable, st));
   const out: Production = {
     script: (raw.script ?? []).map((p) => ({ part: clip(p.part, 80), lines: (p.lines ?? []).map((l) => ({ say: clip(l.say, 600), source: clip(l.source, 10) })) })),
     teleprompter, sheet: keep.join('\n'), sheetNotes,
@@ -321,6 +324,31 @@ export async function produce(tenant: string, storyId: string, opts: { angle: nu
   await db().from('newsroom_stories').update({ status: 'drafting', updated_at: new Date().toISOString() }).eq('id', storyId);
   await record(tenant, { kind: 'produce', story_id: storyId, cost_cents: o.cents, by });
   return { id: ins.data.id, cents: o.cents, notes: sheetNotes };
+}
+
+/** Sheet lines that cut to the articles the script cites: one per distinct page (at most three), placed on the first
+ *  line that cites it, with the page's headline, publisher, date, the exact passage the search returned (or the
+ *  approved fact when the passage didn't come back verbatim) and its preview image. */
+export async function articleLines(lines: { say?: string; source?: string }[], usable: Record<string, unknown>[], st: Record<string, unknown>): Promise<string[]> {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+  const field = (x: unknown) => String(x ?? '').replace(/\s*\|\s*/g, ' / ').replace(/\s+/g, ' ').trim();
+  for (const l of lines) {
+    const m = String(l.source ?? '').match(/^F(\d+)$/i);
+    const c = m ? usable[Number(m[1]) - 1] : null;
+    const url = String(c?.source_url ?? '');
+    const words = String(l.say ?? '').split(/\s+/).filter(Boolean);
+    if (!c || !/^https?:\/\//.test(url) || seen.has(url) || words.length < 4) continue;
+    seen.add(url);
+    const sameStory = host(url) === host(String(st.url ?? ''));
+    const publisher = sameStory ? String(st.source ?? '').replace(/\s*\(.*$/, '') : host(url);
+    const passage = c.passage_verified && c.cited_text ? String(c.cited_text) : String(c.text);
+    const image = sameStory && st.thumb_url ? String(st.thumb_url) : await linkPreview(url);
+    out.push(['article', field(words.slice(0, 6).join(' ')), field(c.source_title || st.headline), field(publisher || host(url)), field(sameStory ? st.published_on ?? '' : ''), url, field(passage).slice(0, 280), ...(image ? [image] : [])].join(' | '));
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 /** The next Unedit upload is cut against this production: its sheet becomes the recording's sources. */

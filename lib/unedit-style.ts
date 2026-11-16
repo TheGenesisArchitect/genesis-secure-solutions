@@ -30,7 +30,7 @@ const overlap = (a: Zone, b: Zone) => Math.max(0, Math.min(a.x + a.w, b.x + b.w)
 export type StyleCtx = { landscape: boolean; cutout: boolean; face: Zone | null;
   /** The speaker's head on screen over a window (hat to chin, ear to ear; fractions of the frame), the union over the
    *  camera sizes cut in during it. Unknown (no face found) = null. */
-  headAt?: (T: number, D: number) => { top: number; left: number; right: number } | null };
+  headAt?: (T: number, D: number) => { top: number; left: number; right: number; bottom: number } | null };
 
 /** Where behind-the-speaker type can go in this window: in the headroom above the head, tucked a little behind it, or
  *  nowhere (the head fills the top of the frame, as in a close-up), so the words are never hidden behind the head.
@@ -106,13 +106,17 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
   // Full-frame inserts (the figure on the globe) own the screen, so they are settled first: one at a time, and
   // finished before the end card (which takes the last ~4.5 s). Everything else then keeps clear of them.
   const globes: [number, number][] = [];
-  for (const g of base.filter((b) => b.kind === 'globe' || b.kind === 'broll').sort((a, b) => a.T - b.T)) {
+  for (const g of base.filter((b) => b.kind === 'globe' || b.kind === 'broll' || b.kind === 'article').sort((a, b) => a.T - b.T)) {
     const T = Math.max(g.T, globes.length ? globes[globes.length - 1][1] + RULES.gap : 0);
     const D = Math.min(g.D, secs - 5 - T);
     if (D < 2.5) { notes.push(`${g.kind} at ${g.T.toFixed(1)}s left out: no room before the end card`); continue; }
     globes.push([T, T + D]);
     busy.push([T - RULES.gap, T + D + RULES.gap]);
-    out.push({ ...g, T, D });
+    // The article's corner bubble shows the speaker's head as it is on screen then: a square around it, a little more
+    // below the chin than above the hat (fractions of the frame: centre x of the width, top and side of the height).
+    const head = g.kind === 'article' && ctx.headAt ? ctx.headAt(T, D) : null;
+    const bubble = head ? (() => { const h = head.bottom - head.top, s = Math.min(1, h * 1.55); return { cx: (head.left + head.right) / 2, top: Math.max(0, Math.min(1 - s, head.top - h * 0.12)), s }; })() : undefined;
+    out.push({ ...g, T, D, ...(bubble ? { bubble } : {}) });
   }
   // Keep an item clear of every globe: trim it to end before one, else move it to just after. Null = no room.
   const clearOfGlobes = (it: EpGraphic): EpGraphic | null => {
@@ -126,7 +130,7 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
     return null;
   };
   for (const g of [...base].sort((a, b) => rank(a.kind) - rank(b.kind) || a.T - b.T)) {
-    if (g.kind === 'globe' || g.kind === 'broll') continue;
+    if (g.kind === 'globe' || g.kind === 'broll' || g.kind === 'article') continue;
     let item: EpGraphic = { ...g };
     if (g.kind === 'source') {
       const c = clearOfGlobes({ ...item, D: Math.min(item.D, secs - item.T) });

@@ -9,19 +9,24 @@
 //   timeline | <spoken words> | <title> | <date>: <text> @ <spoken words> ; <date>: <text> @ <spoken words> ; …
 //   ticker   | <spoken words> | <headline> | <label> | <item> ; <item> ; …
 //   globe    | <spoken words> | alone | fall | lit [| <caption>]   (the figure on the globe, a full-frame insert)
+//   article  | <spoken words> | <headline> | <publisher> | <date> | <url> | <passage> [| <image url>]
+//            (a cut to the article itself, the passage highlighted, the speaker in a corner bubble; built by the
+//            newsroom from the verified citation, never by a model)
 // Items are split by " ; " with a space on both sides, so a ";" inside a line of text stays in the text.
 import type { Word } from '@/lib/unedit-media';
 import { findRun } from '@/lib/unedit-edit';
 
-export type NewsKind = 'source' | 'quote' | 'timeline' | 'ticker' | 'globe';
-export const NEWS_KINDS: readonly NewsKind[] = ['source', 'quote', 'timeline', 'ticker', 'globe'];
+export type NewsKind = 'source' | 'quote' | 'timeline' | 'ticker' | 'globe' | 'article';
+export const NEWS_KINDS: readonly NewsKind[] = ['source', 'quote', 'timeline', 'ticker', 'globe', 'article'];
 export type GlobePhase = 'alone' | 'fall' | 'lit';
 export type NewsEntry = {
   kind: NewsKind; say: string; text: string; who?: string; when?: string; title?: string;
   items?: { date: string; text: string; say?: string }[]; crawl?: string[]; label?: string; phase?: GlobePhase;
+  /** article: the page and its preview image (an outside link, or a stored copy's Blob path once planned). */ url?: string; image?: string;
 };
 /** What the reel draws for a newsroom item (Genovus Motion src/hf/news.tsx). */
-export type NewsData = { who?: string; when?: string; title?: string; items?: { date: string; text: string; t: number }[]; crawl?: string[]; desk?: string; label?: string; phase?: GlobePhase };
+export type NewsData = { who?: string; when?: string; title?: string; items?: { date: string; text: string; t: number }[]; crawl?: string[]; desk?: string; label?: string; phase?: GlobePhase;
+  /** article: the page's host for the address bar, and the preview image (Blob path; a link in the reel). */ url?: string; image?: string };
 
 const clip = (s: unknown, n: number) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const DESK = () => (process.env.UNEDIT_NEWS_DESK || 'Genovus Signal').trim();
@@ -48,16 +53,18 @@ export function parseSheet(input: string | unknown[]): { entries: NewsEntry[]; e
         if (items.every(Boolean)) e = { kind, say: f[1], text: f[2], title: f[2], items: items as NonNullable<NewsEntry['items']> };
       } else if (kind === 'globe' && f.length >= 3 && ['alone', 'fall', 'lit'].includes(f[2].toLowerCase())) e = { kind, say: f[1], text: f[3] ?? '', phase: f[2].toLowerCase() as GlobePhase };
       else if (kind === 'ticker' && f.length >= 5) e = { kind, say: f[1], text: f[2], label: f[3], crawl: f[4].split(/\s+;\s+/).filter(Boolean) };
+      else if (kind === 'article' && f.length >= 7 && /^https?:\/\//.test(f[5])) e = { kind, say: f[1], title: f[2], who: f[3], when: f[4] || undefined, url: f[5], text: f[6], image: /^https:\/\//.test(f[7] ?? '') ? f[7] : undefined };
     } else if (row && typeof row === 'object') {
       const o = row as Record<string, unknown>;
       if (NEWS_KINDS.includes(o.kind as NewsKind) && o.say && (o.text || o.kind === 'globe')) e = { ...(o as unknown as NewsEntry), text: String(o.text ?? '') };
     }
-    if (!e) { errors.push(`line ${i + 1} isn't a source, quote, timeline, ticker or globe entry`); return; }
+    if (!e) { errors.push(`line ${i + 1} isn't a source, quote, timeline, ticker, globe or article entry`); return; }
     if (e.kind === 'quote' && !e.who) { errors.push(`line ${i + 1}: a quote needs who said it`); return; }
     if (e.say.split(/\s+/).length < 2) { errors.push(`line ${i + 1}: give at least two spoken words to place it`); return; }
     entries.push({
       kind: e.kind, say: clip(e.say, 160), text: clip(e.text, e.kind === 'quote' ? 220 : 90), who: e.who ? clip(e.who, 60) : undefined, when: e.when ? clip(e.when, 30) : undefined,
-      title: e.title ? clip(e.title, 50) : undefined, label: e.label ? clip(e.label, 16) : undefined,
+      title: e.title ? clip(e.title, e.kind === 'article' ? 140 : 50) : undefined, label: e.label ? clip(e.label, 16) : undefined,
+      ...(e.kind === 'article' ? { url: clip(e.url, 1000), image: e.image ? clip(e.image, 1000) : undefined, text: clip(e.text, 280) } : {}),
       items: e.items?.slice(0, 5).map((x) => ({ date: clip(x.date, 16), text: clip(x.text, 70), say: x.say ? clip(x.say, 120) : undefined })),
       crawl: e.crawl?.slice(0, 8).map((x) => clip(x, 70)), phase: e.phase,
     });
@@ -90,6 +97,8 @@ export function placeNews(entries: NewsEntry[], words: Word[], epTime: (s: numbe
     else if (e.kind === 'quote') items.push({ T, D: Math.min(8, 3.6 + e.text.split(/\s+/).length * 0.22), kind: e.kind, text: e.text, news: { who: e.who, when: e.when }, sound: 'swish' });
     else if (e.kind === 'globe') { const ph = e.phase ?? 'alone'; items.push({ T, D: ph === 'lit' ? 5 : ph === 'fall' ? 3 : 4, kind: e.kind, text: e.text, news: { phase: ph }, sound: ph === 'alone' ? 'riser' : ph === 'fall' ? 'hit' : 'sting' }); }
     else if (e.kind === 'ticker') items.push({ T, D: 7, kind: e.kind, text: e.text, news: { desk: DESK(), label: e.label ?? 'Sourced', crawl: e.crawl ?? [] }, sound: 'swish' });
+    // The cut to the article: long enough to read the highlighted passage (about 3 words a second), 5 to 8 s.
+    else if (e.kind === 'article') items.push({ T, D: Math.min(8, Math.max(5, 2.2 + e.text.split(/\s+/).length / 3)), kind: e.kind, text: e.text, news: { who: e.who, when: e.when, title: e.title, url: e.url, image: e.image }, sound: 'whoosh' });
     else {
       const its = (e.items ?? []).map((x, i) => {
         const s = x.say ? spokenAt(words, x.say) : null;
@@ -115,6 +124,7 @@ export function sheetText(entries: NewsEntry[] | null | undefined): string {
     if (e.kind === 'quote') return `quote | ${e.say} | ${e.text} | ${e.who ?? ''}${e.when ? ` | ${e.when}` : ''}`;
     if (e.kind === 'ticker') return `ticker | ${e.say} | ${e.text} | ${e.label ?? 'Sourced'} | ${(e.crawl ?? []).join(' ; ')}`;
     if (e.kind === 'globe') return `globe | ${e.say} | ${e.phase ?? 'alone'}${e.text ? ` | ${e.text}` : ''}`;
+    if (e.kind === 'article') return `article | ${e.say} | ${e.title ?? ''} | ${e.who ?? ''} | ${e.when ?? ''} | ${e.url ?? ''} | ${e.text}${e.image ? ` | ${e.image}` : ''}`;
     return `timeline | ${e.say} | ${e.title ?? e.text} | ${(e.items ?? []).map((x) => `${x.date}: ${x.text}${x.say ? ` @ ${x.say}` : ''}`).join(' ; ')}`;
   }).join('\n');
 }

@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 3862
+/***/ 3160
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -150765,6 +150765,72 @@ function NewsTicker({ desk, headline, label = "Sourced", items, dur }) {
   ] }) }) });
 }
 
+;// ./src/hf/article.tsx
+
+
+
+
+
+const BUBBLE = { d: 0.3, margin: 0.055 };
+const hostOf = (url, fallback = "") => {
+  try {
+    return new URL(url ?? "").hostname.replace(/^www\./, "");
+  } catch {
+    return fallback;
+  }
+};
+function ArticleCut({ headline, publisher, when, url, passage, image, dur, bubble = true }) {
+  const { t, u, width: W, height: H } = useT();
+  if (t > dur) return null;
+  const inP = tw(t, 0, 0.5, E.p2Out), bg = tw(t, 0, 0.22, E.p2Out), out = tw(t, dur - 0.4, 0.4, E.p2In);
+  const scroll = image ? mix(0, -70 * u, tw(t, 0.8, Math.max(1, dur - 1.4), E.sineInOut)) : 0;
+  const hl = tw(t, 0.9, Math.min(2.4, dur * 0.4), E.p2Out);
+  const host = hostOf(url, publisher ?? "");
+  const d = BUBBLE.d * H, m = BUBBLE.margin * H, ring = 0.011 * H;
+  const cardL = 110 * u, cardW = bubble ? W - cardL - d - m - 150 * u : W - 2 * cardL;
+  const cardT = image ? 78 * u : void 0, cardH = image ? H - 156 * u : void 0;
+  const ps = (image ? 30 : 36) * u;
+  const hs = Math.max(40, Math.min(60, 60 - Math.max(0, headline.length - 60) * 0.35)) * u;
+  const mark = "linear-gradient(rgba(255,122,26,0.38), rgba(255,122,26,0.38))";
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { opacity: 1 - out }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { opacity: bg, background: "radial-gradient(60% 70% at 88% 86%, rgba(255,106,43,0.30), transparent 60%), radial-gradient(70% 60% at 10% 0%, rgba(80,70,140,0.22), transparent 60%), #0b0c10" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+      position: "absolute",
+      left: cardL,
+      ...cardT != null ? { top: cardT, height: cardH } : { top: "46%", maxHeight: H - 156 * u },
+      width: cardW,
+      borderRadius: 22 * u,
+      overflow: "hidden",
+      background: "#f7f3ec",
+      boxShadow: `0 ${30 * u}px ${80 * u}px rgba(0,0,0,0.55)`,
+      opacity: inP,
+      transform: `${cardT == null ? "translateY(-50%) " : ""}translateY(${(1 - inP) * 46 * u}px) scale(${0.97 + 0.03 * inP})`
+    }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", zIndex: 2, height: 58 * u, background: "#e9e3d8", display: "flex", alignItems: "center", gap: 10 * u, padding: `0 ${22 * u}px`, borderBottom: "1px solid rgba(0,0,0,0.08)" }, children: [
+        ["#ff5f57", "#febc2e", "#28c840"].map((c) => /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 14 * u, height: 14 * u, borderRadius: 999, background: c } }, c)),
+        /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginLeft: 18 * u, flex: 1, height: 34 * u, borderRadius: 999, background: "#f7f3ec", display: "flex", alignItems: "center", padding: `0 ${18 * u}px`, fontFamily: HF.mono, fontSize: 19 * u, color: "#5d574e", letterSpacing: "0.02em" }, children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 10 * u, height: 12 * u, border: `${2 * u}px solid #8a8378`, borderRadius: 3 * u, marginRight: 12 * u } }),
+          host
+        ] })
+      ] }),
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { padding: `${40 * u}px ${54 * u}px`, transform: `translateY(${scroll}px)` }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: HF.mono, fontWeight: 600, fontSize: 20 * u, letterSpacing: "0.16em", textTransform: "uppercase", color: "#c2410c" }, children: [
+          publisher ?? host,
+          when ? /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: "#8a8378" }, children: `  \xB7  ${when}` }) : null
+        ] }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 16 * u, fontFamily: HF.serif, fontSize: hs, lineHeight: 1.08, color: "#16130f", letterSpacing: "-0.01em" }, children: headline }),
+        image ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: image, style: { marginTop: 26 * u, width: "100%", height: 300 * u, objectFit: "cover", borderRadius: 12 * u, display: "block" } }) : /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 22 * u, height: 2 * u, background: "rgba(0,0,0,0.12)" } }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 28 * u, fontFamily: HF.geist, fontSize: ps, lineHeight: 1.5, color: "#2b2620" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { backgroundImage: mark, backgroundRepeat: "no-repeat", backgroundSize: `${hl * 100}% 100%`, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone", padding: `${2 * u}px ${4 * u}px` }, children: passage }) })
+      ] })
+    ] }),
+    bubble ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", right: m, bottom: m + d + 70 * u, width: d + 60 * u, textAlign: "right", opacity: tw(t, 0.35, 0.5, E.p2Out) }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontSize: 19 * u, letterSpacing: "0.2em", color: "rgba(255,255,255,0.6)" }, children: "REPORTED BY" }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10 * u, fontFamily: HF.serif, fontStyle: "italic", fontSize: 52 * u, lineHeight: 1.05, color: HF.cream }, children: publisher ?? host })
+    ] }) : null,
+    bubble ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: W - m - d - ring, top: H - m - d - ring, width: d + 2 * ring, height: d + 2 * ring, boxSizing: "border-box", borderRadius: 999, border: `${ring}px solid ${HF.orange}`, boxShadow: `0 0 ${50 * u}px rgba(255,106,43,0.55)`, background: "rgba(0,0,0,0.6)", opacity: tw(t, 0, 0.2, E.p2Out) } }) : null
+  ] });
+}
+
 ;// ./src/hf/globe.tsx
 
 
@@ -150861,6 +150927,7 @@ function BrollInsert({ src, dur, label = "Illustration" }) {
 }
 
 ;// ./src/UneditEpisodeCues.tsx
+
 
 
 
@@ -151008,7 +151075,7 @@ function Styled({ it, s }) {
       return null;
   }
 }
-const isNews = (k) => k === "source" || k === "quote" || k === "timeline" || k === "ticker" || k === "globe";
+const isNews = (k) => k === "source" || k === "quote" || k === "timeline" || k === "ticker" || k === "globe" || k === "article";
 function News({ it, s }) {
   const n = it.news ?? {};
   switch (it.kind) {
@@ -151022,6 +151089,9 @@ function News({ it, s }) {
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(NewsTicker, { desk: n.desk ?? "Genovus", headline: it.text, label: n.label, items: n.crawl ?? [], dur: s });
     case "globe":
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(FigureGlobe, { phase: n.phase ?? "alone", dur: s, caption: it.text || void 0 });
+    // The article's image comes as the item's media link (a stored copy); the ring only when Unedit lays in a bubble.
+    case "article":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(ArticleCut, { headline: n.title ?? "", publisher: n.who, when: n.when, url: n.url, passage: it.text, image: it.media, dur: s, bubble: it.bubble !== false });
     default:
       return null;
   }
@@ -171312,7 +171382,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(3862);
+/******/ 	__webpack_require__(3160);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	
