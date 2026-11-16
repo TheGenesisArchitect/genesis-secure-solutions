@@ -133,10 +133,13 @@ export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 's
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
  *  memory at a time, threads capped), then the shots join without re-encoding. */
+/** Where a part's finished pieces are kept between tries (an 8K part can outlast one worker's time limit). */
+export type PieceCache = { get: (i: number) => Promise<Buffer | null>; put: (i: number, b: Buffer) => Promise<void> };
+
 /** The longest piece of a shot rendered in one ffmpeg run. */
 const MAX_PIECE_S = 8;
 
-export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'> & { light?: boolean }, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): Promise<{ file: string; dir: string; secs: number }> {
+export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'> & { light?: boolean }, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }, cache?: PieceCache): Promise<{ file: string; dir: string; secs: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-ep-'));
   const { width: W, height: H } = plan.size;
   // The grade, then studio light (lib/unedit-look.ts; its own light sharpening replaces the old unsharp).
@@ -167,9 +170,13 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
     // frame behind the sound per piece (1.3 s behind by the end of a tightly cut episode, 2026-11-16). The frame rate
     // is fixed first, a source a frame short holds its last frame, and the count is capped.
     const n = Math.max(1, Math.round(d * FPS));
+    // A piece kept by an earlier try of this part (killed for time) is reused: each try picks up where the last stopped.
+    const kept = cache ? await cache.get(i).catch(() => null) : null;
+    if (kept) { await fs.writeFile(path.join(dir, out), kept); shots.push(out); continue; }
     await ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url,
       '-vf', `${move ? `fps=${FPS},${cropF(crops[ci])},${move},setsar=1,${look}` : `${cropF(crops[ci])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look}`},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-an',
       '-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
+    if (cache) await cache.put(i, await fs.readFile(path.join(dir, out))).catch(() => {});
     shots.push(out);
   }
   await fs.writeFile(path.join(dir, 'shots.txt'), shots.map((f) => `file '${f}'`).join('\n'));

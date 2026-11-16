@@ -785,9 +785,23 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
       await fs.writeFile(path.join(d, 'part.mp4'), Buffer.from(await r.arrayBuffer()));
       out = { file: path.join(d, 'part.mp4'), dir: d, secs: part.segs.reduce((a, s) => a + (s.to - s.from), 0) };
     } else {
-      const { crops, cents } = await shotCrops(src, part, v.episode_plan);
-      await spend(id, cents, `episode part ${k + 1} framing (Claude)`);
-      out = await renderPart(src, part, crops, { ...v.episode_plan, light: !v.faceless }, motion);
+      // The framing and each finished piece are kept beside the picture, so a try killed for time resumes instead of
+      // starting over (8K parts of ~20 s took 12-13 min, at the edge of the 800 s limit; 2026-11-16).
+      const base = pic.replace(/.mp4$/, '');
+      const fetchKept = async (p: string) => { if (!(await head(p).catch(() => null))) return null; const r = await fetch(await presigned(p, 30), { signal: AbortSignal.timeout(120_000) }); return r.ok ? Buffer.from(await r.arrayBuffer()) : null; };
+      const keptCrops = await fetchKept(`${base}-crops.json`).catch(() => null);
+      let crops: Awaited<ReturnType<typeof shotCrops>>['crops'];
+      if (keptCrops) crops = JSON.parse(keptCrops.toString('utf8'));
+      else {
+        const r = await shotCrops(src, part, v.episode_plan);
+        await spend(id, r.cents, `episode part ${k + 1} framing (Claude)`);
+        crops = r.crops;
+        await put(`${base}-crops.json`, JSON.stringify(crops), { access: 'private', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
+      }
+      out = await renderPart(src, part, crops, { ...v.episode_plan, light: !v.faceless }, motion, {
+        get: (i) => fetchKept(`${base}-p${String(i).padStart(3, '0')}.mp4`),
+        put: async (i, b) => { await put(`${base}-p${String(i).padStart(3, '0')}.mp4`, b, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(120_000) }); },
+      });
       await put(pic, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
     }
     try {
