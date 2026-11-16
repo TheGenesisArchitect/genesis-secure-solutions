@@ -144,7 +144,7 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
           <div className="ue-h"><h3>Clips · 9:16 with captions</h3><span className="muted">Each goes to Instagram and Facebook as a Reel and to YouTube as a Short.</span></div>
           <div className="ue-clips">
             {clips.map((c) => (
-              <article key={c.id} className={`ue-clip ${c.status}`}>
+              <article key={c.id} id={`clip-${c.n}`} className={`ue-clip ${c.status}`}>
                 <div className="ue-clip-video">
                   {c.src && !['rendering', 'redo'].includes(c.status) ? <video src={c.src} controls playsInline preload="metadata" /> : <div className="ue-blank"><span className="take-spin" />{c.status === 'redo' ? 'Redoing…' : 'Cutting…'}</div>}
                 </div>
@@ -195,7 +195,8 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
       {review ? (
         <div className="ue-approve">
           <div>
-            <b>{open.length ? `${open.length} clip${open.length === 1 ? '' : 's'} still to decide` : `Ready: ${approved.length} clip${approved.length === 1 ? '' : 's'} and the full video`}</b>
+            <b>{open.length ? <>Nothing is posted yet: {open.map((c, i) => <span key={c.id}>{i ? ', ' : ''}<a href={`#clip-${c.n}`}>clip {c.n}</a></span>)} still {open.length === 1 ? 'needs' : 'need'} Approve, Redo or Leave out</> : `Ready to post: ${approved.length} clip${approved.length === 1 ? '' : 's'} and the full video`}</b>
+            <span className="muted">Approving a clip only marks it ready. Nothing goes to Metricool until you press the button here.</span>
             <span className="muted">{vlog.live ? 'Posts are scheduled to publish about 15 minutes after you approve.' : 'Posts land in Metricool as drafts; nothing goes public until it is published there.'}</span>
           </div>
           <button className="btn primary" type="button" disabled={Boolean(open.length) || busy === 'approve'} onClick={() => send({ tool: 'approve' }, 'approve')}>{open.length ? 'Decide every clip first' : `Approve ${postCount} post${postCount === 1 ? '' : 's'}`}</button>
