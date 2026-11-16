@@ -72,7 +72,7 @@ export default async function StudioLivePage({ params }: { params: Promise<{ id:
   const needs: string[] = [
     ...(v.error ? [`Stopped: ${v.error}`] : []),
     ...(g?.qa && !g.qa.ok ? g.qa.issues.slice(0, 4) : []),
-    ...(g?.notes ?? []).filter((n) => /^(source|quote|timeline|ticker|globe) /.test(n)).slice(0, 3),
+    ...(g?.notes ?? []).filter((n) => /^(source|quote|timeline|ticker|globe|B-roll) /.test(n)).slice(0, 4),
     ...broll.filter((b) => b.broll?.failed).map((b) => `A B-roll shot failed (${b.broll!.failed}); the speaker stays on screen there.`),
     ...((clips ?? []).some((c) => c.status === 'ready') ? [`${(clips ?? []).filter((c) => c.status === 'ready').length} clips are ready for your approval on the card.`] : []),
   ];

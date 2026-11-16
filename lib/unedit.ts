@@ -374,6 +374,7 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   }
   // B-roll: each director moment starts a Runway illustration now (it renders while the parts do); the step waits for
   // the clips before the reel. Abstract or generic shots only, labelled "Illustration" on screen. UNEDIT_BROLL=off.
+  const brollFail: string[] = [];
   if (BROLL_ON() && runwayConfigured()) {
     for (const b of dir.broll) {
       const T = epTime(ss[b.s]?.s ?? -1, edit.keep);
@@ -383,15 +384,21 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
         await spend(v.id, BROLL_CENTS, 'B-roll illustration (Runway)');
         // An 8 s shot: 4 s of it over a talking head, 6 s when the illustrations carry a faceless video.
         base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id }, sound: 'whoosh' });
-      } catch (e) { console.error(`[unedit] ${v.id} B-roll not started: ${e instanceof Error ? e.message : e}`); }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[unedit] ${v.id} B-roll not started: ${msg}`);
+        brollFail.push(msg);
+      }
     }
   }
+  // Said on the card and in Studio Live, never only in the logs (Runway ran out of credits on 2026-11-15 unseen).
+  const brollNote = brollFail.length ? [`B-roll ${brollFail.length} illustration${brollFail.length === 1 ? '' : 's'} not made: ${/credits/i.test(brollFail[0]) ? 'the Runway account is out of credits. Add credits in Runway, then ask Helix to add the graphics again.' : brollFail[0].slice(0, 160)}`] : [];
   // Newsroom: every fact on the approved sources sheet, where its words are said (never placed by a model).
   const placed = v.sources?.length ? placeNews(v.sources, words, (s) => epTime(s, edit.keep), secs) : { items: [], notes: [] };
   for (const n of placed.items) base.push({ T: n.T, D: n.D, kind: n.kind, text: n.text, news: n.news, sound: n.sound });
   const chapters = chaps.length >= 3 ? `Chapters\n${chaps.map((x) => `${ts(x.t)} ${x.c.title}`).join('\n')}` : undefined;
   const s = styled(base, pkg, frame, secs);
-  return { ...s, notes: [...placed.notes, ...(s.notes ?? [])], chapters, error: null };
+  return { ...s, notes: [...brollNote, ...placed.notes, ...(s.notes ?? [])], chapters, error: null };
 }
 
 /** Style the plan with a show package and lay out the reel (also used when the card changes the package). */
@@ -903,6 +910,15 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
         await log('retry-episode', id, { graphics: true });
         await kick(origin, id);
         return 'Adding the graphics to the episode again.';
+      }
+      if (vlog.episode_plan && !vlog.episode_plan.error && vlog.edit && (gr?.notes ?? []).some((n) => n.startsWith('B-roll '))) {
+        // Illustrations were skipped (e.g. Runway out of credits): plan the graphics fresh, B-roll included, and
+        // render every part again with them.
+        await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
+        await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, graphics: { items: [], pkg: gr?.pkg, replan: true, error: null } }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+        await log('retry-episode', id, { replan: true });
+        await kick(origin, id);
+        return 'Planning the graphics again with the B-roll, then polishing the episode.';
       }
       if (!vlog.episode_plan?.error) return 'The episode is fine.';
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null }).eq('vlog_id', id).neq('status', 'done');
