@@ -756,7 +756,7 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     const motion = process.env.UNEDIT_MOTION === 'off' ? undefined : { p0, cuts: g0?.error ? [] : g0?.cuts ?? [], push: { after: RULES.pushAfter, amount: RULES.pushAmount } };
     // The picture (framed, graded, moving) is kept apart from the graphics: a quality-check fix, a package switch or a
     // part that waited for the graphics reuses it instead of decoding the source again.
-    const pic = `${dir(v)}/episode/pic-${String(k).padStart(3, '0')}-${picKey(part, v.episode_plan, motion)}.mp4`;
+    const pic = `${dir(v)}/episode/pic-${String(k).padStart(3, '0')}-${picKey(part, { ...v.episode_plan, light: !v.faceless }, motion)}.mp4`;
     let out: { file: string; dir: string; secs: number };
     const kept = await head(pic).catch(() => null);
     if (kept) {

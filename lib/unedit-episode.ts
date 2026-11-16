@@ -124,10 +124,11 @@ export async function splitBoxes(url: string, parts: Part[]): Promise<number> {
 
 /** A fingerprint of everything a part's picture depends on (its shots, size, grade and motion, not the graphics), so a
  *  stored picture is reused after a quality-check fix or a package switch and never after a change that alters it. */
-export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'>, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): string {
+export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'> & { light?: boolean }, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): string {
   const secs = part.segs.reduce((a, s) => a + (s.to - s.from), 0);
   const m = motion ? { p0: Math.round(motion.p0 * 1000), push: motion.push, cuts: motion.cuts.filter((c) => c > motion.p0 - 0.5 && c < motion.p0 + secs).map((c) => Math.round((c - motion.p0) * 1000)) } : null;
-  return createHash('sha256').update(JSON.stringify({ v: 1, segs: part.segs, size: plan.size, grade: plan.grade, sdr: plan.sdr ?? '', m })).digest('hex').slice(0, 16);
+  // v2: frame-exact pieces (2026-11-16 sync fix); the studio light is part of the picture, so it is part of the key.
+  return createHash('sha256').update(JSON.stringify({ v: 2, segs: part.segs, size: plan.size, grade: plan.grade, sdr: plan.sdr ?? '', light: plan.light === false ? '' : studioLight(), m })).digest('hex').slice(0, 16);
 }
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
