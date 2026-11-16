@@ -413,7 +413,7 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
         const job = await startBroll(b.prompt);
         await spend(v.id, job.cents, `B-roll illustration (Runway ${job.model})`);
         // 4 s of the shot over a talking head, 6 s when the illustrations carry a faceless video.
-        base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id, model: job.model }, sound: 'whoosh' });
+        base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id, model: job.model, at: Date.now() }, sound: 'whoosh' });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`[unedit] ${v.id} B-roll not started: ${msg}`);
@@ -619,7 +619,12 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     await startParts(v.id, origin);
     try {
       const size = v.episode_plan!.size;
-      await settleBroll(v, g);
+      // Routed models (Kling, Wan, ...) can take longer than Veo: shots still generating are waited for, across steps,
+      // up to BROLL_WAIT_MS from when they were ordered, instead of being dropped after one step's wait.
+      if (!(await settleBroll(v, g))) {
+        await release(v.id, { lease_until: new Date(Date.now() + 45_000).toISOString() });
+        return `Waiting for ${g.items.filter((x) => x.kind === 'broll' && x.broll?.task && !x.broll.path && !x.broll.failed).length} B-roll shots still being generated.`;
+      }
       const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : x.kind === 'article' && x.news?.image?.startsWith('studio/') ? presigned(x.news.image, 120) : null);
       const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, ...(x.kind === 'article' ? { bubble: x.bubble ? (x.bubble.mode === 'cutout' ? 'cutout' : true) : false } : {}), news: x.news, media: await brollLink(x) })));
       const done = await Promise.all(todo.map(async (i) => {
@@ -858,20 +863,27 @@ async function startBroll(prompt: string): Promise<{ id: string; cents: number; 
 }
 /** Wait (up to ~4 minutes in all) for the episode's B-roll jobs, store each clip in Blob, and record it on the plan
  *  (mutating `g`). A job that fails or runs out of time leaves its slot empty: the speaker stays on screen. */
-async function settleBroll(v: Vlog, g: Graphics): Promise<void> {
-  const open = g.items.filter((x) => x.kind === 'broll' && x.broll?.task && !x.broll.path && !x.broll.failed);
-  if (!open.length) return;
-  const until = Date.now() + 240_000;
+/** How long a B-roll shot may take from its order before the episode goes on without it. */
+const BROLL_WAIT_MS = 15 * 60_000;
+/** Collect the B-roll shots: true when every shot is settled (stored or failed); false when some are still generating
+ *  and within BROLL_WAIT_MS of their order (the caller waits a step and asks again). */
+async function settleBroll(v: Vlog, g: Graphics): Promise<boolean> {
+  const timedOut = (f?: string) => Boolean(f && /^still /.test(f));
+  const open = g.items.filter((x) => x.kind === 'broll' && x.broll?.task && !x.broll.path && (!x.broll.failed || timedOut(x.broll.failed)));
+  if (!open.length) return true;
+  const until = Date.now() + 120_000;
   await Promise.all(open.map(async (x, n) => {
     try {
       let t = await runwayTask(x.broll!.task!);
       while (!['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(t.status) && Date.now() < until) { await new Promise((r) => setTimeout(r, 6000)); t = await runwayTask(x.broll!.task!); }
-      if (t.status !== 'SUCCEEDED' || !t.output?.[0]) { x.broll!.failed = t.failure ?? `still ${t.status.toLowerCase()}`; return; }
+      if (t.status !== 'SUCCEEDED' && !['FAILED', 'CANCELLED'].includes(t.status) && (x.broll!.at != null && Date.now() - x.broll!.at < BROLL_WAIT_MS)) return; // still coming: ask again next step
+      if (t.status !== 'SUCCEEDED' || !t.output?.[0]) { x.broll!.failed = t.failure ?? `still ${t.status.toLowerCase()} after ${Math.round(BROLL_WAIT_MS / 60_000)} minutes`; return; }
       const r = await fetch(t.output[0], { signal: AbortSignal.timeout(90_000) });
       if (!r.ok) throw new Error(`download ${r.status}`);
       const p = `${dir(v)}/episode/broll-${n}-${Date.now()}.mp4`;
       await put(p, Buffer.from(await r.arrayBuffer()), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true });
       x.broll!.path = p;
+      x.broll!.failed = undefined;
       await dbx().from('unedit_assets').upsert({ tenant_id: v.tenant_id, vlog_id: v.id, kind: 'broll', blob_path: p, prompt: x.broll!.prompt, model: x.broll!.model ?? null, tags: assetTags(x.broll!.prompt), cents: x.broll!.model === 'veo3.1_fast' ? BROLL_CENTS : 0 }, { onConflict: 'blob_path' })
         .then(({ error }) => { if (error) console.error(`[unedit] ${v.id} B-roll not saved to the library: ${error.message}`); });
     } catch (e) { x.broll!.failed = (e instanceof Error ? e.message : String(e)).slice(0, 160); }
@@ -879,6 +891,7 @@ async function settleBroll(v: Vlog, g: Graphics): Promise<void> {
   const { data: cur } = await dbx().from('unedit_vlogs').select('episode_plan').eq('id', v.id).single();
   const ep = (cur?.episode_plan ?? v.episode_plan) as EpisodePlan;
   if (ep.graphics) await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics: { ...ep.graphics, items: g.items } } }).eq('id', v.id);
+  return !g.items.some((x) => x.kind === 'broll' && x.broll?.task && !x.broll.path && !x.broll.failed);
 }
 
 // ---- the episode's captions ------------------------------------------------------------------------------------

@@ -42,7 +42,7 @@ export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapt
   /** article: the square of the speaker's footage shown in the corner bubble (centre x as a fraction of the width;
    *  top and side as fractions of the height); mode 'cutout' stands the speaker, cut out, beside the article instead. */
   bubble?: { cx: number; top: number; s: number; mode?: 'bubble' | 'cutout' };
-  /** B-roll: the Runway job making the illustration (and the model that made it), then its stored clip (or why it failed). */ broll?: { prompt: string; task?: string; path?: string; failed?: string; model?: string };
+  /** B-roll: the Runway job making the illustration (and the model that made it), then its stored clip (or why it failed). */ broll?: { prompt: string; task?: string; path?: string; failed?: string; model?: string; /** when the shot was ordered (ms) */ at?: number };
   /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number; /** left-anchored type: widest it may run (fraction of the frame), so it stops short of the speaker */ maxW?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
 export type ReelChunk = { from: number; to: number; path?: string };
