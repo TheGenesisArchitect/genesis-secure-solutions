@@ -8,7 +8,8 @@ import { adminDb } from '@/lib/supabase/admin';
 import { genovusTenant } from '@/lib/unedit';
 import { produce, researchBeat, researchDeeper, useForNextUpload } from '@/lib/newsroom';
 import { buildFaceless, startFaceless, type FacelessLength } from '@/lib/unedit-faceless';
-import { startMorning, writeBrief } from '@/lib/newsroom-morning';
+import { writeBrief } from '@/lib/newsroom-morning';
+import { sweepFree } from '@/lib/newsroom-feed';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
@@ -77,9 +78,10 @@ export async function POST(req: Request) {
         return Response.json({ ok: true, say: 'Your next Unedit upload will be cut against this package, with its sources on screen.' });
       }
       case 'sweep': {
-        // The morning sweep on demand: every beat researched in its own worker, side by side.
-        const n = await startMorning(tenant);
-        return Response.json({ ok: true, say: `Helix is researching all ${n} beats side by side (a few minutes). Refresh to see the wire fill, then write the brief.` });
+        // The free wire on demand: every beat's public feeds read now (no paid search).
+        const r = await sweepFree(tenant);
+        const n = r.beats;
+        return Response.json({ ok: true, say: r.added ? `The free wire added ${r.added} ${r.added === 1 ? 'story' : 'stories'} across ${n} beats. Write the brief next.` : 'Nothing new on the free wire since the last sweep.' });
       }
       case 'brief': {
         const b = await writeBrief(tenant);

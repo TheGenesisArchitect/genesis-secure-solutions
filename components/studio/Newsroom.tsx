@@ -121,10 +121,10 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
           <span className="nr-egg" aria-hidden="true" />
           <div>
             <span className="nr-label">Helix · Morning brief{brief ? ` · ${new Date(`${brief.day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}</span>
-            <span className="muted nr-small">{brief ? `Every beat researched on its own at 5:00 AM · ${brief.stats.added} new ${brief.stats.added === 1 ? 'story' : 'stories'} · ${(brief.stats.cents / 100).toFixed(2)} USD` : 'Every morning at 5:00 AM Helix researches every beat; the brief lands at 6:00 AM.'}</span>
+            <span className="muted nr-small">{brief ? `The free wire read every beat at 5:00 AM · ${brief.stats.added} new ${brief.stats.added === 1 ? 'story' : 'stories'} · ${(brief.stats.cents / 100).toFixed(2)} USD` : 'Every morning at 5:00 AM the free wire reads every beat; the brief lands at 6:00 AM.'}</span>
           </div>
           <span style={{ flex: 1 }} />
-          <button type="button" className="btn small" disabled={busy !== null} onClick={() => send({ tool: 'sweep' }, 'sweep')}>{busy === 'sweep' ? 'Starting…' : 'Research every beat now'}</button>
+          <button type="button" className="btn small" disabled={busy !== null} onClick={() => send({ tool: 'sweep' }, 'sweep')}>{busy === 'sweep' ? 'Reading the feeds…' : 'Refresh the free wire'}</button>
           <button type="button" className="btn small" disabled={busy !== null || !stories.length} onClick={() => send({ tool: 'brief' }, 'brief')}>{busy === 'brief' ? 'Helix is writing…' : brief ? 'Write it again' : 'Write the brief now'}</button>
         </div>
         {brief ? (
@@ -210,6 +210,13 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
                 {story.angles.map((a, i) => (
                   <button type="button" key={i} className={`nr-angle${(story.chosen ?? 0) === i ? ' on' : ''}`} disabled={busy !== null} onClick={() => send({ tool: 'set_angle', story: story.id, angle: i }, 'angle')}><b>{a.title}</b><span>{a.line}</span></button>
                 ))}
+              </div>
+            ) : null}
+            {!story.claims.length ? (
+              <div className="nr-verify">
+                <b>From the free wire: facts not verified yet.</b>
+                <span className="muted nr-small">Before you produce it, Helix reads the sources and files the facts with their exact passages (about $0.20 for this story).</span>
+                <button type="button" className="btn primary small" disabled={busy !== null} onClick={() => send({ tool: 'deeper', story: story.id }, 'deeper')}>{busy === 'deeper' ? 'Verifying…' : 'Verify the facts with Helix'}</button>
               </div>
             ) : null}
             <div className="nr-helix">

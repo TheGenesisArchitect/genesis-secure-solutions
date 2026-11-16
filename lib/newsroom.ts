@@ -28,6 +28,7 @@ export const DEFAULT_BEATS: Beat[] = [
   { id: 'saas', label: 'SaaS', brief: 'Software-as-a-service: launches, pricing and terms changes, acquisitions, outages and what small businesses should do about them.' },
   { id: 'fintech', label: 'Fintech-as-a-service', brief: 'Embedded finance, banking-as-a-service, payments and lending infrastructure, and the regulation and funding moving them.' },
   { id: 'faas', label: 'Functions-as-a-service', brief: 'Serverless and edge platforms (AWS Lambda, Google Cloud Run, Vercel, Cloudflare Workers and others): releases, pricing, limits and outages.' },
+  { id: 'markets', label: 'Markets', brief: 'What the markets did and why it matters to founders and small businesses: stocks and indexes, rates and the Federal Reserve, earnings of the companies our audience builds on, IPOs, SEC actions.' },
   { id: 'blacktech', label: 'Black Tech', brief: 'Black founders and Black-led technology companies: new founders, access to capital (funding data, funds, investors), accelerator cohorts and programs, and financial services built for Black communities.', subs: ['New founders', 'Access to capital', 'Cohorts', 'Financial'] },
 ];
 export const DEFAULT_VOICE = [
