@@ -32,6 +32,14 @@ export const FILL = { wide: 0.44, medium: 0.6, close: 0.82, clip: 0.62 } as cons
 
 export const NEUTRAL: Grade = { temp: 6500, mix: 0, lift: 0, sat: 1, contrast: 1.03 };
 
+/** Studio light (after the grade): what a key light and a clean sensor would give a phone take. A light temporal
+ *  denoise; the shadows and midtones where the face sits lifted (gamma) with the highlights rolled off like a diffused
+ *  key; the background's saturation calmed a touch; skin warmed in the midtones; a gentle falloff to the edges so the
+ *  speaker is the brightest thing in frame; a little local sharpening. Natural, never a "filter" look.
+ *  UNEDIT_STUDIO_LIGHT=off turns it off. */
+export const STUDIO_LIGHT = "hqdn3d=1.5:1.5:4:4,eq=gamma=1.12:contrast=1.05:saturation=0.92,curves=master='0/0 0.05/0.04 0.5/0.52 0.85/0.85 1/0.94',colorbalance=rs=0.01:bs=-0.012:rm=0.02:bm=-0.02,vignette=angle=PI/4.6:mode=forward,unsharp=5:5:0.4";
+export const studioLight = () => (process.env.UNEDIT_STUDIO_LIGHT === 'off' ? '' : STUDIO_LIGHT);
+
 /** The ffmpeg filter for a grade (apply after scaling, before captions). */
 export function gradeFilter(g: Grade): string {
   const lift = clamp(g.lift, 0, 0.07);

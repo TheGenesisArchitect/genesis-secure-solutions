@@ -236,9 +236,11 @@ export async function renderClip(url: string, spans: Span[], words: Word[], src:
   try { return await renderClipIn(dir, url, spans, words, src, opts); } catch (e) { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); throw e; }
 }
 type ClipOpts = { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null;
-  /** The enhanced voice track (a link, timed like the recording): its sound replaces the recording's. */ voice?: string | null };
-/** Mastering for an isolated voice: a little warmth and presence, de-essing, gentle compression (no denoise needed). */
-export const VOICE_MASTER = 'highpass=f=70,equalizer=f=200:t=q:w=1:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,deesser=i=0.4:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.5:attack=10:release=200:knee=4';
+  /** The enhanced voice track (a link, timed like the recording): its sound replaces the recording's. */ voice?: string | null;
+  /** Studio light (lib/unedit-look.ts STUDIO_LIGHT), after the grade. */ light?: string | null };
+/** Sweetening for an isolated voice: low body (120 Hz) and warmth, presence (3.2 kHz), air (a 9 kHz shelf), de-essing,
+ *  gentle compression, and a faint early-reflection room so the isolated voice never sounds unnaturally dry. */
+export const VOICE_MASTER = 'highpass=f=70,equalizer=f=120:t=q:w=0.9:g=1.2,equalizer=f=220:t=q:w=1:g=0.8,equalizer=f=3200:t=q:w=1.4:g=2.5,highshelf=f=9000:g=2.5,deesser=i=0.4:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.5:attack=10:release=200:knee=4,aecho=0.9:0.8:19|31:0.045|0.03';
 async function renderClipIn(dir: string, url: string, spans: Span[], words: Word[], src: Probe, opts: ClipOpts): Promise<{ file: string; dir: string; secs: number }> {
   await clipPieces(dir, url, spans, src, opts, 'joined.mkv');
   return finishClip(dir, words, spans, opts);
@@ -252,7 +254,7 @@ function clipFrame(src: Probe, opts: ClipOpts): string {
     ? `crop=${c.w}:${c.h}:${c.x}:${c.y},scale=${W}:${H}:flags=lanczos`
     : portrait
       ? `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`
-      : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '');
+      : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '') + (opts.light ? `,${opts.light}` : '');
 }
 
 /** Render spans of the recording into one near-lossless 1080x1920 intermediate (`out` in `dir`), piece by piece: each
@@ -264,9 +266,11 @@ export async function clipPieces(dir: string, url: string, spans: Span[], src: P
   const pieces: string[] = [];
   for (const [i, sp] of spans.entries()) {
     const f = `p${String(i).padStart(3, '0')}.mkv`;
-    const at = ['-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3)];
-    await ffmpeg(['-threads', '3', ...at, '-i', url, ...(opts.voice ? [...at, '-i', opts.voice, '-map', '0:v', '-map', '1:a'] : []),
-      '-vf', `${frame},setsar=1,fps=${FPS},format=yuv420p`, '-af', 'aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo',
+    const d = sp.to - sp.from, n = Math.max(1, Math.round(d * FPS));
+    const at = ['-ss', sp.from.toFixed(3), '-t', d.toFixed(3)];
+    // The picture is exactly round(d x 30) frames and the sound exactly d seconds, so pieces join without drifting.
+    await ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url, ...(opts.voice ? [...at, '-i', opts.voice, '-map', '0:v', '-map', '1:a'] : []),
+      '-vf', `${frame},setsar=1,fps=${FPS},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-af', `aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=0:${d.toFixed(4)}`,
       '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', f], dir);
     pieces.push(f);
   }

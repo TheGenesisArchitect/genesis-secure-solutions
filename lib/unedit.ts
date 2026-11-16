@@ -27,7 +27,7 @@ import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Drop, type Edit } from '@/lib/unedit-edit';
 import { cleanTake, keyterms } from '@/lib/unedit-clean';
 import { enhanceVoice, isEnhanced } from '@/lib/unedit-voice';
-import { FILL, NEUTRAL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
+import { FILL, NEUTRAL, studioLight, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
@@ -448,11 +448,12 @@ function styled(base: BaseGraphic[], pkg: string, frame: { face: Box | null; src
 }
 
 /** A clip's framing and grade from the recording's look: a face-aware 9:16 crop of a landscape source. */
-function clipLook(v: Vlog): { crop?: ReturnType<typeof framing> | null; grade?: string | null; sdr?: string | null } {
+function clipLook(v: Vlog): { crop?: ReturnType<typeof framing> | null; grade?: string | null; sdr?: string | null; light?: string | null } {
   if (!v.look) return {};
   const src = { width: Number(v.width ?? 1080), height: Number(v.height ?? 1920) };
   const crop = src.width > src.height ? framing(v.look.face, src, { width: 1080, height: 1920 }, FILL.clip) : null;
-  return { crop, grade: gradeFilter(v.look.grade), sdr: v.look.sdr || null };
+  // Studio light after the grade, as in the episode (never on a faceless background).
+  return { crop, grade: gradeFilter(v.look.grade), sdr: v.look.sdr || null, light: v.faceless ? null : studioLight() || null };
 }
 
 async function kickPart(origin: string, id: string, k: number): Promise<void> {
@@ -754,7 +755,7 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
     } else {
       const { crops, cents } = await shotCrops(src, part, v.episode_plan);
       await spend(id, cents, `episode part ${k + 1} framing (Claude)`);
-      out = await renderPart(src, part, crops, v.episode_plan, motion);
+      out = await renderPart(src, part, crops, { ...v.episode_plan, light: !v.faceless }, motion);
       await put(pic, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
     }
     try {

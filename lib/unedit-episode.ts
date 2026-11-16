@@ -18,7 +18,7 @@ import { BT709, VOICE_MASTER, ffmpeg, type Span } from '@/lib/unedit-media';
 import type { NewsData, NewsKind } from '@/lib/unedit-news';
 import type { Seg } from '@/lib/unedit-edit';
 import { frames } from '@/lib/unedit-media';
-import { FILL, faceBoxes, framing, gradeFilter, type Box, type Crop, type Grade } from '@/lib/unedit-look';
+import { FILL, faceBoxes, framing, gradeFilter, studioLight, type Box, type Crop, type Grade } from '@/lib/unedit-look';
 import { matte, matteFilter } from '@/lib/unedit-cutout';
 
 // Seconds per part, by how heavy the source is to decode (an 8K frame is 16 times a 1080p one).
@@ -132,10 +132,12 @@ export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 's
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
  *  memory at a time, threads capped), then the shots join without re-encoding. */
-export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'>, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): Promise<{ file: string; dir: string; secs: number }> {
+export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'> & { light?: boolean }, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): Promise<{ file: string; dir: string; secs: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-ep-'));
   const { width: W, height: H } = plan.size;
-  const look = `${plan.sdr ? `${plan.sdr},` : ''}${gradeFilter(plan.grade)},unsharp=5:5:0.3`;
+  // The grade, then studio light (lib/unedit-look.ts; its own light sharpening replaces the old unsharp).
+  const light = plan.light === false ? '' : studioLight();
+  const look = `${plan.sdr ? `${plan.sdr},` : ''}${gradeFilter(plan.grade)},${light || 'unsharp=5:5:0.3'}`;
   const shots: string[] = [];
   let at = motion?.p0 ?? 0; // the shot's start on the episode's timeline
   for (const [i, s] of part.segs.entries()) {
@@ -145,8 +147,12 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
     const end = s.len0 != null && (s.at0 ?? 0) + d < s.len0 - 0.02 ? d : d - 0.1; // mid-shot (split), a punch may start up to the edge
     const move = motion ? shotMotion(d, motion.cuts.map((c) => c - at).filter((c) => c >= -0.36 && c < end), motion.push, W, H, s.at0 ?? 0, s.len0 ?? d) : null;
     at += d;
-    await ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', d.toFixed(3), '-i', url,
-      '-vf', move ? `${cropF(crops[i])},${move},setsar=1,${look},format=yuv420p` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look},format=yuv420p`, '-an',
+    // Exactly round(d x 30) frames: the soundtrack is cut to the sample, so a piece one frame long put the picture a
+    // frame behind the sound per piece (1.3 s behind by the end of a tightly cut episode, 2026-11-16). The frame rate
+    // is fixed first, a source a frame short holds its last frame, and the count is capped.
+    const n = Math.max(1, Math.round(d * FPS));
+    await ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url,
+      '-vf', `${move ? `fps=${FPS},${cropF(crops[i])},${move},setsar=1,${look}` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look}`},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-an',
       '-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
     shots.push(out);
   }
