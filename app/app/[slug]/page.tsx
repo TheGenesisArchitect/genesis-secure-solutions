@@ -87,11 +87,11 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   // Founding client: the program for life, congratulated on Home until the owner closes it (lib/lifetime.ts).
   const life = lifetimeOf(t as LifetimeRow | null);
   const congrats = life && !life.seen && !film && !sample ? life : null;
-  const rec = congrats ? await supabase.from('agent_records').select('data').eq('tenant_id', tid).eq('is_current', true).maybeSingle().then((r) => (r.data?.data ?? {}) as { contactName?: string; agencyName?: string }, () => ({} as { contactName?: string; agencyName?: string })) : null;
+  const rec = congrats ? await supabase.from('agent_records').select('data').eq('tenant_id', tid).eq('is_current', true).maybeSingle().then((r) => (r.data?.data ?? {}) as { contactName?: string; agentName?: string; agencyName?: string }, () => ({} as { contactName?: string; agentName?: string; agencyName?: string })) : null;
   const pulse = moment ? `Market: ${LINES[moment.line].label} ${moment.label.toLowerCase()} ${moment.starting ? 'starts next month' : 'is on now'}` : null;
   return (
     <AgencyShell ctx={ctx} title={`Welcome back`} film={film}>
-      {congrats ? <LifetimeCongrats life={congrats} first={String(rec?.contactName ?? '').split(/\s+/)[0]} agency={rec?.agencyName || ctx.tenant.name} slug={slug} canClose={!ctx.asStaff && ctx.tenant.role === 'owner'} /> : null}
+      {congrats ? <LifetimeCongrats life={congrats} first={String(rec?.contactName || rec?.agentName || '').split(/\s+/)[0]} agency={rec?.agencyName || ctx.tenant.name} slug={slug} canClose={!ctx.asStaff && ctx.tenant.role === 'owner'} /> : null}
       {upgrade ? (
         <Panel title={`New from Genovus: ${upgrade.title}`} sub="What we changed on your systems, and what to expect" actions={<Link className="btn small primary" href={`${base}/upgrades#${upgrade.id}`}>Read it</Link>}>
           <p className="soft" style={{ margin: 0 }}>{upgrade.summary}</p>

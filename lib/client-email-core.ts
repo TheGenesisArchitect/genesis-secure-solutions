@@ -174,10 +174,10 @@ export async function scheduleLifetime(f: FormData, actor: Actor, dry = false): 
   const { count: members } = await admin.from('memberships').select('user_id', { count: 'exact', head: true }).eq('tenant_id', t.id);
   if (!env.test && !dry && !members) return no('Invite the client to their dashboard first (People panel): the email’s button opens it.');
   const { data: rec } = await admin.from('agent_records').select('data').eq('tenant_id', t.id).eq('is_current', true).maybeSingle();
-  const d = (rec?.data ?? {}) as { contactName?: string; agencyName?: string };
+  const d = (rec?.data ?? {}) as { contactName?: string; agentName?: string; agencyName?: string };
   const origin = process.env.APP_ORIGIN || 'https://genovus.io';
   const lifetime = {
-    first: String(d.contactName ?? '').split(/\s+/)[0] || '', agency: str(f, 'agency', 120) || d.agencyName || t.name,
+    first: str(f, 'first', 40) || String(d.contactName || d.agentName || '').split(/\s+/)[0] || '', agency: str(f, 'agency', 120) || d.agencyName || t.name,
     program: life.name, careName: life.careName, note, dashboardUrl: `${origin}/app/${t.slug}`,
     rate: usd(life.rateCents), list: usd(life.listCents), savedMonth: usd(life.savedMonthCents), savedYear: usd(life.savedYearCents),
     waived: life.waivedCents ? usd(life.waivedCents) : undefined, adds: life.adds,

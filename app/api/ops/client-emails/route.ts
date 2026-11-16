@@ -8,7 +8,7 @@
 //   POST   { slug, kind: "site_review" | "note" | "lifetime", dry?, ...fields }   dry renders only; otherwise schedules
 //          fields as the panel's form: to, cc, when (Eastern "YYYY-MM-DDTHH:MM"), intent: "test", subject,
 //          note, site, card, agency, sender, copy, copy_help, item: [...], help_<key>, reply, next | body (note)
-//          | note, agency, sender (lifetime: rate, savings and features come from the agency's lifetime record)
+//          | note, agency, sender, first (lifetime: rate, savings and features come from the agency's lifetime record)
 //   DELETE ?id=<outbox id>               cancel one that hasn't gone out
 import { timingSafeEqual } from 'node:crypto';
 import { adminDb } from '@/lib/supabase/admin';
