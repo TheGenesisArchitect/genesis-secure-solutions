@@ -128,7 +128,7 @@ export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 's
   const secs = part.segs.reduce((a, s) => a + (s.to - s.from), 0);
   const m = motion ? { p0: Math.round(motion.p0 * 1000), push: motion.push, cuts: motion.cuts.filter((c) => c > motion.p0 - 0.5 && c < motion.p0 + secs).map((c) => Math.round((c - motion.p0) * 1000)) } : null;
   // v2: frame-exact pieces (2026-11-16 sync fix); the studio light is part of the picture, so it is part of the key.
-  return createHash('sha256').update(JSON.stringify({ v: 2, segs: part.segs, size: plan.size, grade: plan.grade, sdr: plan.sdr ?? '', light: plan.light === false ? '' : studioLight(), m })).digest('hex').slice(0, 16);
+  return createHash('sha256').update(JSON.stringify({ v: 2, segs: part.segs, size: plan.size, grade: plan.grade, sdr: plan.sdr ?? '', light: plan.light === false ? '' : studioLight(plan.size.width), m })).digest('hex').slice(0, 16);
 }
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
@@ -137,7 +137,7 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-ep-'));
   const { width: W, height: H } = plan.size;
   // The grade, then studio light (lib/unedit-look.ts; its own light sharpening replaces the old unsharp).
-  const light = plan.light === false ? '' : studioLight();
+  const light = plan.light === false ? '' : studioLight(W);
   const look = `${plan.sdr ? `${plan.sdr},` : ''}${gradeFilter(plan.grade)},${light || 'unsharp=5:5:0.3'}`;
   const shots: string[] = [];
   let at = motion?.p0 ?? 0; // the shot's start on the episode's timeline

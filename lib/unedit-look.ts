@@ -38,7 +38,9 @@ export const NEUTRAL: Grade = { temp: 6500, mix: 0, lift: 0, sat: 1, contrast: 1
  *  speaker is the brightest thing in frame; a little local sharpening. Natural, never a "filter" look.
  *  UNEDIT_STUDIO_LIGHT=off turns it off. */
 export const STUDIO_LIGHT = "hqdn3d=1.5:1.5:4:4,eq=gamma=1.12:contrast=1.05:saturation=0.92,curves=master='0/0 0.05/0.04 0.5/0.52 0.85/0.85 1/0.94',colorbalance=rs=0.01:bs=-0.012:rm=0.02:bm=-0.02,vignette=angle=PI/4.6:mode=forward,unsharp=5:5:0.4";
-export const studioLight = () => (process.env.UNEDIT_STUDIO_LIGHT === 'off' ? '' : STUDIO_LIGHT);
+/** For a frame `width` wide: past 1080p the temporal denoise is left out. It holds several frames, and on a 4K episode
+ *  from an 8K source it ran part workers out of memory (2026-11-16); a 4K/8K source is clean enough without it. */
+export const studioLight = (width = 1920) => (process.env.UNEDIT_STUDIO_LIGHT === 'off' ? '' : width > 2000 ? STUDIO_LIGHT.replace(/^hqdn3d=[^,]*,/, '') : STUDIO_LIGHT);
 
 /** The ffmpeg filter for a grade (apply after scaling, before captions). */
 export function gradeFilter(g: Grade): string {
