@@ -356,7 +356,8 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   const ss = sentences(words);
   const keepSentences = ss.filter((x) => epTime(x.s, edit.keep) != null && epTime(x.e, edit.keep) != null).map((x) => x.i);
   const pkg = packageOf(pkgName);
-  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg, Boolean(v.faceless), title || v.title || '');
+  const lib = await shotLibrary(v, words);
+  const dir = await directEpisode(words, keepSentences, secs, undefined, pkg, Boolean(v.faceless), title || v.title || '', lib.map((l) => ({ code: l.code, prompt: l.prompt })));
   await spend(v.id, dir.cents, 'episode director (Claude)');
   const base: BaseGraphic[] = [];
   if (title && secs > 12) base.push({ T: 0.2, D: 3.4, kind: 'title', text: screenTitle(title), sub: KICKER(), sound: 'whoosh' });
@@ -401,6 +402,13 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
     for (const b of dir.broll) {
       const T = epTime(ss[b.s]?.s ?? -1, edit.keep);
       if (T == null || T < 6 || T > secs - 10) continue;
+      // A library shot: already rendered and approved, reused for free.
+      const reuse = b.library ? lib.find((l) => l.code === b.library) : null;
+      if (reuse) {
+        base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: reuse.prompt, path: reuse.path, model: 'library' }, sound: 'whoosh' });
+        await dbx().from('unedit_assets').update({ uses: reuse.uses + 1, last_used_vlog: v.id }).eq('id', reuse.id);
+        continue;
+      }
       try {
         const job = await startBroll(b.prompt);
         await spend(v.id, job.cents, `B-roll illustration (Runway ${job.model})`);
@@ -801,6 +809,31 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
 const BROLL_ON = () => process.env.UNEDIT_BROLL !== 'off';
 const BROLL_CENTS = 80; // Veo 3.1 Fast through Runway: 10 credits a second, 8 s (the only length at 1080p)
 
+// ---- the shot library (supabase/migrations/0107_unedit_assets.sql) ------------------------------------------------
+/** After this many approved episodes, the director reuses approved shots that fit. */
+const LIBRARY_AFTER = 3;
+const STOP = new Set(['about', 'their', 'there', 'which', 'while', 'where', 'with', 'from', 'into', 'over', 'under', 'cinematic', 'shallow', 'depth', 'field', 'tungsten', 'shadows', 'natural', 'grain', 'camera', 'slow', 'light', 'warm', 'teal', 'shot', 'film', 'focus', 'frame', 'scene']);
+/** A shot's topic words, for matching it to a later episode's talk. */
+function assetTags(prompt: string): string[] {
+  const n = new Map<string, number>();
+  for (const w of prompt.toLowerCase().match(/[a-z][a-z-]{4,}/g) ?? []) if (!STOP.has(w)) n.set(w, (n.get(w) ?? 0) + 1);
+  return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([w]) => w).slice(0, 14);
+}
+/** The approved shots the director may reuse for this episode (none until LIBRARY_AFTER episodes are approved): the
+ *  ones whose topics best match the talk, never one made for or used in the last two episodes, at most 24. */
+async function shotLibrary(v: Vlog, words: Word[]): Promise<{ id: string; code: string; prompt: string; path: string; uses: number }[]> {
+  const { data } = await dbx().from('unedit_assets').select('id, vlog_id, blob_path, prompt, tags, uses, last_used_vlog, created_at').eq('tenant_id', v.tenant_id).eq('kind', 'broll').eq('approved', true).limit(400);
+  const rows = (data ?? []) as { id: string; vlog_id: string | null; blob_path: string; prompt: string; tags: string[]; uses: number; last_used_vlog: string | null; created_at: string }[];
+  if (new Set(rows.map((r) => r.vlog_id).filter(Boolean)).size < LIBRARY_AFTER) return [];
+  const { data: recent } = await dbx().from('unedit_vlogs').select('id').eq('tenant_id', v.tenant_id).neq('id', v.id).not('approved_at', 'is', null).order('approved_at', { ascending: false }).limit(2);
+  const rest = new Set([v.id, ...(recent ?? []).map((r) => r.id as string)]);
+  const talk = new Set(words.map((w) => w.w.toLowerCase().replace(/[^a-z-]/g, '')).filter((w) => w.length >= 5));
+  return rows.filter((r) => !rest.has(r.vlog_id ?? '') && !rest.has(r.last_used_vlog ?? ''))
+    .map((r) => ({ r, score: r.tags.filter((t) => talk.has(t)).length - r.uses * 0.25 }))
+    .filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 24)
+    .map((x, i) => ({ id: x.r.id, code: `L${i + 1}`, prompt: x.r.prompt, path: x.r.blob_path, uses: x.r.uses }));
+}
+
 /** One B-roll shot: through the Studio's Runway Model Router, which picks the best eligible model for each shot (Kling,
  *  Seedance, Veo, ... as configured in Runway's dev portal) at 1080p, quoted first with a free dry run so the spend is
  *  the router's own estimate. If the router can't take it (no eligible model, a refusal), Veo 3.1 Fast directly.
@@ -839,6 +872,8 @@ async function settleBroll(v: Vlog, g: Graphics): Promise<void> {
       const p = `${dir(v)}/episode/broll-${n}-${Date.now()}.mp4`;
       await put(p, Buffer.from(await r.arrayBuffer()), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true });
       x.broll!.path = p;
+      await dbx().from('unedit_assets').upsert({ tenant_id: v.tenant_id, vlog_id: v.id, kind: 'broll', blob_path: p, prompt: x.broll!.prompt, model: x.broll!.model ?? null, tags: assetTags(x.broll!.prompt), cents: x.broll!.model === 'veo3.1_fast' ? BROLL_CENTS : 0 }, { onConflict: 'blob_path' })
+        .then(({ error }) => { if (error) console.error(`[unedit] ${v.id} B-roll not saved to the library: ${error.message}`); });
     } catch (e) { x.broll!.failed = (e instanceof Error ? e.message : String(e)).slice(0, 160); }
   }));
   const { data: cur } = await dbx().from('unedit_vlogs').select('episode_plan').eq('id', v.id).single();
@@ -1123,6 +1158,8 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       if (ins.error) throw new Error(ins.error.message);
       await dbx().from('unedit_vlogs').update({ stage: 'publishing', stage_at: new Date().toISOString(), approved_by: by, approved_at: new Date().toISOString(), lease_until: null }).eq('id', id).eq('stage', 'review');
       await log('approve', id, { clips: approved.length, posts: posts.length, by });
+      // Its B-roll joins the approved library (reused by later episodes once three are approved).
+      await dbx().from('unedit_assets').update({ approved: true }).eq('vlog_id', id);
       await kick(origin, id);
       return `Approved: ${posts.length} post${posts.length === 1 ? '' : 's'} going to Metricool${metricoolLive() ? '' : ' as drafts'}.`;
     }

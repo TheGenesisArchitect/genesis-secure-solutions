@@ -148,13 +148,13 @@ export type Chapter = { s: number; title: string };
 export type Kinetic = { s: number; w: number; text: string; accent: number };
 export type Emphasis = { s: number; w: number; word: string };
 /** A B-roll moment: a short illustration cut in over the speaker's voice at sentence `s`. */
-export type Broll = { s: number; prompt: string };
+export type Broll = { s: number; prompt: string; /** a library shot's code (L1, L2, ...) to reuse instead of a new one */ library?: string };
 export type EpisodeDirection = { chapters: Chapter[]; cues: Cue[]; kinetic: Kinetic[]; emphasis: Emphasis[]; broll: Broll[]; cents: number };
 const wnorm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}$%']/gu, '');
 
 /** The long-form director: chapters and the episode's cues, over the sentences the episode keeps. Long-form is paced
  *  wider than a clip (a cue every 8 s at most, about six a minute), so the episode breathes. */
-export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature', faceless = false, topic = ''): Promise<EpisodeDirection> {
+export async function directEpisode(words: Word[], keepSentences: number[], secs: number, who = 'Anthony at Genovus', pkg = 'signature', faceless = false, topic = '', library: { code: string; prompt: string }[] = []): Promise<EpisodeDirection> {
   // Faceless: no camera footage, so the illustrations carry the picture: more of them, closer together (still capped,
   // each one is a paid Runway shot).
   const brollMax = faceless ? Math.min(6, Math.max(2, Math.floor(secs / 12))) : Math.min(8, Math.max(1, Math.floor(secs / 25))); // 80¢ each
@@ -176,6 +176,7 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     ...(PACKAGES[pkg]?.slots.emphasis ? [`"emphasis": write 1 to ${STYLE_RULES.maxEmphasis} single words (${STYLE_RULES.emphasisMin}+ letters, copied exactly from the sentence where it is said): the concrete thing or key idea a whole passage is about (coffee, faith, money), never filler.`] : []),
     'Every word you place on screen must be the speaker\'s own; chapter titles are 2 to 5 words a viewer would click.',
     `"broll": up to ${brollMax} moments (at least ${brollGap} seconds apart, none in the first 6 seconds) where an illustration should cut in while the speaker keeps talking: the sentences where the STORY is most concrete (what the thing does, who it affects, the stakes), not the vaguest ones. "prompt" is a shot list entry for a top video model (Veo / Kling / Seedance), written like a cinematographer: SUBJECT doing a specific ACTION that shows THIS sentence (e.g. for an AI coding agent: "a developer leans back as an unseen assistant fills three monitors with code, a test suite turns green line by line"), the SETTING with period-true detail, the CAMERA (slow push-in, orbit, top-down, macro rack focus), the LIGHT and a single mood. Show the idea concretely and specifically, never as a vague metaphor (no glowing brains, no floating particles, no handshakes). People may appear as anonymous figures (hands, backs, silhouettes, out-of-focus), never a real or recognisable person, celebrity or public figure; no brand, logo or product name; no legible text, readable screens show only generic code or charts. Read every term in the story's own sense${topic ? ` (this episode: "${topic}")` : ''}: in a technology story an "agent", "harness", "model", "pipeline", "stack", "cloud", "framework" or "preview" is SOFTWARE, so show what it does for people (a developer at work, generic code and test results on screens, a server room, a team reviewing a release), never the literal object (no leather harness, no fashion model, no sky clouds). Every prompt ends with the episode look: "cinematic 35mm, shallow depth of field, warm tungsten key with teal shadows, natural film grain".`,
+    ...(library.length ? [`The series' own shot library (approved shots from earlier episodes; reusing one is free and keeps the series consistent). For a B-roll moment, when a library shot shows that sentence as well as a new shot would, write "library":"<code>" instead of a "prompt" (each code at most once):\n${library.map((l) => `${l.code}: ${l.prompt}`).join('\n')}`] : []),
     `Screen codes (real Genovus screens):\n${screenMenu()}`,
     'Return only JSON, no prose: {"chapters":[{"s":<sentence #>,"title":"…"}],"cues":[{"w":"","s":0,"kind":"…","text":"…"}],"kinetic":[{"s":<sentence #>,"text":"…","accent":0}],"emphasis":[{"s":<sentence #>,"word":"…"}],"broll":[{"s":<sentence #>,"prompt":"…"}]}',
   ].join('\n');
@@ -213,8 +214,11 @@ export async function directEpisode(words: Word[], keepSentences: number[], secs
     for (let i = sen.w0; i <= sen.w1; i++) if (wnorm(words[i].w) === want) { emphasis.push({ s: sen.i, w: i, word: words[i].w.replace(/[^\p{L}\p{N}'-]/gu, '').toLowerCase() }); break; }
   }
   // B-roll: real sentences of the kept talk only; the standards ride in the prompt (abstract or generic only).
-  const broll: Broll[] = (Array.isArray(j.broll) ? j.broll : []).map((b) => ({ s: Number(b?.s), prompt: str(b?.prompt, 600) }))
-    .filter((b) => kept.has(b.s) && b.prompt.length > 20 && !/\b(logo|text that reads|words on screen)\b/i.test(b.prompt))
+  const codes = new Set(library.map((l) => l.code));
+  const usedCodes = new Set<string>();
+  const broll: Broll[] = (Array.isArray(j.broll) ? j.broll : []).map((b) => ({ s: Number(b?.s), prompt: str(b?.prompt, 600), library: typeof (b as { library?: unknown })?.library === 'string' ? String((b as { library: string }).library).trim().toUpperCase() : undefined }))
+    .map((b) => (b.library && codes.has(b.library) && !usedCodes.has(b.library) ? (usedCodes.add(b.library), b) : { ...b, library: undefined }))
+    .filter((b) => kept.has(b.s) && (b.library || (b.prompt.length > 20 && !/\b(logo|text that reads|words on screen)\b/i.test(b.prompt))))
     .slice(0, brollMax);
   return { chapters: secs >= 60 ? chapters : [], cues, kinetic: kinetic.slice(0, STYLE_RULES.maxKinetic), emphasis: emphasis.slice(0, STYLE_RULES.maxEmphasis), broll, cents: r.cents };
 }
