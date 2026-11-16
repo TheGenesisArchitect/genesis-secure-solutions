@@ -33,6 +33,7 @@ import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
 import { CREDIT_CENTS, runwayConfigured, runwayRoutedVideo, runwayTask, runwayTextVideo } from '@/lib/runway';
 import { getRouters } from '@/lib/studio-runway';
+import { thumbLink } from '@/lib/unedit-share';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
@@ -1235,7 +1236,8 @@ export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: numb
 
 Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await presigned(media, mins), when,
       vertical: p.kind !== 'video', aiGenerated: Boolean(v.faceless), format: p.platform === 'youtube' ? undefined : 'reel',
-      thumbnailUrl: p.kind === 'video' && thumb ? await presigned(thumb, mins) : undefined,
+      // A link that answers HEAD as well as GET (lib/unedit-share.ts): storage links refuse HEAD, so YouTube never got it.
+      thumbnailUrl: p.kind === 'video' && thumb ? thumbLink(thumb, mins) ?? await presigned(thumb, mins) : undefined,
     });
     // A timeout may still have created the post: look for it before calling it failed (never schedule twice).
     const found = !r.ok && /timeout|aborted/i.test(r.error) ? await findPostLike(GENOVUS_BLOG_ID(), p.platform, p.body, when).catch(() => null) : null;
