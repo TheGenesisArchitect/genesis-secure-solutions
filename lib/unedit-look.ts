@@ -32,15 +32,16 @@ export const FILL = { wide: 0.44, medium: 0.6, close: 0.82, clip: 0.62 } as cons
 
 export const NEUTRAL: Grade = { temp: 6500, mix: 0, lift: 0, sat: 1, contrast: 1.03 };
 
-/** Studio light (after the grade): what a key light and a clean sensor would give a phone take. A light temporal
- *  denoise; the shadows and midtones where the face sits lifted (gamma) with the highlights rolled off like a diffused
- *  key; the background's saturation calmed a touch; skin warmed in the midtones; a gentle falloff to the edges so the
- *  speaker is the brightest thing in frame; a little local sharpening. Natural, never a "filter" look.
+/** Studio light (after the grade): what a key light and a clean sensor would give a phone take. The look is lookup
+ *  tables on brightness and colour directly (no RGB round trip: colorbalance and RGB curves made a 4K part 5x slower and
+ *  timed the 8K-source workers out, 2026-11-16): shadows and midtones lifted where the face sits (gamma), a touch of
+ *  contrast, highlights rolled off like a diffused key; saturation calmed a little; skin warmed (U down, V up). Up to
+ *  1080p also a light temporal denoise and a gentle edge falloff; always a little local sharpening.
  *  UNEDIT_STUDIO_LIGHT=off turns it off. */
-export const STUDIO_LIGHT = "hqdn3d=1.5:1.5:4:4,eq=gamma=1.12:contrast=1.05:saturation=0.92,curves=master='0/0 0.05/0.04 0.5/0.52 0.85/0.85 1/0.94',colorbalance=rs=0.01:bs=-0.012:rm=0.02:bm=-0.02,vignette=angle=PI/4.6:mode=forward,unsharp=5:5:0.4";
-/** For a frame `width` wide: past 1080p the temporal denoise is left out. It holds several frames, and on a 4K episode
- *  from an 8K source it ran part workers out of memory (2026-11-16); a 4K/8K source is clean enough without it. */
-export const studioLight = (width = 1920) => (process.env.UNEDIT_STUDIO_LIGHT === 'off' ? '' : width > 2000 ? STUDIO_LIGHT.replace(/^hqdn3d=[^,]*,/, '') : STUDIO_LIGHT);
+const LUT = "lutyuv=y='clip((255*pow(val/255,0.893)-128)*1.05+128,16,240)':u='clip(128+(val-128)*0.92-1.6,16,240)':v='clip(128+(val-128)*0.92+1.8,16,240)'";
+export const STUDIO_LIGHT = `hqdn3d=1.5:1.5:4:4,${LUT},vignette=angle=PI/4.6:mode=forward:eval=init:dither=0,unsharp=5:5:0.4`;
+/** For a frame `width` wide: past 1080p only the tables and the sharpening (the denoise and falloff cost too much at 4K). */
+export const studioLight = (width = 1920) => (process.env.UNEDIT_STUDIO_LIGHT === 'off' ? '' : width > 2000 ? `${LUT},unsharp=5:5:0.4` : STUDIO_LIGHT);
 
 /** The ffmpeg filter for a grade (apply after scaling, before captions). */
 export function gradeFilter(g: Grade): string {
