@@ -133,6 +133,9 @@ export function picKey(part: Part, plan: Pick<EpisodePlan, 'size' | 'grade' | 's
 
 /** Render one part's picture (no sound) to a local file. Each shot renders in its own ffmpeg run (one 8K decoder in
  *  memory at a time, threads capped), then the shots join without re-encoding. */
+/** The longest piece of a shot rendered in one ffmpeg run. */
+const MAX_PIECE_S = 8;
+
 export async function renderPart(url: string, part: Part, crops: Crop[], plan: Pick<EpisodePlan, 'size' | 'grade' | 'sdr'> & { light?: boolean }, motion?: { p0: number; cuts: number[]; push: { after: number; amount: number } | null }): Promise<{ file: string; dir: string; secs: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-ep-'));
   const { width: W, height: H } = plan.size;
@@ -141,7 +144,19 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
   const look = `${plan.sdr ? `${plan.sdr},` : ''}${gradeFilter(plan.grade)},${light || 'unsharp=5:5:0.3'}`;
   const shots: string[] = [];
   let at = motion?.p0 ?? 0; // the shot's start on the episode's timeline
-  for (const [i, s] of part.segs.entries()) {
+  // A long unbroken shot renders in pieces of at most ~8 s (whole frames; the push-in continues across them via
+  // at0/len0): a 16 s pushing shot from an 8K source took over ten minutes in one ffmpeg run and was killed.
+  const pieces: { s: Part['segs'][number]; ci: number }[] = [];
+  for (const [ci, sg] of part.segs.entries()) {
+    const frames = Math.round((sg.to - sg.from) * FPS), maxF = MAX_PIECE_S * FPS;
+    if (frames <= maxF + FPS) { pieces.push({ s: sg, ci }); continue; }
+    const k = Math.ceil(frames / maxF), len0 = sg.len0 ?? sg.to - sg.from, a0 = sg.at0 ?? 0;
+    for (let j = 0; j < k; j++) {
+      const f0 = Math.round((j * frames) / k), f1 = Math.round(((j + 1) * frames) / k);
+      pieces.push({ s: { ...sg, from: sg.from + f0 / FPS, to: sg.from + f1 / FPS, at0: a0 + f0 / FPS, len0 }, ci });
+    }
+  }
+  for (const [i, { s, ci }] of pieces.entries()) {
     const out = `s${String(i).padStart(3, '0')}.mp4`;
     const d = s.to - s.from;
     // A punch that began just before this piece (a split shot) still finishes its blur and settle here.
@@ -153,7 +168,7 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
     // is fixed first, a source a frame short holds its last frame, and the count is capped.
     const n = Math.max(1, Math.round(d * FPS));
     await ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url,
-      '-vf', `${move ? `fps=${FPS},${cropF(crops[i])},${move},setsar=1,${look}` : `${cropF(crops[i])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look}`},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-an',
+      '-vf', `${move ? `fps=${FPS},${cropF(crops[ci])},${move},setsar=1,${look}` : `${cropF(crops[ci])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look}`},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-an',
       '-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
     shots.push(out);
   }
