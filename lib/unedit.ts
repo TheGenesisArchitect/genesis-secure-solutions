@@ -26,6 +26,7 @@ import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Drop, type Edit } from '@/lib/unedit-edit';
 import { cleanTake, keyterms } from '@/lib/unedit-clean';
+import { enhanceVoice, isEnhanced } from '@/lib/unedit-voice';
 import { FILL, NEUTRAL, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
@@ -150,10 +151,15 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       const { mp3, m4a } = await extractAudio(src, true);
       const audioPath = `${dir(v)}/audio.m4a`;
       await put(audioPath, m4a, { access: 'private', contentType: 'audio/mp4', addRandomSuffix: false, allowOverwrite: true });
+      // Voice enhancement runs alongside transcription (never fatal; the original sound stays when it can't run).
+      const voicing = enhanceVoice(audioPath);
       const t = await transcribe(mp3, p.duration, provider, keyterms(v.sources, v.title ? [v.title] : []));
+      const vo = await voicing;
+      if (vo.cents) await spend(v.id, vo.cents, 'voice enhancement (Runway voice isolation)');
+      await log(vo.path ? 'voice-enhanced' : 'voice-not-enhanced', subject, vo.path ? { path: vo.path } : { why: vo.why });
       const path = `${dir(v)}/transcript-${provider}.json`;
       await put(path, JSON.stringify({ provider, words: t.words }), { access: 'private', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
-      await advance(v.id, 'finding', { provider, transcript_blob: path, words: t.words.length, audio_blob: audioPath });
+      await advance(v.id, 'finding', { provider, transcript_blob: path, words: t.words.length, audio_blob: vo.path ?? audioPath });
       await log('transcribed', subject, { provider, words: t.words.length, secs: Math.round(p.duration), cents: t.cents });
       return `Transcribed ${t.words.length} words with ${provider}.`;
     }
@@ -207,6 +213,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         const words = await readWords(v);
         const spans = clipSpans(v, next);
         const look = clipLook(v);
+        const voice = isEnhanced(v.audio_blob) ? await presigned(v.audio_blob!, 60) : null;
         // A long clip from an 8K recording renders as ~8 s groups in parallel workers (one function could not decode it
         // all inside its time limit); this step waits on a short lease until every group is stored, then joins them.
         let groups: string[] | null = null;
@@ -224,9 +231,9 @@ export async function step(v: Vlog, origin: string): Promise<string> {
           if (groups) {
             await sweepTmp();
             const d = await fs.mkdtemp(`${os.tmpdir()}/unedit-clipfinish-`);
-            try { const o = await finishClip(d, words, spans, { accents, captions, ...look }, 'clip.mp4', groups); return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
+            try { const o = await finishClip(d, words, spans, { accents, captions, ...look, voice }, 'clip.mp4', groups); return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
           }
-          const o = await renderClip(src, spans, words, probeOf(v), { accents, captions, ...look });
+          const o = await renderClip(src, spans, words, probeOf(v), { accents, captions, ...look, voice });
           try { return { bytes: await fs.readFile(o.file), secs: o.secs }; } finally { await fs.rm(o.dir, { recursive: true, force: true }).catch(() => {}); }
         };
         // Unedit Pro's graphics pass (Remotion on Vercel Sandbox) when it is configured; any failure falls back to the plain clip.
@@ -451,7 +458,7 @@ function clipSpans(v: Vlog, c: Clip): Span[] {
 /** 8K decodes slowly on a function (a 56 s clip did not finish inside 800 s): past 15 s of 8K footage, fan out. */
 const needsFanout = (v: Vlog, spans: Span[]) => Math.max(Number(v.width ?? 0), Number(v.height ?? 0)) > 4000 && spans.reduce((a, s) => a + (s.to - s.from), 0) > 15;
 const groupPaths = (v: Vlog, c: Clip, spans: Span[], look: unknown) => {
-  const key = createHash('sha256').update(JSON.stringify({ spans, look })).digest('hex').slice(0, 12);
+  const key = createHash('sha256').update(JSON.stringify({ spans, look, voice: isEnhanced(v.audio_blob) })).digest('hex').slice(0, 12);
   return clipGroups(spans).map((_, g) => `${dir(v)}/clips/${c.n}-${key}-g${g}.mkv`);
 };
 /** Every group stored: their links (the last pass reads them in order, straight from storage). Otherwise kick a
@@ -494,7 +501,8 @@ export async function renderClipGroup(id: string, n: number, g: number): Promise
   const d = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clipgroup-'));
   const t0 = Date.now();
   try {
-    await clipPieces(d, await presigned(v.blob_path, 60), groups[g], probeOf(v), look, 'group.mkv');
+    const voice = isEnhanced(v.audio_blob) ? await presigned(v.audio_blob!, 60) : null;
+    await clipPieces(d, await presigned(v.blob_path, 60), groups[g], probeOf(v), { ...look, voice }, 'group.mkv');
     await put(p, await fs.readFile(path.join(d, 'group.mkv')), { access: 'private', contentType: 'video/x-matroska', addRandomSuffix: false, allowOverwrite: true, multipart: true });
     return `Clip ${n} group ${g + 1} of ${groups.length} in ${Math.round((Date.now() - t0) / 1000)} s.`;
   } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
@@ -617,7 +625,15 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
   const t0 = Date.now();
   const path = `${dir(v)}/episode/episode-${Date.now()}.mp4`;
   const urls = await Promise.all(parts.map((p) => presigned(p.blob_path ?? partPath(v, p.k), 120)));
-  const sound = await presigned(v.audio_blob ?? v.blob_path, 120);
+  // A recording from before voice enhancement gets it now, before its soundtrack is built.
+  let audio = v.audio_blob;
+  if (audio && !isEnhanced(audio)) {
+    const vo = await enhanceVoice(audio);
+    if (vo.cents) await spend(v.id, vo.cents, 'voice enhancement (Runway voice isolation)');
+    await log(vo.path ? 'voice-enhanced' : 'voice-not-enhanced', v.id, vo.path ? { path: vo.path } : { why: vo.why });
+    if (vo.path) { audio = vo.path; await dbx().from('unedit_vlogs').update({ audio_blob: audio }).eq('id', v.id); }
+  }
+  const sound = await presigned(audio ?? v.blob_path, 120);
   try {
     const graphicsOn = Boolean(g?.reels?.length && g.reels.every((r) => r.path) && !g.error);
     const bed = await musicBed(); // the approved series score (lib/unedit-music.ts), or none

@@ -229,13 +229,16 @@ export async function sweepTmp(maxAgeMs = 20 * 60_000): Promise<void> {
   }));
 }
 
-export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe, opts: { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null } = {}): Promise<{ file: string; dir: string; secs: number }> {
+export async function renderClip(url: string, spans: Span[], words: Word[], src: Probe, opts: ClipOpts = {}): Promise<{ file: string; dir: string; secs: number }> {
   await sweepTmp();
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-clip-'));
   // A failed render removes its own folder (its pieces are large); a finished one is removed by the caller.
   try { return await renderClipIn(dir, url, spans, words, src, opts); } catch (e) { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); throw e; }
 }
-type ClipOpts = { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null };
+type ClipOpts = { accents?: number[]; captions?: boolean; crop?: { w: number; h: number; x: number; y: number } | null; grade?: string | null; sdr?: string | null;
+  /** The enhanced voice track (a link, timed like the recording): its sound replaces the recording's. */ voice?: string | null };
+/** Mastering for an isolated voice: a little warmth and presence, de-essing, gentle compression (no denoise needed). */
+export const VOICE_MASTER = 'highpass=f=70,equalizer=f=200:t=q:w=1:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,deesser=i=0.4:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.5:attack=10:release=200:knee=4';
 async function renderClipIn(dir: string, url: string, spans: Span[], words: Word[], src: Probe, opts: ClipOpts): Promise<{ file: string; dir: string; secs: number }> {
   await clipPieces(dir, url, spans, src, opts, 'joined.mkv');
   return finishClip(dir, words, spans, opts);
@@ -261,7 +264,8 @@ export async function clipPieces(dir: string, url: string, spans: Span[], src: P
   const pieces: string[] = [];
   for (const [i, sp] of spans.entries()) {
     const f = `p${String(i).padStart(3, '0')}.mkv`;
-    await ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3), '-i', url,
+    const at = ['-ss', sp.from.toFixed(3), '-t', (sp.to - sp.from).toFixed(3)];
+    await ffmpeg(['-threads', '3', ...at, '-i', url, ...(opts.voice ? [...at, '-i', opts.voice, '-map', '0:v', '-map', '1:a'] : []),
       '-vf', `${frame},setsar=1,fps=${FPS},format=yuv420p`, '-af', 'aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo',
       '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', f], dir);
     pieces.push(f);
@@ -290,7 +294,7 @@ export async function finishClip(dir: string, words: Word[], spans: Span[], opts
   if (captions) await fs.writeFile(path.join(dir, 'c.ass'), captionsAss(timed, serif));
   const zoom = zoomExpr(timed);
   const punch = zoom ? `scale=w='2*trunc(${W}*(${zoom})/2)':h='2*trunc(${H}*(${zoom})/2)':eval=frame,crop=${W}:${H},` : '';
-  const fc = [`[0:v]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, '[0:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]'];
+  const fc = [`[0:v]${punch}${captions ? 'ass=c.ass:fontsdir=fonts' : 'null'}[v]`, `[0:a]${opts.voice ? `${VOICE_MASTER},` : ''}loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]`];
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
   let input = ['-i', 'joined.mkv'];
   if (urls?.length) {

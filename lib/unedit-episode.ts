@@ -14,7 +14,7 @@ import ffmpegPath from 'ffmpeg-static';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { BT709, ffmpeg, type Span } from '@/lib/unedit-media';
+import { BT709, VOICE_MASTER, ffmpeg, type Span } from '@/lib/unedit-media';
 import type { NewsData, NewsKind } from '@/lib/unedit-news';
 import type { Seg } from '@/lib/unedit-edit';
 import { frames } from '@/lib/unedit-media';
@@ -205,7 +205,7 @@ const MUSIC_DB = () => Number(process.env.UNEDIT_MUSIC_DB || -22);
 /** The soundtrack of everything kept, joined with short fades over room tone, cleaned (rumble, noise, sibilance),
  *  gently leveled and set to -14 LUFS (two passes); then the music bed and the graphics' sounds mix under it and the
  *  final mix is measured again, so it still lands at -14 LUFS. */
-export async function soundtrack(url: string, keep: Span[], dir: string, sfx: { at: number; file: string; vol: number }[] = [], music: string | null = null): Promise<string> {
+export async function soundtrack(url: string, keep: Span[], dir: string, sfx: { at: number; file: string; vol: number }[] = [], music: string | null = null, voice = false): Promise<string> {
   const n = keep.length;
   const total = keep.reduce((a, k) => a + (k.to - k.from), 0);
   const tone = await roomTone(url, keep, dir).catch(() => null);
@@ -214,7 +214,8 @@ export async function soundtrack(url: string, keep: Span[], dir: string, sfx: { 
     return `[s${i}]atrim=start=${k.from.toFixed(3)}:end=${k.to.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st=${Math.max(0, d - 0.01).toFixed(3)}:d=0.01[k${i}]`;
   });
   const splits = n + (tone ? 1 : 0);
-  const clean = 'highpass=f=80,afftdn=nf=-28,deesser=i=0.35:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.2:attack=12:release=220:knee=4';
+  // An isolated voice (lib/unedit-voice.ts) needs no denoise, just mastering; a raw take gets the denoise chain.
+  const clean = voice ? VOICE_MASTER : 'highpass=f=80,afftdn=nf=-28,deesser=i=0.35:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.2:attack=12:release=220:knee=4';
   let graph = `[0:a]aresample=48000,aformat=channel_layouts=stereo,asplit=${splits}${Array.from({ length: splits }, (_, i) => `[s${i}]`).join('')};${parts.join(';')};${keep.map((_, i) => `[k${i}]`).join('')}concat=n=${n}:v=0:a=1,${clean}`;
   if (tone) {
     // The room tone: its own denoise, a little under its real level, looped across the whole episode.
@@ -265,10 +266,10 @@ async function loudness(file: string, dir: string): Promise<Record<string, strin
 
 /** Join the rendered parts (read from their links, in order) with the soundtrack, streaming the finished episode to
  *  `upload` as fragmented MP4: a long 1440p episode is bigger than a function's scratch disk, so it never lands there. */
-export async function assemble(soundUrl: string, keep: Span[], partUrls: string[], upload: (body: ReadableStream<Uint8Array>) => Promise<unknown>, sfx: { at: number; file: string; vol: number }[] = [], music: string | null = null): Promise<void> {
+export async function assemble(soundUrl: string, keep: Span[], partUrls: string[], upload: (body: ReadableStream<Uint8Array>) => Promise<unknown>, sfx: { at: number; file: string; vol: number }[] = [], music: string | null = null, voice = false): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-epall-'));
   try {
-    const sound = await soundtrack(soundUrl, keep, dir, sfx, music);
+    const sound = await soundtrack(soundUrl, keep, dir, sfx, music, voice);
     // Presigned links carry no quotes; the concat list still escapes any, as the format requires.
     const line = (u: string) => `file '${u.split("'").join("'\\''")}'`;
     await fs.writeFile(path.join(dir, 'parts.txt'), partUrls.map(line).join('\n'));

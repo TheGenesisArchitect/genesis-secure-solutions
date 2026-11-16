@@ -75,6 +75,12 @@ export function runwayVoicePreview(prompt: string) {
   return call<{ url: string; durationSecs: number }>('/voices/preview', { body: { model: 'eleven_ttv_v3', prompt } });
 }
 
+/** Voice isolation (ElevenLabs through Runway): the voice of a recording with the room, hum and noise taken out.
+ *  4.6 s to 60 min of audio; 1 credit per 6 s. Unedit's voice enhancement (lib/unedit-voice.ts). */
+export function runwayVoiceIsolation(audioUri: string) {
+  return call<{ id: string }>('/voice_isolation', { body: { model: 'eleven_voice_isolation', audioUri } });
+}
+
 /** Text to audio (Seed Audio): a scene description with music, effects or voice. Used for the original score. */
 export function runwaySound(p: { prompt: string; references?: string[] }) {
   return call<{ id: string }>('/sound_effect', { body: { model: 'seed_audio', promptText: p.prompt, outputFormat: 'mp3', ...(p.references?.length ? { referenceAudios: p.references } : {}) } });
