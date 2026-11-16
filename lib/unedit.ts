@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, ffmpeg, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -33,6 +33,7 @@ import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
 import { CREDIT_CENTS, runwayConfigured, runwayRoutedVideo, runwayTask, runwayTextVideo } from '@/lib/runway';
 import { getRouters } from '@/lib/studio-runway';
+import { matte, matteFilter } from '@/lib/unedit-cutout';
 import { thumbLink } from '@/lib/unedit-share';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
@@ -962,6 +963,9 @@ async function makeThumbs(v: Vlog, src: string) {
   const { order, cents } = await pickStills(small);
   await spend(v.id, cents, 'thumbnail stills (Claude)');
   const lines = ((v.episode as { thumb_lines?: string[] }).thumb_lines ?? []).concat([v.episode.title ?? v.title ?? 'New video']).filter(Boolean);
+  // The branded set (Signal, Newsroom, Documentary) from the best still; the classic looks if it can't be made.
+  const branded = await brandedThumbs(v, src, at[order[0]], pre, lines).catch((e) => { console.error(`[unedit] ${v.id} branded thumbnails: ${e instanceof Error ? e.message : e}`); return null; });
+  if (branded) { await dbx().from('unedit_vlogs').update({ thumbs: branded, thumb_pick: 0 }).eq('id', v.id); return; }
   const big = await frames(src, order.map((i) => at[i]), 1280, false, pre);
   const thumbs: Vlog['thumbs'] = [];
   for (const [k, still] of big.entries()) {
@@ -973,6 +977,59 @@ async function makeThumbs(v: Vlog, src: string) {
     thumbs.push({ blob: path, text, t: at[order[k]], look });
   }
   await dbx().from('unedit_vlogs').update({ thumbs, thumb_pick: 0 }).eq('id', v.id);
+}
+
+/** A thumbnail line as at most three short lines (one or two words each). */
+function thumbLines(text: string, max = 3): string[] {
+  const w = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).slice(0, 6);
+  if (w.length <= max) return w;
+  const per = Math.ceil(w.length / max);
+  return Array.from({ length: Math.ceil(w.length / per) }, (_, i) => w.slice(i * per, (i + 1) * per).join(' '));
+}
+
+/** The branded thumbnail set: the speaker cut out (MODNet, as the episodes use) from the best still, framed and
+ *  graded like the episode, in three looks rendered at once in the Genovus Motion sandbox (ThumbSet):
+ *    signal       ink and ember, the speaker large with an orange rim, three bold words, the topic chip (the pick)
+ *    newsroom     the cited article tilted in a browser card beside the speaker, a WHAT WE KNOW tag
+ *    documentary  full-bleed and studio-lit, one serif line, a quiet mark
+ *  Null when the sandbox isn't configured (the classic looks are made instead). */
+async function brandedThumbs(v: Vlog, src: string, t: number, pre: string, lines: string[]): Promise<Vlog['thumbs'] | null> {
+  if (!proConfigured() || process.env.UNEDIT_THUMBS_BRANDED === 'off') return null;
+  await sweepTmp();
+  const d = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-thumbset-'));
+  try {
+    // Half a second at the still, framed and graded like the episode, 1920x1080.
+    await ffmpeg(['-ss', Math.max(0, t - 0.1).toFixed(3), '-t', '0.5', '-i', src, '-vf', `${pre ? `${pre},` : ''}scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps=30,format=yuv420p`, '-an', '-c:v', 'libx264', '-crf', '12', 'clip.mp4'], d);
+    const m = await matte(path.join(d, 'clip.mp4'), 0, 0.5, d, 'm');
+    await ffmpeg(['-i', 'clip.mp4', '-i', m, '-filter_complex', `${matteFilter('1:v', 1920, 1080, 'mm')};[0:v][mm]alphamerge,format=rgba`, '-frames:v', '1', 'cutout.png'], d);
+    await ffmpeg(['-i', 'clip.mp4', '-frames:v', '1', 'frame.png'], d);
+    const cutPath = `${dir(v)}/thumbs/cutout.png`, framePath = `${dir(v)}/thumbs/frame.png`;
+    await put(cutPath, await fs.readFile(path.join(d, 'cutout.png')), { access: 'private', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: true });
+    await put(framePath, await fs.readFile(path.join(d, 'frame.png')), { access: 'private', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: true });
+    const title = String(v.episode?.title ?? v.title ?? '');
+    const topic = title.split(/[:\-–—|]/)[0].trim().split(/\s+/).slice(0, 3).join(' ').toUpperCase().slice(0, 26);
+    const article = (v.sources ?? []).find((e) => e.kind === 'article');
+    const [l0, l1, l2] = [lines[0] ?? title, lines[1] ?? lines[0] ?? title, lines[2] ?? lines[0] ?? title];
+    const one = thumbLines(l1, 2);
+    const props = {
+      cutout: await presigned(cutPath, 60), frame: await presigned(framePath, 60),
+      signal: { lines: thumbLines(l0), accent: thumbLines(l0).length - 1, topic },
+      newsroom: { lines: one, accent: one.length - 1, kicker: 'WHAT WE KNOW', ...(article ? { article: { publisher: String(article.who ?? ''), headline: String(article.title ?? '') } } : {}) },
+      documentary: { lines: [l2.split(/\s+/).slice(0, 4).join(' ')], kicker: title.slice(0, 40) },
+    };
+    const mp4 = await renderOnSandbox('ThumbSet', props, { codec: 'h264', crf: 12 });
+    await fs.writeFile(path.join(d, 'set.mp4'), mp4);
+    const looks = ['signal', 'newsroom', 'documentary'] as const;
+    const texts = [l0, l1, l2];
+    const out: Vlog['thumbs'] = [];
+    for (const [k, look] of looks.entries()) {
+      await ffmpeg(['-i', 'set.mp4', '-vf', `select=eq(n\\,${k}),scale=1280:720`, '-frames:v', '1', '-q:v', '2', '-pix_fmt', 'yuvj420p', `t${k}.jpg`], d);
+      const pth = `${dir(v)}/thumbs/${k + 1}-${look}.jpg`;
+      await put(pth, await fs.readFile(path.join(d, `t${k}.jpg`)), { access: 'private', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true });
+      out.push({ blob: pth, text: texts[k], t, look });
+    }
+    return out;
+  } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
 }
 
 // ---- the card's taps ------------------------------------------------------------------------------------------
