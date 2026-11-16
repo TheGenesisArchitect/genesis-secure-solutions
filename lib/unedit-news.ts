@@ -53,7 +53,7 @@ export function parseSheet(input: string | unknown[]): { entries: NewsEntry[]; e
         if (items.every(Boolean)) e = { kind, say: f[1], text: f[2], title: f[2], items: items as NonNullable<NewsEntry['items']> };
       } else if (kind === 'globe' && f.length >= 3 && ['alone', 'fall', 'lit'].includes(f[2].toLowerCase())) e = { kind, say: f[1], text: f[3] ?? '', phase: f[2].toLowerCase() as GlobePhase };
       else if (kind === 'ticker' && f.length >= 5) e = { kind, say: f[1], text: f[2], label: f[3], crawl: f[4].split(/\s+;\s+/).filter(Boolean) };
-      else if (kind === 'article' && f.length >= 7 && /^https?:\/\//.test(f[5])) e = { kind, say: f[1], title: f[2], who: f[3], when: f[4] || undefined, url: f[5], text: f[6], image: /^https:\/\//.test(f[7] ?? '') ? f[7] : undefined };
+      else if (kind === 'article' && f.length >= 7 && /^https?:\/\//.test(f[5])) e = { kind, say: f[1], title: f[2], who: f[3], when: f[4] && f[4] !== '-' ? f[4] : undefined, url: f[5], text: f[6], image: /^https:\/\//.test(f[7] ?? '') ? f[7] : undefined };
     } else if (row && typeof row === 'object') {
       const o = row as Record<string, unknown>;
       if (NEWS_KINDS.includes(o.kind as NewsKind) && o.say && (o.text || o.kind === 'globe')) e = { ...(o as unknown as NewsEntry), text: String(o.text ?? '') };
@@ -124,7 +124,7 @@ export function sheetText(entries: NewsEntry[] | null | undefined): string {
     if (e.kind === 'quote') return `quote | ${e.say} | ${e.text} | ${e.who ?? ''}${e.when ? ` | ${e.when}` : ''}`;
     if (e.kind === 'ticker') return `ticker | ${e.say} | ${e.text} | ${e.label ?? 'Sourced'} | ${(e.crawl ?? []).join(' ; ')}`;
     if (e.kind === 'globe') return `globe | ${e.say} | ${e.phase ?? 'alone'}${e.text ? ` | ${e.text}` : ''}`;
-    if (e.kind === 'article') return `article | ${e.say} | ${e.title ?? ''} | ${e.who ?? ''} | ${e.when ?? ''} | ${e.url ?? ''} | ${e.text}${e.image ? ` | ${e.image}` : ''}`;
+    if (e.kind === 'article') return `article | ${e.say} | ${e.title ?? ''} | ${e.who ?? ''} | ${e.when ?? '-'} | ${e.url ?? ''} | ${e.text}${e.image ? ` | ${e.image}` : ''}`;
     return `timeline | ${e.say} | ${e.title ?? e.text} | ${(e.items ?? []).map((x) => `${x.date}: ${x.text}${x.say ? ` @ ${x.say}` : ''}`).join(' ; ')}`;
   }).join('\n');
 }

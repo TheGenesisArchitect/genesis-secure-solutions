@@ -345,7 +345,7 @@ export async function articleLines(lines: { say?: string; source?: string }[], u
     const publisher = sameStory ? String(st.source ?? '').replace(/\s*\(.*$/, '') : host(url);
     const passage = c.passage_verified && c.cited_text ? String(c.cited_text) : String(c.text);
     const image = sameStory && st.thumb_url ? String(st.thumb_url) : await linkPreview(url);
-    out.push(['article', field(words.slice(0, 6).join(' ')), field(c.source_title || st.headline), field(publisher || host(url)), field(sameStory ? st.published_on ?? '' : ''), url, field(passage).slice(0, 280), ...(image ? [image] : [])].join(' | '));
+    out.push(['article', field(words.slice(0, 6).join(' ')), field(c.source_title || st.headline), field(publisher || host(url)), field(sameStory ? st.published_on ?? '' : '') || '-', url, field(passage).slice(0, 280), ...(image ? [image] : [])].join(' | '));
     if (out.length >= 3) break;
   }
   return out;
