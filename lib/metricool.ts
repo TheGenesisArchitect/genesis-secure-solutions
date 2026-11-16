@@ -15,7 +15,7 @@ export const metricoolConfigured = () => Boolean(TOKEN());
 export type McResult<T> = { ok: true; status: number; data: T } | { ok: false; status: number; error: string };
 
 /** One Metricool call with the account token; returns the parsed body or Metricool's own error text. */
-export async function mc<T = unknown>(path: string, opts: { blogId?: string; method?: string; body?: unknown; query?: Record<string, string> } = {}): Promise<McResult<T>> {
+export async function mc<T = unknown>(path: string, opts: { blogId?: string; method?: string; body?: unknown; query?: Record<string, string>; timeoutMs?: number } = {}): Promise<McResult<T>> {
   if (!metricoolConfigured()) return { ok: false, status: 0, error: 'METRICOOL_GENOVUS_API_KEY is not set on this deployment.' };
   const q = new URLSearchParams({ userId: METRICOOL_USER_ID(), blogId: opts.blogId ?? GENOVUS_BLOG_ID(), ...(opts.query ?? {}) });
   try {
@@ -23,7 +23,7 @@ export async function mc<T = unknown>(path: string, opts: { blogId?: string; met
       method: opts.method ?? 'GET',
       headers: { 'X-Mc-Auth': TOKEN(), ...(opts.body ? { 'content-type': 'application/json' } : {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000),
     });
     const text = await r.text();
     let data: unknown = text;
@@ -82,7 +82,9 @@ export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; 
     ...(p.network === 'youtube' ? { youtubeData: { title: (p.title || p.text).slice(0, 100), type: p.vertical ? 'short' : 'video', privacy: 'public', madeForKids: false, isAiGeneratedContent: p.aiGenerated } } : {}),
     ...(p.thumbnailUrl ? { videoThumbnailUrl: p.thumbnailUrl } : {}),
   };
-  const r = await mc<Record<string, unknown>>('/v2/scheduler/posts', { blogId: p.blogId, method: 'POST', body });
+  // Metricool copies the video while the request is open (saveExternalMediaFiles): a full episode takes well over the
+  // usual 20 s, so scheduling gets 4 minutes (2026-11-16: the long-form and a reel timed out at 20 s).
+  const r = await mc<Record<string, unknown>>('/v2/scheduler/posts', { blogId: p.blogId, method: 'POST', body, timeoutMs: 240_000 });
   if (!r.ok) return r;
   const post = ((r.data as { data?: Record<string, unknown> })?.data ?? r.data) as Record<string, unknown>;
   const id = Number(post.id);
@@ -96,6 +98,18 @@ const stateOf = (post: Record<string, unknown>): McPostState => {
   const url = Object.entries(pr).find(([k, v]) => /url|link/i.test(k) && typeof v === 'string' && /^https:\/\//.test(v))?.[1] as string | undefined;
   return { status: String(pr.status ?? 'PENDING'), url: url ?? null, detail: (pr.detailedStatus as string | undefined) ?? null, networkId: pr.id != null ? String(pr.id) : null };
 };
+
+/** A post we asked for whose answer never came (a timeout): found in the scheduler by its network and text around its
+ *  time, so it is never scheduled twice. */
+export async function findPostLike(blogId: string, network: string, text: string, around: Date): Promise<{ id: number; uuid: string | null } | null> {
+  const d = (n: number) => NY(new Date(around.getTime() + n * 86_400_000));
+  const r = await mc<unknown>('/v2/scheduler/posts', { blogId, query: { start: d(-1), end: d(1), from: d(-1), to: d(1), timezone: 'America/New_York', extendedRange: 'true' } });
+  if (!r.ok) return null;
+  const list = (Array.isArray(r.data) ? r.data : ((r.data as { data?: unknown[] })?.data ?? [])) as Record<string, unknown>[];
+  const head = text.replace(/\s+/g, ' ').trim().slice(0, 80);
+  const hit = list.find((p) => String(p.text ?? '').replace(/\s+/g, ' ').trim().startsWith(head) && ((p.providers as { network?: string }[] | undefined) ?? []).some((x) => x.network === network));
+  return hit ? { id: Number(hit.id), uuid: hit.uuid != null ? String(hit.uuid) : null } : null;
+}
 
 /** A post found again by its lasting uuid (Metricool gives a post a new id each time it is edited, even by hand),
  *  from the scheduler list around its time. Returns its current id and state. */

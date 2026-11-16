@@ -39,7 +39,7 @@ import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, pla
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
-import { GENOVUS_BLOG_ID, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
+import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 
 export type Stage = 'uploaded' | 'transcribing' | 'finding' | 'rendering' | 'review' | 'publishing' | 'published' | 'failed';
 export type Vlog = {
@@ -271,6 +271,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
     }
     if (v.stage === 'publishing') {
       const r = await distribute(v);
+      if (r.left) { await release(v.id); return `Sent ${r.sent} post${r.sent === 1 ? '' : 's'}; ${r.left} more in the next step.`; }
       await advance(v.id, 'published');
       await log('published', subject, r);
       return `Sent ${r.sent} post${r.sent === 1 ? '' : 's'} to Metricool${r.live ? '' : ' as drafts'}${r.failed.length ? `; ${r.failed.length} failed` : ''}.`;
@@ -1204,8 +1205,9 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
 // ---- distribution -----------------------------------------------------------------------------------------------
 /** Send the approved posts to Metricool on the Genovus brand. Media goes by presigned links (valid six days), which
  *  Metricool copies when it saves the post. Real footage: every AI flag is false. */
-export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: number; skipped: string[]; failed: string[]; live: boolean }> {
-  const out = { sent: 0, skipped: [] as string[], failed: [] as string[], live: metricoolLive() };
+export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: number; skipped: string[]; failed: string[]; live: boolean; left: number }> {
+  const out = { sent: 0, skipped: [] as string[], failed: [] as string[], live: metricoolLive(), left: 0 };
+  const t0 = Date.now();
   let q = dbx().from('unedit_posts').select('*').eq('vlog_id', v.id).eq('status', 'queued');
   if (only?.length) q = q.in('id', only);
   const { data: rows } = await q;
@@ -1221,6 +1223,9 @@ export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: numb
   const when = new Date(Date.now() + 15 * 60_000);
   const mins = 6 * 24 * 60;
   for (const p of posts) {
+    // Each post can take minutes (Metricool copies the video): stop starting new ones before the function's limit and
+    // leave the rest queued for the next step.
+    if (Date.now() - t0 > 9 * 60_000) { out.left++; continue; }
     // The full video is the polished episode when Episode Pro made one, else the recording as shot.
     const media = p.clip_id ? clipPath.get(p.clip_id) : (v.episode_path ?? v.blob_path);
     if (!media) { await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'No video for this post.' }).eq('id', p.id); out.skipped.push(`${p.platform} ${p.kind}`); continue; }
@@ -1232,7 +1237,9 @@ Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await
       vertical: p.kind !== 'video', aiGenerated: Boolean(v.faceless), format: p.platform === 'youtube' ? undefined : 'reel',
       thumbnailUrl: p.kind === 'video' && thumb ? await presigned(thumb, mins) : undefined,
     });
-    if (r.ok) { await dbx().from('unedit_posts').update({ status: 'sent', mc_post_id: r.data.id, mc_status: r.data.status, mc_error: null }).eq('id', p.id); out.sent++; }
+    // A timeout may still have created the post: look for it before calling it failed (never schedule twice).
+    const found = !r.ok && /timeout|aborted/i.test(r.error) ? await findPostLike(GENOVUS_BLOG_ID(), p.platform, p.body, when).catch(() => null) : null;
+    if (r.ok || found) { await dbx().from('unedit_posts').update({ status: 'sent', mc_post_id: r.ok ? r.data.id : found!.id, mc_status: r.ok ? r.data.status : 'PENDING', mc_error: null }).eq('id', p.id); out.sent++; }
     else { await dbx().from('unedit_posts').update({ status: 'error', mc_error: r.error }).eq('id', p.id); out.failed.push(`${p.platform} ${p.kind}: ${r.error}`); }
   }
   return out;
