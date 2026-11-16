@@ -31,7 +31,8 @@ import { FILL, NEUTRAL, analyzeLook, episodeSize, framing, gradeFilter, sampleTi
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
-import { runwayConfigured, runwayTask, runwayTextVideo } from '@/lib/runway';
+import { CREDIT_CENTS, runwayConfigured, runwayRoutedVideo, runwayTask, runwayTextVideo } from '@/lib/runway';
+import { getRouters } from '@/lib/studio-runway';
 import { cutoutOn, faceOnFrame, packageOf, styleGraphics, STYLEBOOK_VERSION, type BaseGraphic } from '@/lib/unedit-style';
 import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
@@ -401,10 +402,10 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
       const T = epTime(ss[b.s]?.s ?? -1, edit.keep);
       if (T == null || T < 6 || T > secs - 10) continue;
       try {
-        const job = await runwayTextVideo({ prompt: b.prompt, duration: 8 });
-        await spend(v.id, BROLL_CENTS, 'B-roll illustration (Runway)');
-        // An 8 s shot: 4 s of it over a talking head, 6 s when the illustrations carry a faceless video.
-        base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id }, sound: 'whoosh' });
+        const job = await startBroll(b.prompt);
+        await spend(v.id, job.cents, `B-roll illustration (Runway ${job.model})`);
+        // 4 s of the shot over a talking head, 6 s when the illustrations carry a faceless video.
+        base.push({ T: T + 0.3, D: v.faceless ? 6 : 4, kind: 'broll', text: 'Illustration', broll: { prompt: b.prompt, task: job.id, model: job.model }, sound: 'whoosh' });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`[unedit] ${v.id} B-roll not started: ${msg}`);
@@ -798,6 +799,29 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
 // ---- B-roll ----------------------------------------------------------------------------------------------------
 const BROLL_ON = () => process.env.UNEDIT_BROLL !== 'off';
 const BROLL_CENTS = 80; // Veo 3.1 Fast through Runway: 10 credits a second, 8 s (the only length at 1080p)
+
+/** One B-roll shot: through the Studio's Runway Model Router, which picks the best eligible model for each shot (Kling,
+ *  Seedance, Veo, ... as configured in Runway's dev portal) at 1080p, quoted first with a free dry run so the spend is
+ *  the router's own estimate. If the router can't take it (no eligible model, a refusal), Veo 3.1 Fast directly.
+ *  UNEDIT_BROLL_ROUTER=off goes straight to Veo. */
+async function startBroll(prompt: string): Promise<{ id: string; cents: number; model: string }> {
+  if (process.env.UNEDIT_BROLL_ROUTER !== 'off') {
+    try {
+      const router = (await getRouters(dbx())).production;
+      const req = { router, prompt, images: [] as { uri: string; role: 'first' | 'last' | 'reference' }[], duration: 5, audio: false, resolution: '1080p' as const };
+      const q = await runwayRoutedVideo({ ...req, dryRun: true });
+      const credits = q.routing?.estimatedCost?.credits;
+      // Guard: a routed shot never costs more than twice a Veo shot.
+      if (credits != null && credits * CREDIT_CENTS > BROLL_CENTS * 2) throw new Error(`the router quoted ${credits} credits`);
+      const r = await runwayRoutedVideo(req);
+      return { id: r.id, cents: Math.round((r.routing?.estimatedCost?.credits ?? credits ?? 80) * CREDIT_CENTS), model: r.routing?.model ?? 'router' };
+    } catch (e) {
+      console.warn(`[unedit] B-roll router declined (${e instanceof Error ? e.message : e}); using Veo 3.1 Fast`);
+    }
+  }
+  const job = await runwayTextVideo({ prompt, duration: 8 });
+  return { id: job.id, cents: BROLL_CENTS, model: 'veo3.1_fast' };
+}
 /** Wait (up to ~4 minutes in all) for the episode's B-roll jobs, store each clip in Blob, and record it on the plan
  *  (mutating `g`). A job that fails or runs out of time leaves its slot empty: the speaker stays on screen. */
 async function settleBroll(v: Vlog, g: Graphics): Promise<void> {
