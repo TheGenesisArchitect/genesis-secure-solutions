@@ -122,6 +122,9 @@ export async function beatClusters(beat: Beat): Promise<{ title: string; link: s
   }).sort((a, b) => b.heat - a.heat);
 }
 
+/** A story below this heat (one outlet, old, off-topic) never makes the wire. */
+const MIN_HEAT = 25;
+
 /** The free morning sweep for every beat: the hottest new clusters go on the desk (up to `per` a beat). */
 export async function sweepFree(tenant: string, per = 5): Promise<{ beats: number; added: number; byBeat: Record<string, number> }> {
   const s = await settings(tenant);
@@ -130,11 +133,15 @@ export async function sweepFree(tenant: string, per = 5): Promise<{ beats: numbe
   const known = (have ?? []).map((h) => ({ url: String(h.url), w: words(String(h.headline)) }));
   const byBeat: Record<string, number> = {};
   let added = 0;
+  // At most `per` stories a beat a day, however often the wire is refreshed, and only stories with some heat.
+  const dayStart = new Date(Date.now() - 20 * 3600_000).toISOString();
+  const { data: today } = await db.from('newsroom_stories').select('beat').eq('tenant_id', tenant).gte('created_at', dayStart);
   for (const beat of s.beats) {
     const clusters = await beatClusters(beat);
+    const room = per - (today ?? []).filter((t) => t.beat === beat.id).length;
     let n = 0;
     for (const c of clusters) {
-      if (n >= per) break;
+      if (n >= room || c.heat < MIN_HEAT) break;
       const w = words(c.title);
       if (known.some((k) => k.url === c.link || similar(k.w, w) >= 0.6)) continue;
       const why = `${c.outlets.length > 1 ? `Covered by ${c.outlets.length} outlets (${c.outlets.slice(0, 4).join(', ')})` : `From ${c.source}`}${c.summary ? `: ${c.summary.slice(0, 220)}` : ''}`;
