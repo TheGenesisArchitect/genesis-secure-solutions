@@ -203,8 +203,11 @@ export async function createUpgradeInvoice(_: ActionResult, f: FormData): Promis
 /** Start monthly care: plan, rate and start date; the first month is prorated to month end. */
 export async function startCare(_: ActionResult, f: FormData): Promise<ActionResult> {
   const tenant = str(f, 'tenant', 64), plan = str(f, 'plan', 20), start = dateOr(str(f, 'start', 10));
-  const rate = careRate[plan];
+  let rate = careRate[plan];
   if (!rate) return fail('Pick a care plan.');
+  // A program for life keeps its locked rate (lib/lifetime.ts, migration 0109): never the list price.
+  const { data: lt } = await (await db()).from('tenants').select('lifetime_plan, lifetime_rate_cents').eq('id', tenant).maybeSingle();
+  if (lt?.lifetime_plan === plan && lt.lifetime_rate_cents != null) rate = lt.lifetime_rate_cents;
   const dim = daysInMonth(start), left = dim - start.getUTCDate() + 1;
   const first = Math.round((rate * left) / dim);
   const r = await call('start_care', { p_tenant: tenant, p_care: careName[plan], p_rate_cents: rate, p_start: iso(start), p_first_cents: first, p_first_end: iso(monthEnd(start)) },

@@ -4,7 +4,7 @@
 //   node scripts/client-email.mjs preview <email.json> [out.html]      render only (dry), nothing queued
 //   node scripts/client-email.mjs schedule <email.json>                schedule it (after the person's yes)
 //   node scripts/client-email.mjs cancel <outbox-id>                   stop one that hasn't gone out
-// <email.json> = { "slug", "kind": "site_review" | "note", "to", "cc", "when": "YYYY-MM-DDTHH:MM" (Eastern), ... }
+// <email.json> = { "slug", "kind": "site_review" | "note" | "lifetime", "to", "cc", "when": "YYYY-MM-DDTHH:MM" (Eastern), ... }
 // The key lives outside the repo, in ~/.genovus/ops.env (GENOVUS_OPS_KEY=…, optional GENOVUS_OPS_URL); never printed.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';

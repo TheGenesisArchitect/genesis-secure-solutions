@@ -12,6 +12,8 @@ import { CommandBrief } from '@/components/CommandBrief';
 import { agencyCards } from '@/lib/command-brief';
 import { PostEngagement, NET } from '@/components/PostEngagement';
 import { sumMetrics, type PostMetrics } from '@/lib/post-metrics';
+import { LifetimeCongrats } from '@/components/LifetimeCongrats';
+import { LIFETIME_COLUMNS, lifetimeOf, type LifetimeRow } from '@/lib/lifetime';
 
 export const metadata = { title: 'Home' };
 export const dynamic = 'force-dynamic';
@@ -33,7 +35,7 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   const supabase = await db();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const [{ data: t }, { data: approvals }, { data: care }, { data: content }, { data: kpis }, live, { data: fresh }, { data: monthLeads }] = await Promise.all([
-    supabase.from('tenants').select('stage, plan, care_plan').eq('id', tid).single(),
+    supabase.from('tenants').select(`stage, plan, care_plan, ${LIFETIME_COLUMNS}`).eq('id', tid).single(),
     supabase.from('approvals').select('id, title, requested_at, is_sample').eq('tenant_id', tid).eq('status', 'pending').eq('approver', 'client').order('requested_at'),
     supabase.from('care_requests').select('id, title, status').eq('tenant_id', tid).neq('status', 'done').order('created_at'),
     supabase.from('content_items').select('id, status').eq('tenant_id', tid).gte('scheduled_for', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
@@ -82,9 +84,14 @@ export default async function AgencyHome({ params, searchParams }: { params: Pro
   const { data: newest } = !showBrief && !sample ? await supabase.from('upgrade_notes').select('id, title, summary').eq('tenant_id', tid).eq('status', 'sent').order('sent_at', { ascending: false }).limit(1).maybeSingle() : { data: null };
   const { data: seen } = newest && !ctx.asStaff ? await supabase.from('upgrade_note_reads').select('note_id').eq('note_id', newest.id).eq('user_id', ctx.viewer.userId).maybeSingle() : { data: null };
   const upgrade = newest && !seen && !ctx.asStaff ? newest : null;
+  // Founding client: the program for life, congratulated on Home until the owner closes it (lib/lifetime.ts).
+  const life = lifetimeOf(t as LifetimeRow | null);
+  const congrats = life && !life.seen && !film && !sample ? life : null;
+  const rec = congrats ? await supabase.from('agent_records').select('data').eq('tenant_id', tid).eq('is_current', true).maybeSingle().then((r) => (r.data?.data ?? {}) as { contactName?: string; agencyName?: string }, () => ({} as { contactName?: string; agencyName?: string })) : null;
   const pulse = moment ? `Market: ${LINES[moment.line].label} ${moment.label.toLowerCase()} ${moment.starting ? 'starts next month' : 'is on now'}` : null;
   return (
     <AgencyShell ctx={ctx} title={`Welcome back`} film={film}>
+      {congrats ? <LifetimeCongrats life={congrats} first={String(rec?.contactName ?? '').split(/\s+/)[0]} agency={rec?.agencyName || ctx.tenant.name} slug={slug} canClose={!ctx.asStaff && ctx.tenant.role === 'owner'} /> : null}
       {upgrade ? (
         <Panel title={`New from Genovus: ${upgrade.title}`} sub="What we changed on your systems, and what to expect" actions={<Link className="btn small primary" href={`${base}/upgrades#${upgrade.id}`}>Read it</Link>}>
           <p className="soft" style={{ margin: 0 }}>{upgrade.summary}</p>

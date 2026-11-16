@@ -15,7 +15,7 @@ type Invoice = {
   pay_url: string | null; paid_at: string | null; paid_via: string | null; lines: { label: string; cents: number }[] | null; upgrade_to: string | null;
   mercury_invoice_id?: string | null; mercury_status?: string | null; mercury_synced_at?: string | null;
 };
-type Tenant = { id: string; plan: string | null; is_sample: boolean; care_active: boolean; care_plan: string | null; care_rate_cents: number | null; care_started_on: string | null; care_autosend?: boolean };
+type Tenant = { id: string; plan: string | null; is_sample: boolean; care_active: boolean; care_plan: string | null; care_rate_cents: number | null; care_started_on: string | null; care_autosend?: boolean; lifetime_plan?: string | null; lifetime_rate_cents?: number | null; lifetime_since?: string | null };
 
 const KIND: Record<string, string> = { deposit: 'Deposit', balance: 'Balance', care: 'Monthly care', upgrade: 'Upgrade', custom: 'Custom' };
 const today = businessToday;
@@ -107,6 +107,9 @@ export async function BillingConsole({ t, invoices }: { t: Tenant; invoices: Inv
 
       <div className="grid" style={{ alignContent: 'start' }}>
         <Panel title="Monthly care" sub="The ongoing relationship: billed on the 1st of each month; the first month is prorated">
+          {t.lifetime_plan && t.lifetime_rate_cents != null ? (
+            <div className="chip done" style={{ justifySelf: 'start' }}>{t.lifetime_plan === 'premium' ? 'Premium' : 'Growth'} for life at {money(t.lifetime_rate_cents)}/month · founding client{t.lifetime_since ? ` since ${t.lifetime_since}` : ''}. Starting care on that program charges this rate.</div>
+          ) : null}
           {t.care_active ? (
             <>
               <div className="spread"><b>{t.care_plan}</b><span className="num"><b>{money(t.care_rate_cents ?? 0)}</b> <span className="muted">/ month</span></span></div>

@@ -8,6 +8,8 @@ import { createCareRequest } from '@/lib/actions';
 import { MODULES, PROGRAM_NAME, RANK, REPLY_TIME, includes, programOf, type ProgramId } from '@/lib/programs';
 import { PLANS } from '@/data/offers';
 import { accessFor } from '@/lib/access';
+import { db } from '@/lib/supabase/server';
+import { LIFETIME_COLUMNS, lifetimeOf, usd, type LifetimeRow } from '@/lib/lifetime';
 
 export const metadata = { title: 'Your program' };
 export const dynamic = 'force-dynamic';
@@ -24,10 +26,25 @@ export default async function Program({ params }: { params: Promise<{ slug: stri
   const trialEnds = (k: string) => (!includes(program, MODULES.find((m) => m.key === k)!) ? access.grants.get(k) : undefined);
   const next = (['growth', 'premium'] as ProgramId[]).filter((p) => RANK[p] > RANK[program]);
   const base = `/app/${slug}`;
+  // Founding client: the program for life at a locked rate (lib/lifetime.ts).
+  const { data: lt } = await (await db()).from('tenants').select(LIFETIME_COLUMNS).eq('id', ctx.tenant.tenantId).maybeSingle();
+  const life = lifetimeOf(lt as LifetimeRow | null);
+  const forLife = life?.program === program;
   return (
     <AgencyShell ctx={ctx} title="Your program">
-      <Panel title={`${PROGRAM_NAME[program]} program${access.trial ? ` · Growth trial, ${access.trial.days} days left` : ''}`} sub={plan.summary} actions={<Chip kind="done">Active</Chip>}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Monthly care: {plan.careName} · we reply to requests within {REPLY_TIME[program]}; site down or a lead form not delivering, within 2 business hours.</p>
+      {forLife && life ? (
+        <Panel title={`${life.name} for life · founding client`} sub={`Since ${new Date(`${life.since ?? ''}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Thank you for being our first client.`} actions={<Chip kind="done">For life</Chip>}>
+          <div className="lifetime-stats">
+            <div><b>{usd(life.rateCents)}<small>/mo</small></b><span>{life.careName}, locked for life</span></div>
+            <div><b>{usd(life.savedMonthCents)}<small>/mo</small></b><span>Saved vs the {usd(life.listCents)} list rate</span></div>
+            <div><b>{usd(life.savedYearCents)}</b><span>Saved every year</span></div>
+            {life.waivedCents ? <div><b>{usd(life.waivedCents)}</b><span>Upgrade fee waived</span></div> : null}
+          </div>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>Every {life.name} feature stays yours, including the ones still coming, with no trial and no price change.</p>
+        </Panel>
+      ) : null}
+      <Panel title={`${PROGRAM_NAME[program]} program${forLife ? ' · for life' : access.trial ? ` · Growth trial, ${access.trial.days} days left` : ''}`} sub={plan.summary} actions={<Chip kind="done">Active</Chip>}>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Monthly care: {forLife && life ? `${life.careName} at your locked ${usd(life.rateCents)}/mo` : plan.careName} · we reply to requests within {REPLY_TIME[program]}; site down or a lead form not delivering, within 2 business hours.</p>
         <ul className="prog-list">
           {mine.map((m) => (
             <li key={m.key}>

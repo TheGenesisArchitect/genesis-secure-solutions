@@ -4,6 +4,8 @@
 // with the same checks: a leftover [PLACEHOLDER], bad addresses, the send window, sample clients, and (site review)
 // the client being on their dashboard, since every button opens it. dry renders the email without queuing anything.
 //  - note (template client_update): a note written freely.
+//  - lifetime (template lifetime_growth, lib/email-lifetime.ts): the founding-client "Growth is yours for life"
+//    thank-you; the numbers come from the agency's lifetime record (lib/lifetime.ts), never typed in.
 //  - site review (template site_review, lib/email-site-review.ts): the site card, a short note, the ticked open
 //    welcome-form items each with a button to that field, reply questions and next steps.
 // Each send keeps Resend's message id on the row (data.provider_id, set by the outbox cron): the proof it went out.
@@ -22,6 +24,8 @@ const PLACEHOLDER = /\[[A-Z][A-Z ]+\]/;
 const emails = (s: string) => s.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
 export const etLabel = (d: Date | string) => new Date(d).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 const no = (error: string): CoreResult => ({ ok: false, error });
+/** Every template a client email can use (listing and canceling cover all of them). */
+const CLIENT_TEMPLATES = ['client_update', 'site_review', 'lifetime_growth'];
 
 /** Recipients and send time, shared by both kinds. A test goes only to the actor, now. */
 function envelope(f: FormData, actor: Actor): { error: string } | { test: boolean; first: string; copy: string[]; sendAt: Date } {
@@ -51,7 +55,7 @@ async function tenantOf(id: string) {
 }
 
 /** Queue it (or, dry, just render it): one outbox row, its audit entry, and the message the caller shows. */
-async function queue(t: { id: string; name: string }, template: 'client_update' | 'site_review', data: Record<string, string>, env: { test: boolean; first: string; copy: string[]; sendAt: Date }, actor: Actor, dry: boolean, extra: Record<string, unknown> = {}): Promise<CoreResult> {
+async function queue(t: { id: string; name: string }, template: 'client_update' | 'site_review' | 'lifetime_growth', data: Record<string, string>, env: { test: boolean; first: string; copy: string[]; sendAt: Date }, actor: Actor, dry: boolean, extra: Record<string, unknown> = {}): Promise<CoreResult> {
   const origin = process.env.APP_ORIGIN || 'https://genovus.io';
   const full = { ...data, cc: env.copy.join(', '), by: actor.label, test: env.test ? 'true' : '' };
   const mail = outboxEmail(template, env.first, full, origin);
@@ -61,7 +65,7 @@ async function queue(t: { id: string; name: string }, template: 'client_update' 
   const admin = adminDb();
   const { data: row, error } = await admin.from('outbox').insert({
     tenant_id: t.id, to_email: env.first, template, send_after: env.sendAt.toISOString(), data: full,
-    dedupe_key: `${template === 'site_review' ? 'site-review' : 'client-email'}:${t.id}:${crypto.randomUUID()}`,
+    dedupe_key: `${template === 'site_review' ? 'site-review' : template === 'lifetime_growth' ? 'lifetime' : 'client-email'}:${t.id}:${crypto.randomUUID()}`,
   }).select('id').single();
   if (error) return no(error.message);
   await admin.from('audit_events').insert({ tenant_id: t.id, actor: actor.id, actor_label: actor.label, action: env.test ? 'client_email.test' : 'client_email.scheduled', subject: mail.subject, after: { outbox: row.id, template, to: env.first, cc: env.copy, send_after: env.sendAt.toISOString(), ...extra }, prev_hash: '', hash: '' });
@@ -130,7 +134,7 @@ export async function cancelClientEmail(id: number, tenantId: string | null, act
   if (!Number.isFinite(id)) return no('Email not found.');
   const admin = adminDb();
   let q = admin.from('outbox').update({ status: 'skipped', last_error: `canceled by ${actor.label}` })
-    .eq('id', id).in('template', ['client_update', 'site_review']).eq('status', 'pending');
+    .eq('id', id).in('template', CLIENT_TEMPLATES).eq('status', 'pending');
   if (tenantId) q = q.eq('tenant_id', tenantId);
   const { data } = await q.select('id, tenant_id, data').maybeSingle();
   if (!data) return no('It already went out (or is going out now), so it can’t be canceled.');
@@ -143,9 +147,43 @@ export type ClientEmailRow = { id: number; template: string; to: string; cc: str
 /** A client's recent client emails (tests included), newest first: what's scheduled, sent (with Resend's id) or failed. */
 export async function listClientEmails(tenantId: string, limit = 20): Promise<ClientEmailRow[]> {
   const { data } = await adminDb().from('outbox').select('id, template, to_email, data, status, send_after, sent_at, attempts, last_error')
-    .eq('tenant_id', tenantId).in('template', ['client_update', 'site_review']).order('id', { ascending: false }).limit(limit);
+    .eq('tenant_id', tenantId).in('template', CLIENT_TEMPLATES).order('id', { ascending: false }).limit(limit);
   return (data ?? []).map((r) => {
     const d = r.data as Record<string, string>;
     return { id: r.id as number, template: r.template as string, to: r.to_email as string, cc: d.cc ?? '', subject: d.subject ?? '', test: d.test === 'true', status: r.status as string, sendAfter: r.send_after as string, sentAt: (r.sent_at as string) ?? null, attempts: r.attempts as number, error: (r.last_error as string) ?? null, providerId: d.provider_id || null, by: d.by ?? '' };
   });
+}
+
+/** The founding-client thank-you (template lifetime_growth): rate, savings and the program's features all come from the
+ *  agency's lifetime record (lib/lifetime.ts), so the email matches the dashboard exactly. Fields: note (the personal
+ *  paragraphs), subject (optional), sender (optional, "Anthony"). */
+export async function scheduleLifetime(f: FormData, actor: Actor, dry = false): Promise<CoreResult> {
+  const note = String(f.get('note') ?? '').replace(/\r\n/g, '\n').trim().slice(0, 4000);
+  if (!note) return no('Write a short note.');
+  if (PLACEHOLDER.test(note + str(f, 'subject', 200))) return no(`The email still has a placeholder: ${(note + str(f, 'subject', 200)).match(PLACEHOLDER)![0]}`);
+  const env = envelope(f, actor);
+  if ('error' in env) return no(env.error);
+  const t = await tenantOf(str(f, 'tenant', 64));
+  if (!t) return no('Client not found.');
+  if (t.is_sample && !env.test) return no('This is a sample client: send yourself a test instead.');
+  const admin = adminDb();
+  const { LIFETIME_COLUMNS, lifetimeOf, usd } = await import('./lifetime');
+  const { data: row } = await admin.from('tenants').select(LIFETIME_COLUMNS).eq('id', t.id).maybeSingle();
+  const life = lifetimeOf(row as never);
+  if (!life) return no(`${t.name} has no program for life yet.`);
+  const { count: members } = await admin.from('memberships').select('user_id', { count: 'exact', head: true }).eq('tenant_id', t.id);
+  if (!env.test && !dry && !members) return no('Invite the client to their dashboard first (People panel): the email’s button opens it.');
+  const { data: rec } = await admin.from('agent_records').select('data').eq('tenant_id', t.id).eq('is_current', true).maybeSingle();
+  const d = (rec?.data ?? {}) as { contactName?: string; agencyName?: string };
+  const origin = process.env.APP_ORIGIN || 'https://genovus.io';
+  const lifetime = {
+    first: String(d.contactName ?? '').split(/\s+/)[0] || '', agency: str(f, 'agency', 120) || d.agencyName || t.name,
+    program: life.name, careName: life.careName, note, dashboardUrl: `${origin}/app/${t.slug}`,
+    rate: usd(life.rateCents), list: usd(life.listCents), savedMonth: usd(life.savedMonthCents), savedYear: usd(life.savedYearCents),
+    waived: life.waivedCents ? usd(life.waivedCents) : undefined, adds: life.adds,
+    sender: str(f, 'sender', 60) || undefined, address: await (await import('./consult-followups')).postalAddress(),
+  };
+  const { lifetimeEmail } = await import('./email-lifetime');
+  const subject = str(f, 'subject', 200) || lifetimeEmail(lifetime, origin).subject;
+  return queue(t, 'lifetime_growth', { subject: env.test ? `[Test] ${subject}` : subject, lifetime: JSON.stringify(lifetime) }, env, actor, dry);
 }
