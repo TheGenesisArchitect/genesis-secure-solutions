@@ -27,7 +27,42 @@ export function faceOnFrame(face: Box | null, src: { width: number; height: numb
 
 const overlap = (a: Zone, b: Zone) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 
-export type StyleCtx = { landscape: boolean; cutout: boolean; face: Zone | null };
+export type StyleCtx = { landscape: boolean; cutout: boolean; face: Zone | null;
+  /** The speaker's head on screen over a window (hat to chin, ear to ear; fractions of the frame), the union over the
+   *  camera sizes cut in during it. Unknown (no face found) = null. */
+  headAt?: (T: number, D: number) => { top: number; left: number; right: number } | null };
+
+/** Where behind-the-speaker type can go in this window: in the headroom above the head, tucked a little behind it, or
+ *  nowhere (the head fills the top of the frame, as in a close-up), so the words are never hidden behind the head.
+ *  PrismTitle: a line ~0.14 of the frame tall (plus its kicker); EmphasisWord: as large as the headroom allows. */
+export function headroom(s: StyleDef, ctx: StyleCtx, T: number, D: number, text = ''): { y: number; size?: number; x?: number } | 'no room' | null {
+  if (!ctx.headAt) return null;
+  const head = ctx.headAt(T, D);
+  if (head == null) return null;
+  // Beside the speaker: the wider open side, the word sized to its width (a serif italic letter is ~0.5 of its size;
+  // frame height is 0.5625 of its width), between ~0.09 and 0.3 of the frame tall, centred a little above middle.
+  if (s.layer === 'front' && s.slot === 'emphasis' && s.block === 'EmphasisWord') {
+    const leftRoom = head.left - 0.05, rightRoom = 1 - head.right - 0.05;
+    const side = leftRoom >= rightRoom ? 'left' : 'right';
+    const room = Math.max(leftRoom, rightRoom);
+    const chars = Math.max(3, text.length);
+    const size = Math.min(0.3, (room / 0.5625) / (0.5 * chars));
+    if (room < 0.2 || size < 0.09) return 'no room';
+    const x = side === 'left' ? 0.03 : head.right + 0.04;
+    return { y: 0.42, size: Math.round(size * 1000) / 1000, x: Math.round(x * 1000) / 1000 };
+  }
+  if (s.layer !== 'behind') return null;
+  const top = head.top;
+  if (s.block === 'EmphasisWord') {
+    // The word's bottom tucks 15 % of its height behind the head; it may not be smaller than ~0.16 of the frame.
+    const size = Math.min(0.48, (top - 0.03) / 0.71);
+    if (size < 0.16) return 'no room';
+    return { y: top + 0.15 * size - (0.86 * size) / 2, size: Math.round(size * 1000) / 1000 };
+  }
+  const h = 0.14 + (s.slot === 'title' || s.slot === 'chapter' ? 0.05 : 0);
+  if (top - 0.03 < h * 0.85) return 'no room';
+  return { y: Math.round(Math.max(0.03 + h / 2, top - h / 2 + 0.025) * 1000) / 1000 };
+}
 
 /** Why a style can't run here, or null when it can. */
 function blocked(s: StyleDef, ctx: StyleCtx): string | null {
@@ -38,13 +73,15 @@ function blocked(s: StyleDef, ctx: StyleCtx): string | null {
 }
 
 /** The style a slot gets in a package here: the package's pick, down its fallback chain to the first that can run. */
-export function resolveStyle(slot: Slot, pkg: string, ctx: StyleCtx): { id: string | null; skipped: string[] } {
+export function resolveStyle(slot: Slot, pkg: string, ctx: StyleCtx, at?: { T: number; D: number; text?: string }): { id: string | null; skipped: string[]; place?: { y: number; size?: number; x?: number } } {
   const skipped: string[] = [];
   let id: string | null = PACKAGES[pkg]?.slots[slot] ?? null;
   for (let hops = 0; id && hops < 6; hops++) {
     const s = STYLES[id];
-    const why = s ? blocked(s, ctx) : 'unknown style';
-    if (!why) return { id, skipped };
+    let why = s ? blocked(s, ctx) : 'unknown style';
+    const room = !why && s && at ? headroom(s, ctx, at.T, s.dur, at.text) : null;
+    if (room === 'no room') why = 'no room above the head in this shot (the words would be hidden)';
+    if (!why) return { id, skipped, ...(room && room !== 'no room' ? { place: room } : {}) };
     skipped.push(`${id}: ${why}`);
     id = s?.fallback ?? null;
   }
@@ -117,12 +154,12 @@ export function styleGraphics(base: BaseGraphic[], pkgName: string, ctx: StyleCt
       continue;
     }
     if (g.kind !== 'cue') {
-      const { id, skipped } = resolveStyle(g.kind as Slot, pkg, ctx);
+      const { id, skipped, place } = resolveStyle(g.kind as Slot, pkg, ctx, { T: g.T, D: g.D, text: g.text });
       if (skipped.length) notes.push(`${g.kind} at ${g.T.toFixed(1)}s: ${skipped.join('; ')}`);
       if (!id) { if (g.kind === 'title' || g.kind === 'lower' || g.kind === 'chapter' || g.kind === 'end') item = { ...item, style: undefined }; else continue; }
       else {
         const s = STYLES[id];
-        item = { ...item, style: id, layer: s.layer, D: s.dur, sound: s.sound };
+        item = { ...item, style: id, layer: s.layer, D: s.dur, sound: s.sound, ...(place ? { place } : {}) };
         // Left-anchored type stops short of the speaker's head (the head runs wider than the eyes-to-mouth core).
         if (s.layer === 'front' && !s.cover && ctx.face && s.zone.x < 0.3 && s.zone.y < ctx.face.y + ctx.face.h * 1.6) {
           const headLeft = ctx.face.x - ctx.face.w / 3;

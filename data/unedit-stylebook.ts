@@ -73,8 +73,11 @@ export const STYLES: Record<string, StyleDef> = {
     use: 'The hook line or the thesis: words build and push, the payoff word in orange.', avoid: 'More than twice an episode; quiet, emotional moments.' },
 
   // ---- emphasis (one big word, typography as texture) ---------------------------------------------------------
-  'emphasis.serif': { slot: 'emphasis', label: 'Serif word behind the speaker', block: 'EmphasisWord', layer: 'behind', zone: { x: 0, y: 0.1, w: 1, h: 0.55 }, dur: 3, sound: null, fallback: null, landscape: true,
+  'emphasis.serif': { slot: 'emphasis', label: 'Serif word behind the speaker', block: 'EmphasisWord', layer: 'behind', zone: { x: 0, y: 0.1, w: 1, h: 0.55 }, dur: 3, sound: null, fallback: 'emphasis.side', landscape: true,
     use: 'The one word the story is about (coffee, faith, money), drifting behind the head as they say it.', avoid: 'Without the cut-out (it would cover the face, so it is left out).' },
+  // Placed per shot (lib/unedit-style.ts headroom): big on the open side of the speaker, sized to fit, never over the head.
+  'emphasis.side': { slot: 'emphasis', label: 'Serif word beside the speaker', block: 'EmphasisWord', layer: 'front', zone: { x: 0, y: 0.25, w: 0.3, h: 0.35 }, dur: 3, sound: null, fallback: null, landscape: true, cover: true,
+    use: 'The one word the story is about, set large in the open space beside the speaker as they say it.', avoid: 'Shots where the speaker fills the frame (no side has room; it is left out).' },
 
   // ---- end (the close) ----------------------------------------------------------------------------------------
   'end.classic': { slot: 'end', label: 'Classic end card', block: 'End', layer: 'front', zone: { x: 0, y: 0, w: 1, h: 1 }, cover: true, dur: 4.5, sound: 'sting', fallback: null,

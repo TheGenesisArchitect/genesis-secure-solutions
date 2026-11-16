@@ -37,6 +37,8 @@ export type Part = { k: number; segs: Seg[]; status: 'todo' | 'done'; blob?: str
 /** One graphic on the episode's (edited) timeline: T and D in seconds; `off` is where it sits in the rendered reel. */
 export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapter' | 'end' | 'cue' | 'kinetic' | 'emphasis' | 'broll' | NewsKind; text: string; sub?: string; n?: number; cue?: Record<string, unknown>; sound: string | null; off?: number;
   /** Newsroom items (lib/unedit-news.ts): the quote's attribution, a timeline's dated beats, a ticker's crawl. */ news?: NewsData;
+  /** Behind-the-speaker type placed in the shot's headroom (lib/unedit-style.ts): the text's vertical centre and, for
+   *  the emphasis word, its size (both as fractions of the frame height) and left edge (fraction of the width). */ place?: { y: number; size?: number; x?: number };
   /** B-roll: the Runway job making the illustration, then its stored clip (or why it failed). */ broll?: { prompt: string; task?: string; path?: string; failed?: string };
   /** The style book's style (data/unedit-stylebook.ts); none = the classic look. */ style?: string; layer?: 'front' | 'behind'; /** kinetic: the word drawn in the accent color */ accent?: number; /** left-anchored type: widest it may run (fraction of the frame), so it stops short of the speaker */ maxW?: number };
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */

@@ -150961,11 +150961,12 @@ function BottomScrim({ dur }) {
 }
 const ChapterLeak = () => /* @__PURE__ */ (0,jsx_runtime.jsx)(LightLeak, { durationInFrames: Math.round(FPS * 0.9), seed: 3, hueShift: 0, style: { opacity: 0.32, mixBlendMode: "screen" } });
 function Styled({ it, s }) {
+  var _a, _b, _c, _d, _e, _f;
   switch (it.style) {
     case "title.calm":
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(TitleCalm, { kicker: it.sub ?? "", headline: it.text, dur: s, maxW: it.maxW });
     case "title.prism":
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(PrismTitle, { kicker: it.sub ? it.sub.toUpperCase() : void 0, title: it.text, dur: s, size: 150, font: HF.serif, weight: 400, italic: true, y: 0.3, bow: 4 });
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(PrismTitle, { kicker: it.sub ? it.sub.toUpperCase() : void 0, title: it.text, dur: s, size: 150, font: HF.serif, weight: 400, italic: true, y: ((_a = it.place) == null ? void 0 : _a.y) ?? 0.3, bow: 4 });
     case "lower.mask":
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(LowerMaskReveal, { name: it.text, role: it.sub ?? "", dur: s, egg: true });
     case "lower.underline":
@@ -150978,7 +150979,7 @@ function Styled({ it, s }) {
     case "chapter.prism-serif":
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0,jsx_runtime.jsx)(ChapterLeak, {}),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(PrismTitle, { kicker: chapterKicker(it.n), title: it.text, dur: s, size: 150, font: HF.serif, weight: 400, italic: true, y: 0.3, bow: 4 })
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(PrismTitle, { kicker: chapterKicker(it.n), title: it.text, dur: s, size: 150, font: HF.serif, weight: 400, italic: true, y: ((_b = it.place) == null ? void 0 : _b.y) ?? 0.3, bow: 4 })
       ] });
     case "chapter.prism-wide":
       return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
@@ -150990,8 +150991,15 @@ function Styled({ it, s }) {
         /* @__PURE__ */ (0,jsx_runtime.jsx)(BottomScrim, { dur: s }),
         /* @__PURE__ */ (0,jsx_runtime.jsx)(KineticCenterBuild, { text: it.text, dur: s, size: 120, accent: it.accent, y: 0.8, font: HF.geist, weight: 800 })
       ] });
+    // Beside the speaker (placed per shot): large serif on the open side, a slow drift toward the speaker, a soft shadow
+    // so it reads on any wall.
+    case "emphasis.side": {
+      const sz = ((_c = it.place) == null ? void 0 : _c.size) ?? 0.2, x = ((_d = it.place) == null ? void 0 : _d.x) ?? 0.03, y = ((_e = it.place) == null ? void 0 : _e.y) ?? 0.42;
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", inset: 0, filter: "drop-shadow(0 6px 24px rgba(0,0,0,0.45))" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(EmphasisWord, { text: it.text, dur: s, top: (y - 0.86 * sz / 2) * 1080, left: x * 1920, size: sz * 1080, font: HF.serif, weight: 400, italic: true, upper: false, drift: x < 0.5 ? 30 : -30, color: "rgba(255,250,242,0.96)" }) });
+    }
+    // Placed: the word sits in the headroom (its top at centre minus half its 0.86 line height), sized to fit.
     case "emphasis.serif":
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(EmphasisWord, { text: it.text, dur: s, top: 150, left: -20, size: 520, font: HF.serif, weight: 400, italic: true, upper: false, drift: -140 });
+      return ((_f = it.place) == null ? void 0 : _f.size) ? /* @__PURE__ */ (0,jsx_runtime.jsx)(EmphasisWord, { text: it.text, dur: s, top: (it.place.y - 0.86 * it.place.size / 2) * 1080, left: -20, size: it.place.size * 1080, font: HF.serif, weight: 400, italic: true, upper: false, drift: -140 }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(EmphasisWord, { text: it.text, dur: s, top: 150, left: -20, size: 520, font: HF.serif, weight: 400, italic: true, upper: false, drift: -140 });
     case "end.cascade":
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(BrandClose, { tagline: it.text, url: (it.sub ?? "genovus.io").toLowerCase(), dur: s });
     case "end.mark3d":

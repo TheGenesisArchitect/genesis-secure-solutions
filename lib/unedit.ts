@@ -418,13 +418,13 @@ async function planGraphics(v: Vlog, words: Word[], edit: Edit, title: string, f
   const placed = v.sources?.length ? placeNews(v.sources, words, (s) => epTime(s, edit.keep), secs) : { items: [], notes: [] };
   for (const n of placed.items) base.push({ T: n.T, D: n.D, kind: n.kind, text: n.text, news: n.news, sound: n.sound });
   const chapters = chaps.length >= 3 ? `Chapters\n${chaps.map((x) => `${ts(x.t)} ${x.c.title}`).join('\n')}` : undefined;
-  const s = styled(base, pkg, frame, secs);
+  const s = styled(base, pkg, { ...frame, edit }, secs);
   return { ...s, notes: [...brollNote, ...placed.notes, ...(s.notes ?? [])], chapters, error: null };
 }
 
 /** Style the plan with a show package and lay out the reel (also used when the card changes the package). */
-function styled(base: BaseGraphic[], pkg: string, frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number } }, secs: number): Omit<Graphics, 'chapters' | 'error'> {
-  const ctx = { landscape: frame.size.width > frame.size.height, cutout: cutoutOn(), face: faceOnFrame(frame.face, frame.src, frame.size) };
+function styled(base: BaseGraphic[], pkg: string, frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number }; edit?: Edit | null }, secs: number): Omit<Graphics, 'chapters' | 'error'> {
+  const ctx = { landscape: frame.size.width > frame.size.height, cutout: cutoutOn(), face: faceOnFrame(frame.face, frame.src, frame.size), headAt: headAtFn(frame) };
   const { items, notes, gl } = styleGraphics(base, pkg, ctx, secs);
   const laid = layReel(items);
   const cuts = RULES.transitionAtChapters ? items.filter((g) => g.kind === 'chapter' && g.T > 1).map((g) => Math.round(g.T * 1000) / 1000) : [];
@@ -538,6 +538,27 @@ async function tightenStep(v: Vlog): Promise<string> {
   return `Tightened the edit: ${Math.round(old.secs - edit.secs)} s shorter, ${clean.drops.length} words cut, ${clean.fixes.length} words fixed.`;
 }
 
+/** The speaker's head on screen over a window of the episode (the union over the camera sizes cut in during it), from
+ *  the head box (hat to chin, ear to ear: lib/unedit-look.ts) and each shot's crop: a close-up leaves no headroom.
+ *  Undefined when there is no face or no edit. */
+function headAtFn(frame: { face: Box | null; src: { width: number; height: number }; size: { width: number; height: number }; edit?: Edit | null }) {
+  const { face, src, size, edit } = frame;
+  if (!face || !edit?.keep.length) return undefined;
+  const srcAt = (T: number) => { let off = 0; for (const k of edit.keep) { const d = k.to - k.from; if (T <= off + d) return k.from + Math.max(0, T - off); off += d; } return edit.keep[edit.keep.length - 1].to; };
+  const box = (cam: keyof typeof FILL) => {
+    const c = framing(face, src, size, FILL[cam]);
+    return { top: Math.max(0, (face.y * src.height - c.y) / c.h), left: Math.max(0, (face.x * src.width - c.x) / c.w), right: Math.min(1, ((face.x + face.w) * src.width - c.x) / c.w) };
+  };
+  return (T: number, D: number) => {
+    const bs = [T, T + D / 2, T + Math.max(0, D - 0.1)].map((t) => {
+      const s = srcAt(t);
+      const seg = edit.segs.find((x) => s >= x.from && s < x.to) ?? edit.segs[edit.segs.length - 1];
+      return box(seg?.cam ?? 'medium');
+    });
+    return { top: Math.min(...bs.map((b) => b.top)), left: Math.min(...bs.map((b) => b.left)), right: Math.max(...bs.map((b) => b.right)) };
+  };
+}
+
 /** Start a worker on every part that needs one (up to the worker limit). */
 async function startParts(id: string, origin: string): Promise<number> {
   const { data } = await dbx().from('unedit_episode_parts').select('k, status, lease_until').eq('vlog_id', id).order('k');
@@ -575,7 +596,7 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
       const size = v.episode_plan!.size;
       await settleBroll(v, g);
       const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : null);
-      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, news: x.news, media: await brollLink(x) })));
+      const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, news: x.news, media: await brollLink(x) })));
       const done = await Promise.all(todo.map(async (i) => {
         const r = g.reels![i];
         const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
@@ -653,7 +674,7 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
     if (drops.length && !fixedBefore && g.base?.length) {
       const gone = (b: BaseGraphic) => drops.some((d) => d.kind === b.kind && Math.abs(d.T - b.T) < 0.6 && d.text === b.text);
       const ep = v.episode_plan!;
-      const graphics: Graphics = { ...g, ...styled((g.base as BaseGraphic[]).filter((b) => !gone(b)), g.pkg ?? packageOf(null), { face: ep.face, src: ep.src, size: ep.size }, ep.secs), error: null,
+      const graphics: Graphics = { ...g, ...styled((g.base as BaseGraphic[]).filter((b) => !gone(b)), g.pkg ?? packageOf(null), { face: ep.face, src: ep.src, size: ep.size, edit: v.edit }, ep.secs), error: null,
         qa: { at: new Date().toISOString(), ok: false, issues: qa.issues.map(say), fixed: drops.length, cents: qa.cents } };
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', v.id);
       await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics }, episode_path: null }).eq('id', v.id);
@@ -912,7 +933,7 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       if (!ep || ep.error || !vlog.edit) throw new Error('This episode has no polished version to restyle.');
       if (!PACKAGES[t.pkg]) throw new Error('Unknown show package.');
       if (gr?.pkg === t.pkg && !gr.error) return `Already ${PACKAGES[t.pkg].label}.`;
-      const frame = { face: ep.face, src: ep.src, size: ep.size };
+      const frame = { face: ep.face, src: ep.src, size: ep.size, edit: vlog.edit };
       // An episode planned before the style book has no base plan: the director plans it fresh (words and all).
       const graphics: Graphics = gr?.base?.length
         ? { ...gr, ...styled(gr.base as BaseGraphic[], t.pkg, frame, ep.secs), error: null, qa: undefined }
@@ -934,7 +955,7 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       if (!same.length) throw new Error('That graphic is not in the plan.');
       const pick = same.reduce((a, x) => (Math.abs(x.b.T - Number(t.T)) < Math.abs(a.b.T - Number(t.T)) ? x : a));
       const base = (gr.base as BaseGraphic[]).filter((_, i) => i !== pick.i);
-      const graphics: Graphics = { ...gr, ...styled(base, gr.pkg ?? packageOf(null), { face: ep.face, src: ep.src, size: ep.size }, ep.secs), error: null, qa: undefined };
+      const graphics: Graphics = { ...gr, ...styled(base, gr.pkg ?? packageOf(null), { face: ep.face, src: ep.src, size: ep.size, edit: vlog.edit }, ep.secs), error: null, qa: undefined };
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
       await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
       await log('drop-graphic', id, { kind: t.kind, text: String(t.text).slice(0, 80), by });
