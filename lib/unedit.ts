@@ -1105,16 +1105,29 @@ Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await
   return out;
 }
 
+/** Metricool reports a YouTube video whose custom thumbnail was refused as ERROR, "published with some warnings":
+ *  the video IS live (every Unedit long-form until 2026-11-16 was marked failed this way). */
+const publishedAnyway = (detail: string | null) => /published with (some )?warnings/i.test(detail ?? '');
+/** The live link: Metricool's, else the YouTube watch link from the video id it reports. */
+const liveUrl = (s: { url: string | null; networkId: string | null }) => s.url ?? (s.networkId && /^[\w-]{11}$/.test(s.networkId) ? `https://www.youtube.com/watch?v=${s.networkId}` : null);
+
 /** Every minute: posts Metricool has published get their live link; failures are recorded. */
 export async function syncUneditPosts(): Promise<{ checked: number; posted: number }> {
   const out = { checked: 0, posted: 0 };
   if (!metricoolConfigured()) return out;
+  // Posts marked failed that actually went live (published with warnings) are looked at again for their link.
+  const { data: warned } = await dbx().from('unedit_posts').select('id, mc_post_id').eq('status', 'error').ilike('mc_error', '%published with%warnings%').limit(10);
+  for (const p of warned ?? []) {
+    const r = await postStatus(GENOVUS_BLOG_ID(), Number(p.mc_post_id));
+    if (r.ok && (r.data.status === 'PUBLISHED' || publishedAnyway(r.data.detail))) { await dbx().from('unedit_posts').update({ status: 'posted', mc_status: 'PUBLISHED', posted_url: liveUrl(r.data) }).eq('id', p.id); out.posted++; }
+  }
   const { data } = await dbx().from('unedit_posts').select('id, mc_post_id, mc_status').eq('status', 'sent').limit(25); // every in-flight state (SCHEDULED, PENDING, PUBLISHING, ...): 'sent' is never final
   for (const p of data ?? []) {
     out.checked++;
     const r = await postStatus(GENOVUS_BLOG_ID(), Number(p.mc_post_id));
     if (!r.ok) continue;
     if (r.data.status === 'PUBLISHED') { await dbx().from('unedit_posts').update({ status: 'posted', mc_status: 'PUBLISHED', posted_url: r.data.url }).eq('id', p.id); out.posted++; }
+    else if (r.data.status === 'ERROR' && publishedAnyway(r.data.detail)) { await dbx().from('unedit_posts').update({ status: 'posted', mc_status: 'PUBLISHED', posted_url: liveUrl(r.data), mc_error: r.data.detail }).eq('id', p.id); out.posted++; }
     else if (r.data.status === 'ERROR') await dbx().from('unedit_posts').update({ status: 'error', mc_status: 'ERROR', mc_error: r.data.detail ?? 'Metricool reported an error' }).eq('id', p.id);
     else if (r.data.status !== p.mc_status) await dbx().from('unedit_posts').update({ mc_status: r.data.status }).eq('id', p.id);
   }

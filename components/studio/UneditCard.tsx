@@ -193,7 +193,7 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
               <li key={p.id}>
                 <span>{NET[p.platform]}{p.platform === 'youtube' ? (p.kind === 'video' ? ' video' : ' Short') : ''}{p.clip ? ` · clip ${p.clip}` : ' · full video'}</span>
                 <span className={p.status === 'error' ? 'ue-err' : p.status === 'posted' ? 'ue-ok' : 'muted'}>
-                  {p.status === 'posted' ? (p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer">Live ↗</a> : 'Live') : p.status === 'sent' ? (p.mc_status === 'DRAFT' ? 'Draft in Metricool' : 'Scheduled') : p.status === 'error' ? `Failed: ${p.mc_error}` : p.status === 'skipped' ? `Skipped: ${p.mc_error}` : 'Queued'}
+                  {p.status === 'posted' ? (p.posted_url ? <><a href={p.posted_url} target="_blank" rel="noreferrer">Live ↗</a>{p.mc_error ? <span className="muted" title={p.mc_error}> · {/thumbnail/i.test(p.mc_error) ? 'custom thumbnail refused by YouTube' : 'posted with a warning'}</span> : null}</> : 'Live') : p.status === 'sent' ? (p.mc_status === 'DRAFT' ? 'Draft in Metricool' : 'Scheduled') : p.status === 'error' ? `Failed: ${p.mc_error}` : p.status === 'skipped' ? `Skipped: ${p.mc_error}` : 'Queued'}
                 </span>
               </li>
             ))}

@@ -52,7 +52,7 @@ export async function renderThumb(still: Buffer, text: string, look: ThumbLook, 
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-thumb-'));
   try {
     await fs.writeFile(path.join(dir, 't.png'), Buffer.from(await res.arrayBuffer()));
-    await run(String(ffmpegPath), ['-y', '-hide_banner', '-loglevel', 'error', '-i', 't.png', '-q:v', '3', 't.jpg'], { cwd: dir, timeout: 60_000 });
+    await run(String(ffmpegPath), ['-y', '-hide_banner', '-loglevel', 'error', '-i', 't.png', '-pix_fmt', 'yuvj420p', '-q:v', '3', 't.jpg'], { cwd: dir, timeout: 60_000 });
     return await fs.readFile(path.join(dir, 't.jpg'));
   } finally { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); }
 }
