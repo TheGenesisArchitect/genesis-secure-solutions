@@ -70,7 +70,8 @@ function SourceTile({ s }: { s: Pick<NrStory, 'beat' | 'source' | 'url' | 'headl
   );
 }
 
-export function Newsroom({ stories, productions, beats, voice, spentToday, dailyCap }: { stories: NrStory[]; productions: NrProduction[]; beats: Beat[]; voice: string[]; spentToday: number; dailyCap: number }) {
+export type NrBrief = { day: string; summary: string; hot: { story_id: string; why: string; angle: string; heat: number }[]; stats: { beats: number; added: number; cents: number }; created_at: string };
+export function Newsroom({ stories, productions, beats, voice, spentToday, dailyCap, brief }: { stories: NrStory[]; productions: NrProduction[]; beats: Beat[]; voice: string[]; spentToday: number; dailyCap: number; brief?: NrBrief | null }) {
   const router = useRouter();
   const [beat, setBeat] = useState<string>('all');
   const [sub, setSub] = useState<string>('All');
@@ -114,6 +115,38 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
           {busy === 'research' ? `Helix is researching ${label(researchBeat!)}… about two minutes` : `Research ${label(researchBeat!)} now`}
         </button>
       </div>
+
+      <section aria-label="Helix's morning brief" className="nr-brief">
+        <div className="nr-brief-head">
+          <span className="nr-egg" aria-hidden="true" />
+          <div>
+            <span className="nr-label">Helix · Morning brief{brief ? ` · ${new Date(`${brief.day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : ''}</span>
+            <span className="muted nr-small">{brief ? `Every beat researched on its own at 5:00 AM · ${brief.stats.added} new ${brief.stats.added === 1 ? 'story' : 'stories'} · ${(brief.stats.cents / 100).toFixed(2)} USD` : 'Every morning at 5:00 AM Helix researches every beat; the brief lands at 6:00 AM.'}</span>
+          </div>
+          <span style={{ flex: 1 }} />
+          <button type="button" className="btn small" disabled={busy !== null} onClick={() => send({ tool: 'sweep' }, 'sweep')}>{busy === 'sweep' ? 'Starting…' : 'Research every beat now'}</button>
+          <button type="button" className="btn small" disabled={busy !== null || !stories.length} onClick={() => send({ tool: 'brief' }, 'brief')}>{busy === 'brief' ? 'Helix is writing…' : brief ? 'Write it again' : 'Write the brief now'}</button>
+        </div>
+        {brief ? (
+          <>
+            {brief.summary ? <p className="nr-brief-summary">{brief.summary}</p> : null}
+            <ol className="nr-hot">
+              {brief.hot.map((h) => {
+                const s = stories.find((x) => x.id === h.story_id);
+                if (!s) return null;
+                return (
+                  <li key={h.story_id}>
+                    <button type="button" className={story?.id === s.id ? 'on' : ''} onClick={() => setPick(s.id)}>
+                      <span className="nr-heat" style={{ ['--h' as string]: h.heat }} aria-label={`Heat ${h.heat}`}>{h.heat}</span>
+                      <span className="nr-hot-body"><b>{s.headline}</b><span className="muted">{label(s.beat)}{s.sub ? ` · ${s.sub}` : ''} · {s.source}</span><span>{h.why}</span>{h.angle ? <i>Angle: {h.angle}</i> : null}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        ) : null}
+      </section>
 
       <section aria-label="The wire" className="nr-wire">
         <div className="nr-wire-head">

@@ -7,6 +7,7 @@ import { genovusTenant } from '@/lib/unedit';
 import { settings } from '@/lib/newsroom';
 import { businessToday } from '@/lib/billing';
 import { Newsroom, type NrStory, type NrProduction } from '@/components/studio/Newsroom';
+import { latestBrief } from '@/lib/newsroom-morning';
 import { UneditNav } from '@/components/studio/UneditNav';
 
 export const metadata = { title: 'Newsroom' };
@@ -31,10 +32,11 @@ export default async function NewsroomPage() {
   }));
   const productions: NrProduction[] = (prods ?? []).map((p) => ({ id: p.id as string, story_id: p.story_id as string, angle: p.angle as string, formats: (p.formats as string[]) ?? [], outputs: p.outputs as NrProduction['outputs'], next_upload: Boolean(p.next_upload), vlog_id: (p.vlog_id as string | null) ?? null, cost: Number(p.cost_cents ?? 0), created_at: p.created_at as string, faceless: (p.faceless as NrProduction['faceless']) ?? null }));
   const spent = (runs ?? []).reduce((a, r) => a + Number(r.cost_cents ?? 0), 0);
+  const brief = await latestBrief(tenant).catch(() => null);
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: 'Newsroom' }]}>
       <UneditNav active="newsroom" />
-      <Newsroom stories={list} productions={productions} beats={s.beats} voice={s.voice} spentToday={spent} dailyCap={s.daily_cap_cents} />
+      <Newsroom stories={list} productions={productions} beats={s.beats} voice={s.voice} spentToday={spent} dailyCap={s.daily_cap_cents} brief={brief} />
     </ConsoleShell>
   );
 }

@@ -59,7 +59,7 @@ async function guard(tenant: string, estimate: number): Promise<void> {
   const [{ data: spent }, { data: b }] = await Promise.all([db().rpc('studio_spent_cents'), db().from('studio_budget').select('monthly_cap_cents').maybeSingle()]);
   if (b?.monthly_cap_cents != null && Number(spent ?? 0) + estimate > b.monthly_cap_cents) throw new Error(`That would pass the monthly Studio budget ($${(Number(spent ?? 0) / 100).toFixed(2)} of $${(b.monthly_cap_cents / 100).toFixed(2)} used).`);
 }
-async function record(tenant: string, run: { kind: 'wire' | 'deeper' | 'produce'; beat?: string | null; story_id?: string | null; searches?: number; cost_cents: number; stories?: number; error?: string | null; by: string | null }) {
+export async function record(tenant: string, run: { kind: 'wire' | 'deeper' | 'produce' | 'brief'; beat?: string | null; story_id?: string | null; searches?: number; cost_cents: number; stories?: number; error?: string | null; by: string | null }) {
   await db().from('newsroom_runs').insert({ tenant_id: tenant, kind: run.kind, beat: run.beat ?? null, story_id: run.story_id ?? null, searches: run.searches ?? 0, cost_cents: Math.max(0, Math.round(run.cost_cents)), stories: run.stories ?? 0, error: run.error ?? null, created_by: run.by });
 }
 
@@ -68,7 +68,7 @@ type Cite = { url: string; title: string; cited_text: string };
 export type Out = { text: string; cites: Cite[]; seen: Map<string, string>; searches: number; cents: number };
 type Block = { type: string; text?: string; citations?: { url?: string; title?: string; cited_text?: string }[]; content?: unknown };
 
-async function ask(system: string, user: string, opts: { search?: number; maxTokens?: number } = {}): Promise<Out> {
+export async function ask(system: string, user: string, opts: { search?: number; maxTokens?: number } = {}): Promise<Out> {
   const key = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (!key) throw new Error('ANTHROPIC_API_KEY is not set on this deployment.');
   const messages: { role: 'user' | 'assistant'; content: unknown }[] = [{ role: 'user', content: user }];
@@ -180,7 +180,7 @@ const STANDARDS = [
 
 // ---- research a beat ------------------------------------------------------------------------------------------------
 type RawStory = { headline?: string; source?: string; url?: string; published_on?: string; sub?: string; why?: string; fit?: number; angles?: { title?: string; line?: string }[]; claims?: RawClaim[] };
-export async function researchBeat(tenant: string, beatId: string, by: string | null, sub?: string | null): Promise<{ added: number; skipped: number; notes: string[]; cents: number }> {
+export async function researchBeat(tenant: string, beatId: string, by: string | null, sub?: string | null, opts: { morning?: boolean } = {}): Promise<{ added: number; skipped: number; notes: string[]; cents: number }> {
   const s = await settings(tenant);
   const beat = s.beats.find((b) => b.id === beatId);
   if (!beat) throw new Error('Pick a beat.');
@@ -189,6 +189,9 @@ export async function researchBeat(tenant: string, beatId: string, by: string | 
   const system = [
     `You are the research desk of the Genovus Newsroom. Today is ${businessToday()}. The audience: founders, agency owners and small teams who want to understand what's changing and what to do about it.`,
     `Beat: ${beat.label}. ${beat.brief}${sub ? ` Focus: ${sub}.` : ''}`,
+    opts.morning
+      ? 'This is the morning sweep: find what BROKE in the last 48 hours on this beat (announcements, releases, funding, rulings, launches, data), searching each of the beat’s topics separately and going to the primary source; only if nothing broke, the most important story of the last 7 days. Rate "fit" by how much it matters to the audience TODAY.'
+      : '',
     'Search the web for the most important stories on this beat from the last 14 days (never older than 30 days). Prefer primary sources (the company, regulator, filing or researcher) and established outlets.',
     'File up to 4 stories that are not already on the desk. For each: headline (your own words, under 90 characters), source (publisher name), url (the primary article), published_on (YYYY-MM-DD), sub (one of the beat\'s topics if it has them), why (one or two sentences on why it matters to the audience), fit (0-100 for this audience), two angles {title, line} for a video, and 2 to 5 claims.',
     STANDARDS,
@@ -197,7 +200,7 @@ export async function researchBeat(tenant: string, beatId: string, by: string | 
   const user = `Already on the desk (skip these):\n${(have ?? []).map((h) => `- ${h.headline} (${h.url})`).join('\n') || '- nothing yet'}${beat.subs?.length ? `\nThis beat's topics: ${beat.subs.join(', ')}.` : ''}`;
   let o: Out | null = null;
   try {
-    o = await ask(system, user, { search: 6 });
+    o = await ask(system, user, { search: opts.morning ? 8 : 6 });
     const j = json<{ stories?: RawStory[] }>(o.text);
     const known = new Set((have ?? []).map((h) => normUrl(h.url)));
     let added = 0, skipped = 0;

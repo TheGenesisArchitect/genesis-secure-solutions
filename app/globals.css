@@ -1864,3 +1864,17 @@ button.chip{cursor:pointer}
 /* Post the full video to YouTube (components/studio/UneditCard.tsx LongForm) */
 .ue-lf{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 0;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--sunk)}
 .ue-lf a{font-weight:600}
+
+/* Helix's morning brief (components/studio/Newsroom.tsx) */
+.nr-brief{display:grid;gap:10px;margin:0 0 14px;padding:14px 16px;border-radius:var(--radius);border:1px solid var(--line);background:radial-gradient(120% 140% at 0% 0%,rgba(255,106,31,.12),transparent 55%),var(--surface)}
+.nr-brief-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.nr-brief-head>div{display:grid;gap:2px}
+.nr-egg{width:30px;height:30px;border-radius:999px;flex-shrink:0;background:radial-gradient(circle at 35% 30%,#ffd1a1,#ff7a1a 55%,#8a3600);box-shadow:0 0 18px rgba(255,122,26,.4)}
+.nr-brief-summary{margin:0;font-size:15px;line-height:1.5;max-width:90ch}
+.nr-hot{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:8px}
+.nr-hot button{width:100%;display:flex;gap:12px;align-items:flex-start;text-align:left;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--raise);color:inherit;font:inherit;cursor:pointer}
+.nr-hot button.on{border-color:var(--accent-2)}
+.nr-heat{flex-shrink:0;width:38px;height:38px;border-radius:999px;display:grid;place-items:center;font:700 13px var(--mono);color:#1b0900;background:conic-gradient(var(--accent-2) calc(var(--h)*1%),rgba(255,255,255,.12) 0)}
+.nr-hot-body{display:grid;gap:3px;font-size:13px;line-height:1.4}
+.nr-hot-body b{font-size:14px}
+.nr-hot-body i{color:var(--accent-2);font-style:normal;font-size:12.5px}

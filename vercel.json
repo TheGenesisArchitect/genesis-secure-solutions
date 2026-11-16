@@ -44,6 +44,14 @@
     {
       "path": "/api/cron/leads",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/newsroom?step=sweep",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/newsroom?step=brief",
+      "schedule": "0 11 * * *"
     }
   ],
   "functions": {
