@@ -1860,3 +1860,7 @@ button.chip{cursor:pointer}
 .nr-faceless{display:grid;gap:8px;padding:12px;border-radius:12px;border:1px dashed var(--line-2);background:var(--sunk)}
 .nr-faceless-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .nr-faceless .nr-live{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--accent-2);margin-right:6px;animation:nr-pulse 1.2s ease-in-out infinite}
+
+/* Post the full video to YouTube (components/studio/UneditCard.tsx LongForm) */
+.ue-lf{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 0;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--sunk)}
+.ue-lf a{font-weight:600}

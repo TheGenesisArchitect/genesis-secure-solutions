@@ -17,6 +17,22 @@ export type CardVlog = { id: string; title: string; stage: string; error: string
   /** Newsroom: the approved sources sheet as text (lib/unedit-news.ts format). */ sources?: string };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
+
+/** The full video to YouTube on its own (the clips go when you approve them): a two-tap post, then its live link. */
+function LongForm({ posts, ready, busy, onPost }: { posts: CardPost[]; ready: boolean; busy: boolean; onPost: () => void }) {
+  const [sure, setSure] = useState(false);
+  const p = posts.find((x) => x.platform === 'youtube' && x.kind === 'video' && ['sent', 'posted'].includes(x.status));
+  if (p?.status === 'posted') return <p className="ue-lf"><b>Live on YouTube</b> {p.posted_url ? <a href={p.posted_url} target="_blank" rel="noreferrer">Watch ↗</a> : null}{p.mc_error && /thumbnail/i.test(p.mc_error) ? <span className="muted"> · YouTube refused the custom thumbnail (verify the channel's phone number in YouTube Studio to allow custom thumbnails)</span> : null}</p>;
+  if (p) return <p className="ue-lf"><b>On its way to YouTube</b> <span className="muted">· {p.mc_status === 'DRAFT' ? 'saved as a draft in Metricool' : 'publishing; the link appears here when it is live'}</span></p>;
+  return (
+    <div className="ue-lf">
+      <button type="button" className={sure ? 'btn primary' : 'btn'} disabled={!ready || busy} onClick={() => { if (sure) { setSure(false); onPost(); } else setSure(true); }}>
+        {busy ? 'Posting…' : sure ? 'Tap again to post the full video to YouTube' : 'Post the full video to YouTube'}
+      </button>
+      <span className="muted ue-small">{ready ? 'With this title, description, chapters and the picked thumbnail. The clips post when you approve them below.' : 'Ready once the polished episode finishes.'}</span>
+    </div>
+  );
+}
 const STEPS: [string, string][] = [['uploaded', 'Uploaded'], ['transcribing', 'Transcribed'], ['finding', 'Moments found'], ['rendering', 'Clips cut'], ['review', 'Your review'], ['publishing', 'Sent']];
 const ORDER = ['uploaded', 'transcribing', 'finding', 'rendering', 'review', 'publishing', 'published'];
 const NET: Record<string, string> = { instagram: 'Instagram Reel', facebook: 'Facebook Reel', youtube: 'YouTube' };
@@ -118,6 +134,7 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
               <p className="muted ue-small">To test all three: in YouTube Studio, open the video → Test &amp; Compare → add these three files. YouTube picks the winner by watch time.</p>
             </>
           ) : null}
+          <LongForm posts={posts} ready={review && (!vlog.polish || vlog.polish.ready || Boolean(vlog.polish.error))} busy={busy === 'longform'} onPost={() => send({ tool: 'post_longform' }, 'longform')} />
           <SourcesSheet value={vlog.sources ?? ''} notes={vlog.polish?.newsNotes ?? []} disabled={busy === 'sources' || ['publishing', 'published'].includes(vlog.stage)} onSave={(sheet) => send({ tool: 'set_sources', sheet }, 'sources')} />
         </div>
       </section>

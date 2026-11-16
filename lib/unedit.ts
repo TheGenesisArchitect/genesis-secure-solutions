@@ -888,6 +888,7 @@ type Tap =
   | { tool: 'retry' }
   | { tool: 'retry_episode' }
   | { tool: 'tighten' }
+  | { tool: 'post_longform' }
   | { tool: 'set_package'; pkg: string }
   | { tool: 'set_sources'; sheet: string }
   | { tool: 'drop_graphic'; kind: string; text: string; T: number }
@@ -996,6 +997,21 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       await log('set-sources', id, { entries: entries.length, by });
       return `${entries.length} sourced ${entries.length === 1 ? 'item' : 'items'} saved${replan ? '; replanning the episode’s graphics' : '; they go on the episode when it’s polished'}.`;
     }
+    case 'post_longform': {
+      // The full episode to YouTube on its own, before (or without) the clips: the polished episode when there is one,
+      // else the recording as shot. The person's own click on the card; Approve later won't post it twice.
+      if (!['review', 'publishing', 'published'].includes(vlog.stage)) throw new Error('The full video can be posted once it is ready for review.');
+      if (vlog.episode_plan && !vlog.episode_plan.error && !vlog.episode_path) throw new Error('The polished episode is still rendering.');
+      const { data: had } = await dbx().from('unedit_posts').select('id').eq('vlog_id', id).eq('platform', 'youtube').eq('kind', 'video').in('status', ['sent', 'posted']);
+      if (had?.length) return 'The full video is already on its way to YouTube.';
+      await dbx().from('unedit_posts').delete().eq('vlog_id', id).eq('platform', 'youtube').eq('kind', 'video').in('status', ['queued', 'error', 'skipped']);
+      const ins = await dbx().from('unedit_posts').insert({ tenant_id: vlog.tenant_id, vlog_id: id, platform: 'youtube', kind: 'video', clip_id: null, title: vlog.episode.title || vlog.title || 'New video', body: vlog.episode.description ?? '', ai_label: Boolean(vlog.faceless) }).select('id').single();
+      if (ins.error || !ins.data) throw new Error(ins.error?.message ?? 'The post was not created.');
+      const r = await distribute(vlog, [ins.data.id as string]);
+      await log('post-longform', id, { ...r, by });
+      if (!r.sent) throw new Error(`It didn't go to YouTube: ${r.failed[0] ?? r.skipped[0] ?? 'unknown'}`);
+      return `The full video is going to YouTube${r.live ? ' (it goes live in about 15 minutes; the link appears here)' : ' as a draft in Metricool'}.`;
+    }
     case 'tighten': {
       // Tighten the edit (Studio Live): the dialogue editor runs again and the episode is re-cut and re-rendered.
       inReview();
@@ -1051,13 +1067,15 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       const clips = (cs ?? []) as Clip[];
       if (clips.some((c) => c.status === 'ready')) throw new Error('Approve, redo or leave out every clip first.');
       const approved = clips.filter((c) => c.status === 'approved');
+      // A long-form already sent from the card (Post the full video) isn't posted again.
+      const { data: lf } = await dbx().from('unedit_posts').select('id').eq('vlog_id', id).eq('platform', 'youtube').eq('kind', 'video').in('status', ['sent', 'posted']);
       const posts = [
         ...approved.flatMap((c) => [
           { platform: 'instagram', kind: 'reel', clip_id: c.id, title: c.title, body: c.copy.instagram || c.caption },
           { platform: 'facebook', kind: 'reel', clip_id: c.id, title: c.title, body: c.copy.facebook || c.caption },
           { platform: 'youtube', kind: 'short', clip_id: c.id, title: c.copy.youtube || c.title, body: c.caption },
         ]),
-        { platform: 'youtube', kind: 'video', clip_id: null, title: vlog.episode.title || vlog.title || 'New video', body: vlog.episode.description ?? '' },
+        ...(lf?.length ? [] : [{ platform: 'youtube', kind: 'video', clip_id: null, title: vlog.episode.title || vlog.title || 'New video', body: vlog.episode.description ?? '' }]),
       ].map((p) => ({ ...p, tenant_id: vlog.tenant_id, vlog_id: id, ai_label: false }));
       await dbx().from('unedit_posts').delete().eq('vlog_id', id).eq('status', 'queued');
       const ins = await dbx().from('unedit_posts').insert(posts);
@@ -1073,9 +1091,11 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
 // ---- distribution -----------------------------------------------------------------------------------------------
 /** Send the approved posts to Metricool on the Genovus brand. Media goes by presigned links (valid six days), which
  *  Metricool copies when it saves the post. Real footage: every AI flag is false. */
-export async function distribute(v: Vlog): Promise<{ sent: number; skipped: string[]; failed: string[]; live: boolean }> {
+export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: number; skipped: string[]; failed: string[]; live: boolean }> {
   const out = { sent: 0, skipped: [] as string[], failed: [] as string[], live: metricoolLive() };
-  const { data: rows } = await dbx().from('unedit_posts').select('*').eq('vlog_id', v.id).eq('status', 'queued');
+  let q = dbx().from('unedit_posts').select('*').eq('vlog_id', v.id).eq('status', 'queued');
+  if (only?.length) q = q.in('id', only);
+  const { data: rows } = await q;
   const posts = (rows ?? []) as UPost[];
   if (!metricoolConfigured()) {
     await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'Metricool is not connected on this deployment.' }).eq('vlog_id', v.id).eq('status', 'queued');
