@@ -150989,16 +150989,18 @@ function Lower({ item, dur, u }) {
   ] });
 }
 function Chapter({ item, dur, u }) {
+  const { width } = (0,esm.useVideoConfig)();
   const p = UneditEpisodeCues_useIn();
   const out = UneditEpisodeCues_useOut(dur);
-  const size = Math.min(92 * u, fitText({ text: item.text.toUpperCase(), withinWidth: 980 * u, fontFamily: F.display, fontWeight: 800, validateFontIsLoaded: false }).fontSize);
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 120 * u, top: 150 * u, maxWidth: 1050 * u, padding: `${34 * u}px ${46 * u}px ${30 * u}px`, borderRadius: 36 * u, ...GLASS, background: "rgba(14,16,22,.74)", opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [-60 * u, 0])}px)` }, children: [
+  const avail = item.maxW ? Math.min(1050 * u, item.maxW * width) : 1050 * u;
+  const size = Math.min(92 * u, Math.max(60 * u, fitText({ text: item.text.toUpperCase(), withinWidth: avail - 92 * u, fontFamily: F.display, fontWeight: 800, validateFontIsLoaded: false }).fontSize));
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 120 * u, top: 150 * u, maxWidth: avail, padding: `${34 * u}px ${46 * u}px ${30 * u}px`, borderRadius: 36 * u, ...GLASS, background: "rgba(14,16,22,.74)", opacity: out, transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [-60 * u, 0])}px)` }, children: [
     /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { fontFamily: F.mono, fontWeight: 500, fontSize: 30 * u, letterSpacing: "0.2em", color: GOLD }, children: [
       "CHAPTER ",
       String(item.n ?? 1).padStart(2, "0")
     ] }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10 * u, fontFamily: F.display, fontWeight: 800, fontSize: size, color: "#fff", textTransform: "uppercase", lineHeight: 1.05 }, children: item.text }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 6 * u, width: 520 * u }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Marker, { width: Math.round(520 * u), delay: 10 }) })
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 6 * u, width: Math.min(520 * u, avail - 92 * u) }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Marker, { width: Math.round(Math.min(520 * u, avail - 92 * u)), delay: 10 }) })
   ] });
 }
 function End({ item, dur, u }) {
