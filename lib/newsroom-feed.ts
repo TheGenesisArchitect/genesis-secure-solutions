@@ -172,9 +172,10 @@ export async function sweepFree(tenant: string, per = 5): Promise<{ beats: numbe
   const known = (have ?? []).map((h) => ({ url: String(h.url), w: words(String(h.headline)) }));
   const byBeat: Record<string, number> = {};
   let added = 0;
-  // At most `per` stories a beat a day, however often the wire is refreshed, and only stories with some heat.
+  // At most `per` stories a beat a day on the desk (set-aside ones free their place), however often the wire is
+  // refreshed, and only stories with some heat.
   const dayStart = new Date(Date.now() - 20 * 3600_000).toISOString();
-  const { data: today } = await db.from('newsroom_stories').select('beat').eq('tenant_id', tenant).gte('created_at', dayStart);
+  const { data: today } = await db.from('newsroom_stories').select('beat').eq('tenant_id', tenant).neq('status', 'dismissed').gte('created_at', dayStart);
   for (const beat of s.beats) {
     const clusters = await beatClusters(beat);
     const room = per - (today ?? []).filter((t) => t.beat === beat.id).length;
