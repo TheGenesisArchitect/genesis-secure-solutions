@@ -2,7 +2,7 @@
 // The Genovus Newsroom (app/console/studio/newsroom): the wire as a live ticker, then three sections: the story,
 // watch and read, and the arsenal with one Produce. Every fact shows its status and the passage it came from; live
 // research waits for approval; Produce builds only from approved facts (lib/newsroom.ts enforces it).
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FACELESS_VOICES, type FacelessState } from '@/lib/faceless-voices';
 
@@ -82,6 +82,16 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
   const [newPart, setNewPart] = useState('');
   const [tab, setTab] = useState('script');
   const [broken, setBroken] = useState<Record<string, boolean>>({});
+  // On a phone the wire is a swipe row (no ticker: there's no hover to pause it) and opening a story jumps to it.
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia('(max-width: 720px)');
+    const on = () => setNarrow(m.matches);
+    on(); m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  const storyRef = useRef<HTMLDivElement>(null);
+  const open = (id: string) => { setPick(id); if (narrow) requestAnimationFrame(() => storyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); };
 
   const beatOf = beats.find((b) => b.id === beat);
   const wire = useMemo(() => stories.filter((s) => (beat === 'all' || s.beat === beat) && (sub === 'All' || s.sub === sub)), [stories, beat, sub]);
@@ -101,7 +111,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
   const researchBeat = beat === 'all' ? beats[0]?.id : beat;
   const parts = story?.build.length ? story.build : [];
   const saveParts = (next: string[]) => story && send({ tool: 'set_build', story: story.id, parts: next }, 'parts');
-  const loop = wire.length ? [...wire, ...wire, ...(wire.length < 4 ? [...wire, ...wire] : [])] : [];
+  const loop = narrow ? wire : wire.length ? [...wire, ...wire, ...(wire.length < 4 ? [...wire, ...wire] : [])] : [];
 
   return (
     <div className="nr">
@@ -111,8 +121,8 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
           {beats.map((b) => <button type="button" key={b.id} className={beat === b.id ? 'on' : ''} onClick={() => { setBeat(b.id); setSub('All'); }}>{b.label}</button>)}
         </nav>
         <span className="muted nr-spend">Today ${(spentToday / 100).toFixed(2)} of ${(dailyCap / 100).toFixed(2)}</span>
-        <button type="button" className="btn primary" disabled={busy !== null || !researchBeat} onClick={() => send({ tool: 'research', beat: researchBeat, sub: sub !== 'All' ? sub : null }, 'research')}>
-          {busy === 'research' ? `Helix is researching ${label(researchBeat!)}… about two minutes` : `Research ${label(researchBeat!)} now`}
+        <button type="button" className="btn primary nr-research" disabled={busy !== null || !researchBeat} onClick={() => send({ tool: 'research', beat: researchBeat, sub: sub !== 'All' ? sub : null }, 'research')}>
+          {busy === 'research' ? `Researching ${label(researchBeat!)}… about two minutes` : `Research ${label(researchBeat!)} now`}
         </button>
       </div>
 
@@ -136,7 +146,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
                 if (!s) return null;
                 return (
                   <li key={h.story_id}>
-                    <button type="button" className={story?.id === s.id ? 'on' : ''} onClick={() => setPick(s.id)}>
+                    <button type="button" className={story?.id === s.id ? 'on' : ''} onClick={() => open(s.id)}>
                       <span className="nr-heat" style={{ ['--h' as string]: h.heat }} aria-label={`Heat ${h.heat}`}>{h.heat}</span>
                       <span className="nr-hot-body"><b>{s.headline}</b><span className="muted">{label(s.beat)}{s.sub ? ` · ${s.sub}` : ''} · {s.source}</span><span>{h.why}</span>{h.angle ? <i>Angle: {h.angle}</i> : null}</span>
                     </button>
@@ -156,15 +166,15 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
             <span className="nr-subs">{['All', ...beatOf.subs].map((u) => <button type="button" key={u} className={sub === u ? 'on' : ''} onClick={() => setSub(u)}>{u}</button>)}</span>
           ) : null}
           <span style={{ flex: 1 }} />
-          {wire.length ? <><span className="muted nr-small">Hover to pause · click a story to open it</span><button type="button" className="btn small" onClick={() => setPaused(!paused)}>{paused ? 'Play' : 'Pause'}</button></> : null}
+          {wire.length ? narrow ? <span className="muted nr-small">Swipe · tap a story to open it</span> : <><span className="muted nr-small">Hover to pause · click a story to open it</span><button type="button" className="btn small" onClick={() => setPaused(!paused)}>{paused ? 'Play' : 'Pause'}</button></> : null}
         </div>
         {wire.length ? (
           <div className="nr-window">
-            <div className={`nr-track${paused ? ' paused' : ''}`}>
+            <div className={`nr-track${paused ? ' paused' : ''}${narrow ? ' swipe' : ''}`}>
               {loop.map((s, i) => {
                 const dup = i >= wire.length;
                 return (
-                  <button type="button" key={`${s.id}-${i}`} className={`nr-card${story?.id === s.id ? ' on' : ''}`} onClick={() => setPick(s.id)} aria-hidden={dup || undefined} tabIndex={dup ? -1 : 0}>
+                  <button type="button" key={`${s.id}-${i}`} className={`nr-card${story?.id === s.id ? ' on' : ''}`} onClick={() => open(s.id)} aria-hidden={dup || undefined} tabIndex={dup ? -1 : 0}>
                     <span className="nr-thumb">
                       {s.thumb && !broken[s.id] ? <img src={s.thumb} alt="" referrerPolicy="no-referrer" loading="lazy" onError={() => setBroken((b) => ({ ...b, [s.id]: true }))} /> : <SourceTile s={s} />}
                       <span className="nr-badge">{STATUS_LABEL[s.status] ?? s.status}</span>
@@ -183,7 +193,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
       </section>
 
       {story ? (
-        <div className="nr-cols">
+        <div className="nr-cols" ref={storyRef}>
           <main className="nr-col" aria-label="The story">
             <span className="nr-step">1 · The story · {label(story.beat)}{story.sub ? ` · ${story.sub}` : ''}</span>
             <h1 className="nr-title">{story.headline}</h1>

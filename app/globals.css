@@ -1901,3 +1901,39 @@ button.chip{cursor:pointer}
 @media(max-width:640px){.panel.lifetime{padding:18px}.lifetime-stats b{font-size:22px}}
 /* A free-wire story waiting for its facts (components/studio/Newsroom.tsx) */
 .nr-verify{display:grid;gap:6px;padding:12px;border-radius:12px;border:1px dashed color-mix(in srgb,var(--accent) 50%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+
+/* The Newsroom on a phone (components/studio/Newsroom.tsx): beats as one swipe row, the wire as swipeable cards
+   (no ticker), full-width actions, no boxes scrolling inside the page. */
+.nr-cols{scroll-margin-top:72px}
+@media (max-width:720px){
+  .nr{gap:12px}
+  .nr-bar{gap:8px}
+  .nr-beats{flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 2px;scroll-snap-type:x proximity}
+  .nr-beats::-webkit-scrollbar{display:none}
+  .nr-beats button{flex-shrink:0;scroll-snap-align:start}
+  .nr-research{flex:1 1 100%;min-height:44px}
+  .nr-spend{order:3;width:100%;text-align:center}
+  .nr-brief{padding:12px;margin:0}
+  .nr-brief-head>span[style]{display:none}
+  .nr-brief-head .btn{flex:1 1 140px;min-height:40px}
+  .nr-brief-summary{font-size:14px}
+  .nr-hot button{padding:10px}
+  .nr-wire{padding:10px 0 12px}
+  .nr-wire-head{padding:0 12px 8px}
+  .nr-window{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;-webkit-mask-image:none;mask-image:none;scrollbar-width:none}
+  .nr-window::-webkit-scrollbar{display:none}
+  .nr-track.swipe{animation:none;padding:0 12px;gap:10px}
+  .nr-track.swipe .nr-card{width:min(78vw,300px);scroll-snap-align:center}
+  .nr-tile-head{font-size:15px}
+  .nr-cols{gap:12px}
+  .nr-col{flex-basis:100%;padding:14px;gap:12px}
+  .nr-title{font-size:24px}
+  .nr-claim{flex-direction:column;gap:6px}
+  .nr-wait{flex-wrap:wrap}
+  .nr-actions .btn{flex:1 1 calc(50% - 6px);min-height:40px}
+  .nr-reader{max-height:none;padding:14px}
+  .nr-reader-tile .nr-tile-head{font-size:19px}
+  .nr-out{max-height:60vh}
+  .nr-produce{font-size:16px;min-height:54px}
+  .nr-verify .btn{min-height:42px}
+}
