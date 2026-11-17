@@ -26,6 +26,8 @@ import type { Shot } from '@/lib/unedit-shots';
 import type { Cue } from '@/lib/unedit-cues';
 import { editList, within, type Drop, type Edit } from '@/lib/unedit-edit';
 import { cleanTake, keyterms } from '@/lib/unedit-clean';
+import { deskById, deskFor } from '@/lib/desk';
+import { checkAll } from '@/lib/agency-copy';
 import { enhanceVoice, isEnhanced } from '@/lib/unedit-voice';
 import { FILL, NEUTRAL, studioLight, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
@@ -75,6 +77,17 @@ const log = (action: string, subject: string, after: Record<string, unknown>) =>
 const spend = async (id: string, cents: number, what: string) => { const r = await dbx().rpc('unedit_spend', { p_vlog: id, p_cents: cents, p_what: what }); if (r.error) throw new Error(r.error.message); };
 const dir = (v: { id: string }) => `studio/vlogs/${v.id}`;
 
+/** The Metricool brand a desk posts from: Genovus's for the house desk, the agency's own for an agency desk (never
+ *  Genovus's). An agency without a connected brand can't post: that is an error, never a fallback. */
+export async function blogFor(tenantId: string): Promise<string> {
+  const desk = await deskById(tenantId);
+  if (desk.house) return GENOVUS_BLOG_ID();
+  const { data } = await dbx().from('tenants').select('metricool_blog_id').eq('id', tenantId).maybeSingle();
+  const blog = String(data?.metricool_blog_id ?? '').trim();
+  if (!blog) throw new Error(`${desk.name} has no Metricool brand connected, so nothing can post for it yet.`);
+  return blog;
+}
+
 export async function genovusTenant(): Promise<string> {
   const { data } = await dbx().from('tenants').select('id').eq('slug', 'genovus').single();
   if (!data) throw new Error('The genovus tenant is missing.');
@@ -84,10 +97,11 @@ export async function genovusTenant(): Promise<string> {
 // ---- registration ----------------------------------------------------------------------------------------------
 const FP = /^[0-9]+:[0-9a-f]{64}:[0-9a-f]{64}$/;
 /** Register an uploaded recording. The same file (same size and first/last 4 MB) opens the job it already has. */
-export async function registerVlog(f: { blobPath: string; blobUrl: string; bytes: number; fingerprint: string; fileName: string; by: string }): Promise<{ id: string; existing: boolean }> {
+export async function registerVlog(f: { blobPath: string; blobUrl: string; bytes: number; fingerprint: string; fileName: string; by: string; desk?: string | null }): Promise<{ id: string; existing: boolean }> {
   if (!/^studio\/vlogs\/uploads\/[A-Za-z0-9._/-]+\.(mp4|mov|m4v|webm)$/i.test(f.blobPath)) throw new Error('That upload is not an Unedit recording.');
   if (!FP.test(f.fingerprint) || !(f.bytes > 0)) throw new Error('The upload is missing its fingerprint.');
-  const tenant = await genovusTenant();
+  // The desk it was recorded for (lib/desk.ts): the Genovus desk unless an agency desk was chosen.
+  const tenant = (await deskFor(f.desk)).id;
   const { data: had } = await dbx().from('unedit_vlogs').select('id').eq('tenant_id', tenant).eq('fingerprint', f.fingerprint).maybeSingle();
   if (had) return { id: had.id as string, existing: true };
   const title = f.fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').slice(0, 120);
@@ -1188,6 +1202,7 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       return mode === 'cutout' ? 'Article cut-ins: you, cut out, beside the article. The episode renders again.' : 'Article cut-ins: you in a corner bubble. The episode renders again.';
     }
     case 'post_longform': {
+      if (!(await deskById(vlog.tenant_id)).house) throw new Error('On an agency desk the full video goes out with the campaign, after the owner approves it.');
       // The full episode to YouTube on its own, before (or without) the clips: the polished episode when there is one,
       // else the recording as shot. The person's own click on the card; Approve later won't post it twice.
       if (!['review', 'publishing', 'published'].includes(vlog.stage)) throw new Error('The full video can be posted once it is ready for review.');
@@ -1285,16 +1300,27 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
         if (mode !== 'now' && Number.isFinite(asked) && asked <= latest) return new Date(Math.max(asked, soonest)).toISOString();
         return planned[key] ?? new Date(soonest).toISOString();
       };
-      const posts = rows.map((p) => ({ ...p, tenant_id: vlog.tenant_id, vlog_id: id, ai_label: false, scheduled_at: chosen(postKey(p.clip_id, p.platform, p.kind)) }));
+      // An agency desk: the copy check decides, its own Metricool brand must be connected, and nothing goes out until the
+      // owner approves in his Approvals (decide_approval moves the posts to the calendar).
+      const desk = await deskById(vlog.tenant_id);
+      // An agency posts only to the networks connected on its own brand.
+      if (desk.profile?.networks?.length) { const nets = desk.profile.networks; for (let i = rows.length - 1; i >= 0; i--) if (!nets.includes(rows[i].platform)) rows.splice(i, 1); }
+      if (desk.profile && !rows.length) throw new Error(`${desk.name} has none of these networks connected on its Metricool brand.`);
+      if (desk.profile) {
+        const issues = checkAll(rows.flatMap((r) => [{ where: `${r.clip_id ? `clip ${approved.find((c) => c.id === r.clip_id)?.n ?? ''}` : 'full video'} ${r.platform} title`, text: r.title ?? '' }, { where: `${r.clip_id ? `clip ${approved.find((c) => c.id === r.clip_id)?.n ?? ''}` : 'full video'} ${r.platform} caption`, text: r.body ?? '' }]), desk.profile);
+        if (issues.length) throw new Error(`Fix the copy first (${desk.name}'s rules): ${issues.slice(0, 3).map((i) => `${i.where}: “${i.match}” (${i.why})`).join('; ')}${issues.length > 3 ? ` and ${issues.length - 3} more` : ''}.`);
+        await blogFor(vlog.tenant_id);
+      }
+      const posts = rows.map((p) => ({ ...p, tenant_id: vlog.tenant_id, vlog_id: id, ai_label: false, scheduled_at: chosen(postKey(p.clip_id, p.platform, p.kind)), ...(desk.profile ? { status: 'awaiting_owner' } : {}) }));
       // Ready clips are approved by this Approve (left-out clips stay out).
       const readyIds = approved.filter((c) => c.status === 'ready').map((c) => c.id);
       if (readyIds.length) await dbx().from('unedit_clips').update({ status: 'approved' }).in('id', readyIds).eq('status', 'ready');
-      await dbx().from('unedit_posts').delete().eq('vlog_id', id).eq('status', 'queued');
+      await dbx().from('unedit_posts').delete().eq('vlog_id', id).in('status', ['queued', 'awaiting_owner']);
       const ins = await dbx().from('unedit_posts').insert(posts);
       if (ins.error) throw new Error(ins.error.message);
       const postPlan = { mode, rhythm, why: rhythm && ctx && rhythm === ctx.rec.rhythm ? ctx.rec.why : null, by, at: start.toISOString() };
       // Posts due within the send window go now; the rest wait on the calendar and the cron sends each in its time.
-      const dueNow = posts.some((p) => Date.parse(p.scheduled_at) <= start.getTime() + SEND_AHEAD_MIN * 60_000);
+      const dueNow = !desk.profile && posts.some((p) => Date.parse(p.scheduled_at) <= start.getTime() + SEND_AHEAD_MIN * 60_000);
       await dbx().from('unedit_vlogs').update({ stage: dueNow ? 'publishing' : 'published', stage_at: start.toISOString(), approved_by: by, approved_at: start.toISOString(), lease_until: null, post_plan: postPlan }).eq('id', id).eq('stage', 'review');
       await log('approve', id, { clips: approved.length, posts: posts.length, mode, rhythm, by });
       // Its B-roll joins the approved library (reused by later episodes once three are approved).
@@ -1302,6 +1328,21 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       if (dueNow) await kick(origin, id);
       const first = posts.map((p) => p.scheduled_at).sort()[0];
       const firstAt = first ? new Date(first).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : '';
+      if (desk.profile) {
+        // One approval for the whole campaign in the owner's Approvals: every clip with its copy and time.
+        const nOf = new Map(approved.map((c) => [c.id, c.n]));
+        const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+        await dbx().from('approvals').update({ status: 'changes_requested', decision_note: 'Replaced by a newer version of this campaign.', decided_at: new Date().toISOString() }).eq('unedit_vlog_id', id).eq('status', 'pending');
+        const ap = await dbx().from('approvals').insert({
+          tenant_id: vlog.tenant_id, subject_kind: 'post', lane: 'required', approver: 'client', unedit_vlog_id: id,
+          title: `Your video: ${vlog.episode.title || vlog.title || 'New video'} · ${posts.length} posts`,
+          body: { kind: 'unedit', recording: vlog.episode.title || vlog.title, clips: approved.map((c) => ({ n: c.n, title: c.title, caption: c.caption })),
+            posts: posts.map((p) => ({ clip: p.clip_id ? nOf.get(p.clip_id) ?? null : null, network: p.platform, kind: p.kind, title: p.title, text: p.body, when: when(p.scheduled_at) })), first: firstAt, rhythm },
+        });
+        if (ap.error) throw new Error(ap.error.message);
+        await log('sent-to-owner', id, { posts: posts.length, desk: desk.slug, by });
+        return `Sent to ${desk.profile.host} for approval: ${posts.length} post${posts.length === 1 ? '' : 's'}${rhythm ? ` (${rhythm})` : ''}, the first ${firstAt}. Nothing goes out until he approves in his Genovus Approvals.`;
+      }
       return mode === 'now'
         ? `Approved: ${posts.length} post${posts.length === 1 ? '' : 's'} going to Metricool${metricoolLive() ? '' : ' as drafts'} now.`
         : `Approved: ${posts.length} post${posts.length === 1 ? '' : 's'} on the calendar${rhythm ? ` (${rhythm})` : ''}, the first ${firstAt}. Move or cancel any of them until it goes out.`;
@@ -1309,7 +1350,7 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
     case 'move_post': case 'cancel_post': {
       const { data: p } = await dbx().from('unedit_posts').select('id, status').eq('id', t.post).eq('vlog_id', id).maybeSingle();
       if (!p) throw new Error('Post not found.');
-      if (p.status !== 'queued') throw new Error('This post already went to Metricool, so it can no longer be changed here.');
+      if (p.status !== 'queued' && p.status !== 'awaiting_owner') throw new Error('This post already went to Metricool, so it can no longer be changed here.');
       if (t.tool === 'cancel_post') {
         const r = await dbx().from('unedit_posts').update({ status: 'cancelled' }).eq('id', p.id).eq('status', 'queued').select('id');
         if (!r.data?.length) throw new Error('This post just went out; it can no longer be cancelled.');
@@ -1380,6 +1421,12 @@ export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: numb
   if (only?.length) q = q.in('id', only);
   const { data: rows } = await q;
   const posts = (rows ?? []) as UPost[];
+  // The desk's own Metricool brand (an agency without one can't post: its due posts fail with the reason).
+  let blog = '';
+  try { blog = await blogFor(v.tenant_id); } catch (e) {
+    if (posts.length) await dbx().from('unedit_posts').update({ status: 'error', mc_error: e instanceof Error ? e.message : 'No Metricool brand.' }).in('id', posts.map((p) => p.id)).eq('status', 'queued');
+    out.failed.push(...posts.map((p) => p.id)); return out;
+  }
   if (!metricoolConfigured()) {
     if (posts.length) await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'Metricool is not connected on this deployment.' }).in('id', posts.map((p) => p.id)).eq('status', 'queued');
     out.skipped.push('Metricool is not connected');
@@ -1400,7 +1447,7 @@ export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: numb
     if (!media) { await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'No video for this post.' }).eq('id', p.id); out.skipped.push(`${p.platform} ${p.kind}`); continue; }
     const r = await schedulePost({
       // A faceless video is narrated by an AI voice: the post says so and carries the platform's AI-content flag.
-      blogId: GENOVUS_BLOG_ID(), network: p.platform, text: v.faceless && !/AI voice/i.test(p.body) ? `${p.body}
+      blogId: blog, network: p.platform, text: v.faceless && !/AI voice/i.test(p.body) ? `${p.body}
 
 Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await presigned(media, mins), when,
       vertical: p.kind !== 'video', aiGenerated: Boolean(v.faceless), format: p.platform === 'youtube' ? undefined : 'reel',
@@ -1408,7 +1455,7 @@ Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await
       thumbnailUrl: p.kind === 'video' && thumb ? thumbLink(thumb, mins) ?? await presigned(thumb, mins) : undefined,
     });
     // A timeout may still have created the post: look for it before calling it failed (never schedule twice).
-    const found = !r.ok && /timeout|aborted/i.test(r.error) ? await findPostLike(GENOVUS_BLOG_ID(), p.platform, p.body, when).catch(() => null) : null;
+    const found = !r.ok && /timeout|aborted/i.test(r.error) ? await findPostLike(blog, p.platform, p.body, when).catch(() => null) : null;
     if (r.ok || found) { await dbx().from('unedit_posts').update({ status: 'sent', mc_post_id: r.ok ? r.data.id : found!.id, mc_status: r.ok ? r.data.status : 'PENDING', mc_error: null }).eq('id', p.id); out.sent++; }
     else { await dbx().from('unedit_posts').update({ status: 'error', mc_error: r.error }).eq('id', p.id); out.failed.push(`${p.platform} ${p.kind}: ${r.error}`); }
   }
@@ -1426,15 +1473,19 @@ export async function syncUneditPosts(): Promise<{ checked: number; posted: numb
   const out = { checked: 0, posted: 0 };
   if (!metricoolConfigured()) return out;
   // Posts marked failed that actually went live (published with warnings) are looked at again for their link.
-  const { data: warned } = await dbx().from('unedit_posts').select('id, mc_post_id').eq('status', 'error').ilike('mc_error', '%published with%warnings%').limit(10);
+  const blogs = new Map<string, string>();
+  const blogOf = async (t: string) => { if (!blogs.has(t)) blogs.set(t, await blogFor(t).catch(() => '')); return blogs.get(t)!; };
+  const { data: warned } = await dbx().from('unedit_posts').select('id, mc_post_id, tenant_id').eq('status', 'error').ilike('mc_error', '%published with%warnings%').limit(10);
   for (const p of warned ?? []) {
-    const r = await postStatus(GENOVUS_BLOG_ID(), Number(p.mc_post_id));
+    const b = await blogOf(p.tenant_id as string); if (!b) continue;
+    const r = await postStatus(b, Number(p.mc_post_id));
     if (r.ok && (r.data.status === 'PUBLISHED' || publishedAnyway(r.data.detail))) { await dbx().from('unedit_posts').update({ status: 'posted', mc_status: 'PUBLISHED', posted_url: liveUrl(r.data) }).eq('id', p.id); out.posted++; }
   }
-  const { data } = await dbx().from('unedit_posts').select('id, mc_post_id, mc_status').eq('status', 'sent').limit(25); // every in-flight state (SCHEDULED, PENDING, PUBLISHING, ...): 'sent' is never final
+  const { data } = await dbx().from('unedit_posts').select('id, mc_post_id, mc_status, tenant_id').eq('status', 'sent').limit(25); // every in-flight state (SCHEDULED, PENDING, PUBLISHING, ...): 'sent' is never final
   for (const p of data ?? []) {
     out.checked++;
-    const r = await postStatus(GENOVUS_BLOG_ID(), Number(p.mc_post_id));
+    const b = await blogOf(p.tenant_id as string); if (!b) continue;
+    const r = await postStatus(b, Number(p.mc_post_id));
     if (!r.ok) continue;
     if (r.data.status === 'PUBLISHED') { await dbx().from('unedit_posts').update({ status: 'posted', mc_status: 'PUBLISHED', posted_url: r.data.url }).eq('id', p.id); out.posted++; }
     else if (r.data.status === 'ERROR' && publishedAnyway(r.data.detail)) { await dbx().from('unedit_posts').update({ status: 'posted', mc_status: 'PUBLISHED', posted_url: liveUrl(r.data), mc_error: r.data.detail }).eq('id', p.id); out.posted++; }

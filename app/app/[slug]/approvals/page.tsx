@@ -28,6 +28,28 @@ export default async function AgencyApprovals({ params, searchParams }: { params
             {pending.map((a) => (
               <li key={a.id} style={{ gap: 10 }}>
                 <div className="spread"><b>{a.title}</b><span className="row" style={{ gap: 6 }}>{a.is_sample ? <Chip kind="sample">Sample</Chip> : null}<Chip>{a.subject_kind.replace('_', ' ')}</Chip></span></div>
+                {a.body?.kind === 'unedit' ? (
+                  // A video campaign from Genovus: watch every clip, read every post and its time, then decide once.
+                  <div className="ue-owner">
+                    <div className="ue-owner-clips">
+                      {((a.body.clips ?? []) as { n: number; title: string; caption: string }[]).map((c) => (
+                        <figure key={c.n}>
+                          <video src={`/api/approvals/${a.id}/clip?n=${c.n}`} controls playsInline preload="metadata" />
+                          <figcaption><b>Clip {c.n}</b> {c.title}</figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                    <details>
+                      <summary>Every post and when it goes out ({(a.body.posts ?? []).length})</summary>
+                      <ul className="ue-owner-posts">
+                        {((a.body.posts ?? []) as { clip: number | null; network: string; kind: string; title: string; text: string; when: string }[]).map((p, i) => (
+                          <li key={i}><span className="muted">{p.when} · {p.clip ? `Clip ${p.clip}` : 'Full video'} · {({ instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube' } as Record<string, string>)[p.network] ?? p.network}</span>{p.text ? <span style={{ whiteSpace: 'pre-wrap' }}>{p.text}</span> : null}</li>
+                        ))}
+                      </ul>
+                    </details>
+                    <span className="muted" style={{ fontSize: 13 }}>Approve and they go out at these times from your own Facebook, Instagram and YouTube. Ask for changes and nothing posts; we fix it and send it back.</span>
+                  </div>
+                ) : null}
                 {typeof a.body?.asset_id === 'string' ? (
                   <a href={`/api/assets/${a.body.asset_id}`} target="_blank" rel="noreferrer" className="post-ad" data-format={a.body.format === 'story' ? 'story' : 'post'}>
                     <img src={`/api/assets/${a.body.asset_id}`} alt={typeof a.body.asset_title === 'string' ? a.body.asset_title : 'The ad for this post'} loading="lazy" />

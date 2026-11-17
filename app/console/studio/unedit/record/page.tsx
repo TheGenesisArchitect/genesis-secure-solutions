@@ -4,17 +4,18 @@
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { requireStaff } from '@/lib/session';
 import { adminDb } from '@/lib/supabase/admin';
-import { genovusTenant } from '@/lib/unedit';
+import { deskFor } from '@/lib/desk';
 import { UneditNav } from '@/components/studio/UneditNav';
 import { Recorder, type Script } from '@/components/studio/Recorder';
 
 export const metadata = { title: 'Record · UnEdit Studio' };
 export const dynamic = 'force-dynamic';
 
-export default async function RecordPage({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
+export default async function RecordPage({ searchParams }: { searchParams: Promise<{ p?: string; desk?: string }> }) {
   await requireStaff();
-  const { p } = await searchParams;
-  const tenant = await genovusTenant();
+  const { p, desk: deskSlug } = await searchParams;
+  const desk = await deskFor(deskSlug);
+  const tenant = desk.id;
   const db = adminDb();
   const { data: prods } = await db.from('newsroom_productions').select('id, story_id, angle, outputs, created_at, vlog_id').eq('tenant_id', tenant).is('vlog_id', null).order('created_at', { ascending: false }).limit(12);
   const ids = [...new Set((prods ?? []).map((x) => x.story_id as string))];
@@ -31,7 +32,7 @@ export default async function RecordPage({ searchParams }: { searchParams: Promi
   }).filter((s) => s.text);
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: 'Record' }]}>
-      <UneditNav active="record" />
+      <UneditNav active="record" desk={desk.house ? null : { slug: desk.slug, name: desk.name }} />
       <Recorder scripts={scripts} initial={p && scripts.some((s) => s.id === p) ? p : scripts[0]?.id ?? null} />
     </ConsoleShell>
   );

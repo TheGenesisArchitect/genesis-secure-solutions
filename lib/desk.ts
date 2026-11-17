@@ -20,6 +20,7 @@ export type DeskProfile = {
   rules: string[];              // the copy rules, in plain words
   competitors: string[];        // names never said
   approver: 'owner';            // posts wait for the agency owner's approval
+  networks?: string[];          // the networks connected on its Metricool brand (posts go only there)
 };
 export type Desk = { id: string; slug: string; name: string; house: boolean; profile: DeskProfile | null };
 

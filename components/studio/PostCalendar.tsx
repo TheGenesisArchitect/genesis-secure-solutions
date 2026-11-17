@@ -35,17 +35,18 @@ export function PostCalendar({ posts }: { posts: CalPost[] }) {
           <b>{d}</b>
           <ul>
             {list.map((p) => (
-              <li key={p.id} className={p.status === 'queued' ? '' : 'locked'}>
+              <li key={p.id} className={p.status === 'queued' || p.status === 'awaiting_owner' ? '' : 'locked'}>
                 <span className="t">{time(p.at)}</span>
                 <span className="w"><Link href={`/console/studio/unedit/${p.vlog}`}>{p.episode}</Link> · {p.clip ? `clip ${p.clip}` : 'full video'} · {NETS[p.platform] ?? p.platform}{p.kind === 'video' ? '' : p.kind === 'short' ? ' Short' : ' Reel'}</span>
                 <span className="s">
-                  {p.status === 'queued' ? (open === p.id ? (
+                  {p.status === 'queued' || p.status === 'awaiting_owner' ? (open === p.id ? (
                     <span className="ue-cal-edit">
                       <input type="datetime-local" className="input" aria-label="New day and time (New York)" value={when} onChange={(e) => setWhen(e.target.value)} />
                       <button type="button" className="btn small primary" disabled={busy === p.id || !fromNyInput(when)} onClick={() => send(p, { tool: 'move_post', at: fromNyInput(when) })}>Save</button>
                       <button type="button" className="btn small" onClick={() => setOpen(null)}>Close</button>
                     </span>
                   ) : (<>
+                    {p.status === 'awaiting_owner' ? <span className="chip pending">Waiting for owner</span> : null}
                     <button type="button" className="btn small" onClick={() => { setOpen(p.id); setWhen(nyInput(p.at)); }}>Move</button>
                     <button type="button" className="btn small" disabled={busy === p.id} onClick={() => send(p, { tool: 'cancel_post' })}>Cancel</button>
                   </>)) : p.status === 'posted' ? (p.url ? <a href={p.url} target="_blank" rel="noreferrer">Live ↗</a> : <span className="muted">Live</span>) : p.status === 'error' ? <span className="ue-err">Failed</span> : <span className="muted">Sent to Metricool</span>}

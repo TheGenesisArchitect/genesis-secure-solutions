@@ -19,11 +19,11 @@ export async function POST(req: Request) {
   try {
     // Before uploading: has this exact recording (by fingerprint) been uploaded already?
     if (body.tool === 'lookup') {
-      const { data } = await adminDb().from('unedit_vlogs').select('id').eq('tenant_id', await genovusTenant()).eq('fingerprint', String(body.fingerprint ?? '')).maybeSingle();
+      const { data } = await adminDb().from('unedit_vlogs').select('id').eq('tenant_id', (await deskFor(typeof body.desk === 'string' ? body.desk : null)).id).eq('fingerprint', String(body.fingerprint ?? '')).maybeSingle();
       return Response.json({ ok: true, id: data?.id ?? null });
     }
     if (body.tool === 'register') {
-      const r = await registerVlog({ blobPath: String(body.blobPath ?? ''), blobUrl: String(body.blobUrl ?? ''), bytes: Number(body.bytes), fingerprint: String(body.fingerprint ?? ''), fileName: String(body.fileName ?? 'recording'), by: auth.user.id });
+      const r = await registerVlog({ blobPath: String(body.blobPath ?? ''), blobUrl: String(body.blobUrl ?? ''), bytes: Number(body.bytes), fingerprint: String(body.fingerprint ?? ''), fileName: String(body.fileName ?? 'recording'), by: auth.user.id, desk: typeof body.desk === 'string' ? body.desk : null });
       if (!r.existing) await kick(origin, r.id);
       return Response.json({ ok: true, id: r.id, existing: r.existing, say: r.existing ? 'You already uploaded this recording; here it is.' : 'Uploaded. Unedit is on it.' });
     }

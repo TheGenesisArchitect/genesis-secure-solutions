@@ -76,21 +76,26 @@ export function planPosts(posts: PlanPost[], o: { rhythm: Rhythm; start: Date; b
   const units = [...ranks.keys()].sort((a, b) => ranks.get(a)! - ranks.get(b)! || a.localeCompare(b));
   const days = unitDays(o.rhythm, units.map((u) => ranks.get(u)!));
   const out: Record<string, string> = {};
+  // A drip or steady rhythm is about spacing: when a clip spills past its day (its hours have passed, or the day is full
+  // with other episodes), every later clip moves by the same number of days, so the gaps between clips hold.
+  let slip = 0;
   units.forEach((u, ui) => {
+    const target = days[ui] + (o.rhythm === 'flood' ? 0 : slip);
+    let firstDay = Infinity;
     for (const p of posts.filter((x) => x.unit === u).sort((a, b) => a.platform.localeCompare(b.platform) || a.kind.localeCompare(b.kind))) {
       const hours = (o.hours?.[p.platform]?.length ? o.hours[p.platform]! : DEFAULT_HOURS[p.platform]) ?? [12];
       // A flood is allowed one more post a day than the usual rhythm: that is the point of it.
       const cap = (DAILY_CAP[p.platform] ?? 2) + (o.rhythm === 'flood' ? 1 : 0);
       let placed: Date | null = null;
       // Its day first, then later days until one has room under the brand's daily rhythm and a free best hour.
-      for (let d = days[ui]; d < days[ui] + 21 && !placed; d++) {
+      for (let d = target; d < target + 21 && !placed; d++) {
         const k = dayKey(nyAt(today, d, 12));
         if ((load.get(`${p.platform}|${k}`) ?? 0) >= cap) continue;
         for (const h of hours) {
           const at = nyAt(today, d, h);
           if (at.getTime() < earliest) continue;
           if (used.has(`${p.platform}|${at.toISOString().slice(0, 13)}`)) continue;
-          placed = at; break;
+          placed = at; firstDay = Math.min(firstDay, d); break;
         }
       }
       // Every hour taken for three weeks (never in practice): right after the lead time.
@@ -99,6 +104,7 @@ export function planPosts(posts: PlanPost[], o: { rhythm: Rhythm; start: Date; b
       bump(p.platform, dayKey(placed));
       used.add(`${p.platform}|${placed.toISOString().slice(0, 13)}`);
     }
+    if (Number.isFinite(firstDay)) slip = Math.max(slip, firstDay - days[ui]);
   });
   return out;
 }

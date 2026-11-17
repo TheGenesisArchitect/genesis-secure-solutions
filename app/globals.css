@@ -1677,10 +1677,17 @@ button.chip{cursor:pointer}
 .nr{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .nr-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 /* Agency desks: one Newsroom per desk (lib/desk.ts); the switcher sits under the UnEdit tabs. */
+.ued-desk{align-self:center;margin-left:auto;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--soft);white-space:nowrap}
 .nr-desks{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 14px}
 .nr-desks a{min-height:36px;display:inline-flex;align-items:center;padding:0 14px;border-radius:999px;border:1px solid var(--line-2);color:var(--soft);font-size:13px;text-decoration:none}
 .nr-desks a.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
 .nr-desk-note{font-size:12.5px;flex:1 1 260px;min-width:0}
+.ue-owner{display:grid;gap:10px}
+.ue-owner-clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ue-owner-clips figure{margin:0;display:grid;gap:4px;font-size:13px}
+.ue-owner-clips video{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;object-fit:cover}
+.ue-owner-posts{display:grid;gap:8px;margin:8px 0 0;padding:0;list-style:none;font-size:13px}
+.ue-owner-posts li{display:grid;gap:2px;padding:8px 0;border-top:1px solid var(--line)}
 .nr-check{display:grid;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid var(--line-2);margin-bottom:10px;font-size:13px}
 .nr-check.ok b{color:var(--done)}
 .nr-check.bad{border-color:var(--warn)}

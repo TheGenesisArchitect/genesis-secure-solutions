@@ -13,7 +13,7 @@ async function fingerprint(f: Blob): Promise<string> {
 }
 
 export async function unedit(body: Record<string, unknown>) {
-  const r = await fetch('/api/studio/unedit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await fetch('/api/studio/unedit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...body, desk: typeof location !== 'undefined' ? new URLSearchParams(location.search).get('desk') ?? undefined : undefined }) });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; id?: string; say?: string; error?: string; existing?: boolean };
   if (!r.ok || !j.ok) throw new Error(j.error || 'That didn’t work.');
   return j;

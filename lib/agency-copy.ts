@@ -4,7 +4,7 @@
 // English only. Pure and deterministic (no network), so the Newsroom, UnEdit and tests share it.
 import type { DeskProfile } from '@/lib/desk';
 
-export type Issue = { rule: 'price' | 'coverage' | 'line' | 'competitor' | 'corporate' | 'tragedy' | 'language'; text: string; match: string; why: string };
+export type Issue = { rule: 'price' | 'coverage' | 'line' | 'competitor' | 'corporate' | 'tragedy' | 'language' | 'brand'; text: string; match: string; why: string };
 
 const PRICE = /\$\s?\d|\b\d{1,3}\s?(%|percent)\b|\bsav(e|es|ed|ing|ings)\b|\bcheap(er|est)?\b|\bdiscounts?\b|\bquotes?\b|\bpremiums?\b|\b(low|lower|lowest|best|great) rates?\b|\bfree quote|\bper month\b|\ba month\b/i;
 const COVERAGE = /\b(is|are|you're|you are|it's|it is|they're|will be|get|gets|be|stay|stays)\s+(fully\s+|always\s+)?covered\b|\b(policy|insurance|coverage|plan|geico)\s+(covers|will cover|pays|will pay|protects you from)\b|\bcovers? (hail|flood|theft|damage|it|that|you)\b|\bguarantee[sd]?\b|\bfully protected\b|\bwon'?t (cost|pay) (you )?a (dime|thing)\b/i;
@@ -25,6 +25,7 @@ export function checkCopy(text: string, p: DeskProfile): Issue[] {
   hit('corporate', CORPORATE, `Speak as the local office (${p.carrier_line}), never for the carrier’s corporate office.`);
   hit('tragedy', TRAGEDY, 'No loss or tragedy as a hook; never name anyone involved.');
   hit('language', SPANISH, 'English only.');
+  hit('brand', /\bgenovus\b/i,`This posts as ${p.agency}: never mention Genovus.`);
   const rival = p.competitors.find((c) => new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t));
   if (rival) out.push({ rule: 'competitor', text: t.slice(0, 240), match: rival, why: 'Never name or compare other insurers or agencies.' });
   return out;

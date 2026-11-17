@@ -39,7 +39,7 @@ export default async function NewsroomPage({ searchParams }: { searchParams: Pro
   const brief = await latestBrief(tenant).catch(() => null);
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: 'Newsroom' }]}>
-      <UneditNav active="newsroom" />
+      <UneditNav active="newsroom" desk={desk.house ? null : { slug: desk.slug, name: desk.name }} />
       {desks.length > 1 ? (
         <nav className="nr-desks" aria-label="Desk">
           <span className="muted">Desk</span>

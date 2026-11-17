@@ -83,6 +83,7 @@ try {
   check('speaking for corporate', rule('GEICO guarantees the fastest claims.').includes('corporate'));
   check('no tragedy hooks', rule('After the deadly crash on I-185, check your coverage.').includes('tragedy'));
   check('English only', rule('Llámenos hoy, hablamos español.').includes('language'));
+  check('never mentions Genovus on his posts', rule('Book a free Genovus strategy session.').includes('brand'));
   const clean = 'Storms are expected tonight. Park away from trees, take photos of your car and home, and if you are not sure what your policy includes, call us and we’ll review it with you. I’m Mendez, your local GEICO office in Columbus. A GEICO Exclusive Agency.';
   check('clean, helpful copy passes', checkCopy(clean, p).length === 0, checkCopy(clean, p));
   check('the writer’s rules end on his sign-off', copyRules(p).includes(p.sign_off));
