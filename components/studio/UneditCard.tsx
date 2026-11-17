@@ -5,9 +5,10 @@
 // it, each post's state in Metricool, with its live link when it's up.
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { PostPlan, type Planning } from '@/components/studio/PostPlan';
 
 export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
-export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null };
+export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null; scheduled_at?: string | null };
 /** The show packages (data/unedit-stylebook.ts), as the card offers them. */
 const SHOW_PACKAGES = [
   { id: 'signature', label: 'Genovus Signature (mix)' }, { id: 'keynote', label: 'Keynote' }, { id: 'documentary', label: 'Documentary' },
@@ -35,7 +36,8 @@ function LongForm({ posts, ready, busy, onPost }: { posts: CardPost[]; ready: bo
 }
 const STEPS: [string, string][] = [['uploaded', 'Uploaded'], ['transcribing', 'Transcribed'], ['finding', 'Moments found'], ['rendering', 'Clips cut'], ['review', 'Your review'], ['publishing', 'Sent']];
 const ORDER = ['uploaded', 'transcribing', 'finding', 'rendering', 'review', 'publishing', 'published'];
-const NET: Record<string, string> = { instagram: 'Instagram Reel', facebook: 'Facebook Reel', youtube: 'YouTube' };
+const NET: Record<string, string> = { instagram: 'Instagram Reel', facebook: 'Facebook Reel', youtube: 'YouTube', tiktok: 'TikTok', twitter: 'X', linkedin: 'LinkedIn' };
+const calAt = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 // "0:15 tightened: 1 camera command, 6 uh/um, 3 long pauses, walk-off"
 function polishSummary(p: { removed: number; cuts: Record<string, number> }): string {
   const n = (k: string, one: string, many = `${one}s`) => (p.cuts[k] ? `${p.cuts[k]} ${p.cuts[k] === 1 ? one : many}` : '');
@@ -44,7 +46,7 @@ function polishSummary(p: { removed: number; cuts: Record<string, number> }): st
 }
 const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
-export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: CardClip[]; posts: CardPost[] }) {
+export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; clips: CardClip[]; posts: CardPost[]; planning?: Planning }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [redo, setRedo] = useState<string | null>(null);
@@ -68,9 +70,6 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
 
   const at = ORDER.indexOf(vlog.stage);
   const review = vlog.stage === 'review';
-  const approved = clips.filter((c) => c.status === 'approved');
-  const open = clips.filter((c) => c.status === 'ready');
-  const postCount = approved.length * 3 + 1;
 
   return (
     <div className="ue-card">
@@ -192,15 +191,9 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
         </section>
       ) : null}
 
-      {review ? (
-        <div className="ue-approve">
-          <div>
-            <b>{open.length ? <>Nothing is posted yet: {open.map((c, i) => <span key={c.id}>{i ? ', ' : ''}<a href={`#clip-${c.n}`}>clip {c.n}</a></span>)} still {open.length === 1 ? 'needs' : 'need'} Approve, Redo or Leave out</> : `Ready to post: ${approved.length} clip${approved.length === 1 ? '' : 's'} and the full video`}</b>
-            <span className="muted">Approving a clip only marks it ready. Nothing goes to Metricool until you press the button here.</span>
-            <span className="muted">{vlog.live ? 'Posts are scheduled to publish about 15 minutes after you approve.' : 'Posts land in Metricool as drafts; nothing goes public until it is published there.'}</span>
-          </div>
-          <button className="btn primary" type="button" disabled={Boolean(open.length) || busy === 'approve'} onClick={() => send({ tool: 'approve' }, 'approve')}>{open.length ? 'Decide every clip first' : `Approve ${postCount} post${postCount === 1 ? '' : 's'}`}</button>
-        </div>
+      {review && planning ? (
+        <PostPlan clips={clips} longform={!posts.some((p) => p.platform === 'youtube' && p.kind === 'video' && ['sent', 'posted'].includes(p.status))} planning={planning} live={vlog.live} busy={busy === 'approve'}
+          onApprove={(b) => send({ tool: 'approve', ...b }, 'approve')} />
       ) : null}
 
       {posts.length ? (
@@ -211,7 +204,7 @@ export function UneditCard({ vlog, clips, posts }: { vlog: CardVlog; clips: Card
               <li key={p.id}>
                 <span>{NET[p.platform]}{p.platform === 'youtube' ? (p.kind === 'video' ? ' video' : ' Short') : ''}{p.clip ? ` · clip ${p.clip}` : ' · full video'}</span>
                 <span className={p.status === 'error' ? 'ue-err' : p.status === 'posted' ? 'ue-ok' : 'muted'}>
-                  {p.status === 'posted' ? (p.posted_url ? <><a href={p.posted_url} target="_blank" rel="noreferrer">Live ↗</a>{p.mc_error ? <span className="muted" title={p.mc_error}> · {/thumbnail/i.test(p.mc_error) ? 'custom thumbnail refused by YouTube' : 'posted with a warning'}</span> : null}</> : 'Live') : p.status === 'sent' ? (p.mc_status === 'DRAFT' ? 'Draft in Metricool' : 'Scheduled') : p.status === 'error' ? `Failed: ${p.mc_error}` : p.status === 'skipped' ? `Skipped: ${p.mc_error}` : 'Queued'}
+                  {p.status === 'posted' ? (p.posted_url ? <><a href={p.posted_url} target="_blank" rel="noreferrer">Live ↗</a>{p.mc_error ? <span className="muted" title={p.mc_error}> · {/thumbnail/i.test(p.mc_error) ? 'custom thumbnail refused by YouTube' : 'posted with a warning'}</span> : null}</> : 'Live') : p.status === 'sent' ? (p.mc_status === 'DRAFT' ? 'Draft in Metricool' : 'Scheduled') : p.status === 'error' ? `Failed: ${p.mc_error}` : p.status === 'skipped' ? `Skipped: ${p.mc_error}` : p.status === 'cancelled' ? 'Taken off the calendar' : p.scheduled_at ? `On the calendar · ${calAt(p.scheduled_at)}` : 'Queued'}
                 </span>
               </li>
             ))}

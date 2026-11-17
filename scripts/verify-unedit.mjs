@@ -2,7 +2,7 @@
 // the door on desktop and phone; a real browser upload (fingerprint, multipart, register); the steps running on
 // their own (probe → audio → transcript → clip plan → 9:16 renders with word captions → thumbnails); the copy rules
 // and length limits dropping bad picks; the same file opening the same job; a redo with a note; the campaign's
-// Approve creating Metricool drafts with no AI label; a failed step showing its error with Retry; the budget refusal.
+// Approve (Post now) creating Metricool drafts with no AI label; a failed step showing its error with Retry; the budget refusal.
 //   node --env-file=.env.local scripts/verify-unedit.mjs [outDir]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -134,7 +134,7 @@ for (let i = 0; i < 40 && !(await ev('location.pathname')).startsWith('/console'
 try {
   // ---- The door ----
   await go('/console/studio');
-  check(await ev(`!!document.querySelector('a.ue-entry[href="/console/studio/unedit"]')`), 'the Studio home leads with the Unedit entry');
+  check(await ev(`!!document.querySelector('a.ue-entry[href^="/console/studio/unedit"]')`), 'the Studio home leads with the Unedit entry');
   await go('/console/studio/unedit');
   check(await ev(`!!document.querySelector('.ue-rec') && /Choose a video/.test(document.body.innerText)`), 'the door shows the record button and Choose a video');
   check(await ev(`document.querySelector('input[capture]')?.getAttribute('accept') === 'video/*'`), 'the record button opens the camera (capture input)');
@@ -212,7 +212,7 @@ try {
   // ---- The card ----
   await go(`/console/studio/unedit/${id}`);
   check(await ev(`document.querySelectorAll('.ue-clip').length === 2 && document.querySelectorAll('.ue-thumb').length === 3`), 'the card shows both clips and three thumbnails');
-  check(await ev(`(() => { const b = [...document.querySelectorAll('.ue-approve button')][0]; return b && b.disabled && /Approve 7 posts|Approve 1 post/.test(b.textContent) || (b && b.disabled); })()`), 'the campaign Approve waits until every clip is decided');
+  check(await waitFor(() => ev(`(() => { const b = document.querySelector('.ue-approve .btn.primary'); return Boolean(b && !b.disabled && /^Approve 7 posts · /.test(b.textContent)); })()`), 20000), 'one Approve covers both ready clips and the full video (Helix plan by default)');
   await shot('unedit-card-review', 1440, 1700);
   await shot('unedit-card-phone', 390, 1800, true);
   check(await ev('document.documentElement.scrollWidth <= innerWidth'), 'the card has no sideways scroll on a phone');
@@ -232,10 +232,9 @@ try {
   check(ctl.aiCalls.includes('redo') && Number(c2b.start_s) !== Number(before.s) && c2b.status === 'ready' && c2b.title === 'The follow-up', `the redo picked a new moment from the note (${c2b.title}, ${Number(c2b.start_s).toFixed(1)}–${Number(c2b.end_s).toFixed(1)} s)`);
 
   // ---- Approve and send ----
-  check((await api({ id, tool: 'approve' })).ok === false, 'the campaign cannot be approved with clips undecided');
   check((await api({ id, tool: 'approve_clip', clip: c1.id })).ok && (await api({ id, tool: 'approve_clip', clip: c2.id })).ok, 'both clips approved');
   check((await api({ id, tool: 'pick_thumb', index: 1 })).ok, 'thumbnail B picked');
-  const ap = await api({ id, tool: 'approve' });
+  const ap = await api({ id, tool: 'approve', mode: 'now' });
   check(ap.ok && /7 posts/.test(ap.say), `the campaign is approved (${ap.say ?? ap.error})`);
   await waitFor(async () => (await vlogRow(id)).stage === 'published', 120000);
   const posts = must(await db.from('unedit_posts').select('*').eq('vlog_id', id), 'posts');
@@ -244,7 +243,9 @@ try {
   check(bodies.length === 7 && bodies.every((b) => b.draft === true && b.autoPublish === false), 'every post is a Metricool draft (nothing publishes)');
   check(bodies.filter((b) => b.instagramData).every((b) => b.instagramData.isAiGenerated === false && b.instagramData.type === 'REEL') && bodies.filter((b) => b.youtubeData).every((b) => b.youtubeData.isAiGeneratedContent === false), 'no AI label on real footage (Instagram and YouTube flags false)');
   const yv = bodies.find((b) => b.youtubeData?.type === 'video');
-  check(Boolean(yv) && yv.youtubeData.title === plan.episode.title && /thumbs\/2-orange\.jpg/.test(yv.videoThumbnailUrl ?? ''), 'the full video goes to YouTube with its title and the picked thumbnail');
+  // The thumbnail goes by a signed link that answers HEAD (lib/unedit-share.ts); the picked file is named inside it.
+  const thumbOf = (u) => { const m = /\/api\/studio\/unedit\/thumb\/([A-Za-z0-9_-]+)\./.exec(u ?? ''); try { return m ? JSON.parse(Buffer.from(m[1], 'base64url').toString()).p : u; } catch { return u; } };
+  check(Boolean(yv) && yv.youtubeData.title === plan.episode.title && /thumbs\/2-orange\.jpg$/.test(thumbOf(yv.videoThumbnailUrl) ?? ''), 'the full video goes to YouTube with its title and the picked thumbnail');
   check(bodies.filter((b) => b.youtubeData?.type === 'short').length === 2 && bodies.filter((b) => b.facebookData?.type === 'REEL').length === 2, 'each clip goes as a YouTube Short and a Facebook Reel');
   const mediaUrl = bodies.find((b) => b.instagramData)?.media?.[0];
   const ranged = mediaUrl ? await fetch(mediaUrl, { headers: { range: 'bytes=0-99' } }) : null;

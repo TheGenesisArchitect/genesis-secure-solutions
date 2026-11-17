@@ -42,6 +42,7 @@ import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
+import { campaignPosts, nowTimes, planPosts, postKey, recommend, LEAD_MIN, type Busy, type PostMode, type Rhythm, type Signal } from '@/lib/unedit-plan';
 
 export type Stage = 'uploaded' | 'transcribing' | 'finding' | 'rendering' | 'review' | 'publishing' | 'published' | 'failed';
 export type Vlog = {
@@ -56,13 +57,15 @@ export type Vlog = {
   sources?: NewsEntry[] | null;
   /** Faceless (lib/unedit-faceless.ts): narration over the moving background; null on a real take. */
   faceless?: { voice: string; production: string; length: string } | null;
+  /** How the campaign was approved (lib/unedit-plan.ts); null before Approve. */
+  post_plan?: { mode: PostMode; rhythm: Rhythm | null; why: string | null; by: string; at: string } | null;
 };
 export type Clip = {
   id: string; vlog_id: string; n: number; start_s: number; end_s: number; hook_start_s: number | null; hook_end_s: number | null;
   title: string; caption: string; copy: { instagram?: string; facebook?: string; youtube?: string }; features: Record<string, unknown>;
   blob_path: string | null; secs: number | null; status: 'rendering' | 'ready' | 'approved' | 'redo' | 'dropped' | 'failed'; note: string | null; error: string | null;
 };
-export type UPost = { id: string; vlog_id: string; clip_id: string | null; platform: 'instagram' | 'facebook' | 'youtube'; kind: 'reel' | 'short' | 'video'; title: string | null; body: string; status: string; mc_post_id: number | null; mc_status: string | null; mc_error: string | null; posted_url: string | null };
+export type UPost = { id: string; vlog_id: string; clip_id: string | null; platform: 'instagram' | 'facebook' | 'youtube'; kind: 'reel' | 'short' | 'video'; title: string | null; body: string; status: string; mc_post_id: number | null; mc_status: string | null; mc_error: string | null; posted_url: string | null; scheduled_at: string | null };
 
 // 'transcribing' is runnable too: a step cut off mid-transcription starts again from the recording.
 const RUNNABLE: Stage[] = ['uploaded', 'transcribing', 'finding', 'rendering', 'publishing'];
@@ -274,6 +277,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
     if (v.stage === 'publishing') {
       const r = await distribute(v);
       if (r.left) { await release(v.id); return `Sent ${r.sent} post${r.sent === 1 ? '' : 's'}; ${r.left} more in the next step.`; }
+      // Posts later on the calendar wait: the cron brings the recording back here when the next one is due.
       await advance(v.id, 'published');
       await log('published', subject, r);
       return `Sent ${r.sent} post${r.sent === 1 ? '' : 's'} to Metricool${r.live ? '' : ' as drafts'}${r.failed.length ? `; ${r.failed.length} failed` : ''}.`;
@@ -1061,7 +1065,9 @@ type Tap =
   | { tool: 'set_package'; pkg: string }
   | { tool: 'set_sources'; sheet: string }
   | { tool: 'drop_graphic'; kind: string; text: string; T: number }
-  | { tool: 'approve' };
+  | { tool: 'approve'; mode?: PostMode; rhythm?: Rhythm; at?: Record<string, string> }
+  | { tool: 'move_post'; post: string; at: string }
+  | { tool: 'cancel_post'; post: string };
 
 /** One tap on the card, by a staff member. Returns what changed, in words. */
 export async function tap(id: string, t: Tap, by: string, origin: string): Promise<string> {
@@ -1249,52 +1255,143 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       inReview();
       const { data: cs } = await dbx().from('unedit_clips').select('*').eq('vlog_id', id).order('n');
       const clips = (cs ?? []) as Clip[];
-      if (clips.some((c) => c.status === 'ready')) throw new Error('Approve, redo or leave out every clip first.');
-      const approved = clips.filter((c) => c.status === 'approved');
+      // One Approve: every clip that is ready goes, unless it was left out. A clip still being cut (or redone) holds
+      // the Approve, so nobody approves a clip they haven't seen.
+      const busyClip = clips.find((c) => c.status === 'rendering' || c.status === 'redo');
+      if (busyClip) throw new Error(`Clip ${busyClip.n} is still being cut. Approve once it is ready.`);
+      const approved = clips.filter((c) => c.status === 'approved' || c.status === 'ready');
       // A long-form already sent from the card (Post the full video) isn't posted again.
       const { data: lf } = await dbx().from('unedit_posts').select('id').eq('vlog_id', id).eq('platform', 'youtube').eq('kind', 'video').in('status', ['sent', 'posted']);
-      const posts = [
+      const longform = !lf?.length;
+      const rows = [
         ...approved.flatMap((c) => [
           { platform: 'instagram', kind: 'reel', clip_id: c.id, title: c.title, body: c.copy.instagram || c.caption },
           { platform: 'facebook', kind: 'reel', clip_id: c.id, title: c.title, body: c.copy.facebook || c.caption },
           { platform: 'youtube', kind: 'short', clip_id: c.id, title: c.copy.youtube || c.title, body: c.caption },
         ]),
-        ...(lf?.length ? [] : [{ platform: 'youtube', kind: 'video', clip_id: null, title: vlog.episode.title || vlog.title || 'New video', body: vlog.episode.description ?? '' }]),
-      ].map((p) => ({ ...p, tenant_id: vlog.tenant_id, vlog_id: id, ai_label: false }));
+        ...(longform ? [{ platform: 'youtube', kind: 'video', clip_id: null as string | null, title: vlog.episode.title || vlog.title || 'New video', body: vlog.episode.description ?? '' }] : []),
+      ];
+      // When each post goes out: now, Helix's plan, or the user's calendar (the times the card showed, checked here).
+      const mode: PostMode = t.mode === 'plan' || t.mode === 'calendar' ? t.mode : 'now';
+      const start = new Date();
+      const plan = campaignPosts(approved.map((c) => ({ id: c.id, n: c.n, hook: c.hook_start_s != null })), longform);
+      const ctx = mode === 'now' ? null : await postingContext(vlog);
+      const rhythm: Rhythm | null = !ctx ? null : (t.rhythm && ['flood', 'drip', 'steady'].includes(t.rhythm) ? t.rhythm : ctx.rec.rhythm);
+      const planned = !ctx || !rhythm ? nowTimes(plan, start) : planPosts(plan, { rhythm, start, busy: ctx.busy });
+      const soonest = start.getTime() + 5 * 60_000, latest = start.getTime() + 60 * 86_400_000;
+      const chosen = (key: string) => {
+        const asked = t.at?.[key] ? Date.parse(t.at[key]) : NaN;
+        // A time from the card is used when it is real and within 60 days; one already past goes out right away.
+        if (mode !== 'now' && Number.isFinite(asked) && asked <= latest) return new Date(Math.max(asked, soonest)).toISOString();
+        return planned[key] ?? new Date(soonest).toISOString();
+      };
+      const posts = rows.map((p) => ({ ...p, tenant_id: vlog.tenant_id, vlog_id: id, ai_label: false, scheduled_at: chosen(postKey(p.clip_id, p.platform, p.kind)) }));
+      // Ready clips are approved by this Approve (left-out clips stay out).
+      const readyIds = approved.filter((c) => c.status === 'ready').map((c) => c.id);
+      if (readyIds.length) await dbx().from('unedit_clips').update({ status: 'approved' }).in('id', readyIds).eq('status', 'ready');
       await dbx().from('unedit_posts').delete().eq('vlog_id', id).eq('status', 'queued');
       const ins = await dbx().from('unedit_posts').insert(posts);
       if (ins.error) throw new Error(ins.error.message);
-      await dbx().from('unedit_vlogs').update({ stage: 'publishing', stage_at: new Date().toISOString(), approved_by: by, approved_at: new Date().toISOString(), lease_until: null }).eq('id', id).eq('stage', 'review');
-      await log('approve', id, { clips: approved.length, posts: posts.length, by });
+      const postPlan = { mode, rhythm, why: rhythm && ctx && rhythm === ctx.rec.rhythm ? ctx.rec.why : null, by, at: start.toISOString() };
+      // Posts due within the send window go now; the rest wait on the calendar and the cron sends each in its time.
+      const dueNow = posts.some((p) => Date.parse(p.scheduled_at) <= start.getTime() + SEND_AHEAD_MIN * 60_000);
+      await dbx().from('unedit_vlogs').update({ stage: dueNow ? 'publishing' : 'published', stage_at: start.toISOString(), approved_by: by, approved_at: start.toISOString(), lease_until: null, post_plan: postPlan }).eq('id', id).eq('stage', 'review');
+      await log('approve', id, { clips: approved.length, posts: posts.length, mode, rhythm, by });
       // Its B-roll joins the approved library (reused by later episodes once three are approved).
       await dbx().from('unedit_assets').update({ approved: true }).eq('vlog_id', id);
-      await kick(origin, id);
-      return `Approved: ${posts.length} post${posts.length === 1 ? '' : 's'} going to Metricool${metricoolLive() ? '' : ' as drafts'}.`;
+      if (dueNow) await kick(origin, id);
+      const first = posts.map((p) => p.scheduled_at).sort()[0];
+      const firstAt = first ? new Date(first).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : '';
+      return mode === 'now'
+        ? `Approved: ${posts.length} post${posts.length === 1 ? '' : 's'} going to Metricool${metricoolLive() ? '' : ' as drafts'} now.`
+        : `Approved: ${posts.length} post${posts.length === 1 ? '' : 's'} on the calendar${rhythm ? ` (${rhythm})` : ''}, the first ${firstAt}. Move or cancel any of them until it goes out.`;
+    }
+    case 'move_post': case 'cancel_post': {
+      const { data: p } = await dbx().from('unedit_posts').select('id, status').eq('id', t.post).eq('vlog_id', id).maybeSingle();
+      if (!p) throw new Error('Post not found.');
+      if (p.status !== 'queued') throw new Error('This post already went to Metricool, so it can no longer be changed here.');
+      if (t.tool === 'cancel_post') {
+        const r = await dbx().from('unedit_posts').update({ status: 'cancelled' }).eq('id', p.id).eq('status', 'queued').select('id');
+        if (!r.data?.length) throw new Error('This post just went out; it can no longer be cancelled.');
+        await log('cancel-post', id, { post: p.id, by });
+        return 'Post taken off the calendar.';
+      }
+      const at = Date.parse(t.at);
+      if (!Number.isFinite(at)) throw new Error('Pick a day and time.');
+      if (at < Date.now() + LEAD_MIN * 60_000) throw new Error(`Pick a time at least ${LEAD_MIN} minutes from now.`);
+      if (at > Date.now() + 60 * 86_400_000) throw new Error('Pick a time within the next 60 days.');
+      const r = await dbx().from('unedit_posts').update({ scheduled_at: new Date(at).toISOString() }).eq('id', p.id).eq('status', 'queued').select('id');
+      if (!r.data?.length) throw new Error('This post just went out; it can no longer be moved.');
+      await log('move-post', id, { post: p.id, at: new Date(at).toISOString(), by });
+      return `Moved to ${new Date(at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })}.`;
     }
   }
 }
 
 // ---- distribution -----------------------------------------------------------------------------------------------
+/** A calendar post is sent to Metricool this long before its time (Metricool copies the video when it is sent). */
+export const SEND_AHEAD_MIN = 45;
+
+/** What Helix plans from: the story behind the recording (the Newsroom production it was cut against, the story's
+ *  heat in the latest morning brief that ranked it, and its age) and the brand's other posts already on the calendar. */
+export async function postingContext(v: { id: string; tenant_id: string }): Promise<{ signal: Signal; rec: { rhythm: Rhythm; why: string }; busy: Busy[] }> {
+  const signal: Signal = { headline: null, heat: null, ageH: null, fit: null };
+  const { data: prod } = await dbx().from('newsroom_productions').select('story_id').eq('vlog_id', v.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (prod?.story_id) {
+    const { data: st } = await dbx().from('newsroom_stories').select('headline, fit, published_on, created_at').eq('id', prod.story_id).maybeSingle();
+    if (st) {
+      signal.headline = st.headline; signal.fit = st.fit ?? null;
+      const born = Date.parse(st.published_on ? `${st.published_on}T12:00:00Z` : st.created_at);
+      if (Number.isFinite(born)) signal.ageH = Math.max(0, (Date.now() - born) / 3_600_000);
+    }
+    const { data: briefs } = await dbx().from('newsroom_briefs').select('hot').eq('tenant_id', v.tenant_id).order('day', { ascending: false }).limit(7);
+    for (const b of briefs ?? []) {
+      const h = ((b.hot ?? []) as { story_id?: string; heat?: number }[]).find((x) => x.story_id === prod.story_id && typeof x.heat === 'number');
+      if (h) { signal.heat = Math.round(h.heat!); break; }
+    }
+  }
+  const { data: later } = await dbx().from('unedit_posts').select('platform, scheduled_at').eq('tenant_id', v.tenant_id).neq('vlog_id', v.id).in('status', ['queued', 'sent']).gte('scheduled_at', new Date().toISOString()).limit(500);
+  const busy: Busy[] = (later ?? []).filter((p) => p.scheduled_at).map((p) => ({ platform: p.platform, at: p.scheduled_at as string }));
+  return { signal, rec: recommend(signal), busy };
+}
+
+/** Every minute (studio cron): recordings whose calendar posts are coming due go back to 'publishing', where the
+ *  cron's next kick sends just those posts. The lease on each recording keeps two sends from overlapping. */
+export async function sweepDuePosts(): Promise<number> {
+  const dueBy = new Date(Date.now() + SEND_AHEAD_MIN * 60_000).toISOString();
+  const { data } = await dbx().from('unedit_posts').select('vlog_id').eq('status', 'queued').lte('scheduled_at', dueBy).limit(200);
+  const ids = [...new Set((data ?? []).map((p) => p.vlog_id as string))];
+  let n = 0;
+  for (const id of ids) {
+    const r = await dbx().from('unedit_vlogs').update({ stage: 'publishing', stage_at: new Date().toISOString() }).eq('id', id).eq('stage', 'published').select('id');
+    if (r.data?.length) { await log('due', id, {}); n++; }
+  }
+  return n;
+}
 /** Send the approved posts to Metricool on the Genovus brand. Media goes by presigned links (valid six days), which
  *  Metricool copies when it saves the post. Real footage: every AI flag is false. */
 export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: number; skipped: string[]; failed: string[]; live: boolean; left: number }> {
   const out = { sent: 0, skipped: [] as string[], failed: [] as string[], live: metricoolLive(), left: 0 };
   const t0 = Date.now();
-  let q = dbx().from('unedit_posts').select('*').eq('vlog_id', v.id).eq('status', 'queued');
+  // Only the posts that are due: on the calendar, a post goes to Metricool SEND_AHEAD_MIN before its time (the rest
+  // wait, and can be moved or cancelled until then). No time means as soon as possible.
+  const dueBy = new Date(Date.now() + SEND_AHEAD_MIN * 60_000).toISOString();
+  let q = dbx().from('unedit_posts').select('*').eq('vlog_id', v.id).eq('status', 'queued').or(`scheduled_at.is.null,scheduled_at.lte.${dueBy}`).order('scheduled_at', { ascending: true, nullsFirst: true });
   if (only?.length) q = q.in('id', only);
   const { data: rows } = await q;
   const posts = (rows ?? []) as UPost[];
   if (!metricoolConfigured()) {
-    await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'Metricool is not connected on this deployment.' }).eq('vlog_id', v.id).eq('status', 'queued');
+    if (posts.length) await dbx().from('unedit_posts').update({ status: 'skipped', mc_error: 'Metricool is not connected on this deployment.' }).in('id', posts.map((p) => p.id)).eq('status', 'queued');
     out.skipped.push('Metricool is not connected');
     return out;
   }
   const { data: cs } = await dbx().from('unedit_clips').select('id, blob_path').eq('vlog_id', v.id);
   const clipPath = new Map((cs ?? []).map((c) => [c.id as string, c.blob_path as string | null]));
   const thumb = v.thumbs?.[v.thumb_pick ?? 0]?.blob;
-  const when = new Date(Date.now() + 15 * 60_000);
   const mins = 6 * 24 * 60;
   for (const p of posts) {
+    // Its calendar time, or a few minutes from now when that has passed (Metricool needs time to copy the video).
+    const when = new Date(Math.max(p.scheduled_at ? Date.parse(p.scheduled_at) : 0, Date.now() + 10 * 60_000));
     // Each post can take minutes (Metricool copies the video): stop starting new ones before the function's limit and
     // leave the rest queued for the next step.
     if (Date.now() - t0 > 9 * 60_000) { out.left++; continue; }

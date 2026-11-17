@@ -9,7 +9,7 @@ import { presigned } from '@/lib/unedit-media';
 import { metricoolLive } from '@/lib/metricool';
 import { UneditCard, type CardClip, type CardPost, type CardVlog } from '@/components/studio/UneditCard';
 import { UneditNav } from '@/components/studio/UneditNav';
-import type { Clip, UPost, Vlog } from '@/lib/unedit';
+import { postingContext, type Clip, type UPost, type Vlog } from '@/lib/unedit';
 
 export const metadata = { title: 'Unedit' };
 export const dynamic = 'force-dynamic';
@@ -50,12 +50,15 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
   };
   const cardClips: CardClip[] = clips.map((c, i) => ({ id: c.id, n: c.n, title: c.title, caption: c.caption, secs: c.secs != null ? Number(c.secs) : null, hook: c.hook_start_s != null, status: c.status, note: c.note, error: c.error, src: clipSrc[i], copy: c.copy ?? {}, start: Number(c.start_s), end: Number(c.end_s) }));
   const nOf = new Map(clips.map((c) => [c.id, c.n]));
-  const posts: CardPost[] = ((ps ?? []) as UPost[]).map((p) => ({ id: p.id, platform: p.platform, kind: p.kind, title: p.title, clip: p.clip_id ? nOf.get(p.clip_id) ?? null : null, status: p.status, mc_status: p.mc_status, mc_error: p.mc_error, posted_url: p.posted_url }));
+  const posts: CardPost[] = ((ps ?? []) as UPost[]).map((p) => ({ id: p.id, platform: p.platform, kind: p.kind, title: p.title, clip: p.clip_id ? nOf.get(p.clip_id) ?? null : null, status: p.status, mc_status: p.mc_status, mc_error: p.mc_error, posted_url: p.posted_url, scheduled_at: p.scheduled_at }));
+  // In review: what Helix plans the posting from (the story's heat and age, the brand's other scheduled posts).
+  const ctx = vlog.stage === 'review' ? await postingContext(vlog).catch(() => null) : null;
+  const planning = ctx ? { rec: ctx.rec, busy: ctx.busy, heat: ctx.signal.heat, headline: ctx.signal.headline } : undefined;
   const title = vlog.episode?.title || vlog.title || 'Recording';
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: title }]}>
       <UneditNav active="recordings" recording={{ id: vlog.id, view: 'review', title }} />
-      <UneditCard vlog={card} clips={cardClips} posts={posts} />
+      <UneditCard vlog={card} clips={cardClips} posts={posts} planning={planning} />
     </ConsoleShell>
   );
 }

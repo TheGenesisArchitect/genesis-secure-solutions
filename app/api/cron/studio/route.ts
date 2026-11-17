@@ -9,7 +9,7 @@ import { pollRunwayJobs } from '@/lib/studio-runway';
 import { advanceAllProductions } from '@/lib/studio-production';
 import { kickFinish } from '@/lib/studio-finish';
 import { syncPosted } from '@/lib/studio-distribute';
-import { kick, runnable, syncUneditPosts } from '@/lib/unedit';
+import { kick, runnable, sweepDuePosts, syncUneditPosts } from '@/lib/unedit';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
 import libraryCatalog from '@/data/screen-library.json';
@@ -50,9 +50,11 @@ export async function GET(req: Request) {
   const posted = await syncPosted().catch((e) => ({ error: e instanceof Error ? e.message : 'metricool sync failed' }));
   // Unedit: recordings with a step to take are kicked (each step claims its own lease), and their posts synced.
   const unedit = await (async () => {
+    // Calendar posts coming due bring their recording back to 'publishing' (kicked just below).
+    const due = await sweepDuePosts();
     const ids = await runnable();
     for (const id of ids) await kick(new URL(req.url).origin, id);
-    return { kicked: ids.length, posts: await syncUneditPosts() };
+    return { due, kicked: ids.length, posts: await syncUneditPosts() };
   })().catch((e) => ({ error: e instanceof Error ? e.message : 'unedit failed' }));
   if (!generationConfigured()) return Response.json({ sync, runway, production, posted, unedit, skipped: 'no Gemini key' });
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.
