@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { genovusTenant, kick, registerVlog, tap } from '@/lib/unedit';
 import { calendarText, cancelPosts, movePosts } from '@/lib/unedit-helix';
+import { deskFor } from '@/lib/desk';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -30,8 +31,10 @@ export async function POST(req: Request) {
     if (typeof body.tool === 'string' && body.tool.startsWith('voice_')) {
       const a = (body.args && typeof body.args === 'object' ? body.args : {}) as Record<string, string>;
       const current = typeof body.current === 'string' && /^[0-9a-f-]{36}$/.test(body.current) ? body.current : undefined;
-      const sel = { recording: a.recording, clip: a.clip, platform: a.platform, day: a.day, current };
-      if (body.tool === 'voice_posting_calendar') return Response.json(await calendarText());
+      const onScreen = current ? (await adminDb().from('unedit_vlogs').select('tenant_id').eq('id', current).maybeSingle()).data?.tenant_id as string | undefined : undefined;
+      const tenant = onScreen ?? (await deskFor(typeof body.desk === 'string' ? body.desk : null)).id;
+      const sel = { recording: a.recording, clip: a.clip, platform: a.platform, day: a.day, current, tenant };
+      if (body.tool === 'voice_posting_calendar') return Response.json(await calendarText(tenant));
       if (body.tool === 'voice_move_posts') return Response.json(await movePosts({ ...sel, date: a.date, time: a.time }, auth.user.id));
       if (body.tool === 'voice_cancel_posts') return Response.json(await cancelPosts(sel, auth.user.id));
       return Response.json({ ok: false, error: 'Unknown voice command.' }, { status: 400 });

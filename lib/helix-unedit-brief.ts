@@ -17,7 +17,10 @@ const cut = (s: string | null | undefined, n: number) => { const t = String(s ??
 type V = { id: string; tenant_id: string; title: string | null; episode: { title?: string } | null; stage: string; stage_at: string; error: string | null; cost_cents: number; created_at: string };
 type P = { vlog_id: string; clip_id: string | null; platform: string; kind: string; status: string; scheduled_at: string | null; mc_error: string | null; posted_url: string | null; updated_at?: string };
 
-export async function uneditBriefLines(db: SupabaseClient): Promise<string[]> {
+/** One desk's section (lib/desk.ts); the house desk when none is given. Nothing from another desk is read. */
+export async function uneditBriefLines(db: SupabaseClient, desk?: { id: string; name: string; house: boolean }): Promise<string[]> {
+  const d = desk ?? (await (await import('@/lib/desk')).deskFor());
+  const tenant = d.id;
   const now = Date.now();
   const since30 = new Date(now - 30 * 86_400_000).toISOString();
   const since14 = new Date(now - 14 * 86_400_000).toISOString();
@@ -25,13 +28,13 @@ export async function uneditBriefLines(db: SupabaseClient): Promise<string[]> {
   const month = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
   const monthStart = new Date(Date.UTC(month.getFullYear(), month.getMonth(), 1)).toISOString();
   const [vlogs, clips, upcoming, recent, briefs, prods, runs, tenants] = await Promise.all([
-    db.from('unedit_vlogs').select('id, tenant_id, title, episode, stage, stage_at, error, cost_cents, created_at').gte('created_at', since30).order('created_at', { ascending: false }).limit(60),
-    db.from('unedit_clips').select('vlog_id, status').gte('created_at', since30),
-    db.from('unedit_posts').select('vlog_id, clip_id, platform, kind, status, scheduled_at, mc_error, posted_url').eq('status', 'queued').gte('scheduled_at', new Date(now).toISOString()).lte('scheduled_at', in7).order('scheduled_at').limit(40),
-    db.from('unedit_posts').select('vlog_id, clip_id, platform, kind, status, scheduled_at, mc_error, posted_url').in('status', ['sent', 'posted', 'error']).gte('created_at', since14).limit(200),
-    db.from('newsroom_briefs').select('tenant_id, day, summary, hot').order('day', { ascending: false }).limit(1),
-    db.from('newsroom_productions').select('story_id, angle, vlog_id, next_upload, created_at').is('vlog_id', null).gte('created_at', since30).order('created_at', { ascending: false }).limit(8),
-    db.from('newsroom_runs').select('cost_cents').gte('created_at', monthStart),
+    db.from('unedit_vlogs').select('id, tenant_id, title, episode, stage, stage_at, error, cost_cents, created_at').eq('tenant_id', tenant).gte('created_at', since30).order('created_at', { ascending: false }).limit(60),
+    db.from('unedit_clips').select('vlog_id, status').eq('tenant_id', tenant).gte('created_at', since30),
+    db.from('unedit_posts').select('vlog_id, clip_id, platform, kind, status, scheduled_at, mc_error, posted_url').eq('tenant_id', tenant).eq('status', 'queued').gte('scheduled_at', new Date(now).toISOString()).lte('scheduled_at', in7).order('scheduled_at').limit(40),
+    db.from('unedit_posts').select('vlog_id, clip_id, platform, kind, status, scheduled_at, mc_error, posted_url').eq('tenant_id', tenant).in('status', ['sent', 'posted', 'error']).gte('created_at', since14).limit(200),
+    db.from('newsroom_briefs').select('tenant_id, day, summary, hot').eq('tenant_id', tenant).order('day', { ascending: false }).limit(1),
+    db.from('newsroom_productions').select('story_id, angle, vlog_id, next_upload, created_at').eq('tenant_id', tenant).is('vlog_id', null).gte('created_at', since30).order('created_at', { ascending: false }).limit(8),
+    db.from('newsroom_runs').select('cost_cents').eq('tenant_id', tenant).gte('created_at', monthStart),
     db.from('tenants').select('id, name, slug'),
   ]);
   if (vlogs.error && briefs.error) return ['UNEDIT STUDIO & NEWSROOM', '- not readable for this viewer.'];
@@ -62,7 +65,7 @@ export async function uneditBriefLines(db: SupabaseClient): Promise<string[]> {
   const errs = R.filter((p) => p.status === 'error');
 
   const lines: string[] = [
-    'UNEDIT STUDIO & NEWSROOM (record one take → captioned clips, the full video and thumbnails → one Approve → posts on the calendar; the Newsroom finds the stories to record)',
+    `UNEDIT STUDIO & NEWSROOM · ${d.house ? 'GENOVUS DESK' : `${d.name.toUpperCase()} DESK (agency; pass desk "${d.name}" to look up or act on it)`} (record one take → captioned clips, the full video and thumbnails → one Approve → posts on the calendar; the Newsroom finds the stories to record)`,
     `- Recordings, last 30 days: ${V.length} (${tally(V.map((v) => (v.error ? 'stopped' : v.stage))) || 'none'}).`,
     `- Waiting for review (one Approve sends them): ${review.map((v) => { const cs = clipsOf(v.id); return `"${nameOf.get(v.id)}"${whose(v.tenant_id)} (${cs.filter((c) => c.status === 'ready' || c.status === 'approved').length} clips ready${cs.some((c) => c.status === 'rendering' || c.status === 'redo') ? ', some still cutting' : ''}, waiting ${ago(v.stage_at)})`; }).join('; ') || 'none'}.${tests ? ` Plus ${tests} test recording${tests === 1 ? '' : 's'} marked do-not-approve (ignore them).` : ''}`,
     `- Stuck or stopped: ${stuck.map((v) => `"${nameOf.get(v.id)}" (${v.error ? `stopped: ${cut(v.error, 120)}` : `${v.stage} for ${ago(v.stage_at)}`})`).join('; ') || 'none'}.`,
@@ -77,7 +80,7 @@ export async function uneditBriefLines(db: SupabaseClient): Promise<string[]> {
   const storyIds = [...new Set([...hot.map((h) => h.story_id!), ...((prods.data ?? []) as { story_id: string }[]).map((p) => p.story_id)])];
   const { data: stories } = storyIds.length ? await db.from('newsroom_stories').select('id, headline, source, status, beat').in('id', storyIds) : { data: [] };
   const S = new Map(((stories ?? []) as { id: string; headline: string; source: string; status: string; beat: string }[]).map((s) => [s.id, s]));
-  const { count: onDesk } = await db.from('newsroom_stories').select('id', { count: 'exact', head: true }).eq('status', 'new');
+  const { count: onDesk } = await db.from('newsroom_stories').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant).eq('status', 'new');
   lines.push(
     `- Newsroom morning brief${b ? ` (${b.day})` : ''}: ${b ? cut(b.summary, 500) || 'no summary' : 'none yet'}`,
     `- Hot topics to record (heat 0-100): ${hot.map((h) => { const s = S.get(h.story_id!); return `${s ? `"${cut(s.headline, 110)}" (${s.source}, ${s.status === 'in_studio' ? 'already in the Studio' : s.status})` : 'a story'}${typeof h.heat === 'number' ? ` heat ${Math.round(h.heat)}` : ''}${h.why ? `: ${cut(h.why, 140)}` : ''}${h.angle ? ` Angle: ${cut(h.angle, 120)}` : ''}`; }).join(' | ') || 'none'}.`,

@@ -1676,6 +1676,15 @@ button.chip{cursor:pointer}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .nr{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .nr-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+/* Agency desks: one Newsroom per desk (lib/desk.ts); the switcher sits under the UnEdit tabs. */
+.nr-desks{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 14px}
+.nr-desks a{min-height:36px;display:inline-flex;align-items:center;padding:0 14px;border-radius:999px;border:1px solid var(--line-2);color:var(--soft);font-size:13px;text-decoration:none}
+.nr-desks a.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+.nr-desk-note{font-size:12.5px;flex:1 1 260px;min-width:0}
+.nr-check{display:grid;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid var(--line-2);margin-bottom:10px;font-size:13px}
+.nr-check.ok b{color:var(--done)}
+.nr-check.bad{border-color:var(--warn)}
+.nr-check.bad b{color:var(--warn)}
 .nr-beats,.nr-subs{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 420px}
 .nr-subs{flex:0 1 auto}
 .nr-beats button,.nr-subs button,.nr-tabs button{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:var(--soft);font:inherit;font-size:13px;cursor:pointer}

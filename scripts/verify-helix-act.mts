@@ -17,7 +17,7 @@ const must = <T,>(r: { data: T; error: { message: string } | null }) => { if (r.
 const tenant = must(await db.from('tenants').select('id').eq('slug', 'genovus').single()).id as string;
 const admin = must(await db.from('staff').select('user_id').eq('role', 'admin').limit(1).single()).user_id as string;
 const tag = randomBytes(3).toString('hex');
-const ctx = { by: admin, origin: 'http://localhost:1' };
+const ctx = { by: admin, origin: 'http://localhost:1', desk: { id: tenant, slug: 'genovus' } };
 let s1 = '', vlog = '', vlog2 = '';
 
 try {

@@ -7,6 +7,8 @@ import { after } from 'next/server';
 import { db } from '@/lib/supabase/server';
 import { confirmStudioAction, studioAction } from '@/lib/helix-studio-act';
 import { runStoryLookup } from '@/lib/helix-stories';
+import { deskById, deskFor, deskNamed } from '@/lib/desk';
+import { adminDb } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
@@ -18,20 +20,25 @@ export async function POST(req: Request) {
   const supabase = await db();
   const [{ data: staff }, { data: auth }] = await Promise.all([supabase.rpc('is_staff'), supabase.auth.getUser()]);
   if (!staff || !auth.user) return Response.json({ ok: false, error: 'Only the Genovus team can use the Studio.' }, { status: 403 });
-  const b = (await req.json().catch(() => ({}))) as { tool?: string; args?: Record<string, unknown>; current?: string; currentStory?: string };
+  const b = (await req.json().catch(() => ({}))) as { tool?: string; args?: Record<string, unknown>; current?: string; currentStory?: string; desk?: string };
   const args = b.args && typeof b.args === 'object' && !Array.isArray(b.args) ? Object.fromEntries(Object.entries(b.args).slice(0, 24)) : {};
-  const ctx = { by: auth.user.id, origin: new URL(req.url).origin, current: UUID.test(String(b.current)) ? b.current : undefined, currentStory: UUID.test(String(b.currentStory)) ? b.currentStory : undefined };
+  const current = UUID.test(String(b.current)) ? b.current : undefined;
+  // The desk: the one named ("on JAVA's desk"), else the recording on screen's, else the page's (?desk=), else the house.
+  const onScreen = current ? (await adminDb().from('unedit_vlogs').select('tenant_id').eq('id', current).maybeSingle()).data?.tenant_id as string | undefined : undefined;
+  const d = args.desk ? await deskNamed(args.desk) : onScreen ? await deskById(onScreen) : await deskFor(b.desk);
+  const ctx = { by: auth.user.id, origin: new URL(req.url).origin, current, currentStory: UUID.test(String(b.currentStory)) ? b.currentStory : undefined, desk: { id: d.id, slug: d.slug } };
+  const q = d.house ? '' : `?desk=${d.slug}`;
   if (b.tool === 'open_studio') {
     const place = String(args.place ?? '');
-    if (PLACES[place]) return Response.json({ ok: true, href: PLACES[place], anchor: place === 'calendar' ? 'Posting calendar' : undefined });
+    if (PLACES[place]) return Response.json({ ok: true, href: PLACES[place] + q, anchor: place === 'calendar' ? 'Posting calendar' : undefined });
     if (place === 'story') {
-      const r = await runStoryLookup(supabase, 'story_card', { headline: args.name }) as { found?: boolean; story?: { headline: string }; id?: string; closest?: string[] };
+      const r = await runStoryLookup(supabase, 'story_card', { headline: args.name }, d.id) as { found?: boolean; story?: { headline: string }; id?: string; closest?: string[] };
       if (!r.found) return Response.json({ ok: false, error: `No story matches “${args.name ?? ''}”.`, closest: r.closest });
-      const { data } = await supabase.from('newsroom_stories').select('id').eq('headline', r.story!.headline).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return Response.json({ ok: true, href: '/console/studio/unedit/newsroom', story: data?.id, headline: r.story!.headline });
+      const { data } = await supabase.from('newsroom_stories').select('id').eq('tenant_id', d.id).eq('headline', r.story!.headline).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      return Response.json({ ok: true, href: '/console/studio/unedit/newsroom' + q, story: data?.id, headline: r.story!.headline });
     }
     if (place === 'recording') {
-      const r = await studioActionLookup(String(args.name ?? ''), ctx.current);
+      const r = await studioActionLookup(String(args.name ?? ''), d.id, ctx.current);
       return Response.json(r);
     }
     return Response.json({ ok: false, error: 'Say newsroom, recordings, record, music, calendar, a story or a recording.' });
@@ -43,8 +50,8 @@ export async function POST(req: Request) {
 }
 
 // A recording's page by title words (the same matching as the actions).
-async function studioActionLookup(name: string, current?: string) {
-  const { data } = await (await db()).from('unedit_vlogs').select('id, title, episode').order('created_at', { ascending: false }).limit(200);
+async function studioActionLookup(name: string, tenant: string, current?: string) {
+  const { data } = await (await db()).from('unedit_vlogs').select('id, title, episode').eq('tenant_id', tenant).order('created_at', { ascending: false }).limit(200);
   const { best } = await import('@/lib/helix-stories');
   const label = (v: { title: string | null; episode: { title?: string } | null }) => v.episode?.title || v.title || 'Recording';
   if (/^(this|this one)?$/i.test(name.trim()) && current) return { ok: true, href: `/console/studio/unedit/${current}` };

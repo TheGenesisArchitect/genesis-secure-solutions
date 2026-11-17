@@ -15,6 +15,7 @@ import { OPENABLE, PROSPECT_LOOKUPS, prospectLookupBlock, prospectLookupRules, r
 import { STORY_LOOKUPS, runStoryLookup, storyLookupRules } from '@/lib/helix-stories';
 import { studioActRules } from '@/lib/helix-act-tools';
 import { studioAction } from '@/lib/helix-studio-act';
+import { deskNamed } from '@/lib/desk';
 import { after } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -47,13 +48,14 @@ export async function POST(req: Request) {
       const isAct = tool === 'studio_action';
       if (!isStory && !isAct && !(PROSPECT_LOOKUPS as readonly string[]).includes(tool)) break;
       let result: Record<string, unknown>;
+      const desk = await deskNamed(asked.lookup.args.desk);
       if (isAct) {
-        const r = await studioAction(String(asked.lookup.args.action ?? ''), asked.lookup.args, { by: viewer.userId, origin: new URL(req.url).origin });
+        const r = await studioAction(String(asked.lookup.args.action ?? ''), asked.lookup.args, { by: viewer.userId, origin: new URL(req.url).origin, desk: { id: desk.id, slug: desk.slug } });
         const { background, token, ...rest } = r;
         if (background) after(async () => { try { console.info(`[helix-act] ${await background()}`); } catch (e) { console.error(`[helix-act] ${e instanceof Error ? e.message : e}`); } });
         if (r.needs_yes && token) studioAct = { summary: r.summary ?? '', token };
         result = r.needs_yes ? { ...rest, say: `A Yes card is on screen: ${r.summary} Tell them to tap Yes to do it (nothing has changed yet).` } : rest;
-      } else result = isStory ? await runStoryLookup(supabase, tool, asked.lookup.args) : await runProspectLookup(supabase, tool, asked.lookup.args);
+      } else result = isStory ? { desk: desk.name, ...(await runStoryLookup(supabase, tool, asked.lookup.args, desk.id)) } : await runProspectLookup(supabase, tool, asked.lookup.args);
       ask += prospectLookupBlock(tool, asked.lookup.args, result);
       asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
     }

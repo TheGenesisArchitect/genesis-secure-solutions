@@ -7,6 +7,7 @@
 import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
 import { linkPreview, settings, type Beat } from '@/lib/newsroom';
+import type { DeskProfile } from '@/lib/desk';
 
 const UA = 'GenovusNewsroom/1.0 (+https://genovus.io)';
 const gnews = (q: string, days = 2) => `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:${days}d`)}&hl=en-US&gl=US&ceid=US:en`;
@@ -133,13 +134,69 @@ const STOP = new Set('a an the and or of to in on for with by at from is are was
 const words = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9$% ]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)));
 const similar = (a: Set<string>, b: Set<string>) => { let n = 0; for (const w of a) if (b.has(w)) n++; return n / Math.max(1, Math.min(a.size, b.size)); };
 
-/** A beat's clusters from today's feeds, hottest first. */
-export async function beatClusters(beat: Beat): Promise<{ title: string; link: string; source: string; at: number; summary: string; outlets: string[]; heat: number; image?: string }[]> {
-  const feeds = FEEDS[beat.id] ?? [{ name: 'Google News', url: gnews(beat.label) }];
-  const all = (await Promise.all(feeds.map(read))).flat();
-  const since = Date.now() - (WINDOW_DAYS[beat.id] ?? 2) * 86_400_000;
-  const must = MUST[beat.id];
-  const fresh = all.filter((i) => (!i.at || i.at >= since) && !JUNK_SOURCE.test(i.source) && !JUNK_SOURCE.test(i.link) && !JUNK_TITLE.test(i.title) && (!must || must.test(beat.id === 'blacktech' ? i.title : `${i.title} ${i.summary}`)) && (beat.id !== 'blacktech' || BLACK.test(`${i.title} ${i.summary}`)));
+/** An agency beat's sources: its own news searches (Google and Bing News), plus the National Weather Service's
+ *  active alerts for the agency's area when the beat asks for them. */
+function agencyFeeds(beat: Beat): { name: string; url: string }[] {
+  const days = beat.window_days ?? 2;
+  return [...(beat.nws ? [{ name: 'National Weather Service', url: 'nws:columbus-ga' }] : []), ...(beat.queries ?? []).flatMap((q) => [{ name: 'Google News', url: gnews(q, days) }, { name: 'Bing News', url: bnews(q) }])];
+}
+/** The National Weather Service's active alerts around Columbus, GA (public API; honest user agent). */
+async function nwsAlerts(): Promise<Item[]> {
+  try {
+    const r = await fetch('https://api.weather.gov/alerts/active?point=32.4610,-84.9877', { headers: { 'user-agent': UA, accept: 'application/geo+json' }, signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { features?: { properties?: { headline?: string; event?: string; description?: string; sent?: string; areaDesc?: string } }[] };
+    return (j.features ?? []).map((f) => f.properties ?? {}).filter((p) => p.headline || p.event).map((p) => ({
+      title: (p.headline || p.event || '').replace(/\s+by NWS.*$/i, '').slice(0, 140), link: 'https://forecast.weather.gov/MapClick.php?lat=32.461&lon=-84.9877', source: 'National Weather Service',
+      at: Date.parse(p.sent ?? '') || Date.now(), summary: `${p.event ?? ''} for ${p.areaDesc ?? 'the area'}. ${(p.description ?? '').replace(/\s+/g, ' ')}`.slice(0, 400),
+    }));
+  } catch { return []; }
+}
+/** Losses are never a hook on an agency desk: crime, deaths and injuries stay off the wire. */
+const TRAGEDY = /\b(killed|kills|dies|died|dead|death|deaths|deadly|fatal|fatality|fatalities|shooting|shot|gunfire|murder|homicide|stabb(ed|ing)|body found|manslaughter|suicide|overdose|arrest(ed|s)?|charged|sentenced|indicted|missing|police|suspect|crime|investigation|injured|injuries|crash victim|wreck|burning|burned|destroyed|lost everything|house fire|apartment fire|speaker|mayor)\b/i;
+const SEASON: [number[], RegExp][] = [
+  [[11, 12, 1, 2], /freez|cold|ice|icy|frost|heater|holiday|thanksgiving|christmas|travel|winter|pipe/i],
+  [[3, 4, 5], /storm|tornado|hail|spring|boat|lake|severe|rain|pollen/i],
+  [[6, 7, 8, 9, 10], /hurricane|tropical|heat|boating|lake|summer|swim|camp|fall|football|tailgat/i],
+];
+const LINE_WORDS: Record<string, RegExp> = { Auto: /\b(car|cars|truck|vehicle|driver|drivers|driving|road|traffic|auto|suv|pickup)\b/i, Home: /\b(home|homes|house|houses|roofs?|homeowners?|property)\b/i, Renters: /\b(renter|renters|apartment|rent|tenant)\b/i, Motorcycle: /\b(motorcycle|motorcycles|rider|riders|bike)\b/i, RV: /\b(rv|rvs|camper|campers|motorhome|camping|campground)\b/i, Boat: /\b(boat|boats|boating|lake|marina|kayak|watercraft)\b/i };
+/** Off-message for an agency's feed: politics, social controversy, foreign news and paid press releases. */
+const OFFBEAT = /\b(homeless|election|elections|political|politics|senate|governor|lawmakers?|legislat\w*|democrats?|republicans?|campaign|protest\w*|lawsuit|attorneys?|law firm|south africa|in sa|australia|canada|india|philippines|united kingdom|uk)\b|marketersmedia|einpresswire|press release/i;
+/** Another Columbus (Ohio, Indiana, Mississippi, Nebraska) or its outlets: never local to a Georgia agency. */
+const ELSEWHERE = /\b(ohio|indiana|mississippi|nebraska|franklin county|columbus dispatch|fox ?28|nbc ?4|10tv|abc ?6|wosu|wcmh|wbns|columbus underground|ohio state|bexley|westerville)\b/i;
+/** The Georgia Columbus: the state named, one of its own outlets, or a place only it has. */
+const GA_SIGNAL = /\b(ga\.?|georgia|alabama|wtvm|wrbl|ledger-?enquirer|ledger-?inquirer|wxtx|wltz|columbus state|muscogee)\b/i;
+/** How local a story is to the agency (0-30): one of its places in the headline (30) or summary (20), else its state
+ *  or region named (15). "Columbus" alone counts only with a Georgia signal. */
+export function localScore(c: { title: string; summary: string; source?: string }, profile: DeskProfile): number {
+  const all = `${c.title} ${c.summary} ${c.source ?? ''}`;
+  if (ELSEWHERE.test(all)) return 0;
+  const ga = GA_SIGNAL.test(all);
+  const has = (t: string) => profile.area.places.some((p) => (p !== 'Columbus' || ga) && new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t));
+  return has(c.title) ? 30 : has(c.summary) ? 20 : /\b(georgia|alabama)\b/i.test(all) ? 15 : 0;
+}
+/** Agency heat (vision: local + fits his lines + act today + in season; 0-100), deterministic and explained. */
+export function agencyHeat(c: { title: string; summary: string; at: number; source?: string }, beat: Beat, profile: DeskProfile, now = new Date()): { heat: number; parts: string } {
+  const text = `${c.title} ${c.summary}`;
+  const local = localScore(c, profile);
+  const lines = (beat.lines ?? []).filter((l) => l !== 'Brand');
+  const hit = lines.filter((l) => LINE_WORDS[l]?.test(text));
+  const fit = lines.length ? 15 + Math.min(15, hit.length * 8) : 5;
+  const hours = c.at ? (Date.now() - c.at) / 3600_000 : 24;
+  const act = /\b(watch|warning|advisory|tonight|today|this weekend|recall|recalls|closure|closed|closes|detour|alert|deadline|starts|begins|opens)\b/i.test(text) ? 20 : hours < 12 ? 10 : 4;
+  const m = Number(now.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/New_York' }));
+  const season = SEASON.some(([months, re]) => months.includes(m) && re.test(text)) ? 10 : 0;
+  return { heat: Math.min(100, local + fit + act + season), parts: `local ${local}, lines ${fit}${hit.length ? ` (${hit.join(', ')})` : ''}, act today ${act}, season ${season}` };
+}
+
+/** A beat's clusters from today's feeds, hottest first. On an agency desk (profile) the beat's own sources are read,
+ *  losses never make the wire and heat is the agency heat. */
+export async function beatClusters(beat: Beat, profile?: DeskProfile | null): Promise<{ title: string; link: string; source: string; at: number; summary: string; outlets: string[]; heat: number; image?: string; parts?: string }[]> {
+  const feeds = profile ? agencyFeeds(beat) : FEEDS[beat.id] ?? [{ name: 'Google News', url: gnews(beat.label) }];
+  const all = (await Promise.all(feeds.map((f) => (f.url === 'nws:columbus-ga' ? nwsAlerts() : read(f))))).flat();
+  const since = Date.now() - (profile ? beat.window_days ?? 2 : WINDOW_DAYS[beat.id] ?? 2) * 86_400_000;
+  const must = profile ? (beat.must ? new RegExp(`\\b(${beat.must})`, 'i') : undefined) : MUST[beat.id];
+  const fresh = all.filter((i) => (!i.at || i.at >= since) && !JUNK_SOURCE.test(i.source) && !JUNK_SOURCE.test(i.link) && !JUNK_TITLE.test(i.title) && (!must || must.test(beat.id === 'blacktech' ? i.title : `${i.title} ${i.summary}`)) && (profile || beat.id !== 'blacktech' || BLACK.test(`${i.title} ${i.summary}`)) && (!profile || (!TRAGEDY.test(`${i.title} ${i.summary}`) && !OFFBEAT.test(`${i.title} ${i.summary} ${i.source}`))));
   const topic = words(`${beat.label} ${beat.brief} ${(beat.subs ?? []).join(' ')}`);
   const clusters: { items: Item[]; w: Set<string> }[] = [];
   for (const it of fresh) {
@@ -157,10 +214,14 @@ export async function beatClusters(beat: Beat): Promise<{ title: string; link: s
     // A story reachable only through a Google News redirect can't show its picture or be verified from its page: it
     // needs more coverage to make the desk.
     const real = c.items.some((i) => !isGoogle(i.link));
-    const heat = Math.min(100, Math.round(outlets.length * 18 + Math.max(0, 30 - hours) + match * 6 - (real ? 0 : 12)));
+    // An agency desk is local: a story with no tie to the area (unless the beat is national, like recalls) is dropped.
+    if (profile && !beat.national && localScore({ title: lead.title, summary: lead.summary, source: lead.source }, profile) === 0) return null;
+    const ah = profile ? agencyHeat({ title: lead.title, summary: lead.summary, at: newest, source: lead.source }, beat, profile) : null;
+    // Agency heat, nudged by coverage; the house desk's heat is coverage, freshness and topic match.
+    const heat = ah ? Math.min(100, ah.heat + Math.min(6, (outlets.length - 1) * 2) - (real ? 0 : 6)) : Math.min(100, Math.round(outlets.length * 18 + Math.max(0, 30 - hours) + match * 6 - (real ? 0 : 12)));
     const image = lead.image ?? c.items.find((i) => i.image)?.image;
-    return { title: lead.title, link: lead.link, source: lead.source, at: newest, summary: lead.summary, outlets, heat, image };
-  }).sort((a, b) => b.heat - a.heat);
+    return { title: lead.title, link: lead.link, source: lead.source, at: newest, summary: lead.summary, outlets, heat, image, parts: ah?.parts };
+  }).filter((x): x is NonNullable<typeof x> => x !== null).sort((a, b) => b.heat - a.heat);
 }
 
 /** A story below this heat (one outlet, old, off-topic) never makes the wire. */
@@ -179,14 +240,14 @@ export async function sweepFree(tenant: string, per = 5): Promise<{ beats: numbe
   const dayStart = new Date(Date.now() - 20 * 3600_000).toISOString();
   const { data: today } = await db.from('newsroom_stories').select('beat').eq('tenant_id', tenant).neq('status', 'dismissed').gte('created_at', dayStart);
   for (const beat of s.beats) {
-    const clusters = await beatClusters(beat);
+    const clusters = await beatClusters(beat, s.profile);
     const room = per - (today ?? []).filter((t) => t.beat === beat.id).length;
     let n = 0;
     for (const c of clusters) {
       if (n >= room || c.heat < MIN_HEAT) break;
       const w = words(c.title);
       if (known.some((k) => k.url === c.link || similar(k.w, w) >= 0.6)) continue;
-      const why = `${c.outlets.length > 1 ? `Covered by ${c.outlets.length} outlets (${c.outlets.slice(0, 4).join(', ')})` : `From ${c.source}`}${c.summary ? `: ${c.summary.slice(0, 220)}` : ''}`;
+      const why = `${c.outlets.length > 1 ? `Covered by ${c.outlets.length} outlets (${c.outlets.slice(0, 4).join(', ')})` : `From ${c.source}`}${c.summary ? `: ${c.summary.slice(0, 220)}` : ''}${c.parts ? ` [heat: ${c.parts}]` : ''}`;
       const ins = await db.from('newsroom_stories').insert({
         tenant_id: tenant, beat: beat.id, sub: null, headline: c.title.slice(0, 140), source: c.source.slice(0, 80), url: c.link.slice(0, 1000),
         published_on: c.at ? new Date(c.at).toISOString().slice(0, 10) : null, thumb_url: c.image ?? null, why: why.slice(0, 500), fit: c.heat, angles: [], build: [], status: 'new',

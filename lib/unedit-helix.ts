@@ -4,7 +4,7 @@
 // and within 60 days. Times are New York. Genovus team only (the route checks staff). Server only.
 import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
-import { genovusTenant } from '@/lib/unedit';
+import { deskFor } from '@/lib/desk';
 import { LEAD_MIN, nyAt, nyDay } from '@/lib/unedit-plan';
 
 const NETS: Record<string, string> = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', twitter: 'X', linkedin: 'LinkedIn' };
@@ -16,7 +16,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 's
 type Row = { id: string; vlog_id: string; clip_id: string | null; platform: string; kind: string; status: string; scheduled_at: string; posted_url: string | null };
 export type CalItem = { id: string; vlog: string; recording: string; clip: number | null; platform: string; kind: string; status: string; at: string };
 /** Which posts a voice command means. Every field narrows; recording "this" means the recording on screen. */
-export type Selector = { recording?: string; clip?: number | string; platform?: string; day?: string; current?: string };
+export type Selector = { recording?: string; clip?: number | string; platform?: string; day?: string; current?: string; tenant?: string };
 
 /** Today in New York, for Helix's instructions (it resolves "Thursday" or "tomorrow" into a date). */
 export function nyToday(now = new Date()): string {
@@ -24,9 +24,9 @@ export function nyToday(now = new Date()): string {
 }
 
 /** Every post from the start of today (New York) on, waiting or sent, with its recording's name and clip number. */
-export async function calendar(): Promise<CalItem[]> {
+export async function calendar(tenantId?: string): Promise<CalItem[]> {
   const db = adminDb();
-  const tenant = await genovusTenant();
+  const tenant = tenantId ?? (await deskFor()).id;
   const today = nyAt(nyDay(new Date()), 0, 0).toISOString();
   const { data: ps } = await db.from('unedit_posts').select('id, vlog_id, clip_id, platform, kind, status, scheduled_at, posted_url, unedit_vlogs!inner(title, episode, tenant_id)')
     .eq('unedit_vlogs.tenant_id', tenant).gte('scheduled_at', today).in('status', ['queued', 'sent', 'posted', 'error']).order('scheduled_at').limit(300);
@@ -40,8 +40,8 @@ export async function calendar(): Promise<CalItem[]> {
 const what = (p: CalItem) => `${p.recording}, ${p.clip ? `clip ${p.clip}` : 'full video'}, ${NETS[p.platform] ?? p.platform}${p.kind === 'video' ? '' : p.kind === 'short' ? ' Short' : ' Reel'}`;
 
 /** The calendar read out: one line per post, so Helix can answer "what's going out this week?". */
-export async function calendarText(): Promise<{ ok: true; waiting: number; posts: string[] }> {
-  const all = await calendar();
+export async function calendarText(tenant?: string): Promise<{ ok: true; waiting: number; posts: string[] }> {
+  const all = await calendar(tenant);
   return { ok: true, waiting: all.filter((p) => p.status === 'queued').length, posts: all.map((p) => `${fmt(p.at)}: ${what(p)} (${p.status === 'queued' ? 'waiting, can move' : p.status === 'posted' ? 'live' : p.status === 'error' ? 'failed' : 'sent to Metricool, locked'})`) };
 }
 
@@ -94,7 +94,7 @@ function hm(t?: string): [number, number] | null {
  * rest shift by the same amount, so a drip keeps its rhythm. preview true reports the new times without moving.
  */
 export async function movePosts(s: Selector & { date?: string; time?: string; preview?: boolean }, by: string): Promise<Record<string, unknown>> {
-  const all = await calendar();
+  const all = await calendar(s.tenant);
   const r = pick(all, s);
   if ('error' in r) return { ok: false, ...r };
   const posts = [...r.posts].sort((a, b) => a.at.localeCompare(b.at));
@@ -126,7 +126,7 @@ export async function movePosts(s: Selector & { date?: string; time?: string; pr
 
 /** Take the chosen posts off the calendar (they don't go out). Only after the person said yes. */
 export async function cancelPosts(s: Selector, by: string): Promise<Record<string, unknown>> {
-  const r = pick(await calendar(), s);
+  const r = pick(await calendar(s.tenant), s);
   if ('error' in r) return { ok: false, ...r };
   const db = adminDb();
   let done = 0;

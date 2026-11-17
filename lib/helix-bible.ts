@@ -126,7 +126,10 @@ async function focusBlock(focus: StudioFocus): Promise<string> {
   if (focus.kind === 'unedit') {
     const { calendarText, nyToday } = await import('@/lib/unedit-helix');
     const { uneditBriefLines } = await import('@/lib/helix-unedit-brief');
-    const [cal, brief] = await Promise.all([calendarText().catch(() => null), uneditBriefLines(db).catch(() => [] as string[])]);
+    const { allDesks } = await import('@/lib/desk');
+    // The calendar of the recording on screen's desk (house otherwise); the brief covers every desk, each labeled.
+    const vt = focus.code ? (await db.from('unedit_vlogs').select('tenant_id').eq('id', focus.code).maybeSingle()).data?.tenant_id as string | undefined : undefined;
+    const [cal, brief] = await Promise.all([calendarText(vt).catch(() => null), allDesks().then((ds) => Promise.all(ds.map((d) => uneditBriefLines(db, d)))).then((x) => x.flat()).catch(() => [] as string[])]);
     const v = focus.code ? (await db.from('unedit_vlogs').select('title, episode, stage').eq('id', focus.code).maybeSingle()).data : null;
     const name = v ? ((v.episode as { title?: string } | null)?.title || v.title || 'Recording') : null;
     return `ON SCREEN NOW: UnEdit Studio${name ? `, the recording "${name}" (stage ${v!.stage})` : ', the recordings and the posting calendar'}.\nTODAY: ${nyToday()}.\n\nPOSTING CALENDAR BY VOICE: the team schedules approved clips here. You can read the calendar (posting_calendar), move waiting posts (move_posts) and take them off (cancel_posts). Name the recording by words from its calendar name${name ? ', or "this" for the one on screen' : ''}. Turn spoken days into dates from TODAY ("Thursday" is the next Thursday on or after today; "next week" means Monday of next week). Moving is free and reversible: do it when asked, then say in one sentence what moved and to when. Taking posts off cannot be undone here: say which posts and ask once; only after a clear yes call cancel_posts. Posts already sent to Metricool are locked; say so if asked to change one (they change in Metricool). Approving a recording's campaign is a tap on its card, not a voice command. Never claim a post moved unless the tool result says so.\nCALENDAR (${cal?.waiting ?? 0} waiting):\n${cal?.posts.join('\n') || 'nothing scheduled'}\n\nBRIEF YOU CAN ADVISE FROM (what to record next from the Newsroom's hot topics, what's waiting for review, what's stuck, what went out):\n${brief.join('\n')}`;
@@ -174,7 +177,7 @@ export async function studioSystem(focus: StudioFocus): Promise<string> {
   const base = await bibleSystem();
   const block = await focusBlock(focus);
   // On the Studio home, Helix also knows UnEdit Studio and the Newsroom (the UnEdit pages carry it in their own block).
-  const unedit = focus.kind === 'home' ? await (await import('@/lib/helix-unedit-brief')).uneditBriefLines(adminDb()).then((l) => l.join('\n')).catch(() => '') : '';
+  const unedit = focus.kind === 'home' ? await (async () => { const { uneditBriefLines } = await import('@/lib/helix-unedit-brief'); const { allDesks } = await import('@/lib/desk'); return (await Promise.all((await allDesks()).map((d) => uneditBriefLines(adminDb(), d)))).map((l) => l.join('\n')).join('\n\n'); })().catch(() => '') : '';
   const stories = focus.kind === 'home' || focus.kind === 'unedit' ? (await import('@/lib/helix-stories')).storyLookupRules(true) + (await import('@/lib/helix-act-tools')).studioActRules(true) : '';
   return [base, block, unedit, stories].filter(Boolean).join('\n\n');
 }

@@ -15,6 +15,8 @@ import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
 import { businessToday } from '@/lib/billing';
 import { parseSheet } from '@/lib/unedit-news';
+import type { DeskProfile } from '@/lib/desk';
+import { checkAll, copyRules } from '@/lib/agency-copy';
 
 const MODEL = () => (process.env.NEWSROOM_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim();
 const BASE = () => (process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com').replace(/\/$/, '');
@@ -22,7 +24,9 @@ const PRICE = { in: 200, out: 1000 }; // cents per million tokens (Claude Sonnet
 const SEARCH_CENTS = 1; // web search: $10 per 1,000 searches
 const db = () => adminDb();
 
-export type Beat = { id: string; label: string; brief: string; subs?: string[] };
+/** A beat. Agency beats bring their own sources (queries, the National Weather Service), what a story must mention
+ *  (must, a pattern), how far back to look and the lines of business it serves (lib/desk.ts). */
+export type Beat = { id: string; label: string; brief: string; subs?: string[]; lines?: string[]; queries?: string[]; must?: string; window_days?: number; nws?: boolean; national?: boolean };
 export const DEFAULT_BEATS: Beat[] = [
   { id: 'ai', label: 'AI engineering', brief: 'AI models, agent frameworks, developer tools and the companies behind them: what changed this week and what it means for founders, agencies and small teams.' },
   { id: 'saas', label: 'SaaS', brief: 'Software-as-a-service: launches, pricing and terms changes, acquisitions, outages and what small businesses should do about them.' },
@@ -38,12 +42,13 @@ export const DEFAULT_VOICE = [
   'End on a challenge: one thing to do this week',
 ];
 
-export type Settings = { beats: Beat[]; voice: string[]; daily_cap_cents: number };
+export type Settings = { beats: Beat[]; voice: string[]; daily_cap_cents: number; profile: DeskProfile | null };
 export async function settings(tenant: string): Promise<Settings> {
-  const { data } = await db().from('newsroom_settings').select('beats, voice, daily_cap_cents').eq('tenant_id', tenant).maybeSingle();
+  const { data } = await db().from('newsroom_settings').select('beats, voice, daily_cap_cents, profile').eq('tenant_id', tenant).maybeSingle();
   const beats = Array.isArray(data?.beats) && data!.beats.length ? (data!.beats as Beat[]) : DEFAULT_BEATS;
   const voice = Array.isArray(data?.voice) && data!.voice.length ? (data!.voice as string[]) : DEFAULT_VOICE;
-  return { beats, voice, daily_cap_cents: data?.daily_cap_cents ?? 200 };
+  const profile = (data?.profile as DeskProfile | null)?.kind === 'agency' ? (data!.profile as DeskProfile) : null;
+  return { beats, voice, daily_cap_cents: data?.daily_cap_cents ?? 200, profile };
 }
 
 // ---- budget ------------------------------------------------------------------------------------------------------
@@ -188,7 +193,7 @@ export async function researchBeat(tenant: string, beatId: string, by: string | 
   await guard(tenant, 25);
   const { data: have } = await db().from('newsroom_stories').select('url, headline').eq('tenant_id', tenant).order('created_at', { ascending: false }).limit(60);
   const system = [
-    `You are the research desk of the Genovus Newsroom. Today is ${businessToday()}. The audience: founders, agency owners and small teams who want to understand what's changing and what to do about it.`,
+    s.profile ? `You are the research desk of ${s.profile.agency}'s local newsroom (${s.profile.area.label}). Today is ${businessToday()}. The audience: ${s.profile.audience}. Find local, useful, timely stories that give them a reason to act today; never crime, deaths or tragedies, never politics.` : `You are the research desk of the Genovus Newsroom. Today is ${businessToday()}. The audience: founders, agency owners and small teams who want to understand what's changing and what to do about it.`,
     `Beat: ${beat.label}. ${beat.brief}${sub ? ` Focus: ${sub}.` : ''}`,
     opts.morning
       ? 'This is the morning sweep: find what BROKE in the last 48 hours on this beat (announcements, releases, funding, rulings, launches, data), searching each of the beat’s topics separately and going to the primary source; only if nothing broke, the most important story of the last 7 days. Rate "fit" by how much it matters to the audience TODAY.'
@@ -240,9 +245,10 @@ export async function researchDeeper(tenant: string, storyId: string, by: string
   const { data: st } = await db().from('newsroom_stories').select('*').eq('id', storyId).eq('tenant_id', tenant).single();
   if (!st) throw new Error('Story not found.');
   const { data: claims } = await db().from('newsroom_claims').select('text, source_url').eq('story_id', storyId);
+  const sp = (await settings(tenant)).profile;
   const system = [
-    `You are the research desk of the Genovus Newsroom. Today is ${businessToday()}.`,
-    'Search for what is new or missing on this story since it was filed: newer developments, the primary source, responses from the people involved, and numbers that matter to founders and small teams. Up to 4 new claims, none that repeat the existing ones.',
+    sp ? `You are the research desk of ${sp.agency}'s local newsroom (${sp.area.label}). Today is ${businessToday()}.` : `You are the research desk of the Genovus Newsroom. Today is ${businessToday()}.`,
+    sp ? `Search for what is new or missing on this story since it was filed: newer developments, the primary source (the agency, city, state or the National Weather Service), dates, places and what people around ${sp.area.label} should do. Up to 4 new claims, none that repeat the existing ones.` : 'Search for what is new or missing on this story since it was filed: newer developments, the primary source, responses from the people involved, and numbers that matter to founders and small teams. Up to 4 new claims, none that repeat the existing ones.',
     STANDARDS,
     'Return only JSON at the end: {"claims":[{"text":"","status":"","attribution":"","denial":"","names_person":false,"quote":"","url":"","source_title":""}]}',
   ].join('\n');
@@ -268,6 +274,8 @@ export type Production = {
   teleprompter: string; sheet: string; sheetNotes: string[];
   broll: { shot: string; why: string; kind: 'yours' | 'illustration' | 'screen' }[];
   article?: { title: string; markdown: string }; social?: { linkedin?: string; x?: string[]; newsletter?: string }; titles: string[];
+  /** Agency desks: the insurance copy check on the finished package (lib/agency-copy.ts). */
+  check?: { passed: boolean; issues: { where: string; rule: string; match: string; why: string }[] };
 };
 export async function produce(tenant: string, storyId: string, opts: { angle: number; formats: string[]; voiced: boolean }, by: string | null): Promise<{ id: string; cents: number; notes: string[] }> {
   await guard(tenant, 40);
@@ -282,13 +290,14 @@ export async function produce(tenant: string, storyId: string, opts: { angle: nu
   const angle = (st.angles as { title: string; line: string }[])[opts.angle] ?? { title: st.headline, line: '' };
   const formats = opts.formats.filter((f) => (FORMATS as readonly string[]).includes(f));
   const facts = usable.map((c, i) => `[F${i + 1}] (${c.status}${c.attribution ? `, per ${c.attribution}` : ''}${c.denial ? `; response: ${c.denial}` : ''}) ${c.text} | source label: ${c.source_title ?? new URL(c.source_url).hostname} | url: ${c.source_url}`).join('\n');
+  const p = s.profile;
   const system = [
-    'You are the producer of the Genovus Newsroom. Build the content package for one story from the approved facts ONLY. Never add a fact, number, name or date that is not in the facts list.',
+    p ? `You are the producer of ${p.agency}'s local newsroom. Build the content package for one story from the approved facts ONLY. Never add a fact, number, name or date that is not in the facts list.\n${copyRules(p)}` : 'You are the producer of the Genovus Newsroom. Build the content package for one story from the approved facts ONLY. Never add a fact, number, name or date that is not in the facts list.',
     'Fact rules: "confirmed" and "reported" may be stated (reported ones attributed to the outlet). "alleged" only with who alleges it and the response. "opinion" only as one attributed side, never as fact.',
     `The angle: ${angle.title}. ${angle.line}`,
-    st.build?.length ? `The parts, in this order: ${(st.build as string[]).join(' | ')}` : 'Choose 4 to 6 parts: a hook in the first 7 seconds, the story, why it matters, what to do, a call to action (a free Genovus strategy session).',
+    st.build?.length ? `The parts, in this order: ${(st.build as string[]).join(' | ')}` : p ? `Choose 3 to 5 parts for a 45 to 75 second video: a helpful hook in the first 5 seconds, what is happening locally, what to do today, and the call to action (call or stop by ${p.host}'s office).` : 'Choose 4 to 6 parts: a hook in the first 7 seconds, the story, why it matters, what to do, a call to action (a free Genovus strategy session).',
     opts.voiced ? `Write in the host's voice: ${s.voice.join('; ')}.` : 'Write plainly, warm and direct.',
-    'Script: about 150 words a minute, 3 to 5 minutes for a long-form. Each spoken line names the fact it rests on as source "F#" (or "" for lines that state no fact).',
+    p ? 'Script: about 150 words a minute, 45 to 75 seconds. Each spoken line names the fact it rests on as source "F#" (or "" for lines that state no fact).' : 'Script: about 150 words a minute, 3 to 5 minutes for a long-form. Each spoken line names the fact it rests on as source "F#" (or "" for lines that state no fact).',
     'Sheet: the on-screen facts for the editor, one per line in this exact format, where "spoken words" are 3 to 8 consecutive words copied exactly from a line of your script:',
     '  source | spoken words | <source label> · <date if known>',
     '  quote | spoken words | <exact short quote from a fact> | <who said it> | <when>',
@@ -297,8 +306,28 @@ export async function produce(tenant: string, storyId: string, opts: { angle: nu
     `Formats wanted: ${formats.join(', ') || 'long'}. Include "article" (markdown, every fact linked to its url) only if article is wanted, and "social" only if social or newsletter is wanted.`,
     'Return only JSON: {"script":[{"part":"","lines":[{"say":"","source":"F1"}]}],"teleprompter":"","sheet":"","broll":[{"shot":"","why":"","kind":"yours"}],"article":{"title":"","markdown":""},"social":{"linkedin":"","x":[""],"newsletter":""},"titles":["",""]}',
   ].join('\n');
-  const o = await ask(system, `Story: ${st.headline}\nWhy it matters: ${st.why ?? ''}\nFacts:\n${facts}`, { maxTokens: 20000 });
-  const raw = json<Partial<Production> & { sheet?: string }>(o.text);
+  const user = `Story: ${st.headline}\nWhy it matters: ${st.why ?? ''}\nFacts:\n${facts}`;
+  let o = await ask(system, user, { maxTokens: 20000 });
+  let raw = json<Partial<Production> & { sheet?: string }>(o.text);
+  // Agency desks: the copy check decides (lib/agency-copy.ts). A draft that breaks a rule is rewritten once with the
+  // exact lines and rules it broke; what still breaks one is kept on the production for a person to see.
+  const pieces = (r: typeof raw) => [
+    ...(r.script ?? []).flatMap((pt, i) => (pt.lines ?? []).map((l, j) => ({ where: `script ${i + 1}.${j + 1}`, text: String(l.say ?? '') }))),
+    { where: 'teleprompter', text: String(r.teleprompter ?? '') },
+    { where: 'linkedin', text: String(r.social?.linkedin ?? '') }, ...(r.social?.x ?? []).map((x, i) => ({ where: `x ${i + 1}`, text: String(x) })),
+    { where: 'newsletter', text: String(r.social?.newsletter ?? '') }, { where: 'article', text: String(r.article?.markdown ?? '') },
+    ...(r.titles ?? []).map((t, i) => ({ where: `title ${i + 1}`, text: String(t) })),
+  ];
+  let issues = p ? checkAll(pieces(raw), p) : [];
+  let spent = o.cents;
+  if (p && issues.length) {
+    const fix = await ask(system, `${user}\n\nYour draft broke these rules. Rewrite the whole package so no line breaks any rule, keeping everything else:\n${issues.slice(0, 20).map((i) => `- ${i.where}: "${i.match}" (${i.why})`).join('\n')}\n\nYour draft:\n${o.text.slice(0, 30000)}`, { maxTokens: 20000 });
+    spent += fix.cents;
+    const again = json<Partial<Production> & { sheet?: string }>(fix.text);
+    if (again.script?.length) { raw = again; o = { ...fix, cents: spent }; issues = checkAll(pieces(raw), p); }
+  }
+  // Every agency script ends with the host's sign-off, word for word.
+  if (p && raw.teleprompter && !norm(String(raw.teleprompter)).endsWith(norm(p.sign_off))) raw.teleprompter = `${String(raw.teleprompter).trim()}\n${p.sign_off}`;
   const teleprompter = clip(raw.teleprompter, 20000) || (raw.script ?? []).flatMap((p) => p.lines.map((l) => l.say)).join('\n');
   // The sheet must parse, and every line's spoken words must be in the script, or the editor can't place it.
   const tp = norm(teleprompter);
@@ -322,12 +351,13 @@ export async function produce(tenant: string, storyId: string, opts: { angle: nu
     article: formats.includes('article') && raw.article?.markdown ? { title: clip(raw.article.title, 140), markdown: String(raw.article.markdown).slice(0, 20000) } : undefined,
     social: formats.some((f) => f === 'social' || f === 'newsletter') && raw.social ? { linkedin: clip(raw.social.linkedin, 3000), x: (raw.social.x ?? []).map((x) => clip(x, 280)).slice(0, 8), newsletter: clip(raw.social.newsletter, 2000) } : undefined,
     titles: (raw.titles ?? []).map((t) => clip(t, 100)).filter(Boolean).slice(0, 3),
+    ...(p ? { check: { passed: issues.length === 0, issues: issues.slice(0, 20).map((i) => ({ where: i.where, rule: i.rule, match: i.match, why: i.why })) } } : {}),
   };
-  const ins = await db().from('newsroom_productions').insert({ tenant_id: tenant, story_id: storyId, angle: angle.title, formats, outputs: out, cost_cents: o.cents, created_by: by }).select('id').single();
+  const ins = await db().from('newsroom_productions').insert({ tenant_id: tenant, story_id: storyId, angle: angle.title, formats, outputs: out, cost_cents: spent, created_by: by }).select('id').single();
   if (ins.error || !ins.data) throw new Error(ins.error?.message ?? 'The production did not save.');
   await db().from('newsroom_stories').update({ status: 'drafting', updated_at: new Date().toISOString() }).eq('id', storyId);
-  await record(tenant, { kind: 'produce', story_id: storyId, cost_cents: o.cents, by });
-  return { id: ins.data.id, cents: o.cents, notes: sheetNotes };
+  await record(tenant, { kind: 'produce', story_id: storyId, cost_cents: spent, by });
+  return { id: ins.data.id, cents: spent, notes: p && issues.length ? [...sheetNotes, `${issues.length} line${issues.length === 1 ? '' : 's'} still break${issues.length === 1 ? 's' : ''} a copy rule: fix before recording`] : sheetNotes };
 }
 
 /** Sheet lines that cut to the articles the script cites: one per distinct page (at most three), placed on the first

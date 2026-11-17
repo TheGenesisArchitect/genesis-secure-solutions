@@ -254,8 +254,9 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       const r = await fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: 'open_item', args }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'Helix couldn’t reach Genovus.' }));
       if (!r.ok || typeof r.href !== 'string' || !/^\/console\/(prospects|clients)\/[a-z0-9-]+$/.test(r.href)) return { ok: false, error: r.error ?? 'Nothing to open.' };
       setSpot(null);
-      if (pathRef.current !== r.href) { selfNav.current = true; router.push(r.href); }
-      const landed = await waitFor(() => pathRef.current === r.href, 10000);
+      const path = r.href.split('?')[0];
+      if (pathRef.current !== path || location.search !== (r.href.includes('?') ? `?${r.href.split('?')[1]}` : '')) { selfNav.current = true; router.push(r.href); }
+      const landed = await waitFor(() => pathRef.current === path, 10000);
       if (!landed) return { ok: false, error: 'the page is still loading' };
       await settled();
       return { ok: true, opened: r.label, page: r.href, onScreen: readPage() };
@@ -283,12 +284,13 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     // (a yes-lane action runs only from confirm with its token) and runs what the button runs; the page then refreshes.
     if (name === 'studio_action' || name === 'confirm_studio_action' || name === 'open_studio') {
       const currentStory = document.querySelector<HTMLElement>('[data-helix-story]')?.dataset.helixStory;
-      const r = await fetch('/api/studio/helix-act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: name, args, current: focus?.kind === 'unedit' ? focus.code : undefined, currentStory }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The Studio didn’t answer.' }));
+      const r = await fetch('/api/studio/helix-act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: name, args, current: focus?.kind === 'unedit' ? focus.code : undefined, currentStory, desk: new URLSearchParams(location.search).get('desk') ?? undefined }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The Studio didn’t answer.' }));
       if (name !== 'open_studio') { if (r.ok && !r.needs_yes) { window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'min' } })); router.refresh(); } return r; }
       if (!r.ok || typeof r.href !== 'string' || !r.href.startsWith('/console/studio/unedit')) return r;
       setSpot(null);
-      if (pathRef.current !== r.href) { selfNav.current = true; router.push(r.href); }
-      const landed = await waitFor(() => pathRef.current === r.href, 10000);
+      const path = r.href.split('?')[0];
+      if (pathRef.current !== path || location.search !== (r.href.includes('?') ? `?${r.href.split('?')[1]}` : '')) { selfNav.current = true; router.push(r.href); }
+      const landed = await waitFor(() => pathRef.current === path, 10000);
       if (!landed) return { ok: false, error: 'the page is still loading' };
       await settled();
       if (r.story) window.dispatchEvent(new CustomEvent('genovus:newsroom-open', { detail: { id: r.story } }));
@@ -306,11 +308,11 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
     }
     // The Newsroom's stories and UnEdit's recordings (staff): looked up on the server, the result goes to the conversation.
     if (['story_list', 'story_card', 'recording_card'].includes(name)) {
-      return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: name, args }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));
+      return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: name, args, desk: new URLSearchParams(location.search).get('desk') ?? undefined }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));
     }
     // UnEdit Studio's posting calendar (the server checks staff and the calendar rules; the page refreshes).
     if (['posting_calendar', 'move_posts', 'cancel_posts'].includes(name)) {
-      const r = await fetch('/api/studio/unedit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: `voice_${name}`, args, current: focus?.kind === 'unedit' ? focus.code : undefined }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'UnEdit didn’t answer.' }));
+      const r = await fetch('/api/studio/unedit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: `voice_${name}`, args, current: focus?.kind === 'unedit' ? focus.code : undefined, desk: new URLSearchParams(location.search).get('desk') ?? undefined }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'UnEdit didn’t answer.' }));
       if (name !== 'posting_calendar') router.refresh();
       return r;
     }

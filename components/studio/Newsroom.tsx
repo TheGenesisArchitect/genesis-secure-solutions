@@ -9,7 +9,7 @@ import { FACELESS_VOICES, type FacelessState } from '@/lib/faceless-voices';
 export type NrClaim = { id: string; text: string; status: string; attribution: string | null; denial: string | null; source_title: string | null; source_url: string; cited_text: string | null; verified: boolean; approved: boolean };
 export type NrStory = { id: string; beat: string; sub: string | null; headline: string; source: string; url: string; published_on: string | null; thumb: string | null; why: string | null; fit: number | null; status: string; angles: { title: string; line: string }[]; chosen: number | null; build: string[]; voiced: boolean; created_at: string; claims: NrClaim[] };
 export type NrProduction = { id: string; story_id: string; angle: string; formats: string[]; next_upload: boolean; vlog_id: string | null; cost: number; created_at: string; faceless: FacelessState | null;
-  outputs: { script?: { part: string; lines: { say: string; source: string }[] }[]; teleprompter?: string; sheet?: string; sheetNotes?: string[]; broll?: { shot: string; why: string; kind: string }[]; article?: { title: string; markdown: string }; social?: { linkedin?: string; x?: string[]; newsletter?: string }; titles?: string[] } };
+  outputs: { script?: { part: string; lines: { say: string; source: string }[] }[]; teleprompter?: string; sheet?: string; sheetNotes?: string[]; broll?: { shot: string; why: string; kind: string }[]; article?: { title: string; markdown: string }; social?: { linkedin?: string; x?: string[]; newsletter?: string }; titles?: string[]; check?: { passed: boolean; issues: { where: string; rule: string; match: string; why: string }[] } } };
 type Beat = { id: string; label: string; brief: string; subs?: string[] };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
@@ -71,7 +71,7 @@ function SourceTile({ s }: { s: Pick<NrStory, 'beat' | 'source' | 'url' | 'headl
 }
 
 export type NrBrief = { day: string; summary: string; hot: { story_id: string; why: string; angle: string; heat: number }[]; stats: { beats: number; added: number; cents: number }; created_at: string };
-export function Newsroom({ stories, productions, beats, voice, spentToday, dailyCap, brief }: { stories: NrStory[]; productions: NrProduction[]; beats: Beat[]; voice: string[]; spentToday: number; dailyCap: number; brief?: NrBrief | null }) {
+export function Newsroom({ desk, stories, productions, beats, voice, spentToday, dailyCap, brief }: { desk?: string; stories: NrStory[]; productions: NrProduction[]; beats: Beat[]; voice: string[]; spentToday: number; dailyCap: number; brief?: NrBrief | null }) {
   const router = useRouter();
   const [beat, setBeat] = useState<string>('all');
   const [sub, setSub] = useState<string>('All');
@@ -110,7 +110,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
   const send = async (body: Record<string, unknown>, key: string): Promise<boolean> => {
     setBusy(key);
     try {
-      const r = await fetch('/api/studio/newsroom', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch('/api/studio/newsroom', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...body, desk }) });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; say?: string; error?: string };
       toast(r.ok && j.ok ? { ok: j.say ?? 'Done.' } : { err: j.error ?? 'That didn’t work.' });
       return Boolean(r.ok && j.ok);
@@ -201,7 +201,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
       </section>
 
       {story ? (
-        <div className="nr-cols" ref={storyRef} data-helix-story={story?.id}>
+        <div className="nr-cols" ref={storyRef} data-helix-story={story?.id} data-helix-desk={desk ?? 'genovus'}>
           <main className="nr-col" aria-label="The story">
             <span className="nr-step">1 · The story · {label(story.beat)}{story.sub ? ` · ${story.sub}` : ''}</span>
             <h1 className="nr-title">{story.headline}</h1>
@@ -286,6 +286,12 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
             </button>
             {prod ? (
               <div className="nr-prod">
+                {prod.outputs.check ? (
+                  <div className={`nr-check ${prod.outputs.check.passed ? 'ok' : 'bad'}`} role="status">
+                    <b>{prod.outputs.check.passed ? 'Copy check passed' : `Copy check: ${prod.outputs.check.issues.length} line${prod.outputs.check.issues.length === 1 ? '' : 's'} to fix before recording`}</b>
+                    <span className="muted">{prod.outputs.check.passed ? 'No prices, no coverage advice, only his lines, no other insurers, his sign-off at the end.' : prod.outputs.check.issues.map((i) => `${i.where}: “${i.match}” (${i.why})`).join(' · ')}</span>
+                  </div>
+                ) : null}
                 <div className="nr-tabs" role="tablist">
                   {[['script', 'Script'], ['tele', 'Teleprompter'], ['sheet', 'Sources sheet'], ['broll', 'B-roll'], ['article', 'Article'], ['social', 'Posts']].filter(([k]) => (k !== 'article' || prod.outputs.article) && (k !== 'social' || prod.outputs.social)).map(([k, l]) => (
                     <button type="button" role="tab" aria-selected={tab === k} key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>

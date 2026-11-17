@@ -7,6 +7,7 @@ import { helixScope } from '@/lib/helix-thread';
 import { LOOKUPS, runLookup } from '@/lib/helix-lookups';
 import { PROSPECT_LOOKUPS, runProspectLookup } from '@/lib/helix-prospects';
 import { STORY_LOOKUPS, runStoryLookup } from '@/lib/helix-stories';
+import { deskNamed } from '@/lib/desk';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     if (!viewer.staff) return Response.json({ error: 'Enterprise Helix is for the Genovus team.' }, { status: 403 });
     const args = b.args && typeof b.args === 'object' && !Array.isArray(b.args) ? Object.fromEntries(Object.entries(b.args).slice(0, 8)) : {};
     // The Newsroom's stories and UnEdit's recordings (lib/helix-stories.ts).
-    if (STORY_LOOKUPS.includes(b.tool as (typeof STORY_LOOKUPS)[number])) return Response.json(await runStoryLookup(await db(), String(b.tool), args));
+    if (STORY_LOOKUPS.includes(b.tool as (typeof STORY_LOOKUPS)[number])) { const desk = await deskNamed(args.desk ?? (b as { desk?: string }).desk); return Response.json({ desk: desk.name, ...(await runStoryLookup(await db(), String(b.tool), args, desk.id)) }); }
     if (!PROSPECT_LOOKUPS.includes(b.tool as (typeof PROSPECT_LOOKUPS)[number])) return Response.json({ error: 'Helix can’t look that up yet.' }, { status: 400 });
     return Response.json(await runProspectLookup(await db(), String(b.tool), args));
   }

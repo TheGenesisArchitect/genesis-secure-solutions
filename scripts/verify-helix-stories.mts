@@ -40,18 +40,18 @@ try {
   must(await db.from('newsroom_productions').insert({ tenant_id: tenant, story_id: s1, angle: 'What it means for your agents', formats: ['episode', 'clips'], outputs: { script: T('SCRIPT: Here is what happened'), teleprompter: 'Here is what happened.', broll: ['agency building'], social: { linkedin: 'x' } }, vlog_id: vlog }));
 
   console.log('story_list');
-  const list = await runStoryLookup(db, 'story_list', { limit: 25 }) as { stories: string[] };
+  const list = await runStoryLookup(db, 'story_list', { limit: 25 }, tenant) as { stories: string[] };
   const l1 = list.stories.find((x) => has(x, 'Regulators probe'));
   check('lists the story with heat, fit, angles and claims', l1 && l1.includes('heat 91') && l1.includes('fit 88') && l1.includes('2 angles') && l1.includes('2 claims (1 confirmed)'), l1);
   check('shows how far it got: posted', l1?.includes('posted (1 live)'), l1);
   check('the hot story sorts above the unrated one', list.stories.findIndex((x) => has(x, 'Regulators probe')) < list.stories.findIndex((x) => has(x, 'Chip stocks')));
   const l2 = list.stories.find((x) => has(x, 'Chip stocks'));
   check('a fresh story reads as on the desk, not in a brief', l2?.includes('not in a brief') && l2.includes('on the desk'), l2);
-  const byBeat = await runStoryLookup(db, 'story_list', { beat: 'markets', limit: 25 }) as { stories: string[] };
+  const byBeat = await runStoryLookup(db, 'story_list', { beat: 'markets', limit: 25 }, tenant) as { stories: string[] };
   check('filter by beat', byBeat.stories.every((x) => x.includes('| markets')) && byBeat.stories.some((x) => has(x, 'Chip stocks')));
 
   console.log('story_card');
-  const card = await runStoryLookup(db, 'story_card', { headline: `regulators rogue agent zq${tag}` }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const card = await runStoryLookup(db, 'story_card', { headline: `regulators rogue agent zq${tag}` }, tenant) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   check('finds the story by headline words', card.found === true && card.story.headline === T('Regulators probe rogue agent incident'), card);
   check('heat with why it is hot', card.story.heat?.heat === 91 && String(card.story.heat.why_hot).includes('Six outlets'), card.story.heat);
   check('angles with the chosen one marked', card.story.angles[0].startsWith('[CHOSEN] What it means'), card.story.angles);
@@ -59,11 +59,11 @@ try {
   check('alleged claim keeps its status and the other side', card.claims.some((c: string) => c.startsWith('2. ALLEGED') && c.includes('Other side: The company disputes it.')), card.claims);
   check('the script written for it', card.productions[0]?.script?.includes('SCRIPT: Here is what happened'), card.productions);
   check('the recording it became, with clips and posts', card.recordings[0]?.recording?.title === T('Rogue agents explained') && card.recordings[0].clips.length === 2 && card.recordings[0].posts.some((p: string) => p.includes('live')), card.recordings);
-  const nf = await runStoryLookup(db, 'story_card', { headline: `nothing like this zz${tag}` });
+  const nf = await runStoryLookup(db, 'story_card', { headline: `nothing like this zz${tag}` }, tenant);
   check('no match says so (never guesses)', nf.found === false, nf);
 
   console.log('recording_card');
-  const rc = await runStoryLookup(db, 'recording_card', { title: `rogue agents explained zq${tag}` }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const rc = await runStoryLookup(db, 'recording_card', { title: `rogue agents explained zq${tag}` }, tenant) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   check('finds the recording by title words', rc.found === true && rc.recording.length === '5:12', rc.recording);
   check('chapters and posting plan', rc.recording.chapters.includes('Three checks') && String(rc.recording.posting_plan).includes('flood'), rc.recording);
   check('clips with hook, caption and copy', rc.clips[0].includes('hook first') && rc.clips[0].includes('Caption 1') && rc.clips[0].includes('IG copy 1'), rc.clips);

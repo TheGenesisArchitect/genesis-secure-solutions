@@ -3,7 +3,8 @@
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { requireStaff } from '@/lib/session';
 import { adminDb } from '@/lib/supabase/admin';
-import { genovusTenant } from '@/lib/unedit';
+import Link from 'next/link';
+import { allDesks, deskFor } from '@/lib/desk';
 import { settings } from '@/lib/newsroom';
 import { businessToday } from '@/lib/billing';
 import { Newsroom, type NrStory, type NrProduction } from '@/components/studio/Newsroom';
@@ -13,9 +14,12 @@ import { UneditNav } from '@/components/studio/UneditNav';
 export const metadata = { title: 'Newsroom' };
 export const dynamic = 'force-dynamic';
 
-export default async function NewsroomPage() {
+export default async function NewsroomPage({ searchParams }: { searchParams: Promise<{ desk?: string }> }) {
   await requireStaff();
-  const tenant = await genovusTenant();
+  // The desk on screen (lib/desk.ts): the Genovus desk unless an agency desk is chosen.
+  const desk = await deskFor((await searchParams).desk);
+  const desks = await allDesks();
+  const tenant = desk.id;
   const db = adminDb();
   const s = await settings(tenant);
   const { data: stories } = await db.from('newsroom_stories').select('*').eq('tenant_id', tenant).neq('status', 'dismissed').order('created_at', { ascending: false }).limit(40);
@@ -36,7 +40,14 @@ export default async function NewsroomPage() {
   return (
     <ConsoleShell title="UnEdit Studio" crumbs={[{ href: '/console', label: 'Enterprise' }, { href: '/console/studio', label: 'Studio' }, { href: '/console/studio/unedit', label: 'UnEdit Studio' }, { label: 'Newsroom' }]}>
       <UneditNav active="newsroom" />
-      <Newsroom stories={list} productions={productions} beats={s.beats} voice={s.voice} spentToday={spent} dailyCap={s.daily_cap_cents} brief={brief} />
+      {desks.length > 1 ? (
+        <nav className="nr-desks" aria-label="Desk">
+          <span className="muted">Desk</span>
+          {desks.map((d) => <Link key={d.slug} href={d.house ? '/console/studio/unedit/newsroom' : `/console/studio/unedit/newsroom?desk=${d.slug}`} className={d.slug === desk.slug ? 'on' : ''} aria-current={d.slug === desk.slug ? 'page' : undefined}>{d.name}</Link>)}
+          {desk.profile ? <span className="muted nr-desk-note">{desk.profile.area.label} · {desk.profile.lines.join(', ')} · posts wait for {desk.profile.host}’s approval</span> : null}
+        </nav>
+      ) : null}
+      <Newsroom desk={desk.house ? undefined : desk.slug} stories={list} productions={productions} beats={s.beats} voice={s.voice} spentToday={spent} dailyCap={s.daily_cap_cents} brief={brief} />
     </ConsoleShell>
   );
 }

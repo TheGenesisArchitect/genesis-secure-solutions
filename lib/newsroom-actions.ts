@@ -3,7 +3,7 @@
 import 'server-only';
 import { after } from 'next/server';
 import { adminDb } from '@/lib/supabase/admin';
-import { genovusTenant } from '@/lib/unedit';
+import { deskFor } from '@/lib/desk';
 import { produce, researchBeat, researchDeeper, useForNextUpload } from '@/lib/newsroom';
 import { buildFaceless, startFaceless, type FacelessLength } from '@/lib/unedit-faceless';
 import { writeBrief } from '@/lib/newsroom-morning';
@@ -14,7 +14,8 @@ const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 /** One Newsroom action. Returns what happened in words (and the production id after produce); throws a plain error. */
 export async function newsroomAction(b: Record<string, unknown>, by: string, origin: string): Promise<{ say: string; id?: string }> {
-  const tenant = await genovusTenant();
+  // The desk this button is on (the house desk when none is named; lib/desk.ts).
+  const tenant = (await deskFor(typeof b.desk === 'string' ? b.desk : null)).id;
   const id = (k: string) => { const v = String(b[k] ?? ''); if (!UUID.test(v)) throw new Error('Which one?'); return v; };
   const story = async (sid: string) => { const { data } = await adminDb().from('newsroom_stories').select('id, angles').eq('id', sid).eq('tenant_id', tenant).single(); if (!data) throw new Error('Story not found.'); return data; };
   const touch = { updated_at: new Date().toISOString() };

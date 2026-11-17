@@ -33,8 +33,8 @@ export function best<T>(rows: T[], want: string, name: (r: T) => string): { row:
 }
 
 /** Heat per story from the last week of morning briefs (the latest brief that rated it). */
-async function heatMap(db: SupabaseClient): Promise<Map<string, Hot & { day: string }>> {
-  const { data } = await db.from('newsroom_briefs').select('day, hot').order('day', { ascending: false }).limit(10);
+async function heatMap(db: SupabaseClient, tenant: string): Promise<Map<string, Hot & { day: string }>> {
+  const { data } = await db.from('newsroom_briefs').select('day, hot').eq('tenant_id', tenant).order('day', { ascending: false }).limit(10);
   const m = new Map<string, Hot & { day: string }>();
   for (const b of (data ?? []) as { day: string; hot: Hot[] }[]) for (const h of b.hot ?? []) if (h.story_id && !m.has(h.story_id)) m.set(h.story_id, { ...h, day: b.day });
   return m;
@@ -67,17 +67,18 @@ function stateOf(s: Story, pl: Awaited<ReturnType<typeof pipeline>>): string {
   return s.status === 'new' ? 'on the desk' : s.status;
 }
 
-export async function runStoryLookup(db: SupabaseClient, tool: string, args: Args): Promise<Record<string, unknown>> {
+/** tenant: the desk's tenant id (lib/desk.ts); nothing from another desk is ever read. */
+export async function runStoryLookup(db: SupabaseClient, tool: string, args: Args, tenant: string): Promise<Record<string, unknown>> {
   if (tool === 'story_list') {
     const days = Math.min(30, Math.max(1, Number(args.days) || 7));
-    let q = db.from('newsroom_stories').select(SCOLS).gte('created_at', new Date(Date.now() - days * 86_400_000).toISOString()).neq('status', 'dismissed');
+    let q = db.from('newsroom_stories').select(SCOLS).eq('tenant_id', tenant).gte('created_at', new Date(Date.now() - days * 86_400_000).toISOString()).neq('status', 'dismissed');
     const beat = clean(args.beat, 40).toLowerCase();
     const status = clean(args.status, 20);
     if (status) q = q.eq('status', status);
     const { data } = await q.order('created_at', { ascending: false }).limit(120);
     let S = (data ?? []) as Story[];
     if (beat) S = S.filter((s) => s.beat.toLowerCase().includes(beat) || (s.sub ?? '').toLowerCase().includes(beat));
-    const heat = await heatMap(db);
+    const heat = await heatMap(db, tenant);
     // Hottest first, then the best fit, then the newest.
     S.sort((a, b) => (heat.get(b.id)?.heat ?? -1) - (heat.get(a.id)?.heat ?? -1) || (b.fit ?? 0) - (a.fit ?? 0) || b.created_at.localeCompare(a.created_at));
     const top = S.slice(0, Math.min(25, Math.max(1, Number(args.limit) || 15)));
@@ -92,17 +93,17 @@ export async function runStoryLookup(db: SupabaseClient, tool: string, args: Arg
   if (tool === 'story_card') {
     const want = clean(args.headline ?? args.id, 160);
     let s: Story | null = null, others: string[] = [];
-    if (isUuid(want)) s = ((await db.from('newsroom_stories').select(SCOLS).eq('id', want).maybeSingle()).data as Story | null);
+    if (isUuid(want)) s = ((await db.from('newsroom_stories').select(SCOLS).eq('id', want).eq('tenant_id', tenant).maybeSingle()).data as Story | null);
     else {
-      const { data } = await db.from('newsroom_stories').select(SCOLS).gte('created_at', new Date(Date.now() - 45 * 86_400_000).toISOString()).order('created_at', { ascending: false }).limit(400);
+      const { data } = await db.from('newsroom_stories').select(SCOLS).eq('tenant_id', tenant).gte('created_at', new Date(Date.now() - 45 * 86_400_000).toISOString()).order('created_at', { ascending: false }).limit(400);
       ({ row: s, others } = best((data ?? []) as Story[], want, (r) => r.headline));
     }
     if (!s) return { found: false, note: `No story matches “${want}”. Use words from its headline (story_list shows the desk).`, ...(others.length ? { closest: others } : {}) };
-    const [heat, pl, { data: claims }] = await Promise.all([heatMap(db), pipeline(db, [s.id]), db.from('newsroom_claims').select('text, status, attribution, denial, names_person, source_title, source_url, passage_verified, approved').eq('story_id', s.id).order('created_at')]);
+    const [heat, pl, { data: claims }] = await Promise.all([heatMap(db, tenant), pipeline(db, [s.id]), db.from('newsroom_claims').select('text, status, attribution, denial, names_person, source_title, source_url, passage_verified, approved').eq('story_id', s.id).order('created_at')]);
     const h = heat.get(s.id);
     const prods = pl.P.filter((p) => p.story_id === s!.id);
     const vlogIds = prods.flatMap((p) => [p.vlog_id, p.faceless?.vlog_id]).filter(Boolean) as string[];
-    const recordings = await Promise.all(vlogIds.map((id) => recordingCard(db, id, false)));
+    const recordings = await Promise.all(vlogIds.map((id) => recordingCard(db, id, false, tenant)));
     return {
       found: true,
       story: { headline: s.headline, source: s.source, url: s.url, published: s.published_on, beat: s.sub ? `${s.beat} / ${s.sub}` : s.beat, on_desk_since: when(s.created_at), status: s.status, fit: s.fit, why_it_fits: s.why,
@@ -126,20 +127,21 @@ export async function runStoryLookup(db: SupabaseClient, tool: string, args: Arg
     const want = clean(args.title ?? args.id, 160);
     let id: string | null = isUuid(want) ? want : null, others: string[] = [];
     if (!id) {
-      const { data } = await db.from('unedit_vlogs').select('id, title, episode, created_at').order('created_at', { ascending: false }).limit(200);
+      const { data } = await db.from('unedit_vlogs').select('id, title, episode, created_at').eq('tenant_id', tenant).order('created_at', { ascending: false }).limit(200);
       const r = best((data ?? []) as { id: string; title: string | null; episode: { title?: string } | null }[], want, (v) => v.episode?.title || v.title || '');
       id = r.row?.id ?? null; others = r.others;
     }
     if (!id) return { found: false, note: `No recording matches “${want}”. Use words from its title.`, ...(others.length ? { closest: others } : {}) };
-    return { found: true, ...(await recordingCard(db, id, true)) };
+    const card = await recordingCard(db, id, true, tenant);
+    return card.recording === 'not found' ? { found: false, note: 'That recording is on another desk or gone.' } : { found: true, ...card };
   }
   return { error: 'Helix can’t look that up yet.' };
 }
 
 /** One recording: what it is, its clips and copy, its posts and calendar, and (when asked) the story behind it. */
-async function recordingCard(db: SupabaseClient, id: string, withStory: boolean): Promise<Record<string, unknown>> {
+async function recordingCard(db: SupabaseClient, id: string, withStory: boolean, tenant: string): Promise<Record<string, unknown>> {
   const [{ data: v }, { data: cs }, { data: ps }, { data: prod }] = await Promise.all([
-    db.from('unedit_vlogs').select('id, title, episode, stage, stage_at, error, duration_s, words, cost_cents, created_at, approved_at, post_plan, faceless').eq('id', id).maybeSingle(),
+    db.from('unedit_vlogs').select('id, title, episode, stage, stage_at, error, duration_s, words, cost_cents, created_at, approved_at, post_plan, faceless').eq('id', id).eq('tenant_id', tenant).maybeSingle(),
     db.from('unedit_clips').select('id, n, title, caption, copy, secs, status, hook_start_s, note, error').eq('vlog_id', id).order('n'),
     db.from('unedit_posts').select('clip_id, platform, kind, status, scheduled_at, posted_url, mc_error').eq('vlog_id', id).order('scheduled_at'),
     withStory ? db.from('newsroom_productions').select('angle, story_id, newsroom_stories(headline, source)').eq('vlog_id', id).maybeSingle() : Promise.resolve({ data: null }),
@@ -165,14 +167,15 @@ async function recordingCard(db: SupabaseClient, id: string, withStory: boolean)
 /** Typed Helix: how to ask for a story lookup. Voice: the same as tools. */
 export const storyLookupRules = (voice: boolean) => `
 STORIES AND RECORDINGS (the Newsroom desk and UnEdit Studio; you know them inside out by looking them up): ${voice ? 'call the tool' : 'reply with only {"lookup": {"tool": <name>, "args": {...}}, "answer": "One moment."} and you will be asked again with the result (two lookups at most)'}.
-- story_list {beat?, status?, days?: 1-30, limit?}: the desk, hottest first: heat, fit, angles, claims and how far each story got (on the desk, script written, recorded, on the calendar, posted).
-- story_card {headline: words from it}: one story in full: why it's hot now, every angle, every claim with its source and status, the script and teleprompter written for it, the recording it became, its clips and posts.
-- recording_card {title: words from it}: one recording in full: what it covers, chapters, clips with titles, hooks, captions and copy, every post and when, the story it was cut against, cost.
+Each desk is separate: the Genovus desk by default; pass desk (e.g. "JAVA") for an agency's desk.
+- story_list {desk?, beat?, status?, days?: 1-30, limit?}: the desk, hottest first: heat, fit, angles, claims and how far each story got (on the desk, script written, recorded, on the calendar, posted).
+- story_card {desk?, headline: words from it}: one story in full: why it's hot now, every angle, every claim with its source and status, the script and teleprompter written for it, the recording it became, its clips and posts.
+- recording_card {desk?, title: words from it}: one recording in full: what it covers, chapters, clips with titles, hooks, captions and copy, every post and when, the story it was cut against, cost.
 Use them to advise on what to shoot (heat, confirmed claims, angle not yet recorded), what to post and when (clips ready, calendar gaps), and what to drop. Quote claims with their status (confirmed, reported, alleged); never present an alleged claim as fact. Never invent views or results.`;
 
 /** Voice tool declarations (Gemini Live). */
 export const storyTools = [
-  { name: 'story_list', description: 'The Newsroom desk, hottest first: each story with heat, fit, angles, claims and how far it got (on the desk, script written, recorded, on the calendar, posted).', parameters: { type: 'OBJECT', properties: { beat: { type: 'STRING' }, status: { type: 'STRING' }, days: { type: 'NUMBER' }, limit: { type: 'NUMBER' } } } },
-  { name: 'story_card', description: 'One Newsroom story in full: why it is hot, angles, every claim with source and status, the script and teleprompter, the recording it became, its clips and posts. Pass words from the headline.', parameters: { type: 'OBJECT', properties: { headline: { type: 'STRING' } }, required: ['headline'] } },
-  { name: 'recording_card', description: 'One UnEdit recording in full: what it covers, chapters, clips with titles, hooks, captions and copy, every post and when, the story it was cut against. Pass words from its title.', parameters: { type: 'OBJECT', properties: { title: { type: 'STRING' } }, required: ['title'] } },
+  { name: 'story_list', description: 'The Newsroom desk, hottest first: each story with heat, fit, angles, claims and how far it got (on the desk, script written, recorded, on the calendar, posted).', parameters: { type: 'OBJECT', properties: { desk: { type: 'STRING' }, beat: { type: 'STRING' }, status: { type: 'STRING' }, days: { type: 'NUMBER' }, limit: { type: 'NUMBER' } } } },
+  { name: 'story_card', description: 'One Newsroom story in full: why it is hot, angles, every claim with source and status, the script and teleprompter, the recording it became, its clips and posts. Pass words from the headline.', parameters: { type: 'OBJECT', properties: { desk: { type: 'STRING' }, headline: { type: 'STRING' } }, required: ['headline'] } },
+  { name: 'recording_card', description: 'One UnEdit recording in full: what it covers, chapters, clips with titles, hooks, captions and copy, every post and when, the story it was cut against. Pass words from its title.', parameters: { type: 'OBJECT', properties: { desk: { type: 'STRING' }, title: { type: 'STRING' } }, required: ['title'] } },
 ];

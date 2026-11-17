@@ -10,14 +10,15 @@
 import 'server-only';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { adminDb } from '@/lib/supabase/admin';
-import { genovusTenant, postingContext, tap } from '@/lib/unedit';
+import { postingContext, tap } from '@/lib/unedit';
 import { newsroomAction } from '@/lib/newsroom-actions';
 import { RHYTHMS, type Rhythm } from '@/lib/unedit-plan';
 import { best } from '@/lib/helix-stories';
 
 import { ACTIONS, type Lane } from '@/lib/helix-act-tools';
 type Args = Record<string, unknown>;
-type Ctx = { by: string; origin: string; current?: string; currentStory?: string };
+/** desk: the desk's tenant id and slug (lib/desk.ts): names only ever match that desk's stories and recordings. */
+type Ctx = { by: string; origin: string; current?: string; currentStory?: string; desk: { id: string; slug: string } };
 export type ActResult = { ok: boolean; say?: string; error?: string; lane?: Lane; needs_yes?: boolean; summary?: string; token?: string; background?: () => Promise<string>; choices?: string[] };
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -42,7 +43,7 @@ function readToken(token: string, by: string): { a: string; x: Args } | { error:
 }
 
 async function findStory(args: Args, ctx: Ctx): Promise<{ id: string; headline: string; angles: { title?: string }[] } | { error: string; choices?: string[] }> {
-  const tenant = await genovusTenant();
+  const tenant = ctx.desk.id;
   const want = str(args.story, 200);
   const sid = UUID.test(want) ? want : /^(this|this one|this story|current)?$/i.test(want) ? ctx.currentStory : undefined;
   if (sid) {
@@ -61,11 +62,11 @@ async function findRecording(args: Args, ctx: Ctx): Promise<{ id: string; title:
   const name = (v: { title: string | null; episode: { title?: string } | null }) => v.episode?.title || v.title || 'Recording';
   const id = UUID.test(want) ? want : /^(this|this one|this recording|current)?$/i.test(want) ? ctx.current : undefined;
   if (id) {
-    const { data } = await adminDb().from('unedit_vlogs').select('id, title, episode').eq('id', id).maybeSingle();
+    const { data } = await adminDb().from('unedit_vlogs').select('id, title, episode').eq('id', id).eq('tenant_id', ctx.desk.id).maybeSingle();
     if (data) return { id: data.id, title: name(data as never) };
     if (!want || !UUID.test(want)) return { error: 'No recording is open on screen; say words from its title.' };
   }
-  const { data } = await adminDb().from('unedit_vlogs').select('id, title, episode, created_at').order('created_at', { ascending: false }).limit(200);
+  const { data } = await adminDb().from('unedit_vlogs').select('id, title, episode, created_at').eq('tenant_id', ctx.desk.id).order('created_at', { ascending: false }).limit(200);
   const rows = ((data ?? []) as { id: string; title: string | null; episode: { title?: string } | null }[]).filter((v) => !/^\[test/i.test(name(v)));
   const r = best(rows, want, name);
   if (!r.row) return { error: `No recording matches “${want}”.`, choices: r.others };
@@ -87,7 +88,7 @@ export async function studioAction(action: string, args: Args, ctx: Ctx): Promis
   try {
     const resolved = await resolve(action, args, ctx);
     if ('error' in resolved) return { ok: false, ...resolved };
-    if (meta.lane === 'yes') return { ok: true, lane: 'yes', needs_yes: true, summary: resolved.summary, token: tokenFor(action, resolved.run, ctx.by), say: `Read this back and ask: ${resolved.summary} Shall I? Call confirm_studio_action with the token only after a clear yes.` };
+    if (meta.lane === 'yes') return { ok: true, lane: 'yes', needs_yes: true, summary: resolved.summary, token: tokenFor(action, { ...resolved.run, _desk: ctx.desk }, ctx.by), say: `Read this back and ask: ${resolved.summary} Shall I? Call confirm_studio_action with the token only after a clear yes.` };
     return { ...(await execute(action, resolved.run, ctx)), lane: meta.lane };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'That didn’t work.' };
@@ -98,7 +99,8 @@ export async function studioAction(action: string, args: Args, ctx: Ctx): Promis
 export async function confirmStudioAction(token: string, ctx: Ctx): Promise<ActResult> {
   const t = readToken(token, ctx.by);
   if ('error' in t) return { ok: false, error: t.error };
-  try { return { ...(await execute(t.a, t.x, ctx)), lane: 'yes' }; } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'That didn’t work.' }; }
+  const { _desk, ...run } = t.x as Args & { _desk?: { id: string; slug: string } };
+  try { return { ...(await execute(t.a, run, _desk ? { ...ctx, desk: _desk } : ctx)), lane: 'yes' }; } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'That didn’t work.' }; }
 }
 
 /** Names → records, and a plain summary of what will happen. */
@@ -106,7 +108,7 @@ async function resolve(action: string, args: Args, ctx: Ctx): Promise<{ run: Arg
   if (action === 'sweep_wire') return { run: {}, summary: 'Sweep the free wire.' };
   if (action === 'write_brief') return { run: {}, summary: 'Write today’s brief.' };
   if (action === 'research_beat') {
-    const { data } = await adminDb().from('newsroom_settings').select('beats').eq('tenant_id', await genovusTenant()).maybeSingle();
+    const { data } = await adminDb().from('newsroom_settings').select('beats').eq('tenant_id', ctx.desk.id).maybeSingle();
     const beats = ((data?.beats ?? []) as { id: string; label: string }[]);
     const w = str(args.beat, 60).toLowerCase();
     const b = beats.find((x) => x.id === w || x.label.toLowerCase() === w) ?? beats.find((x) => x.label.toLowerCase().includes(w) || w.includes(x.id));
@@ -203,7 +205,7 @@ async function execute(action: string, run: Args, ctx: Ctx): Promise<ActResult> 
     const say = await tap(String(run.vlog), run.t as never, ctx.by, ctx.origin);
     return { ok: true, say };
   }
-  const go = async () => (await newsroomAction(run, ctx.by, ctx.origin)).say;
+  const go = async () => (await newsroomAction({ ...run, desk: ctx.desk.slug }, ctx.by, ctx.origin)).say;
   if (meta?.slow) return { ok: true, say: `Started: ${meta.does}. It takes a minute or two; the page updates when it lands (ask me “is it ready?”).`, background: go };
   return { ok: true, say: await go() };
 }
