@@ -21,6 +21,7 @@ import { lookupRules } from '@/lib/helix-lookups';
 import { actRules } from '@/lib/helix-act';
 import { helixScope, openThread, threadTurns } from '@/lib/helix-thread';
 import { PROGRAM_NAME } from '@/lib/programs';
+import { storyLookupRules, storyTools } from '@/lib/helix-stories';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
     const brief = await enterpriseBrief(await userDb(), { money: canSeeMoney(viewer.staff.role) });
     tenantId = brief.houseId;
     pages = await helixPagesFor(viewer, 'enterprise');
-    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + formRules(true) + prospectLookupRules(true) + (await seed('enterprise')), voiceTools([...navTools(pages, false), ...formTools(true), ...prospectTools]), voice);
+    setup = liveSetupWith(enterpriseVoice(brief.text, viewer.staff.name) + voiceNavRules(pages, false) + formRules(true) + prospectLookupRules(true) + storyLookupRules(true) + (await seed('enterprise')), voiceTools([...navTools(pages, false), ...formTools(true), ...prospectTools, ...storyTools]), voice);
   } else if (context === 'agency') {
     if (!viewer) return Response.json({ error: 'Sign in first.' }, { status: 401 });
     const m = viewer.memberships.find((x) => x.slug === body.slug);

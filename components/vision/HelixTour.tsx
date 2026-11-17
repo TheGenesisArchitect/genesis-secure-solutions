@@ -279,6 +279,10 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (name === 'finish_dialogue' && r?.needs_recording) window.dispatchEvent(new CustomEvent('genovus:finish-dialogue', { detail: { shot: Number(args.shot) } }));
       return r;
     }
+    // The Newsroom's stories and UnEdit's recordings (staff): looked up on the server, the result goes to the conversation.
+    if (['story_list', 'story_card', 'recording_card'].includes(name)) {
+      return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: name, args }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));
+    }
     // UnEdit Studio's posting calendar (the server checks staff and the calendar rules; the page refreshes).
     if (['posting_calendar', 'move_posts', 'cancel_posts'].includes(name)) {
       const r = await fetch('/api/studio/unedit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: `voice_${name}`, args, current: focus?.kind === 'unedit' ? focus.code : undefined }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'UnEdit didn’t answer.' }));

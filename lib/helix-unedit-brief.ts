@@ -81,7 +81,7 @@ export async function uneditBriefLines(db: SupabaseClient): Promise<string[]> {
   lines.push(
     `- Newsroom morning brief${b ? ` (${b.day})` : ''}: ${b ? cut(b.summary, 500) || 'no summary' : 'none yet'}`,
     `- Hot topics to record (heat 0-100): ${hot.map((h) => { const s = S.get(h.story_id!); return `${s ? `"${cut(s.headline, 110)}" (${s.source}, ${s.status === 'in_studio' ? 'already in the Studio' : s.status})` : 'a story'}${typeof h.heat === 'number' ? ` heat ${Math.round(h.heat)}` : ''}${h.why ? `: ${cut(h.why, 140)}` : ''}${h.angle ? ` Angle: ${cut(h.angle, 120)}` : ''}`; }).join(' | ') || 'none'}.`,
-    `- Stories new on the Newsroom desk: ${onDesk ?? 0}. Productions written but not recorded yet (scripts waiting for a take): ${((prods.data ?? []) as { story_id: string; angle: string; next_upload: boolean }[]).map((p) => `"${cut(S.get(p.story_id)?.headline ?? 'a story', 90)}" angle "${cut(p.angle, 80)}"${p.next_upload ? ' (the next upload is cut against it)' : ''}`).join('; ') || 'none'}.`,
+    `- Stories new on the Newsroom desk: ${onDesk ?? 0} (story_list shows the whole desk; story_card and recording_card open one in full). Productions written but not recorded yet (scripts waiting for a take): ${((prods.data ?? []) as { story_id: string; angle: string; next_upload: boolean }[]).map((p) => `"${cut(S.get(p.story_id)?.headline ?? 'a story', 90)}" angle "${cut(p.angle, 80)}"${p.next_upload ? ' (the next upload is cut against it)' : ''}`).join('; ') || 'none'}.`,
   );
   return lines;
 }

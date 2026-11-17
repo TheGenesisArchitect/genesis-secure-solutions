@@ -12,6 +12,7 @@ import { formRules, helixPagesFor, textNavRules } from '@/lib/helix-actions';
 import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
 import { onScreen } from '@/lib/helix-screen';
 import { OPENABLE, PROSPECT_LOOKUPS, prospectLookupBlock, prospectLookupRules, resolveOpen, runProspectLookup } from '@/lib/helix-prospects';
+import { STORY_LOOKUPS, runStoryLookup, storyLookupRules } from '@/lib/helix-stories';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -33,12 +34,14 @@ export async function POST(req: Request) {
     const brief = await enterpriseBrief(supabase, { money: canSeeMoney(viewer.staff.role) });
     const pages = await helixPagesFor(viewer, 'enterprise');
     // Helix may look a prospect up first (at most two lookups), with the person's own session; results feed this answer only.
-    let ask = brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + prospectLookupRules(false) + onScreen(b.screen);
+    let ask = brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + prospectLookupRules(false) + storyLookupRules(false) + onScreen(b.screen);
     let asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
     for (let round = 0; asked.lookup && round < 2; round++) {
-      const tool = asked.lookup.tool as (typeof PROSPECT_LOOKUPS)[number];
-      if (!PROSPECT_LOOKUPS.includes(tool)) break;
-      ask += prospectLookupBlock(tool, asked.lookup.args, await runProspectLookup(supabase, tool, asked.lookup.args));
+      const tool = asked.lookup.tool;
+      const isStory = (STORY_LOOKUPS as readonly string[]).includes(tool);
+      if (!isStory && !(PROSPECT_LOOKUPS as readonly string[]).includes(tool)) break;
+      const result = isStory ? await runStoryLookup(supabase, tool, asked.lookup.args) : await runProspectLookup(supabase, tool, asked.lookup.args);
+      ask += prospectLookupBlock(tool, asked.lookup.args, result);
       asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
     }
     if (asked.lookup) asked = await askHelix(`${ask}
