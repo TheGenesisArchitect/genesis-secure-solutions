@@ -56,12 +56,21 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
     // Helix was asked to open a page: go there now (only on a fresh answer; it's never saved, so a reload won't replay it).
     if (r.okay && r.j.fill) await applyFill(r.j.fill, r.j.save, page);
     if (r.okay && r.j.go?.href) { const go = r.j.go as { href: string; label: string }; void goViaMenu(go.href, () => router.push(go.href), go.label); }
-    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember, savedNote: r.j.savedNote } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
+    setTurns((t) => [...t, r.okay ? { role: 'helix', page, text: r.j.answer, noted: r.j.noted, drafts: r.j.drafts, remember: r.j.remember, savedNote: r.j.savedNote, studioAct: r.j.studioAct } : { role: 'helix', page, text: r.j.error ?? 'Helix couldn’t answer just now.' }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
   // Each "Ask Helix" button press asks once, adding to the thread.
   useEffect(() => { if (start && startN && asked.current !== startN) { asked.current = startN; void ask(start); } }); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, []);
+  // A yes-lane Newsroom or UnEdit action: runs only from this button, with the token Helix's summary came with.
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const yes = async (a: { summary: string; token: string }) => {
+    setDone((s) => new Set(s).add(a.token));
+    const r = await fetch('/api/studio/helix-act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: 'confirm_studio_action', args: { token: a.token } }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'Helix couldn’t reach the Studio.' }));
+    toast(r.ok ? { ok: r.say ?? 'Done.' } : { err: r.error ?? 'That didn’t work.' });
+    setTurns((t) => [...t, { role: 'helix', page, text: r.ok ? `Done. ${r.say ?? ''}` : (r.error ?? 'That didn’t work.') }]);
+    router.refresh();
+  };
   const keep = async (m: Memory) => { const r = await rememberEnterprise({ ...m, source: 'conversation' }); toast(r); if (r.ok) setKept((s) => new Set(s).add(m.text)); };
   return (
     <div className={'helix-chat' + (compact ? ' compact' : '')}>
@@ -82,6 +91,14 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
             {t.drafts?.map((d, j) => (
               <div key={j} className="helix-card draft"><span className="muted" style={{ fontSize: 12 }}>Draft {d.channel}{d.to ? ` to ${d.to}` : ''} · you send it</span><p style={{ margin: 0 }}>{d.body}</p><button className="btn small" type="button" onClick={() => navigator.clipboard.writeText(d.body).then(() => toast({ ok: 'Draft copied.' }), () => toast({ err: 'Copy failed: select the text instead.' }))}>Copy</button></div>
             ))}
+            {t.studioAct && !done.has(t.studioAct.token) ? (
+              <div className="helix-card draft"><span><b>Shall I?</b><br />{t.studioAct.summary}</span>
+                <span className="row" style={{ gap: 6 }}>
+                  <button className="btn small primary" type="button" disabled={busy} onClick={() => yes(t.studioAct!)}>Yes, do it</button>
+                  <button className="btn small" type="button" onClick={() => setDone((s) => new Set(s).add(t.studioAct!.token))}>No</button>
+                </span>
+              </div>
+            ) : null}
             {t.remember?.map((m, j) => (
               <div key={j} className="helix-card remember"><span><b>Remember this?</b> <span className="muted" style={{ fontSize: 12 }}>{DEPT[m.department] ?? 'General'}</span><br />{m.text}</span>{kept.has(m.text) ? <span className="chip done">Kept</span> : <button className="btn small primary" type="button" onClick={() => keep(m)}>Keep</button>}</div>
             ))}

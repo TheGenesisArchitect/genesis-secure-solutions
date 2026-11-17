@@ -92,6 +92,14 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
   }, []);
   const storyRef = useRef<HTMLDivElement>(null);
   const open = (id: string) => { setPick(id); if (narrow) requestAnimationFrame(() => storyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); };
+  // Helix opens a story by voice (open_studio), or a link carries ?story=<id>.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('story');
+    if (q && stories.some((s) => s.id === q)) setPick(q);
+    const on = (e: Event) => { const id = (e as CustomEvent<{ id?: string }>).detail?.id; if (id && stories.some((s) => s.id === id)) { setPick(id); requestAnimationFrame(() => storyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); } };
+    window.addEventListener('genovus:newsroom-open', on);
+    return () => window.removeEventListener('genovus:newsroom-open', on);
+  }, [stories]);
 
   const beatOf = beats.find((b) => b.id === beat);
   const wire = useMemo(() => stories.filter((s) => (beat === 'all' || s.beat === beat) && (sub === 'All' || s.sub === sub)), [stories, beat, sub]);
@@ -193,7 +201,7 @@ export function Newsroom({ stories, productions, beats, voice, spentToday, daily
       </section>
 
       {story ? (
-        <div className="nr-cols" ref={storyRef}>
+        <div className="nr-cols" ref={storyRef} data-helix-story={story?.id}>
           <main className="nr-col" aria-label="The story">
             <span className="nr-step">1 · The story · {label(story.beat)}{story.sub ? ` · ${story.sub}` : ''}</span>
             <h1 className="nr-title">{story.headline}</h1>

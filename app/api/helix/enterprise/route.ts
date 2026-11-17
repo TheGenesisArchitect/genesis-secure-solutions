@@ -13,6 +13,9 @@ import { noteRules, saveHelixNote } from '@/lib/helix-note-save';
 import { onScreen } from '@/lib/helix-screen';
 import { OPENABLE, PROSPECT_LOOKUPS, prospectLookupBlock, prospectLookupRules, resolveOpen, runProspectLookup } from '@/lib/helix-prospects';
 import { STORY_LOOKUPS, runStoryLookup, storyLookupRules } from '@/lib/helix-stories';
+import { studioActRules } from '@/lib/helix-act-tools';
+import { studioAction } from '@/lib/helix-studio-act';
+import { after } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,13 +37,23 @@ export async function POST(req: Request) {
     const brief = await enterpriseBrief(supabase, { money: canSeeMoney(viewer.staff.role) });
     const pages = await helixPagesFor(viewer, 'enterprise');
     // Helix may look a prospect up first (at most two lookups), with the person's own session; results feed this answer only.
-    let ask = brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + prospectLookupRules(false) + storyLookupRules(false) + onScreen(b.screen);
+    let ask = brief.text + textNavRules(pages) + noteRules('enterprise') + formRules(false) + prospectLookupRules(false) + storyLookupRules(false) + studioActRules(false) + onScreen(b.screen);
     let asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
-    for (let round = 0; asked.lookup && round < 2; round++) {
+    // A button Helix pressed in the Newsroom or UnEdit; a yes-lane one waits on a card the person taps.
+    let studioAct: { summary: string; token: string } | undefined;
+    for (let round = 0; asked.lookup && round < 3; round++) {
       const tool = asked.lookup.tool;
       const isStory = (STORY_LOOKUPS as readonly string[]).includes(tool);
-      if (!isStory && !(PROSPECT_LOOKUPS as readonly string[]).includes(tool)) break;
-      const result = isStory ? await runStoryLookup(supabase, tool, asked.lookup.args) : await runProspectLookup(supabase, tool, asked.lookup.args);
+      const isAct = tool === 'studio_action';
+      if (!isStory && !isAct && !(PROSPECT_LOOKUPS as readonly string[]).includes(tool)) break;
+      let result: Record<string, unknown>;
+      if (isAct) {
+        const r = await studioAction(String(asked.lookup.args.action ?? ''), asked.lookup.args, { by: viewer.userId, origin: new URL(req.url).origin });
+        const { background, token, ...rest } = r;
+        if (background) after(async () => { try { console.info(`[helix-act] ${await background()}`); } catch (e) { console.error(`[helix-act] ${e instanceof Error ? e.message : e}`); } });
+        if (r.needs_yes && token) studioAct = { summary: r.summary ?? '', token };
+        result = r.needs_yes ? { ...rest, say: `A Yes card is on screen: ${r.summary} Tell them to tap Yes to do it (nothing has changed yet).` } : rest;
+      } else result = isStory ? await runStoryLookup(supabase, tool, asked.lookup.args) : await runProspectLookup(supabase, tool, asked.lookup.args);
       ask += prospectLookupBlock(tool, asked.lookup.args, result);
       asked = await askHelix(ask, history, question, context, ENTERPRISE_SYSTEM);
     }
@@ -62,7 +75,7 @@ No more lookups: answer now with what you have.`, history, question, context, EN
     // One prospect's or client's page by name: resolved here, and only those two kinds of page.
     const opened = reply.open ? await resolveOpen(supabase, reply.open) : null;
     const go = opened && 'href' in opened && OPENABLE.test(opened.href) ? opened : pages.find((p) => p.label.toLowerCase() === reply.go?.toLowerCase());
-    return Response.json({ ...reply, open: undefined, note: undefined, go, savedNote, threadId });
+    return Response.json({ ...reply, open: undefined, note: undefined, go, savedNote, threadId, studioAct });
   } catch (e) {
     console.error(`[helix-enterprise] ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: 'Helix couldn’t answer just now. Try again in a moment.' }, { status: 502 });

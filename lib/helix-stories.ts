@@ -24,7 +24,7 @@ type Hot = { story_id?: string; heat?: number; why?: string; angle?: string };
 const SCOLS = 'id, beat, sub, headline, source, url, published_on, why, fit, status, angles, chosen_angle, build, created_at';
 
 /** Best match by shared words (ties go to the newest); null with the closest names when nothing fits. */
-function best<T>(rows: T[], want: string, name: (r: T) => string): { row: T | null; others: string[] } {
+export function best<T>(rows: T[], want: string, name: (r: T) => string): { row: T | null; others: string[] } {
   const w = words(want);
   if (!w.length) return { row: null, others: [] };
   const scored = rows.map((r) => ({ r, k: w.filter((x) => words(name(r)).some((y) => y.startsWith(x) || x.startsWith(y))).length })).filter((x) => x.k > 0).sort((a, b) => b.k - a.k);
@@ -109,7 +109,8 @@ export async function runStoryLookup(db: SupabaseClient, tool: string, args: Arg
         heat: h ? { heat: h.heat != null ? Math.round(h.heat) : null, in_brief_of: h.day, why_hot: h.why, suggested_angle: h.angle } : 'not rated in a recent morning brief',
         angles: (s.angles ?? []).map((a, i) => `${i === s!.chosen_angle ? '[CHOSEN] ' : ''}${a.title ?? ''}${a.line ? `: ${a.line}` : ''}`), build: s.build, state: stateOf(s, pl) },
       claims: ((claims ?? []) as { text: string; status: string; attribution: string | null; denial: string | null; names_person: boolean; source_title: string | null; source_url: string; passage_verified: boolean; approved: boolean }[])
-        .map((c) => `${c.status.toUpperCase()}${c.approved ? '' : ' (waiting for a person)'}${c.passage_verified ? ', passage verified' : ''}: ${cut(c.text, 220)}${c.attribution ? ` (per ${c.attribution})` : ''}${c.denial ? ` Other side: ${cut(c.denial, 140)}` : ''}${c.names_person ? ' [names a person]' : ''} Source: ${c.source_title ?? c.source_url}`),
+        
+        .map((c, i) => `${i + 1}. ${c.status.toUpperCase()}${c.approved ? '' : ' (waiting for a person)'}${c.passage_verified ? ', passage verified' : ''}: ${cut(c.text, 220)}${c.attribution ? ` (per ${c.attribution})` : ''}${c.denial ? ` Other side: ${cut(c.denial, 140)}` : ''}${c.names_person ? ' [names a person]' : ''} Source: ${c.source_title ?? c.source_url}`),
       productions: prods.map((p) => {
         const o = (p.outputs ?? {}) as Record<string, unknown>;
         const social = o.social && typeof o.social === 'object' ? Object.keys(o.social as object) : [];

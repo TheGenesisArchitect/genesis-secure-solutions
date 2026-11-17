@@ -5,6 +5,7 @@
 import 'server-only';
 import { adminDb } from '@/lib/supabase/admin';
 import { storyTools as STORY_TOOLS } from '@/lib/helix-stories';
+import { studioActTools as STUDIO_ACT_TOOLS } from '@/lib/helix-act-tools';
 
 type Bible = Record<string, unknown> & {
   title: string; version: string; premise: string; promise: string; world: string; contract: string; intelligences: string[]; comedy_rules: string[];
@@ -64,6 +65,7 @@ export const UNEDIT_TOOLS = [{
     { name: 'move_posts', description: 'Move waiting posts on the calendar. The first chosen post lands on date (at time if given, else at its own time of day) and the rest shift by the same amount, so a drip keeps its rhythm. Resolve spoken days ("Thursday", "tomorrow") into a date yourself from TODAY. Moving is free and can be moved back, so do it when asked and read back the result.',
       parameters: { type: 'OBJECT', properties: { ...POST_SEL, date: { type: 'STRING', description: 'New York day to move to, YYYY-MM-DD.' }, time: { type: 'STRING', description: 'Optional New York time, 24-hour HH:MM (6 PM = 18:00).' } } } },
     ...STORY_TOOLS,
+    ...STUDIO_ACT_TOOLS,
     { name: 'cancel_posts', description: 'Take waiting posts off the calendar so they never go out. This cannot be undone here: first say exactly which posts, ask "Shall I take them off?", and call this ONLY after a clear yes.',
       parameters: { type: 'OBJECT', properties: POST_SEL } },
   ],
@@ -74,7 +76,7 @@ type Decl = { name: string; description: string; parameters: { type: string; pro
 const EPISODE_ARG = { type: 'STRING', description: 'The episode code from the EPISODES list (e.g. gjk-pbp1).' };
 export const STUDIO_HOME_TOOLS = [{
   functionDeclarations: [...(BOARD_TOOLS[0].functionDeclarations as Decl[]).map((d) => BIBLE_TOOLS[0].functionDeclarations.some((b) => b.name === d.name) ? d
-    : { ...d, parameters: { ...d.parameters, properties: { ...d.parameters.properties, episode: EPISODE_ARG }, required: [...(d.parameters.required ?? []), 'episode'] } }), ...STORY_TOOLS],
+    : { ...d, parameters: { ...d.parameters, properties: { ...d.parameters.properties, episode: EPISODE_ARG }, required: [...(d.parameters.required ?? []), 'episode'] } }), ...STORY_TOOLS, ...STUDIO_ACT_TOOLS],
 }];
 
 export async function bibleSystem(): Promise<string> {
@@ -173,6 +175,6 @@ export async function studioSystem(focus: StudioFocus): Promise<string> {
   const block = await focusBlock(focus);
   // On the Studio home, Helix also knows UnEdit Studio and the Newsroom (the UnEdit pages carry it in their own block).
   const unedit = focus.kind === 'home' ? await (await import('@/lib/helix-unedit-brief')).uneditBriefLines(adminDb()).then((l) => l.join('\n')).catch(() => '') : '';
-  const stories = focus.kind === 'home' || focus.kind === 'unedit' ? (await import('@/lib/helix-stories')).storyLookupRules(true) : '';
+  const stories = focus.kind === 'home' || focus.kind === 'unedit' ? (await import('@/lib/helix-stories')).storyLookupRules(true) + (await import('@/lib/helix-act-tools')).studioActRules(true) : '';
   return [base, block, unedit, stories].filter(Boolean).join('\n\n');
 }

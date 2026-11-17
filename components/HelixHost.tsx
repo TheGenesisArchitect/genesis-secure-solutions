@@ -23,6 +23,8 @@ export type HelixTurn = {
   remember?: { department: string; kind: string; text: string }[];
   /** A note Helix saved when asked ("make a note"), with where to open it. */
   savedNote?: { href: string; kind: string; text: string };
+  /** A Newsroom or UnEdit action waiting for the person's Yes (lib/helix-studio-act.ts). */
+  studioAct?: { summary: string; token: string };
 };
 /**
  * `asked`: the last "Ask Helix" button press already answered, so a chat that remounts never asks it twice.

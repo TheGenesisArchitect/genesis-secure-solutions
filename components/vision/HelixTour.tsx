@@ -279,6 +279,31 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (name === 'finish_dialogue' && r?.needs_recording) window.dispatchEvent(new CustomEvent('genovus:finish-dialogue', { detail: { shot: Number(args.shot) } }));
       return r;
     }
+    // Helix's hands in the Newsroom and UnEdit (lib/helix-studio-act.ts): the server resolves names, enforces the lanes
+    // (a yes-lane action runs only from confirm with its token) and runs what the button runs; the page then refreshes.
+    if (name === 'studio_action' || name === 'confirm_studio_action' || name === 'open_studio') {
+      const currentStory = document.querySelector<HTMLElement>('[data-helix-story]')?.dataset.helixStory;
+      const r = await fetch('/api/studio/helix-act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: name, args, current: focus?.kind === 'unedit' ? focus.code : undefined, currentStory }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'The Studio didn’t answer.' }));
+      if (name !== 'open_studio') { if (r.ok && !r.needs_yes) { window.dispatchEvent(new CustomEvent('genovus:helix-dock', { detail: { state: 'min' } })); router.refresh(); } return r; }
+      if (!r.ok || typeof r.href !== 'string' || !r.href.startsWith('/console/studio/unedit')) return r;
+      setSpot(null);
+      if (pathRef.current !== r.href) { selfNav.current = true; router.push(r.href); }
+      const landed = await waitFor(() => pathRef.current === r.href, 10000);
+      if (!landed) return { ok: false, error: 'the page is still loading' };
+      await settled();
+      if (r.story) window.dispatchEvent(new CustomEvent('genovus:newsroom-open', { detail: { id: r.story } }));
+      if (r.anchor) { const h = [...document.querySelectorAll<HTMLElement>('main h2, main h3, main header b')].find((e) => (e.textContent ?? '').includes(r.anchor)); if (h) point(h.closest('section, .panel') ?? h); }
+      return { ok: true, opened: r.headline ?? r.title ?? args.place };
+    }
+    if (name === 'point_at') {
+      const want = String(args.text ?? '').trim().toLowerCase();
+      if (want.length < 2) return { ok: false, error: 'say what to point at' };
+      const els = [...document.querySelectorAll<HTMLElement>('main h1, main h2, main h3, main header b, main button, main a, main label, main b, main li, main [data-helix-item]')].filter((e) => !e.closest('.helix-drawer') && (e.textContent ?? '').trim().toLowerCase().includes(want));
+      const el = els.sort((a, b) => (a.textContent ?? '').length - (b.textContent ?? '').length)[0];
+      if (!el) return { ok: false, error: `nothing called “${args.text}” on this page` };
+      point(el.closest('li, section, .card, tr') ?? el);
+      return { ok: true };
+    }
     // The Newsroom's stories and UnEdit's recordings (staff): looked up on the server, the result goes to the conversation.
     if (['story_list', 'story_card', 'recording_card'].includes(name)) {
       return fetch('/api/helix/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'enterprise', tool: name, args }) }).then((r) => r.json()).catch(() => ({ error: 'Helix couldn’t reach Genovus.' }));

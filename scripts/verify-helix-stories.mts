@@ -55,8 +55,8 @@ try {
   check('finds the story by headline words', card.found === true && card.story.headline === T('Regulators probe rogue agent incident'), card);
   check('heat with why it is hot', card.story.heat?.heat === 91 && String(card.story.heat.why_hot).includes('Six outlets'), card.story.heat);
   check('angles with the chosen one marked', card.story.angles[0].startsWith('[CHOSEN] What it means'), card.story.angles);
-  check('confirmed claim with source and verified passage', card.claims.some((c: string) => c.startsWith('CONFIRMED, passage verified') && c.includes('Agency release')), card.claims);
-  check('alleged claim keeps its status and the other side', card.claims.some((c: string) => c.startsWith('ALLEGED') && c.includes('Other side: The company disputes it.')), card.claims);
+  check('confirmed claim with source and verified passage', card.claims.some((c: string) => c.startsWith('1. CONFIRMED, passage verified') && c.includes('Agency release')), card.claims);
+  check('alleged claim keeps its status and the other side', card.claims.some((c: string) => c.startsWith('2. ALLEGED') && c.includes('Other side: The company disputes it.')), card.claims);
   check('the script written for it', card.productions[0]?.script?.includes('SCRIPT: Here is what happened'), card.productions);
   check('the recording it became, with clips and posts', card.recordings[0]?.recording?.title === T('Rogue agents explained') && card.recordings[0].clips.length === 2 && card.recordings[0].posts.some((p: string) => p.includes('live')), card.recordings);
   const nf = await runStoryLookup(db, 'story_card', { headline: `nothing like this zz${tag}` });
