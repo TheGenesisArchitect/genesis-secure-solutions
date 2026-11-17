@@ -94,14 +94,15 @@ export async function learnPayUrl(link: string): Promise<string> {
 // ---------- customers ----------
 async function ensureCustomer(tenantId: string): Promise<string> {
   const db = adminDb();
-  const { data: t } = await db.from('tenants').select('name, mercury_customer_id').eq('id', tenantId).single();
+  const { data: t } = await db.from('tenants').select('name, mercury_customer_id, notify_emails').eq('id', tenantId).single();
   if (!t) throw new MercuryError('Client not found.');
   if (t.mercury_customer_id) return t.mercury_customer_id;
   const { data: owners } = await db.from('memberships').select('user_id').eq('tenant_id', tenantId).eq('role', 'owner').limit(1);
   const ownerId = owners?.[0]?.user_id;
   // The owner's sign-in email; before they have a dashboard (a new client), the email on their record.
   const recEmail = (await db.from('agent_records').select('data').eq('tenant_id', tenantId).eq('is_current', true).maybeSingle()).data?.data?.email as string | undefined;
-  const email = (ownerId ? (await db.auth.admin.getUserById(ownerId)).data.user?.email : null) ?? (recEmail && /^[^@s]+@[^@s]+.[^@s]+$/.test(recEmail) ? recEmail : null);
+  // An agency's office inbox comes first when it has one (tenants.notify_emails, migration 0114).
+  const email = (t.notify_emails as string[] | null)?.[0] ?? (ownerId ? (await db.auth.admin.getUserById(ownerId)).data.user?.email : null) ?? (recEmail && /^[^@s]+@[^@s]+.[^@s]+$/.test(recEmail) ? recEmail : null);
   if (!email) throw new MercuryError('Add the client’s email to their record (or invite the owner): Mercury needs an email to bill.');
   // Mercury does not enforce unique emails, so match on email before creating (their recommended practice).
   const existing = (await listAll('/ar/customers')).find((c) => String(c.email ?? '').toLowerCase() === email.toLowerCase());
@@ -124,6 +125,8 @@ export async function pushInvoice(invoiceId: string, dueOverride?: string): Prom
   if (!inv) throw new MercuryError('Invoice not found.');
   if (inv.status !== 'draft') throw new MercuryError(`This invoice is already ${inv.status}.`);
   const customerId = await ensureCustomer(inv.tenant_id);
+  // The agency's other inboxes are copied on the invoice (tenants.notify_emails after the first).
+  const ccEmails = (((await db.from('tenants').select('notify_emails').eq('id', inv.tenant_id).single()).data?.notify_emails as string[] | null) ?? []).slice(1);
   let number: string = inv.number;
   if (!number) {
     const { data } = await db.rpc('next_invoice_number');
@@ -148,7 +151,7 @@ export async function pushInvoice(invoiceId: string, dueOverride?: string): Prom
       method: 'POST',
       body: {
         customerId, destinationAccountId: ACCOUNT(), invoiceNumber: number, invoiceDate: day(today), dueDate: due < day(today) ? day(today) : due,
-        lineItems, ccEmails: [], creditCardEnabled: false, achDebitEnabled: true, useRealAccountNumber: false, sendEmailOption: 'DontSend',
+        lineItems, ccEmails, creditCardEnabled: false, achDebitEnabled: true, useRealAccountNumber: false, sendEmailOption: 'DontSend',
         ...(memo ? { payerMemo: memo } : {}), internalNote: `Genovus ${invoiceId}`,
         ...(inv.period_start ? { servicePeriodStartDate: inv.period_start, servicePeriodEndDate: inv.period_end } : {}),
       },
