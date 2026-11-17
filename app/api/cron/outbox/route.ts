@@ -1,11 +1,11 @@
 // Every minute: send due outbox emails. Rows are claimed before sending so two runs never send twice;
 // failures retry with backoff and give up after five attempts. Each send is recorded in the audit log.
-// Push alerts (lead_push, post_push to the agency members' devices; team_push to the Genovus team's) go out the same
+// Push alerts (lead_push, post_push, approval_push, brief_push to the agency members' devices; team_push to the Genovus team's) go out the same
 // way, even where email isn't set up.
 import { adminDb } from '@/lib/supabase/admin';
 import { emailConfigured, outboxEmail, sendEmail } from '@/lib/email';
 import { cronAuthorized, siteOrigin } from '@/lib/cron';
-import { PUSH_TEMPLATES, pushConfigured, sendLeadPush, sendPostPush, sendTeamPush } from '@/lib/push';
+import { PUSH_TEMPLATES, pushConfigured, sendLeadPush, sendMemberPush, sendPostPush, sendTeamPush } from '@/lib/push';
 import { sendChecklistLinks } from '@/lib/client-checklist';
 import { queueConsultReminders, queueKickoffReminders } from '@/lib/consult-reminders';
 
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   for (const row of claimed ?? []) {
     if (PUSH_TEMPLATES.includes(row.template)) {
       const d = row.data as Record<string, string>;
-      const p = row.template === 'post_push' ? await sendPostPush(db, row.tenant_id, d) : row.template === 'team_push' ? await sendTeamPush(db, d) : await sendLeadPush(db, row.tenant_id, d);
+      const p = row.template === 'post_push' ? await sendPostPush(db, row.tenant_id, d) : row.template === 'team_push' ? await sendTeamPush(db, d) : row.template === 'approval_push' || row.template === 'brief_push' ? await sendMemberPush(db, row.tenant_id, d) : await sendLeadPush(db, row.tenant_id, d);
       await db.from('outbox').update({ status: p.sent ? 'sent' : 'skipped', attempts: row.attempts + 1, sent_at: new Date().toISOString(), last_error: p.sent ? null : p.devices ? `no device took it (${p.gone} gone, ${p.failed} failed): ${p.errors.join('; ')}`.slice(0, 500) : 'no devices have alerts turned on' }).eq('id', row.id);
       if (p.sent) await db.from('audit_events').insert({ tenant_id: row.tenant_id, actor: null, actor_label: 'outbox', action: 'push.sent', subject: row.template, after: { devices: p.sent, outbox: row.id }, prev_hash: '', hash: '' });
       sent += p.sent ? 1 : 0;

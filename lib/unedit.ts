@@ -42,7 +42,7 @@ import { PACKAGES, RULES } from '@/data/unedit-stylebook';
 import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, planParts, renderPart, shotCrops, splitBoxes, picKey, WORKERS, type EpGraphic, type EpisodePlan, type Graphics, type Part } from '@/lib/unedit-episode';
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
-import { proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
+import { proBrand, proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 import { campaignPosts, nowTimes, planPosts, postKey, recommend, LEAD_MIN, type Busy, type PostMode, type Rhythm, type Signal } from '@/lib/unedit-plan';
 
@@ -265,7 +265,9 @@ export async function step(v: Vlog, origin: string): Promise<string> {
             const basePath = `${dir(v)}/clips/${next.n}-base.mp4`;
             await put(basePath, base.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
             const cues = ((next.features as { cues?: Cue[] })?.cues ?? []);
-            made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents, cues)), secs: base.secs, pro: true };
+            // An agency desk's clip carries the agency's crest, colors and end card (lib/desk.ts profile.brand), never Genovus's.
+            const brand = proBrand((await deskById(v.tenant_id)).profile);
+            made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents, cues, brand)), secs: base.secs, pro: true };
           } catch (e) {
             console.error(`[unedit] ${v.id} clip ${next.n}: Unedit Pro fell back to the plain clip: ${e instanceof Error ? e.message : e}`);
             // Said on the card, never silent: this clip is the plain cut, and Redo tries the graphics again.

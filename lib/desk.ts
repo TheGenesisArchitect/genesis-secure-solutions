@@ -21,6 +21,8 @@ export type DeskProfile = {
   competitors: string[];        // names never said
   approver: 'owner';            // posts wait for the agency owner's approval
   networks?: string[];          // the networks connected on its Metricool brand (posts go only there)
+  /** The agency's look on its clips (Unedit Pro): crest images (site paths or links) and its colors. */
+  brand?: { mark: string; markDark?: string | null; navy: string; accent: string; said: string } | null;
 };
 export type Desk = { id: string; slug: string; name: string; house: boolean; profile: DeskProfile | null };
 

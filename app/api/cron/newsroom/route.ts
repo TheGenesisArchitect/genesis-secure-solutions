@@ -4,7 +4,7 @@
 import { after } from 'next/server';
 import { cronAuthorized } from '@/lib/cron';
 import { allDesks } from '@/lib/desk';
-import { writeBrief } from '@/lib/newsroom-morning';
+import { queueBriefNotices, writeBrief } from '@/lib/newsroom-morning';
 import { sweepFree } from '@/lib/newsroom-feed';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,10 @@ export async function GET(req: Request) {
     return Response.json({ ok: true, started: desks.map((d) => d.slug) });
   }
   if (step === 'brief') {
-    for (const d of desks) after(async () => { const b = await writeBrief(d.id).catch((e) => { console.error(`[newsroom] ${d.slug} brief: ${e instanceof Error ? e.message : e}`); return null; }); console.info(`[newsroom] ${d.slug} brief: ${b ? `${b.hot.length} hot topics` : 'none'}`); });
+    for (const d of desks) after(async () => { const b = await writeBrief(d.id).catch((e) => { console.error(`[newsroom] ${d.slug} brief: ${e instanceof Error ? e.message : e}`); return null; }); console.info(`[newsroom] ${d.slug} brief: ${b ? `${b.hot.length} hot topics` : 'none'}`);
+      // An agency's brief also goes to its host at 7 AM (email and alert), once the operator has turned it on.
+      if (b && !d.house) { const n = await queueBriefNotices(d.id, b).catch((e) => { console.error(`[newsroom] ${d.slug} brief notices: ${e instanceof Error ? e.message : e}`); return 0; }); if (n) console.info(`[newsroom] ${d.slug} brief notices queued: ${n}`); }
+    });
     return Response.json({ ok: true, started: desks.map((d) => d.slug) });
   }
   return Response.json({ ok: false, error: 'step=sweep or step=brief' }, { status: 400 });

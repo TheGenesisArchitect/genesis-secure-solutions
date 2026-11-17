@@ -70465,7 +70465,7 @@ function phrases(words) {
   if (cur.length) out.push(cur);
   return out;
 }
-function UneditPro_Captions({ words, shots, serif }) {
+function UneditPro_Captions({ words, shots, serif, brand }) {
   const frame = (0,esm.useCurrentFrame)();
   const t = frame / PRO_FPS;
   const list = react.useMemo(() => phrases(words), [words]);
@@ -70479,13 +70479,52 @@ function UneditPro_Captions({ words, shots, serif }) {
   const bottom = (shot == null ? void 0 : shot.layout) === "card" ? 330 : (shot == null ? void 0 : shot.layout) === "split" ? 1e3 : (shot == null ? void 0 : shot.layout) === "screen" ? 330 : 470;
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { pointerEvents: "none" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 90, right: 90, bottom, textAlign: "center", fontFamily: F.display, fontWeight: 800, fontSize: 84, lineHeight: 1.12, textTransform: "uppercase", textWrap: "balance" }, children: cur.map((w, k) => {
     const said = t >= w.s;
-    const base = { color: light ? INK : said ? UneditPro_GOLD : "#fff", opacity: light && !said && !w.a ? 0.38 : 1, textShadow: light ? "none" : "0 4px 18px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.9)", WebkitTextStroke: light ? void 0 : "3px rgba(0,0,0,.85)", paintOrder: "stroke fill" };
-    const accent = serif ? { fontFamily: UneditPro_SERIF, fontStyle: "italic", fontWeight: 400, textTransform: "none", fontSize: 108, color: UneditPro_ACCENT, WebkitTextStroke: light ? void 0 : "2px rgba(0,0,0,.6)" } : { color: UneditPro_ACCENT, fontSize: 94 };
+    const base = { color: light ? (brand == null ? void 0 : brand.navy) ?? INK : said ? (brand == null ? void 0 : brand.said) ?? UneditPro_GOLD : "#fff", opacity: light && !said && !w.a ? 0.38 : 1, textShadow: light ? "none" : "0 4px 18px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.9)", WebkitTextStroke: light ? void 0 : "3px rgba(0,0,0,.85)", paintOrder: "stroke fill" };
+    const accent = serif ? { fontFamily: UneditPro_SERIF, fontStyle: "italic", fontWeight: 400, textTransform: "none", fontSize: 108, color: brand ? light ? brand.navy : brand.accent : UneditPro_ACCENT, WebkitTextStroke: light ? void 0 : "2px rgba(0,0,0,.6)" } : { color: brand ? light ? brand.navy : brand.accent : UneditPro_ACCENT, fontSize: 94 };
     return /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { ...base, ...w.a ? accent : {} }, children: [
       k ? " " : "",
       w.a && serif ? w.w.toLowerCase() : w.w
     ] }, `${w.s}-${k}`);
   }) }) });
+}
+const END_SECS = 2.6;
+function CrestBug({ brand, shots, secs }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const t = frame / PRO_FPS;
+  const endAt = secs > 6 ? secs - END_SECS : Infinity;
+  const o = (0,esm.interpolate)(t, [0.4, 0.9, endAt - 0.3, endAt], [0, 0.92, 0.92, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  if (o <= 0) return null;
+  const shot = [...shots].reverse().find((s) => Math.round(s.s * PRO_FPS) <= frame) ?? shots[0];
+  const light = shot && (shot.layout === "card" || shot.layout === "number") && brand.markDark;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: light ? brand.markDark : brand.mark, style: { position: "absolute", left: 64, top: 96, height: 132, width: "auto", opacity: o, filter: light ? "none" : "drop-shadow(0 6px 14px rgba(0,0,0,.55))" } });
+}
+function EndCard({ brand, secs }) {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const start = Math.round((secs - END_SECS) * PRO_FPS);
+  if (secs <= 6 || frame < start) return null;
+  const p = (0,esm.spring)({ frame: frame - start, fps, config: { damping: 20, stiffness: 140, mass: 0.8 } });
+  const crest = (0,esm.spring)({ frame: frame - start - 6, fps, config: { damping: 12, stiffness: 150, mass: 0.7 } });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 620,
+    transform: `translateY(${(0,esm.interpolate)(p, [0, 1], [-640, 0])}px)`,
+    background: `linear-gradient(180deg, ${brand.navy} 0%, ${brand.navy} 78%, ${brand.navy}00 100%)`,
+    display: "flex",
+    alignItems: "center",
+    gap: 44,
+    padding: "40px 80px 120px"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: brand.mark, style: { height: 300, width: "auto", transform: `scale(${(0,esm.interpolate)(crest, [0, 1], [0.6, 1])})`, opacity: Math.min(1, crest * 1.5), flex: "none" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { opacity: (0,esm.interpolate)(p, [0.4, 1], [0, 1], { extrapolateLeft: "clamp" }) }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: F.display, fontWeight: 800, fontSize: brand.name.length > 16 ? 62 : 76, lineHeight: 1.04, color: "#fff", letterSpacing: "-0.01em" }, children: brand.name }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { width: 120, height: 8, background: brand.accent, margin: "26px 0 22px", borderRadius: 4 } }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: F.body, fontWeight: 600, fontSize: 40, lineHeight: 1.2, color: brand.accent }, children: brand.line })
+    ] })
+  ] });
 }
 const WHOOSH_PEAK = 0.25;
 const SFX_GAP = 0.7;
@@ -70506,7 +70545,7 @@ function SoundEffects({ words, shots, busy }) {
     return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: Math.max(0, Math.round(at * PRO_FPS)), durationInFrames: Math.round(0.6 * PRO_FPS), name: `sfx ${c.kind}`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src: (0,esm.staticFile)(`sfx/${c.kind}.wav`), volume: c.kind === "whoosh" ? 0.45 : 0.3 }) }, i);
   }) });
 }
-const UneditPro = ({ src, words, shots, cues = [], serif = false, sfx = false }) => {
+const UneditPro = ({ src, secs, words, shots, cues = [], serif = false, sfx = false, brand = null }) => {
   const sorted = [...shots].sort((a, b) => a.s - b.s);
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "#000" }, children: [
     /* @__PURE__ */ (0,jsx_runtime.jsx)(CameraRig, { cues, children: sorted.map((sh, i) => {
@@ -70519,7 +70558,9 @@ const UneditPro = ({ src, words, shots, cues = [], serif = false, sfx = false })
     /* @__PURE__ */ (0,jsx_runtime.jsx)(CutLeaks, { cuts: sorted.filter((sh, i) => i > 0 && sh.layout !== sorted[i - 1].layout && (sh.layout === "screen" || sorted[i - 1].layout === "screen")).map((sh) => sh.s), fps: PRO_FPS }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(CueLayer, { cues, fps: PRO_FPS }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(Grain, {}),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(UneditPro_Captions, { words, shots: sorted, serif }),
+    brand ? /* @__PURE__ */ (0,jsx_runtime.jsx)(CrestBug, { brand, shots: sorted, secs }) : null,
+    brand ? /* @__PURE__ */ (0,jsx_runtime.jsx)(EndCard, { brand, secs }) : null,
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(UneditPro_Captions, { words, shots: sorted, serif, brand }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src }),
     sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(SoundEffects, { words, shots: sorted, busy: cues.filter((c) => c.sound).map((c) => c.t) }),
     sfx && /* @__PURE__ */ (0,jsx_runtime.jsx)(CueSounds, { cues, fps: PRO_FPS })

@@ -374,6 +374,23 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
           foot: 'Questions? Just reply to this email.',
         }, origin),
       };
+    case 'agency_brief': {
+      // An agency desk's morning brief (lib/newsroom-morning.ts briefNotices), to its host at 7 AM: what is going on
+      // around the area today, and the stories worth a 60-second video, each with its angle. He replies with his pick.
+      const hot = JSON.parse(data.hot || '[]') as { headline: string; angle: string; why: string }[];
+      return {
+        to,
+        subject: `Your morning brief: ${hot[0]?.angle || `today around ${data.area}`}`,
+        ...frame({
+          preheader: String(data.summary ?? '').slice(0, 140),
+          heading: `Good morning, ${data.host}`,
+          body: [data.summary, hot.length ? `${hot.length === 1 ? 'One story is' : `${hot.length} stories are`} worth a short video today. Pick one, record it in one take, and we do the rest. Nothing posts until you approve it.` : ''].filter(Boolean),
+          sections: hot.length ? [{ h: 'Worth a video today', items: hot.map((x) => `${x.angle}. ${x.why}${x.headline ? ` (${x.headline})` : ''}`) }] : undefined,
+          button: { label: 'Open my dashboard', url: `${origin}/app/${data.slug}` },
+          foot: 'Reply with the one you want to shoot. This brief comes every morning from your local desk at Genovus.',
+        }, origin),
+      };
+    }
     case 'approval_waiting':
       return {
         to,

@@ -8,6 +8,7 @@ import { siteOrigin } from '@/lib/cron';
 import { businessToday } from '@/lib/billing';
 import { ask, record, researchBeat, settings } from '@/lib/newsroom';
 import { jsonMatch } from '@/lib/json-reply';
+import { nyAt, nyDay } from '@/lib/unedit-plan';
 
 const db = () => adminDb();
 export type Hot = { story_id: string; why: string; angle: string; heat: number };
@@ -82,4 +83,44 @@ export async function writeBrief(tenant: string): Promise<Brief | null> {
 export async function latestBrief(tenant: string): Promise<Brief | null> {
   const { data } = await db().from('newsroom_briefs').select('day, summary, hot, stats, created_at').eq('tenant_id', tenant).order('day', { ascending: false }).limit(1).maybeSingle();
   return (data as Brief | null) ?? null;
+}
+
+/** An agency desk's brief goes to its host: an email at 7 AM ET (to brief_to, else the agency's owners) and an alert on
+ *  every device where an agency member turned alerts on. Only once the operator has approved a preview (brief_on);
+ *  the house desk's brief stays in the Newsroom. One of each per day (dedupe keys). Returns how many were queued. */
+export async function queueBriefNotices(tenant: string, brief: Brief): Promise<number> {
+  const s = await settings(tenant);
+  if (!s.profile || !brief.hot.length) return 0;
+  const { data: row } = await db().from('newsroom_settings').select('brief_on, brief_to').eq('tenant_id', tenant).maybeSingle();
+  if (!row?.brief_on) return 0;
+  return (await briefNotices(tenant, brief, (row.brief_to as string | null) ?? null)).length;
+}
+
+export type NoticeRow = { tenant_id: string; to_email: string; template: string; data: Record<string, string>; dedupe_key: string; send_after: string };
+
+/** The brief's email and push rows (also what the preview script renders); queued unless preview is set. */
+export async function briefNotices(tenant: string, brief: Brief, briefTo: string | null, preview = false): Promise<NoticeRow[]> {
+  const p = (await settings(tenant)).profile;
+  if (!p) return [];
+  const { data: t } = await db().from('tenants').select('slug').eq('id', tenant).single();
+  const slug = t!.slug as string;
+  const top = brief.hot.slice(0, 3);
+  const { data: st } = top.length ? await db().from('newsroom_stories').select('id, headline').eq('tenant_id', tenant).in('id', top.map((h) => h.story_id)) : { data: [] };
+  const head = new Map((st ?? []).map((x) => [x.id as string, String(x.headline)]));
+  const hot = top.map((h) => ({ headline: (head.get(h.story_id) ?? '').slice(0, 140), angle: h.angle.replace(/[.\s]+$/, ''), why: h.why }));
+  let to: string[] = briefTo ? [briefTo] : [];
+  if (!to.length) {
+    const { data: owners } = await db().from('memberships').select('user_id').eq('tenant_id', tenant).eq('role', 'owner');
+    for (const o of owners ?? []) { const u = (await db().auth.admin.getUserById(o.user_id as string)).data.user; if (u?.email) to.push(u.email); }
+  }
+  to = [...new Set(to)];
+  const at = new Date(Math.max(Date.now(), nyAt(nyDay(new Date()), 0, 7).getTime())).toISOString();
+  const data = { host: p.host, area: p.area.label, slug, summary: brief.summary, hot: JSON.stringify(hot) };
+  const rows: NoticeRow[] = [
+    ...to.map((e) => ({ tenant_id: tenant, to_email: e, template: 'agency_brief', data, dedupe_key: `brief:${tenant}:${brief.day}:${e}`, send_after: at })),
+    { tenant_id: tenant, to_email: 'push', template: 'brief_push', send_after: at, dedupe_key: `brief-push:${tenant}:${brief.day}`,
+      data: { slug, title: `Good morning, ${p.host}: ${hot.length} ${hot.length === 1 ? 'story' : 'stories'} worth a video`, body: hot[0] ? `Top pick: ${hot[0].angle}.` : brief.summary.slice(0, 120), url: `/app/${slug}`, tag: `brief-${brief.day}` } },
+  ];
+  if (!preview) await db().from('outbox').upsert(rows, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+  return rows;
 }

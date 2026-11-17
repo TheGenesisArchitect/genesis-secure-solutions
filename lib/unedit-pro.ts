@@ -12,13 +12,25 @@ import assets from '@/data/screen-library-assets.json';
 import type { Cue } from '@/lib/unedit-cues';
 import { presigned, wordsForSpans, type Span, type Word } from '@/lib/unedit-media';
 import type { Shot } from '@/lib/unedit-shots';
+import type { DeskProfile } from '@/lib/desk';
 
 export const proConfigured = () => (process.env.UNEDIT_PRO ?? '').trim() === 'on';
 
 type ProShot = { s: number; e: number; layout: Shot['layout']; accent: string | null; figure: string | null; screen: { still: string; clip: string | null; wide: boolean } | null };
 /** A cue on the clip's own timeline (lib/unedit-cues.ts), for Genovus Motion's cue layer. */
 export type ProCue = { t: number; end: number; kind: Cue['kind']; text: string; icon?: string; items?: { text: string; t: number }[]; value?: number; prefix?: string; suffix?: string; screen?: ProShot['screen']; sound: Cue['sound']; cam: Cue['cam'] };
-export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; cues: ProCue[]; serif: boolean; sfx: boolean };
+/** An agency's own look (Genovus Motion's ProBrand): crest bug, its caption colors, and its end card. */
+export type ProBrand = { name: string; line: string; mark: string; markDark: string | null; navy: string; accent: string; said: string };
+export type ProProps = { src: string; secs: number; words: Word[]; shots: ProShot[]; cues: ProCue[]; serif: boolean; sfx: boolean; brand: ProBrand | null };
+
+/** The agency's look for its clips, from its desk profile; null on the house desk. Marks are public files on genovus.io
+ *  (the render sandbox can't open a protected preview link), so a new crest goes live with the deploy that adds it. */
+export function proBrand(p: DeskProfile | null): ProBrand | null {
+  if (!p?.brand?.mark) return null;
+  const base = (process.env.APP_ORIGIN || 'https://genovus.io').replace(/\/$/, '');
+  const url = (x: string) => (/^https:\/\//.test(x) ? x : `${base}${x.startsWith('/') ? '' : '/'}${x}`);
+  return { name: p.agency, line: p.carrier_line, mark: url(p.brand.mark), markDark: p.brand.markDark ? url(p.brand.markDark) : null, navy: p.brand.navy, accent: p.brand.accent, said: p.brand.said };
+}
 
 const ENTRIES = (assets as { entries: Record<string, { clip?: string; still?: string }> }).entries ?? {};
 
@@ -32,7 +44,12 @@ export async function screenLinks(code: string): Promise<ProShot['screen']> {
 
 /** The composition's props: words and shots moved onto the clip's own timeline (spans play back to back, the hook
  *  first). Shots arrive in play order, so each takes the next span that holds it. */
-export async function proProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], cues: Cue[] = []): Promise<ProProps> {
+export async function proProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], cues: Cue[] = [], brand: ProBrand | null = null): Promise<ProProps> {
+  // An agency's clip never shows Genovus's own screens: a screen shot becomes the speaker, a screen cue is dropped.
+  if (brand) {
+    shots = shots.map((s) => (s.screen ? { ...s, layout: s.layout === 'screen' || (s.layout === 'split' && !s.figure) ? 'face' : s.layout, screen: null } : s));
+    cues = cues.filter((c) => !c.screen);
+  }
   const marks = new Set(accents);
   const timed = wordsForSpans(words.map((w, i) => (marks.has(i) ? { ...w, a: true } : w)), spans);
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
@@ -85,7 +102,7 @@ export async function proProps(src: string, words: Word[], spans: Span[], shots:
     if (sh.layout === 'face') continue;
     if (outCues.some((c) => c.kind !== 'whip' && c.t < sh.e && c.end > sh.s)) Object.assign(sh, { layout: 'face', figure: null, screen: null });
   }
-  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], cues: outCues, serif: true, sfx: process.env.UNEDIT_SFX !== 'off' };
+  return { src, secs, words: timed, shots: out.length ? out : [{ s: 0, e: secs, layout: 'face', accent: null, figure: null, screen: null }], cues: outCues, serif: !brand, sfx: process.env.UNEDIT_SFX !== 'off', brand };
 }
 
 /** Render a clip's graphics pass (UneditPro, H.264) in a fresh Vercel Sandbox. */
