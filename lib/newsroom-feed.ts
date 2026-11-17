@@ -80,7 +80,9 @@ const BLACK = /\bblack[- ](founders?|entrepreneurs?|women|men|owned|led|tech|tec
 /** Press-release wires, content farms and listicles never make the wire. */
 const JUNK_SOURCE = /britannica|wikipedia|openpr|ein ?presswire|prweb|prnewswire|newswire|online tech tips|inventiva|shattered\.io|journalarta|accesswire/i;
 const JUNK_TITLE = /^(top|best)\s+\d+|\btop\s+\d+\s+(best|ways|tools|platforms|agencies)|\bbest\b.*\b(20\d\d|compared)|compared with pricing|\bvs\.?\b.*\bcosts?\b|^how to\b|\bsponsored\b/i;
-const strip = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#8217;/g, '’').replace(/&#82(16|20|21);/g, '"').replace(/\s+/g, ' ').trim();
+const strip = (s: string): string => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#8217;/g, '’').replace(/&#82(16|20|21);/g, '"')
+  // Google News sends its summary as escaped HTML: the tags only appear once decoded, so they're taken out again.
+  .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 /** The picture a feed item carries: Bing's News:Image, media:content / media:thumbnail, an image enclosure, or the
  *  first <img> in its description. https only (the newsroom page is https). */
 function itemImage(b: string): string | undefined {

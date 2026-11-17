@@ -57,7 +57,7 @@ const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./,
 /** When the publisher offers no picture (or refuses our preview), a designed tile: the beat's colour, the publisher's
  *  own icon and name, and the headline, so the wire still reads well on camera. */
 function SourceTile({ s }: { s: Pick<NrStory, 'beat' | 'source' | 'url' | 'headline'> }) {
-  const [icon, setIcon] = useState(true);
+  const [icon, setIcon] = useState(!/news.google.com/.test(s.url)); // a Google News link's icon would be Google's, not the publisher's
   const name = s.source.replace(/\s*\(.*$/, '').trim() || host(s.url);
   return (
     <span className={`nr-tile beat-${s.beat}`}>
