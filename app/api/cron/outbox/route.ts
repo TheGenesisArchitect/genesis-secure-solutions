@@ -45,6 +45,9 @@ export async function GET(req: Request) {
       await db.from('outbox').update({ status: 'skipped', last_error: 'unknown template' }).eq('id', row.id);
       continue;
     }
+    // An agency's other inboxes (tenants.notify_emails, set on the row by migration 0114) are copied.
+    const copy = String((row.data as Record<string, unknown>)?.notify_cc ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (copy.length) mail.cc = [...new Set([...(mail.cc ?? []), ...copy])].filter((e) => e.toLowerCase() !== mail.to.toLowerCase());
     const r = await sendEmail(mail);
     const attempts = row.attempts + 1;
     if (r.ok) {
