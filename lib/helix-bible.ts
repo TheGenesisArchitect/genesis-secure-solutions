@@ -121,10 +121,11 @@ async function focusBlock(focus: StudioFocus): Promise<string> {
   const db = adminDb();
   if (focus.kind === 'unedit') {
     const { calendarText, nyToday } = await import('@/lib/unedit-helix');
-    const cal = await calendarText().catch(() => null);
+    const { uneditBriefLines } = await import('@/lib/helix-unedit-brief');
+    const [cal, brief] = await Promise.all([calendarText().catch(() => null), uneditBriefLines(db).catch(() => [] as string[])]);
     const v = focus.code ? (await db.from('unedit_vlogs').select('title, episode, stage').eq('id', focus.code).maybeSingle()).data : null;
     const name = v ? ((v.episode as { title?: string } | null)?.title || v.title || 'Recording') : null;
-    return `ON SCREEN NOW: UnEdit Studio${name ? `, the recording "${name}" (stage ${v!.stage})` : ', the recordings and the posting calendar'}.\nTODAY: ${nyToday()}.\n\nPOSTING CALENDAR BY VOICE: the team schedules approved clips here. You can read the calendar (posting_calendar), move waiting posts (move_posts) and take them off (cancel_posts). Name the recording by words from its calendar name${name ? ', or "this" for the one on screen' : ''}. Turn spoken days into dates from TODAY ("Thursday" is the next Thursday on or after today; "next week" means Monday of next week). Moving is free and reversible: do it when asked, then say in one sentence what moved and to when. Taking posts off cannot be undone here: say which posts and ask once; only after a clear yes call cancel_posts. Posts already sent to Metricool are locked; say so if asked to change one (they change in Metricool). Approving a recording's campaign is a tap on its card, not a voice command. Never claim a post moved unless the tool result says so.\nCALENDAR (${cal?.waiting ?? 0} waiting):\n${cal?.posts.join('\n') || 'nothing scheduled'}`;
+    return `ON SCREEN NOW: UnEdit Studio${name ? `, the recording "${name}" (stage ${v!.stage})` : ', the recordings and the posting calendar'}.\nTODAY: ${nyToday()}.\n\nPOSTING CALENDAR BY VOICE: the team schedules approved clips here. You can read the calendar (posting_calendar), move waiting posts (move_posts) and take them off (cancel_posts). Name the recording by words from its calendar name${name ? ', or "this" for the one on screen' : ''}. Turn spoken days into dates from TODAY ("Thursday" is the next Thursday on or after today; "next week" means Monday of next week). Moving is free and reversible: do it when asked, then say in one sentence what moved and to when. Taking posts off cannot be undone here: say which posts and ask once; only after a clear yes call cancel_posts. Posts already sent to Metricool are locked; say so if asked to change one (they change in Metricool). Approving a recording's campaign is a tap on its card, not a voice command. Never claim a post moved unless the tool result says so.\nCALENDAR (${cal?.waiting ?? 0} waiting):\n${cal?.posts.join('\n') || 'nothing scheduled'}\n\nBRIEF YOU CAN ADVISE FROM (what to record next from the Newsroom's hot topics, what's waiting for review, what's stuck, what went out):\n${brief.join('\n')}`;
   }
   if (focus.kind === 'episode' && focus.code) {
     const { data: e } = await db.from('studio_episodes').select('id, code, title, kind, status, logline, script, music, format, fork_mode, target_s, cut_family, final_url').eq('code', focus.code).maybeSingle();
@@ -168,5 +169,7 @@ STUDIO HOME (you can produce by voice from here): name the episode by its code i
 export async function studioSystem(focus: StudioFocus): Promise<string> {
   const base = await bibleSystem();
   const block = await focusBlock(focus);
-  return block ? `${base}\n\n${block}` : base;
+  // On the Studio home, Helix also knows UnEdit Studio and the Newsroom (the UnEdit pages carry it in their own block).
+  const unedit = focus.kind === 'home' ? await (await import('@/lib/helix-unedit-brief')).uneditBriefLines(adminDb()).then((l) => l.join('\n')).catch(() => '') : '';
+  return [base, block, unedit].filter(Boolean).join('\n\n');
 }

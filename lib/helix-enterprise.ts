@@ -3,6 +3,7 @@
 // the team has told Helix to remember. Finance is in the brief only for the people who see money (admin, account
 // lead), the same rule as the Growth page. Same engine as agency Helix (askHelix), with its own system prompt.
 import 'server-only';
+import { uneditBriefLines } from '@/lib/helix-unedit-brief';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { businessToday } from '@/lib/billing';
 import { finance, monthsBack, receivables, runway } from '@/lib/finance';
@@ -113,6 +114,8 @@ export async function enterpriseBrief(db: SupabaseClient, opts: { money: boolean
     '',
     'STUDIO',
     `- Spend this month ${$(Number(studioSpent.data ?? 0))} of the ${$(capCents)} cap (the cap stays until one clean 45-60 s episode is proven). Episodes by status: ${tally((episodes.data ?? []).map((e) => e.status)) || 'none'}.`,
+    '',
+    ...(await uneditBriefLines(db).catch(() => ['UNEDIT STUDIO & NEWSROOM', '- could not be read just now.'])),
     '',
     'SPEND METERS (this month)',
     `- Google Places (scanner + radar): ${$(Number(places.data ?? 0))}. Agency partner radar runs: ${(radar.data ?? []).length} costing ${$((radar.data ?? []).reduce((a, r) => a + Number(r.cost_cents), 0))}.`,
