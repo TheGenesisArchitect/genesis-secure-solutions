@@ -103,11 +103,14 @@ export function AskHelixEnterprise({ context, suggest = HOME.suggest, start, sta
 }
 
 /** Where the Studio is on screen, from the page address: Studio voice knows the bible and this page's focus. */
-function studioFocus(path: string): { kind: 'home' | 'bible' | 'cast' | 'episode' | 'character'; code?: string; label: string } | null {
+function studioFocus(path: string): { kind: 'home' | 'bible' | 'cast' | 'episode' | 'character' | 'unedit'; code?: string; label: string } | null {
   const m = path.match(/^\/console\/studio(?:\/(.*))?$/);
   if (!m) return null;
   const rest = m[1] ?? '';
   if (!rest) return { kind: 'home', label: 'the Studio' };
+  // UnEdit Studio: its pages (and one recording, by id) get the posting calendar by voice.
+  const u = rest.match(/^unedit(?:\/([0-9a-f-]{36}))?(?:\/|$)/);
+  if (u) return { kind: 'unedit', code: u[1], label: u[1] ? 'this recording in UnEdit Studio' : 'UnEdit Studio' };
   if (rest === 'bible') return { kind: 'bible', label: 'the Character Bible' };
   if (rest === 'cast') return { kind: 'cast', label: 'the cast' };
   const c = rest.match(/^cast\/([A-Za-z0-9-]{1,30})$/);

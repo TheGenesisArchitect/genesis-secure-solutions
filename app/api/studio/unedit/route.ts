@@ -3,6 +3,7 @@
 import { db } from '@/lib/supabase/server';
 import { adminDb } from '@/lib/supabase/admin';
 import { genovusTenant, kick, registerVlog, tap } from '@/lib/unedit';
+import { calendarText, cancelPosts, movePosts } from '@/lib/unedit-helix';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -24,6 +25,16 @@ export async function POST(req: Request) {
       const r = await registerVlog({ blobPath: String(body.blobPath ?? ''), blobUrl: String(body.blobUrl ?? ''), bytes: Number(body.bytes), fingerprint: String(body.fingerprint ?? ''), fileName: String(body.fileName ?? 'recording'), by: auth.user.id });
       if (!r.existing) await kick(origin, r.id);
       return Response.json({ ok: true, id: r.id, existing: r.existing, say: r.existing ? 'You already uploaded this recording; here it is.' : 'Uploaded. Unedit is on it.' });
+    }
+    // Helix voice on the posting calendar (lib/unedit-helix.ts): results go back to the conversation.
+    if (typeof body.tool === 'string' && body.tool.startsWith('voice_')) {
+      const a = (body.args && typeof body.args === 'object' ? body.args : {}) as Record<string, string>;
+      const current = typeof body.current === 'string' && /^[0-9a-f-]{36}$/.test(body.current) ? body.current : undefined;
+      const sel = { recording: a.recording, clip: a.clip, platform: a.platform, day: a.day, current };
+      if (body.tool === 'voice_posting_calendar') return Response.json(await calendarText());
+      if (body.tool === 'voice_move_posts') return Response.json(await movePosts({ ...sel, date: a.date, time: a.time }, auth.user.id));
+      if (body.tool === 'voice_cancel_posts') return Response.json(await cancelPosts(sel, auth.user.id));
+      return Response.json({ ok: false, error: 'Unknown voice command.' }, { status: 400 });
     }
     const id = String(body.id ?? '');
     if (!/^[0-9a-f-]{36}$/.test(id)) return Response.json({ ok: false, error: 'Which recording?' }, { status: 400 });

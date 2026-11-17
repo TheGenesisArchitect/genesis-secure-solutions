@@ -279,6 +279,12 @@ export function HelixTour({ context = 'tour', floating = true, focus, slug, open
       if (name === 'finish_dialogue' && r?.needs_recording) window.dispatchEvent(new CustomEvent('genovus:finish-dialogue', { detail: { shot: Number(args.shot) } }));
       return r;
     }
+    // UnEdit Studio's posting calendar (the server checks staff and the calendar rules; the page refreshes).
+    if (['posting_calendar', 'move_posts', 'cancel_posts'].includes(name)) {
+      const r = await fetch('/api/studio/unedit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool: `voice_${name}`, args, current: focus?.kind === 'unedit' ? focus.code : undefined }) }).then((x) => x.json()).catch(() => ({ ok: false, error: 'UnEdit didn’t answer.' }));
+      if (name !== 'posting_calendar') router.refresh();
+      return r;
+    }
     // The package tour (genovus.io/tour): the page shows the step or switches package.
     if (name === 'show_step' || name === 'switch_package') {
       window.dispatchEvent(new CustomEvent('genovus:package-tour', { detail: { tool: name, args } }));

@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { adminDb } from '@/lib/supabase/admin';
 import { getViewer } from '@/lib/session';
-import { studioSystem, BIBLE_TOOLS, BOARD_TOOLS, STUDIO_HOME_TOOLS, type StudioFocus } from '@/lib/helix-bible';
+import { studioSystem, BIBLE_TOOLS, BOARD_TOOLS, STUDIO_HOME_TOOLS, UNEDIT_TOOLS, type StudioFocus } from '@/lib/helix-bible';
 import { packageTour, packageTourVoice, PACKAGE_TOOLS } from '@/lib/package-tour';
 import { worldStats, statsLine } from '@/lib/world-stats';
 import { LIVE_WS, liveSetup, liveSetupWith, pickVoice, LIVE_MODEL, SESSION_SECONDS, DAILY_SESSIONS } from '@/lib/helix-tour';
@@ -59,13 +59,13 @@ export async function POST(req: Request) {
   const voice = pickVoice(body.voice);
   const context = body.context === 'bible' || body.context === 'studio' ? 'studio' : body.context === 'enterprise' ? 'enterprise' : body.context === 'agency' ? 'agency' : body.context === 'packages' ? 'packages' : 'tour';
   // What the person is looking at in the Studio (validated: a known kind and a simple code).
-  const kinds = ['home', 'bible', 'cast', 'episode', 'character'];
-  const focus: StudioFocus = { kind: (kinds.includes(String(body.focus?.kind)) ? body.focus!.kind : body.context === 'bible' ? 'bible' : 'home') as StudioFocus['kind'], code: /^[A-Za-z0-9-]{1,30}$/.test(String(body.focus?.code ?? '')) ? body.focus!.code : undefined };
+  const kinds = ['home', 'bible', 'cast', 'episode', 'character', 'unedit'];
+  const focus: StudioFocus = { kind: (kinds.includes(String(body.focus?.kind)) ? body.focus!.kind : body.context === 'bible' ? 'bible' : 'home') as StudioFocus['kind'], code: /^[A-Za-z0-9-]{1,36}$/.test(String(body.focus?.code ?? '')) ? body.focus!.code : undefined };
   // Local testing only: no key, a stand-in token; the test page supplies its own voice socket.
   if (!KEY() && process.env.NODE_ENV !== 'production' && process.env.HELIX_STANDIN === '1') {
     const { data: s } = await adminDb().from('helix_tour_sessions').insert({ ip_hash: 'standin', is_staff: true, model: 'standin' }).select('id').single();
     // The Studio's real setup (instructions and tools), so tests see exactly what Helix gets on each Studio page.
-    const standinSetup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice);
+    const standinSetup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : focus.kind === 'unedit' ? UNEDIT_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice);
     return Response.json({ sessionId: s!.id, token: 'standin', wsUrl: 'wss://standin.invalid/live', setup: standinSetup, locked: true, staff: Boolean((await getViewer().catch(() => null))?.staff), maxSeconds: SESSION_SECONDS });
   }
   if (!KEY()) return Response.json({ error: 'Helix voice is not connected yet.' }, { status: 503 });
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
     const plan = ['launch', 'growth', 'premium'].includes(String(body.focus?.code)) ? (body.focus!.code as 'launch' | 'growth' | 'premium') : 'growth';
     setup = liveSetupWith(packageTourVoice(packageTour(plan)), PACKAGE_TOOLS, voice);
   } else {
-    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
+    setup = context === 'studio' ? liveSetupWith(await studioSystem(focus), focus.kind === 'episode' ? BOARD_TOOLS : focus.kind === 'home' ? STUDIO_HOME_TOOLS : focus.kind === 'unedit' ? UNEDIT_TOOLS : BIBLE_TOOLS, voice) : liveSetup(voice, statsLine(await worldStats()));
   }
   if (!staff && (context === 'tour' || context === 'packages') && (today ?? 0) >= DAILY_SESSIONS()) return Response.json({ error: 'Helix has given all of today’s tours. Please come back tomorrow.' }, { status: 429 });
 

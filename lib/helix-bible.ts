@@ -49,6 +49,24 @@ export const BOARD_TOOLS = [{
   ],
 }];
 
+/** On UnEdit Studio: the posting calendar by voice ("push the DeepSeek clips to Thursday"). */
+const POST_SEL = {
+  recording: { type: 'STRING', description: 'Which recording: words from its name as listed on the calendar, "this" for the recording on screen, or "all".' },
+  clip: { type: 'STRING', description: 'Optional: a clip number ("2") or "full video".' },
+  platform: { type: 'STRING', description: 'Optional: instagram, facebook, youtube, tiktok, x or linkedin.' },
+  day: { type: 'STRING', description: 'Optional: only posts currently on this New York day, YYYY-MM-DD.' },
+};
+export const UNEDIT_TOOLS = [{
+  functionDeclarations: [
+    ...BIBLE_TOOLS[0].functionDeclarations,
+    { name: 'posting_calendar', description: 'Every post on the UnEdit posting calendar from today on: when (New York), which recording, clip and network, and whether it is waiting (movable) or already sent (locked). Call it before answering what is going out, or before moving anything you are unsure of.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'move_posts', description: 'Move waiting posts on the calendar. The first chosen post lands on date (at time if given, else at its own time of day) and the rest shift by the same amount, so a drip keeps its rhythm. Resolve spoken days ("Thursday", "tomorrow") into a date yourself from TODAY. Moving is free and can be moved back, so do it when asked and read back the result.',
+      parameters: { type: 'OBJECT', properties: { ...POST_SEL, date: { type: 'STRING', description: 'New York day to move to, YYYY-MM-DD.' }, time: { type: 'STRING', description: 'Optional New York time, 24-hour HH:MM (6 PM = 18:00).' } } } },
+    { name: 'cancel_posts', description: 'Take waiting posts off the calendar so they never go out. This cannot be undone here: first say exactly which posts, ask "Shall I take them off?", and call this ONLY after a clear yes.',
+      parameters: { type: 'OBJECT', properties: POST_SEL } },
+  ],
+}];
+
 /** On the Studio home: the same production tools, each naming the episode it acts on (its code, e.g. gjk-pbp1). */
 type Decl = { name: string; description: string; parameters: { type: string; properties: Record<string, unknown>; required?: string[] } };
 const EPISODE_ARG = { type: 'STRING', description: 'The episode code from the EPISODES list (e.g. gjk-pbp1).' };
@@ -96,11 +114,18 @@ Voice: ${v?.direction ?? ''} Timing: ${v?.timing ?? ''} Listening: ${v?.listenin
   return lines.join('\n\n');
 }
 
-export type StudioFocus = { kind: 'home' | 'bible' | 'cast' | 'episode' | 'character'; code?: string };
+export type StudioFocus = { kind: 'home' | 'bible' | 'cast' | 'episode' | 'character' | 'unedit'; code?: string };
 
 /** What the person is looking at in the Studio, in detail, so Helix can work on it with them. */
 async function focusBlock(focus: StudioFocus): Promise<string> {
   const db = adminDb();
+  if (focus.kind === 'unedit') {
+    const { calendarText, nyToday } = await import('@/lib/unedit-helix');
+    const cal = await calendarText().catch(() => null);
+    const v = focus.code ? (await db.from('unedit_vlogs').select('title, episode, stage').eq('id', focus.code).maybeSingle()).data : null;
+    const name = v ? ((v.episode as { title?: string } | null)?.title || v.title || 'Recording') : null;
+    return `ON SCREEN NOW: UnEdit Studio${name ? `, the recording "${name}" (stage ${v!.stage})` : ', the recordings and the posting calendar'}.\nTODAY: ${nyToday()}.\n\nPOSTING CALENDAR BY VOICE: the team schedules approved clips here. You can read the calendar (posting_calendar), move waiting posts (move_posts) and take them off (cancel_posts). Name the recording by words from its calendar name${name ? ', or "this" for the one on screen' : ''}. Turn spoken days into dates from TODAY ("Thursday" is the next Thursday on or after today; "next week" means Monday of next week). Moving is free and reversible: do it when asked, then say in one sentence what moved and to when. Taking posts off cannot be undone here: say which posts and ask once; only after a clear yes call cancel_posts. Posts already sent to Metricool are locked; say so if asked to change one (they change in Metricool). Approving a recording's campaign is a tap on its card, not a voice command. Never claim a post moved unless the tool result says so.\nCALENDAR (${cal?.waiting ?? 0} waiting):\n${cal?.posts.join('\n') || 'nothing scheduled'}`;
+  }
   if (focus.kind === 'episode' && focus.code) {
     const { data: e } = await db.from('studio_episodes').select('id, code, title, kind, status, logline, script, music, format, fork_mode, target_s, cut_family, final_url').eq('code', focus.code).maybeSingle();
     if (!e) return '';
