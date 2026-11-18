@@ -270,8 +270,11 @@ type ClipOpts = { accents?: number[]; captions?: boolean; crop?: { w: number; h:
  *  gentle compression, and a faint early-reflection room so the isolated voice never sounds unnaturally dry. */
 export const VOICE_MASTER = 'highpass=f=70,equalizer=f=120:t=q:w=0.9:g=1.2,equalizer=f=220:t=q:w=1:g=0.8,equalizer=f=3200:t=q:w=1.4:g=2.5,highshelf=f=9000:g=2.5,deesser=i=0.4:m=0.5:f=0.5,acompressor=threshold=0.1:ratio=2.5:attack=10:release=200:knee=4,aecho=0.9:0.8:19|31:0.045|0.03';
 async function renderClipIn(dir: string, url: string, spans: Span[], words: Word[], src: Probe, opts: ClipOpts): Promise<{ file: string; dir: string; secs: number }> {
-  await clipPieces(dir, url, spans, src, opts, 'joined.mkv');
-  return finishClip(dir, words, spans, opts);
+  // The last pass reads the pieces in order (no joined copy): a joined copy beside its pieces doubled the disk a clip
+  // needed at its peak.
+  const pieces = await clipPieces(dir, url, spans, src, opts, null);
+  try { return await finishClip(dir, words, spans, opts, 'clip.mp4', pieces); }
+  finally { for (const f of pieces) await fs.rm(path.join(dir, f), { force: true }).catch(() => {}); }
 }
 
 /** The clip's frame filter: framed (a face-aware crop of landscape, or portrait padded), tone-mapped and graded at 1080x1920. */
@@ -285,11 +288,19 @@ function clipFrame(src: Probe, opts: ClipOpts): string {
       : `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`) + (opts.sdr ? `,${opts.sdr}` : '') + (opts.grade ? `,${opts.grade}` : '') + (opts.light ? `,${opts.light}` : '');
 }
 
+/** The intermediates' quality. They are re-encoded once more (crf 21, or under Pro's graphics), so 16 is visually
+ *  lossless; 12 made a 49 s clip about twice as large, and its pieces plus their join filled the function's ~500 MB
+ *  scratch disk (a47f35a0 clip 2, 2026-11-17 and -18: the pieces came out empty, then "No space left on device"). */
+const PIECE_CRF = 16;
+/** Scratch disk a clip of `secs` needs at its peak: its pieces (measured 4.1 MB/s at PIECE_CRF with PCM sound, on
+ *  real 1080x1920 footage) plus the finished clip (about 2.3 MB/s), with headroom. */
+export const clipDiskMB = (secs: number) => Math.min(470, Math.ceil(secs * 6.5) + 60);
+
 /** Render spans of the recording into one near-lossless 1080x1920 intermediate (`out` in `dir`), piece by piece: each
  *  span decodes alone (an 8K HDR decoder is large; several at once ran a function out of memory), with PCM sound so
  *  the pieces join without a gap or a click. A long clip from 8K renders as several groups in parallel workers
  *  (unedit.ts renderClipGroup) that are joined the same way. */
-export async function clipPieces(dir: string, url: string, spans: Span[], src: Probe, opts: ClipOpts, out: string): Promise<void> {
+export async function clipPieces(dir: string, url: string, spans: Span[], src: Probe, opts: ClipOpts, out: string | null): Promise<string[]> {
   const frame = clipFrame(src, opts);
   const pieces: string[] = [];
   for (const [i, sp] of spans.entries()) {
@@ -299,7 +310,7 @@ export async function clipPieces(dir: string, url: string, spans: Span[], src: P
     // The picture is exactly round(d x 30) frames and the sound exactly d seconds, so pieces join without drifting.
     const cut = () => ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url, ...(opts.voice ? [...at, '-i', opts.voice, '-map', '0:v', '-map', '1:a'] : []),
       '-vf', `${frame},setsar=1,fps=${FPS},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-af', `aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=0:${d.toFixed(4)}`,
-      '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', f], dir);
+      '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', String(PIECE_CRF), '-c:a', 'pcm_s16le', f], dir);
     // A read of the recording can drop and still exit cleanly with no picture (a47f35a0 clip 2: a 49 s clip whose
     // base held only its 6.7 s hook, so the speaker froze under the graphics). Each piece is counted; one retry.
     await cut();
@@ -310,7 +321,9 @@ export async function clipPieces(dir: string, url: string, spans: Span[], src: P
     }
     pieces.push(f);
   }
-  await joinPieces(dir, pieces, out);
+  // With no `out`, the pieces stay as they are for the caller to read in order.
+  if (out) await joinPieces(dir, pieces, out);
+  return pieces;
 }
 
 /** Frames in a file's first video stream (0 when it has none or can't be read). */

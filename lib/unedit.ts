@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, ffmpeg, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, tmpFreeMB, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { clipDiskMB, clipGroups, clipPieces, episodeCaptionsAss, extractAudio, ffmpeg, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, tmpFreeMB, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -233,6 +233,17 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       if (next) {
         const words = await readWords(v);
         const spans = clipSpans(v, next);
+        // Room on the scratch disk first: other work on the same instance (episode parts, review copies) shares it, and
+        // a cut that runs out of space fails. Waiting a minute is better than a failed clip.
+        if (!needsFanout(v, spans)) {
+          const need = clipDiskMB(spans.reduce((a, x) => a + (x.to - x.from), 0));
+          let free = await tmpFreeMB();
+          if (free != null && free < need) { await sweepTmp(); free = await tmpFreeMB(); }
+          if (free != null && free < need) {
+            await release(v.id, { lease_until: new Date(Date.now() + 60_000).toISOString() });
+            return `Clip ${next.n} waits for scratch disk (${free} MB free, ${need} MB needed).`;
+          }
+        }
         const look = clipLook(v);
         const voice = isEnhanced(v.audio_blob) ? await presigned(v.audio_blob!, 60) : null;
         // A long clip from an 8K recording renders as ~8 s groups in parallel workers (one function could not decode it
