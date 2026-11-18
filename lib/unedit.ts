@@ -883,10 +883,21 @@ async function renderEpisodePartHere(id: string, k: number, origin: string): Pro
         // Text behind the speaker only on a first try and while the part has time for it (a retry, or a slow part,
         // lays those graphics in front instead). The budget counts from when the overlay starts.
         if (overlays.length || caps) await overlayPart(out.dir, urls, overlays, v.episode_plan.size, tries === 1 ? Math.min(t0 + CUTOUT_BUDGET_MS, Date.now() + CUTOUT_ALONE_MS) : 0, caps).catch(async (e) => {
-          left = `graphics${caps ? ' and captions' : ''} left out: ${e instanceof Error ? e.message : e}`;
-          console.error(`[unedit] ${id} part ${k} ${left}`);
-          // The captions alone are worth a second pass: a part should never lose both to one graphic that won't lay.
-          if (caps) await overlayPart(out.dir, [], [], v.episode_plan!.size, 0, true).then(() => { left = `graphics left out: ${e instanceof Error ? e.message : e}`; }, () => {});
+          // One pass decodes every graphic at once (plus the cut-out matte): a part with five graphics in 14 s ran out
+          // of memory (a47f35a0 part 2, 2026-11-18). Lay them two at a time instead, text in front of the speaker
+          // (no cut-out), the captions on the last pass; only the graphics that still won't lay are left out.
+          const why = e instanceof Error ? e.message : String(e);
+          console.error(`[unedit] ${id} part ${k} graphics in one pass failed (${why}); laying them two at a time`);
+          let lost = 0, capsOn = false;
+          for (let j = 0; j < overlays.length; j += 2) {
+            const last = j + 2 >= overlays.length;
+            const ok = await overlayPart(out.dir, urls, overlays.slice(j, j + 2), v.episode_plan!.size, 0, caps && last).then(() => true, (e2) => { console.error(`[unedit] ${id} part ${k} graphics ${j + 1}-${j + 2}: ${e2 instanceof Error ? e2.message : e2}`); return false; });
+            if (!ok) lost += overlays.slice(j, j + 2).length; else if (caps && last) capsOn = true;
+          }
+          // The captions alone are worth their own pass: a part should never lose them to a graphic that won't lay.
+          if (caps && !capsOn) capsOn = await overlayPart(out.dir, [], [], v.episode_plan!.size, 0, true).then(() => true, () => false);
+          if (lost || (caps && !capsOn)) left = [lost ? `${lost} of ${overlays.length} graphics left out` : '', caps && !capsOn ? 'captions left out' : ''].filter(Boolean).join(', ') + `: ${why}`;
+          if (left) console.error(`[unedit] ${id} part ${k} ${left}`);
         });
       } else if (caps) await overlayPart(out.dir, [], [], v.episode_plan.size, 0, true).catch((e) => { left = `captions left out: ${e instanceof Error ? e.message : e}`; console.error(`[unedit] ${id} part ${k} ${left}`); });
       const path_ = partPath(v, k);
@@ -1296,7 +1307,17 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
         await kick(origin, id);
         return 'Planning the graphics again with the B-roll, then polishing the episode.';
       }
-      if (!vlog.episode_plan?.error) return 'The episode is fine.';
+      if (!vlog.episode_plan?.error) {
+        // Parts that finished without some of their graphics or captions (the card says "check before approving"):
+        // render just those again (their pictures are kept, so only the graphics are laid again), then join again.
+        const { data: gaps } = await dbx().from('unedit_episode_parts').select('k').eq('vlog_id', id).eq('status', 'done').not('error', 'is', null);
+        if (!gaps?.length) return 'The episode is fine.';
+        await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id).in('k', gaps.map((g) => g.k));
+        await dbx().from('unedit_vlogs').update({ episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
+        await log('retry-episode', id, { gaps: gaps.map((g) => g.k) });
+        await kick(origin, id);
+        return `Rendering ${gaps.length === 1 ? 'part ' + (gaps[0].k + 1) : `${gaps.length} parts`} again with ${gaps.length === 1 ? 'its' : 'their'} graphics.`;
+      }
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null }).eq('vlog_id', id).neq('status', 'done');
       await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, error: null }, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
       await log('retry-episode', id, {});
