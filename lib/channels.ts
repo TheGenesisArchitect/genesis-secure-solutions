@@ -228,7 +228,7 @@ export function channelRegistry(p: PartnerDetails): Channel[] {
             'Go to business.facebook.com/settings and pick your business portfolio.',
             'Under Users, choose Partners, then Add, then Give a partner access to your assets.',
             metaId,
-            'Our business portfolio shows up as Genesis Secure Solutions LLC, the company behind Genovus.',
+            'Our business portfolio shows up as Genovus Intelliware (Genesis Secure Solutions LLC is the company behind it).',
             'Select your Page and Instagram account. Choose partial access for content, messages, comments and insights. Leave full control off.',
             'If Instagram is missing from the list, add it first under Accounts, then Instagram accounts.',
           ],
