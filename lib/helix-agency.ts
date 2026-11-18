@@ -75,11 +75,14 @@ export async function agencyBrief(db: SupabaseClient, tenantId: string, name: st
   const welcome = tslug?.slug ? await import('./welcome').then((m) => m.welcomeBrief(tenantId, tslug.slug as string)).catch(() => []) : [];
   // What the Genovus team changed on their systems lately (Upgrades), so Helix can explain it and nudge open steps.
   const upgrades = await import('./upgrade-notes').then((m) => m.notesBrief(db, tenantId)).catch(() => [] as string[]);
+  // Social setup (the wizard): what's connected and the next step, so Helix can coach them through it.
+  const social = tslug?.slug ? await import('./social-wizard').then((m) => m.socialBrief(tenantId, tslug.slug as string)).catch(() => [] as string[]) : [];
   return [
     `AGENCY: ${name} · program ${program} · today ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${today} (America/New_York)${P ? ` · ${P.city ?? ''} ${P.state ?? ''} · carrier ${P.carrier ?? 'n/a'} · licensed ${(P.licensed_states ?? []).join(', ') || 'n/a'}` : ''}`,
     visLine,
     ...welcome,
     ...upgrades,
+    ...social,
     `LINES THIS AGENCY SELLS: ${lines.join(', ') || 'not set (ask the Genovus team to set them)'}`,
     `MARKET NOW: ${moments.map((m) => `${LINES[m.line].label}: ${m.label}${m.starting ? ' (starting next month)' : ''} (${m.why})`).join(' | ') || 'no seasonal moments for these lines this month'}`,
     `SOURCES this 30 days (leads / won / cost this month): ${Object.entries(bySource).map(([k, v]) => `${k} ${v.n}/${v.won}${cost[k] != null ? ` $${(cost[k] / 100).toFixed(0)} = $${(cost[k] / 100 / Math.max(1, v.n)).toFixed(0)}/lead` : ''}`).join(', ') || 'none'} · benchmark: vendors charge about $50 per shared lead`,
@@ -110,6 +113,12 @@ RULES (never break):
 - Keep the agency's customer data inside your answer; don't add anything about other agencies.
 - Only talk about the LINES THIS AGENCY SELLS. If asked about any other kind of insurance, say the agency doesn't offer it and don't draft anything for it.
 - Partners the agency has worked carry the business name it confirmed (in PARTNERS). Other names come from the screen (ON SCREEN) or a LOOKUP (recall for what the agency did and said before); never repeat a partner's phone, address or Google rating (they're on the card).
+
+SOCIAL SETUP COACHING (the Social setup page):
+- Many owners are setting up business profiles for the first time. Be patient and reassuring: they are not doing this alone, Genovus is with them every step, nothing goes public until they approve it, and they can stop and come back any time.
+- Coach one step at a time from SOCIAL SETUP: say which step is next and explain it in plain words, then ask them to tell you when it's done or where they're stuck.
+- Never ask for, accept or repeat a password or a login code. Access is given through Meta partner access or Google Manager access, never by sharing logins. If someone offers a password, tell them not to share it.
+- If they're stuck or would rather do it together, tell them to tap "Do this with us on a call" on that step; the Genovus team gets the request.
 
 Reply with JSON only: {"answer": string (plain text, under 120 words), "unknown": boolean, "gap": string, "followUps": [{"who": string, "reason": string, "due": "YYYY-MM-DD", "at": "HH:MM"}], "drafts": [{"to": string, "channel": "text"|"email", "body": string (under 400 characters, friendly, no prices or coverage claims, signed as the agency)}]}.
 

@@ -127,3 +127,16 @@ export async function socialConnectUrl(slug: string, url: string): Promise<Socia
   await adminDb().rpc('log_event', { p_tenant: w.tenantId, p_action: 'social.metricool_link', p_subject: 'metricool', p_before: null, p_after: { set: Boolean(v), by: w.label } });
   return done(slug, v ? 'Connection link saved.' : 'Connection link removed.');
 }
+
+/** "Do this with us on a call": a support request the Genovus team sees, with the channel and the step. */
+export async function socialHelp(slug: string, channel: string, step: string): Promise<SocialResult> {
+  const w = await who(slug); if ('err' in w) return { err: w.err };
+  if (!isChannel(channel)) return { err: 'Unknown channel.' };
+  const name = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', linkedin: 'LinkedIn', youtube: 'YouTube', tiktok: 'TikTok', nextdoor: 'Nextdoor' }[channel];
+  const title = `Social setup help: ${name}`;
+  const detail = `Asked from Social setup by ${w.label}${step ? ` on the step “${String(step).slice(0, 120)}”` : ''}. Book a short screen-share call and finish this step together.`;
+  const { error } = await (await db()).rpc('create_care_request', { p_tenant: w.tenantId, p_kind: 'support', p_title: title, p_detail: detail });
+  if (error) return { err: 'We couldn’t send that. Reply to any Genovus email and we’ll set up the call.' };
+  revalidatePath(`/app/${slug}/care`);
+  return { ok: 'Got it. The Genovus team will reach out to book a short call, and we’ll finish this step together.' };
+}

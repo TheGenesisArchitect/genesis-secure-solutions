@@ -5,7 +5,13 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { WizardData, WizChannel, WizStep } from '@/lib/social-wizard';
-import { socialChoose, socialConfirm, socialConnectUrl, socialCopy, socialLink, socialSent, socialStep, type SocialResult } from '@/lib/social-wizard-actions';
+import { socialChoose, socialConfirm, socialConnectUrl, socialCopy, socialHelp, socialLink, socialSent, socialStep, type SocialResult } from '@/lib/social-wizard-actions';
+import { runWhatsNew } from '@/components/WhatsNew';
+
+/** The Quick Helix Tour of this page (lib/whats-new.ts). */
+export const SOCIAL_TOUR = 'social-setup-2026-11-18';
+/** Ask Helix, with the question already asked (components/HelixDrawer.tsx listens). */
+const askHelix = (question: string) => window.dispatchEvent(new CustomEvent('genovus:helix', { detail: { question } }));
 
 const STATUS: Record<WizChannel['status'], [string, string]> = {
   new: ['Not started', ''], progress: ['In progress', 'info'], waiting: ['Waiting on Genovus', 'pending'], connected: ['Connected', 'done'], skipped: ['Not now', ''], carrier: ['Run by your carrier', ''],
@@ -26,6 +32,9 @@ export function SocialWizard({ slug, data, staff, open }: { slug: string; data: 
   const run = (p: Promise<SocialResult>) => start(async () => { const r = await p; setMsg(r); if (r.ok) router.refresh(); });
   const core = data.channels.filter((c) => c.core), more = data.channels.filter((c) => !c.core);
   const active = data.channels.find((c) => c.id === cur);
+  const fresh = data.channels.every((c) => c.status === 'new');
+  const [intro, setIntro] = useState(fresh);
+  const begin = (id: string) => { setIntro(false); setCur(id); setMsg({}); };
   return (
     <div className="social-wiz">
       {staff ? <StaffLink slug={slug} url={data.connectUrl} run={run} pending={pending} /> : null}
@@ -34,7 +43,9 @@ export function SocialWizard({ slug, data, staff, open }: { slug: string; data: 
         <ChannelFlow key={active.id} slug={slug} c={active} data={data} staff={staff} run={run} pending={pending} close={() => { setCur(null); setMsg({}); }} />
       ) : (
         <>
-          <div className="social-cards">{core.map((c) => <Card key={c.id} c={c} onOpen={() => { setCur(c.id); setMsg({}); }} />)}</div>
+          {intro ? <Intro onStart={() => begin('facebook')} onHide={() => setIntro(false)} />
+            : <button type="button" className="btn small ghost social-howto" onClick={() => setIntro(true)}>How this works</button>}
+          <div className="social-cards" data-tour="social-cards">{core.map((c) => <Card key={c.id} c={c} onOpen={() => { setCur(c.id); setMsg({}); }} />)}</div>
           <h3 className="social-more">More channels <span className="muted">(optional)</span></h3>
           <div className="social-cards small">{more.map((c) => <Card key={c.id} c={c} onOpen={() => { setCur(c.id); setMsg({}); }} />)}</div>
         </>
@@ -67,6 +78,7 @@ function ChannelFlow({ slug, c, data, staff, run, pending, close }: { slug: stri
     <div className="social-flow-head">
       <button type="button" className="btn small ghost" onClick={close}>← All channels</button>
       <div><h2>{c.name}</h2><span className="soft">{c.access}</span></div>
+      <p className="social-with-you">First time doing this? You’re not doing it alone. Ask Helix about any step, or tap <b>Do this with us on a call</b> and the Genovus team will finish it with you.</p>
     </div>
   );
   // Google: who runs the listing comes first.
@@ -124,7 +136,7 @@ function ChannelFlow({ slug, c, data, staff, run, pending, close }: { slug: stri
           </li>
         ))}
       </ol>
-      <div className="social-step">
+      <div className="social-step" data-tour="social-step">
         <h3>{step.title}</h3>
         {step.why ? <p className="soft">{step.why}</p> : null}
         {step.how.length ? <ol className="social-how">{step.how.map((h, n) => <li key={n}>{h}</li>)}</ol> : null}
@@ -150,7 +162,10 @@ function ChannelFlow({ slug, c, data, staff, run, pending, close }: { slug: stri
           <button type="button" className="btn small" disabled={i === 0} onClick={() => setI(i - 1)}>Back</button>
           {i < steps.length - 1 ? <button type="button" className="btn small primary" onClick={() => setI(i + 1)}>Next</button>
             : <button type="button" className="btn small primary" onClick={close}>Finish</button>}
-          <a className="btn small ghost" href={`/app/${slug}/helix`}>Do this with us on a call</a>
+          <span className="social-help" data-tour="social-help">
+            <button type="button" className="btn small ghost" onClick={() => askHelix(`I'm in Social setup on ${c.name}, step "${step.title}". Walk me through it one step at a time.`)}>Ask Helix about this step</button>
+            <button type="button" className="btn small ghost" disabled={pending} onClick={() => run(socialHelp(slug, c.id, step.title))}>Do this with us on a call</button>
+          </span>
           <button type="button" className="btn small ghost" disabled={pending} onClick={() => run(socialChoose(slug, c.id, null))}>Start over</button>
         </div>
       </div>
@@ -228,5 +243,34 @@ function StaffLink({ slug, url, run, pending }: { slug: string; url: string | nu
       <label style={{ flex: 1 }}>Metricool connection link for this agency’s brand <input value={v} onChange={(e) => setV(e.target.value)} placeholder="https://app.metricool.com/…" /></label>
       <button className="btn small" disabled={pending}>Save</button>
     </form>
+  );
+}
+
+/** Before anything starts: what's about to happen, and that we're with them the whole way. */
+function Intro({ onStart, onHide }: { onStart: () => void; onHide: () => void }) {
+  const steps: [string, string][] = [
+    ['Tell us what you already have', 'For each profile, pick “I have one” or “Set it up with Genovus”. Skip any you don’t want.'],
+    ['We build what’s missing, together', 'Your profile wording is already written from your agency details. You edit it, approve it, then follow a few short steps. Nothing goes public until you approve it.'],
+    ['Give us access, never your password', 'Facebook and Instagram use Meta partner access; Google uses Manager access. You stay the owner and can remove us any time.'],
+    ['Connect Metricool', 'One link connects each profile to the scheduler we post through, so your approved posts go out and your numbers come back.'],
+  ];
+  return (
+    <section className="panel social-intro" data-tour="social-intro">
+      <div className="social-intro-head">
+        <span className="qt-eyebrow"><img src="/brand/genovus/genovus-egg.svg" alt="" aria-hidden="true" />Before you start</span>
+        <h2>First time setting up business profiles? We’re with you every step of the way.</h2>
+        <p className="soft">Most owners have never done this before, and that’s fine. Take it one step at a time; we save as you go, so you can stop and come back whenever you like.</p>
+      </div>
+      <ol className="social-intro-steps">{steps.map(([t, d], i) => <li key={t}><span className="dot">{i + 1}</span><div><b>{t}</b><span className="soft">{d}</span></div></li>)}</ol>
+      <div className="social-intro-help">
+        <div><b>Stuck at any point?</b> <span className="soft">Ask Helix right on the page, or tap “Do this with us on a call” and a person from Genovus finishes it with you on a short screen share.</span></div>
+      </div>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="btn small primary" onClick={onStart}>Start with Facebook</button>
+        <button type="button" className="btn small" onClick={() => runWhatsNew(SOCIAL_TOUR, 'tour')}>Show me around first</button>
+        <button type="button" className="btn small ghost" onClick={() => askHelix('I am about to start Social setup. What will I need, and how long does it take?')}>Ask Helix a question</button>
+        <button type="button" className="btn small ghost" onClick={onHide}>Hide</button>
+      </div>
+    </section>
   );
 }

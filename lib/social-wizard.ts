@@ -145,3 +145,20 @@ export async function wizardData(tenantId: string): Promise<WizardData> {
   const counted = channels.filter((c) => c.core || (c.row.path && c.row.path !== 'skip'));
   return { channels, facts, connectUrl: (t?.metricool_connect_url as string | null) ?? null, agency, done: counted.filter((c) => ['connected', 'carrier', 'skipped'].includes(c.status)).length, total: counted.length };
 }
+
+/** For Ask Helix (lib/helix-agency.ts): where the agency is in Social setup and how each open step is done, so
+ *  Helix can coach them through it one step at a time. Never includes anything secret. */
+export async function socialBrief(tenantId: string, slug: string): Promise<string[]> {
+  const d = await wizardData(tenantId);
+  const word: Record<WizChannel['status'], string> = { new: 'not started', progress: 'in progress', waiting: 'done on their side, Genovus is confirming access', connected: 'connected', skipped: 'skipped for now', carrier: 'their carrier runs it (left alone)' };
+  const lines = [`SOCIAL SETUP (the Social setup page, /app/${slug}/social; ${d.done} of ${d.total} set up; Metricool connection link ${d.connectUrl ? 'ready on the page' : 'not ready yet, Genovus is setting up their brand'}):`];
+  for (const c of d.channels) {
+    if (!c.core && !c.row.path) continue;
+    const r = c.row;
+    const steps = r.path === 'create' ? [...c.createSteps, ...c.tailSteps] : r.path === 'have' ? c.tailSteps : [];
+    const open = steps.find((s) => !(s.kind === 'copy' ? r.copy_ok_at : s.kind === 'link' ? r.link : s.kind === 'access' ? r.access !== 'none' : s.kind === 'metricool' ? r.metricool !== 'none' : r.steps.includes(s.id)));
+    const path = r.path === 'have' ? 'already has one' : r.path === 'create' ? 'building it with Genovus' : r.path === 'skip' ? 'skipped' : c.id === 'google' && !r.google_owner ? 'not answered who runs the listing yet' : 'not chosen yet';
+    lines.push(`- ${c.name}: ${word[c.status]} · ${path}${r.link ? ` · link ${r.link}` : ''}${open ? ` · NEXT STEP "${open.title}": ${open.how.join(' ')}` : ''}`);
+  }
+  return lines;
+}

@@ -22,6 +22,7 @@ let t = must(await db.from('tenants').select('id').eq('slug', SLUG).maybeSingle(
 if (!t) t = must(await db.from('tenants').insert({ slug: SLUG, name: 'Test Social Agency', kind: 'agency', stage: 'build', plan: 'growth' }).select('id').single(), 'insert tenant');
 else must(await db.from('tenants').update({ stage: 'build', plan: 'growth', is_sample: false, metricool_connect_url: null }).eq('id', t.id), 'update tenant');
 must(await db.from('social_setup').delete().eq('tenant_id', t.id), 'clear social');
+must(await db.from('care_requests').delete().eq('tenant_id', t.id), 'clear care');
 const { data: last } = await db.from('agent_records').select('version').eq('tenant_id', t.id).order('version', { ascending: false }).limit(1).maybeSingle();
 await db.from('agent_records').update({ is_current: false }).eq('tenant_id', t.id);
 must(await db.from('agent_records').insert({ tenant_id: t.id, version: (last?.version ?? 0) + 1, is_current: true, data: { agencyName: 'Test Social Agency', carrier: 'GEICO', city: 'Valdosta', state: 'GA', phone: '(229) 555-0100', address: '1 Main St', intake: { hours: 'Mon–Fri 9–5' } }, note: 'verify' }), 'record');
@@ -68,6 +69,17 @@ await click('/Continue/');
 for (let i = 0; i < 40 && !String(await ev('location.pathname')).startsWith(`/app/${SLUG}`); i++) await sleep(250);
 await go(`/app/${SLUG}/social`);
 check(await waitFor(/Your social profiles/), 'social page loads');
+await ev(`localStorage.setItem('genovus-whatsnew-seen', JSON.stringify([])); true`);
+check(await waitFor(/with you every step of the way/), 'walkthrough shows before setup starts');
+await shot('0-intro');
+await click('/^Show me around first$/');
+check(await waitFor(/Quick Helix Tour/i), 'Show me around runs the Quick Helix Tour');
+await sleep(800); await shot('0b-tour-1');
+await click('/^Next$/'); await sleep(900); await shot('0c-tour-2');
+await click('/^Next$/'); await sleep(1500); await shot('0d-tour-3');
+await click('/^(Done|Close|Got it|Finish)$/');
+await ev(`document.querySelector('.qt-card button.ghost, .qt-card button')?.click(); true`);
+await go(`/app/${SLUG}/social`);
 await shot('1-cards');
 
 // Facebook: I have one -> link -> access sent -> Metricool waits for the link.
@@ -87,6 +99,14 @@ await click('/done this$/'); check(await waitFor(/confirms it on our side/), 'fa
 check((await row('facebook'))?.access === 'sent', 'facebook: access = sent');
 await click('/^Next$/'); check(await waitFor(/connection link is on its way/), 'facebook: Metricool step waits for the link');
 await shot('4-facebook-metricool');
+await click('/^Do this with us on a call$/'); check(await waitFor(/reach out to book a short call/), 'call request sent');
+const care = must(await db.from('care_requests').select('title, kind').eq('tenant_id', t.id).eq('title', 'Social setup help: Facebook'), 'care');
+check(care.length > 0 && care[0].kind === 'support', 'call request is a support request for the team');
+await click('/^Ask Helix about this step$/');
+check(await waitFor(/Walk me through it one step at a time/), 'Ask Helix opens with the step question');
+await sleep(1500); await shot('4b-helix');
+await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`);
+await go(`/app/${SLUG}/social?c=facebook`); await sleep(800);
 
 // Google: the carrier runs it.
 await click('/All channels/'); await sleep(500); await click('/^Google Business Profile/');

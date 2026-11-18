@@ -23,6 +23,17 @@ export type WhatsNew = {
 
 export const WHATS_NEW: WhatsNew[] = [
   {
+    id: 'social-setup-2026-11-18', date: '2026-11-18', surfaces: ['agency'],
+    title: 'Social setup, with us every step',
+    line: 'Facebook, Instagram and Google in one guided page. Already have them? Link them in minutes. Don’t? We build them with you, and nothing goes public until you approve it.',
+    tour: [
+      { page: 'social', at: '[data-tour="social-intro"]', caption: 'Start here. Four short parts: tell us what you have, build what’s missing, give us access (never your password), connect Metricool.' },
+      { page: 'social', at: '[data-tour="social-cards"]', caption: 'One card per profile. Each asks one question first: do you already have it? Skip any you don’t want.' },
+      { page: 'social', helix: true, at: '.helix-drawer', caption: 'Stuck? Ask Helix. It knows where you are and walks you through the next step. Or tap “Do this with us on a call” on any step.' },
+    ],
+    tryIt: { page: 'social', at: '[data-tour="social-cards"]', caption: 'Open Facebook Page to begin.' },
+  },
+  {
     id: 'lead-engine-p1-2026-11-09', date: '2026-11-09', surfaces: ['agency'],
     title: 'Every lead scored, timed and followed',
     line: 'Each lead gets a score with its reasons, a 5-minute first-call timer in your office hours, and follow-up steps until someone reaches them.',
