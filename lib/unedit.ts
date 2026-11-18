@@ -29,6 +29,7 @@ import { cleanTake, keyterms } from '@/lib/unedit-clean';
 import { deskById, deskFor } from '@/lib/desk';
 import { checkAll } from '@/lib/agency-copy';
 import { enhanceVoice, isEnhanced } from '@/lib/unedit-voice';
+import { makePartReview, dropPartReview } from '@/lib/unedit-review';
 import { FILL, NEUTRAL, studioLight, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
 import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
 import { musicBed } from '@/lib/unedit-music';
@@ -909,6 +910,9 @@ async function renderEpisodePartHere(id: string, k: number, origin: string): Pro
       } else if (caps) await overlayPart(out.dir, [], [], v.episode_plan.size, 0, true).catch((e) => { left = `captions left out: ${e instanceof Error ? e.message : e}`; console.error(`[unedit] ${id} part ${k} ${left}`); });
       const path_ = partPath(v, k);
       await put(path_, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
+      // The card's light copy of this part (lib/unedit-review.ts), made while the file is still here; a part without
+      // one loses any older copy, so the review join can never show a stale part (the review worker remakes it).
+      await makePartReview(out.file, path_).catch(async (e) => { console.error(`[unedit] ${id} part ${k} review copy: ${e instanceof Error ? e.message : e}`); await dropPartReview(path_); });
       await dbx().from('unedit_episode_parts').update({ status: 'done', blob_path: path_, secs: Math.round(out.secs * 100) / 100, ms: Date.now() - t0, error: left ? String(left).slice(0, 400) : null, lease_until: null }).eq('vlog_id', id).eq('k', k);
     } finally { await fs.rm(out.dir, { recursive: true, force: true }).catch(() => {}); }
     const { count } = await dbx().from('unedit_episode_parts').select('k', { count: 'exact', head: true }).eq('vlog_id', id).neq('status', 'done');

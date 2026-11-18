@@ -30,14 +30,22 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
   ]);
   const clips = (cs ?? []) as Clip[];
   const link = (p: string | null) => (p ? presigned(p, 180).catch(() => null) : Promise.resolve(null));
-  const [source, thumbs, clipSrc] = await Promise.all([
-    link(vlog.episode_path ?? vlog.blob_path),
+  // The card plays light review copies (lib/unedit-review.ts) when they match the current master; the master stays
+  // one tap away as "Full quality". A copy made for an older render is never shown.
+  type Rv = { path: string; of: string } | undefined;
+  const epRv = (vlog.episode_plan as { review?: Rv } | null)?.review;
+  const epLite = vlog.episode_path && epRv?.of === vlog.episode_path ? epRv.path : null;
+  const clipLite = (c: Clip) => { const r = (c.features as { review?: Rv } | null)?.review; return c.blob_path && r?.of === c.blob_path ? r.path : null; };
+  const [source, sourceFull, thumbs, clipSrc, clipFull] = await Promise.all([
+    link(epLite ?? vlog.episode_path ?? vlog.blob_path),
+    epLite ? link(vlog.episode_path) : Promise.resolve(null),
     Promise.all((vlog.thumbs ?? []).map(async (t) => ({ src: (await link(t.blob)) ?? '', text: t.text, look: t.look }))),
-    Promise.all(clips.map((c) => link(c.blob_path))),
+    Promise.all(clips.map((c) => link(clipLite(c) ?? c.blob_path))),
+    Promise.all(clips.map((c) => (clipLite(c) ? link(c.blob_path) : Promise.resolve(null)))),
   ]);
   const card: CardVlog = {
     id: vlog.id, title: vlog.title ?? 'Recording', stage: vlog.stage, error: vlog.error, provider: vlog.provider, words: vlog.words, duration: vlog.duration_s != null ? Number(vlog.duration_s) : null,
-    bytes: Number(vlog.bytes), cost: vlog.cost_cents, source,
+    bytes: Number(vlog.bytes), cost: vlog.cost_cents, source, sourceFull,
     // Episode Pro: what the edit took out, and how far the polished episode has rendered.
     polish: vlog.edit && vlog.episode_plan ? {
       secs: Number(vlog.edit.secs), removed: Number(vlog.edit.removed), ready: Boolean(vlog.episode_path), error: vlog.episode_plan.error ?? null,
@@ -51,7 +59,7 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
     } : null, episode: vlog.episode ?? {}, thumbs, thumbPick: vlog.thumb_pick, live: metricoolLive(), approvedAt: vlog.approved_at,
     sources: sheetText(vlog.sources),
   };
-  const cardClips: CardClip[] = clips.map((c, i) => ({ id: c.id, n: c.n, title: c.title, caption: c.caption, secs: c.secs != null ? Number(c.secs) : null, hook: c.hook_start_s != null, status: c.status, note: c.note, error: c.error, src: clipSrc[i], copy: c.copy ?? {}, start: Number(c.start_s), end: Number(c.end_s) }));
+  const cardClips: CardClip[] = clips.map((c, i) => ({ id: c.id, n: c.n, title: c.title, caption: c.caption, secs: c.secs != null ? Number(c.secs) : null, hook: c.hook_start_s != null, status: c.status, note: c.note, error: c.error, src: clipSrc[i], full: clipFull[i], copy: c.copy ?? {}, start: Number(c.start_s), end: Number(c.end_s) }));
   const nOf = new Map(clips.map((c) => [c.id, c.n]));
   const posts: CardPost[] = ((ps ?? []) as UPost[]).map((p) => ({ id: p.id, platform: p.platform, kind: p.kind, title: p.title, clip: p.clip_id ? nOf.get(p.clip_id) ?? null : null, status: p.status, mc_status: p.mc_status, mc_error: p.mc_error, posted_url: p.posted_url, scheduled_at: p.scheduled_at }));
   // In review: what Helix plans the posting from (the story's heat and age, the brand's other scheduled posts).

@@ -10,6 +10,7 @@ import { advanceAllProductions } from '@/lib/studio-production';
 import { kickFinish } from '@/lib/studio-finish';
 import { syncPosted } from '@/lib/studio-distribute';
 import { kick, runnable, sweepDuePosts, syncUneditPosts } from '@/lib/unedit';
+import { kickReview, reviewDue } from '@/lib/unedit-review';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
 import libraryCatalog from '@/data/screen-library.json';
@@ -54,7 +55,10 @@ export async function GET(req: Request) {
     const due = await sweepDuePosts();
     const ids = await runnable();
     for (const id of ids) await kick(new URL(req.url).origin, id);
-    return { due, kicked: ids.length, posts: await syncUneditPosts() };
+    // Review copies (lib/unedit-review.ts): the light versions the card plays, so review never stutters.
+    const reviews = await reviewDue().catch(() => [] as string[]);
+    for (const id of reviews) await kickReview(new URL(req.url).origin, id);
+    return { due, kicked: ids.length, reviews: reviews.length, posts: await syncUneditPosts() };
   })().catch((e) => ({ error: e instanceof Error ? e.message : 'unedit failed' }));
   if (!generationConfigured()) return Response.json({ sync, runway, production, posted, unedit, skipped: 'no Gemini key' });
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.

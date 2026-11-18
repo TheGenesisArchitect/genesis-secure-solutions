@@ -7,14 +7,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PostPlan, type Planning } from '@/components/studio/PostPlan';
 
-export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
+export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; /** the master, when src is the light review copy */ full?: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
 export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null; scheduled_at?: string | null };
 /** The show packages (data/unedit-stylebook.ts), as the card offers them. */
 const SHOW_PACKAGES = [
   { id: 'signature', label: 'Genovus Signature (mix)' }, { id: 'keynote', label: 'Keynote' }, { id: 'documentary', label: 'Documentary' },
   { id: 'kinetic', label: 'Agency kinetic' }, { id: 'classic', label: 'Classic' },
 ];
-export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; gaps?: string[]; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null; newsNotes?: string[] } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null;
+export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; /** the master, when source is the light review copy */ sourceFull?: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; gaps?: string[]; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null; newsNotes?: string[] } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null;
   /** Newsroom: the approved sources sheet as text (lib/unedit-news.ts format). */ sources?: string };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
@@ -94,6 +94,7 @@ export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; c
       <section className="ue-episode">
         <div className="ue-ep-video">
           {vlog.source ? <video src={vlog.source} controls playsInline preload="metadata" /> : <div className="ue-blank" />}
+          {vlog.sourceFull ? <a className="muted" href={vlog.sourceFull} target="_blank" rel="noreferrer">Full quality</a> : null}
           {vlog.polish?.ready ? (<>
             <span className="muted">Full video · {mmss(vlog.polish.secs)} · polished: {polishSummary(vlog.polish)} · reframed, color-graded, audio leveled{vlog.polish.graphics && !vlog.polish.graphicsError ? ` · ${vlog.polish.graphics} graphics with sound` : ''}{vlog.polish.chapters ? ' · YouTube chapters in the description' : ''}{vlog.polish.graphicsError ? ` · no graphics this time (${vlog.polish.graphicsError})` : ''}{vlog.polish.gaps?.length ? <> · <strong>check before approving: {vlog.polish.gaps.join('; ')}</strong> <button type="button" className="btn" disabled={!review || busy === 'ep-retry'} onClick={() => send({ tool: 'retry_episode' }, 'ep-retry')}>Polish again</button></> : null}{vlog.polish.graphicsError && vlog.polish.graphics ? <> <button type="button" className="btn" disabled={!review || busy === 'ep-retry'} onClick={() => send({ tool: 'retry_episode' }, 'ep-retry')}>Add graphics again</button></> : null}</span>
             {vlog.polish.pkg ? (
@@ -146,6 +147,7 @@ export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; c
               <article key={c.id} id={`clip-${c.n}`} className={`ue-clip ${c.status}`}>
                 <div className="ue-clip-video">
                   {c.src && !['rendering', 'redo'].includes(c.status) ? <video src={c.src} controls playsInline preload="metadata" /> : <div className="ue-blank"><span className="take-spin" />{c.status === 'redo' ? 'Redoing…' : 'Cutting…'}</div>}
+                  {c.full && !['rendering', 'redo'].includes(c.status) ? <a className="muted" href={c.full} target="_blank" rel="noreferrer">Full quality</a> : null}
                 </div>
                 <div className="ue-clip-body">
                   <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
