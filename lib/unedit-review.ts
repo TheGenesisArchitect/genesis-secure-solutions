@@ -86,7 +86,7 @@ const episodeNeeds = (v: VlogRow) => Boolean(v.episode_path && v.episode_plan?.r
 
 /** Recordings on the review desk (or just posted) whose card still plays a heavy master. */
 export async function reviewDue(limit = 2): Promise<string[]> {
-  const { data } = await dbx().from('unedit_vlogs').select('id, stage, episode_path, episode_plan').in('stage', ['review', 'publishing']).limit(40);
+  const { data } = await dbx().from('unedit_vlogs').select('id, stage, episode_path, episode_plan').in('stage', ['review', 'publishing']).order('created_at', { ascending: false }).limit(40);
   const out: string[] = [];
   for (const v of (data ?? []) as VlogRow[]) {
     if (out.length >= limit) break;
