@@ -18,6 +18,29 @@ const sameKey = (sub: PushSubscription) => {
 };
 const save = (sub: PushSubscription) => fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON(), device: device() }) });
 
+// "Registration failed - push service error" (an AbortError) means the browser's own push service didn't answer:
+// usually a stale registration, so we start clean and try once more. If it still fails, say what fixes it on this
+// browser (Brave keeps Google's push service off until you allow it; a VPN or firewall can block it too).
+const pushServiceError = (e: unknown) => e instanceof Error && (e.name === 'AbortError' || /push service/i.test(e.message));
+async function subscribe(reg: ServiceWorkerRegistration): Promise<PushSubscription> {
+  const opts = { userVisibleOnly: true, applicationServerKey: bytes(KEY) };
+  try { return await reg.pushManager.subscribe(opts); } catch (e) {
+    if (!pushServiceError(e)) throw e;
+    await (await reg.pushManager.getSubscription())?.unsubscribe().catch(() => {});
+    await reg.unregister().catch(() => {});
+    const fresh = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    await new Promise((r) => setTimeout(r, 400));
+    return fresh.pushManager.subscribe(opts);
+  }
+}
+async function explain(e: unknown): Promise<string> {
+  if (!pushServiceError(e)) return e instanceof Error ? e.message : 'Couldn’t turn alerts on.';
+  const brave = await (navigator as unknown as { brave?: { isBrave?: () => Promise<boolean> } }).brave?.isBrave?.().catch(() => false);
+  if (brave) return 'Brave keeps push alerts off by default. Open brave://settings/privacy, turn on “Use Google services for push messaging”, restart Brave, then tap “Alert me on this device” again.';
+  return 'This browser’s push service didn’t answer, so alerts couldn’t start. Close other Genovus tabs and try again. If you use a VPN or a work network, it may block push; try Chrome or Edge on another network, or turn alerts on from your phone.';
+}
+
 /** `team`: the Genovus console version: new inquiries and website bookings for Genovus itself. */
 export function LeadAlerts({ compact, team }: { compact?: boolean; team?: boolean }) {
   const [state, setState] = useState<State>('loading');
@@ -52,12 +75,12 @@ export function LeadAlerts({ compact, team }: { compact?: boolean; team?: boolea
       if ((await Notification.requestPermission()) !== 'granted') return setState('blocked');
       const old = await reg.pushManager.getSubscription();
       if (old && !sameKey(old)) await old.unsubscribe();
-      const sub = (old && sameKey(old) ? old : null) ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(KEY) });
+      const sub = (old && sameKey(old) ? old : null) ?? await subscribe(reg);
       const r = await save(sub);
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'Couldn’t save it.');
       setState('on');
       setNote('Alerts are on. Tap “Send a test” to see one.');
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Couldn’t turn alerts on.'); setState('off'); }
+    } catch (e) { setErr(await explain(e)); setState('off'); }
   };
   const turnOff = async () => {
     setState('busy'); setNote('');
