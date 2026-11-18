@@ -17,6 +17,17 @@ const SHOW_PACKAGES = [
 export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; /** the master, when source is the light review copy */ sourceFull?: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; gaps?: string[]; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null; newsNotes?: string[] } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null;
   /** Newsroom: the approved sources sheet as text (lib/unedit-news.ts format). */ sources?: string };
 
+/** A player that keeps its link while it shows the same file. The card refreshes itself (every 20 s, every 4 s while
+ *  something renders) and every refresh signs a fresh link to the same video; a changed src makes the browser drop its
+ *  buffer and load the video again, which is what made review stutter and buffer. Only a different file swaps it. */
+function StableVideo({ src }: { src: string }) {
+  const [held, setHeld] = useState(src);
+  const file = (u: string) => u.split('?')[0];
+  useEffect(() => { if (file(src) !== file(held)) setHeld(src); }, [src, held]);
+  // A held link that expired (a card left open for hours) takes the newest one.
+  return <video src={held} controls playsInline preload="metadata" onError={() => { if (held !== src) setHeld(src); }} />;
+}
+
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
 
 /** The full video to YouTube on its own (the clips go when you approve them): a two-tap post, then its live link. */
@@ -93,7 +104,7 @@ export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; c
 
       <section className="ue-episode">
         <div className="ue-ep-video">
-          {vlog.source ? <video src={vlog.source} controls playsInline preload="metadata" /> : <div className="ue-blank" />}
+          {vlog.source ? <StableVideo src={vlog.source} /> : <div className="ue-blank" />}
           {vlog.sourceFull ? <a className="muted" href={vlog.sourceFull} target="_blank" rel="noreferrer">Full quality</a> : null}
           {vlog.polish?.ready ? (<>
             <span className="muted">Full video · {mmss(vlog.polish.secs)} · polished: {polishSummary(vlog.polish)} · reframed, color-graded, audio leveled{vlog.polish.graphics && !vlog.polish.graphicsError ? ` · ${vlog.polish.graphics} graphics with sound` : ''}{vlog.polish.chapters ? ' · YouTube chapters in the description' : ''}{vlog.polish.graphicsError ? ` · no graphics this time (${vlog.polish.graphicsError})` : ''}{vlog.polish.gaps?.length ? <> · <strong>check before approving: {vlog.polish.gaps.join('; ')}</strong> <button type="button" className="btn" disabled={!review || busy === 'ep-retry'} onClick={() => send({ tool: 'retry_episode' }, 'ep-retry')}>Polish again</button></> : null}{vlog.polish.graphicsError && vlog.polish.graphics ? <> <button type="button" className="btn" disabled={!review || busy === 'ep-retry'} onClick={() => send({ tool: 'retry_episode' }, 'ep-retry')}>Add graphics again</button></> : null}</span>
@@ -146,7 +157,7 @@ export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; c
             {clips.map((c) => (
               <article key={c.id} id={`clip-${c.n}`} className={`ue-clip ${c.status}`}>
                 <div className="ue-clip-video">
-                  {c.src && !['rendering', 'redo'].includes(c.status) ? <video src={c.src} controls playsInline preload="metadata" /> : <div className="ue-blank"><span className="take-spin" />{c.status === 'redo' ? 'Redoing…' : 'Cutting…'}</div>}
+                  {c.src && !['rendering', 'redo'].includes(c.status) ? <StableVideo src={c.src} /> : <div className="ue-blank"><span className="take-spin" />{c.status === 'redo' ? 'Redoing…' : 'Cutting…'}</div>}
                   {c.full && !['rendering', 'redo'].includes(c.status) ? <a className="muted" href={c.full} target="_blank" rel="noreferrer">Full quality</a> : null}
                 </div>
                 <div className="ue-clip-body">

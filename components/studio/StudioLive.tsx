@@ -17,6 +17,10 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
   const router = useRouter();
   const video = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
+  // The page refreshes every 6 s and signs a fresh link each time; the player keeps its link while the file is the
+  // same (a new src drops the buffer and reloads the video, the stutter people saw).
+  const [held, setHeld] = useState(src);
+  useEffect(() => { if ((src ?? '').split('?')[0] !== (held ?? '').split('?')[0]) setHeld(src); }, [src, held]);
   const [sel, setSel] = useState<LiveClip | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<{ who: string; text: string }[]>([]);
@@ -69,7 +73,7 @@ export function StudioLive({ id, title, src, polished, secs, stage, working, rev
 
         <main className="stl-main">
           <div className="stl-monitor">
-            {src ? <video ref={video} src={src} controls playsInline preload="metadata" onTimeUpdate={(e) => setT(e.currentTarget.currentTime)} /> : <div className="ue-blank" />}
+            {held ? <video ref={video} src={held} onError={() => { if (src && held !== src) setHeld(src); }} controls playsInline preload="metadata" onTimeUpdate={(e) => setT(e.currentTarget.currentTime)} /> : <div className="ue-blank" />}
           </div>
           <div className="stl-now">{current.length ? current.map((c, i) => <span key={i} className="stl-chip">{c.label}{c.text && c.kind !== 'broll' ? `: ${c.text.slice(0, 40)}` : ''}</span>) : <span className="muted nr-small">{mmss(t)} · on camera</span>}</div>
           <div className="stl-timeline" aria-label="Timeline">

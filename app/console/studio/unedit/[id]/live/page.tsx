@@ -36,7 +36,10 @@ export default async function StudioLivePage({ params }: { params: Promise<{ id:
   const g = ep?.graphics;
   const secs = Number(v.edit?.secs ?? v.duration_s ?? 0);
   const keep = v.edit?.keep ?? [];
-  const src = await presigned(v.episode_path ?? v.blob_path, 120).catch(() => null);
+  // The light review copy (lib/unedit-review.ts) when it matches the current episode: same frames and timing, a
+  // fraction of the weight.
+  const rv = (v.episode_plan as { review?: { path: string; of: string } } | null)?.review;
+  const src = await presigned(v.episode_path && rv?.of === v.episode_path ? rv.path : (v.episode_path ?? v.blob_path), 120).catch(() => null);
   const items = (g?.items ?? []) as EpGraphic[];
   const clip = (track: string, it: EpGraphic, extra: Partial<LiveClip> = {}): LiveClip => ({ track, kind: it.kind, label: LABEL[it.kind] ?? it.kind, text: it.text, T: it.T, D: it.D, removable: true, raw: it.text, ...extra });
   const brollState = (it: EpGraphic) => (it.broll?.path ? 'ready' : it.broll?.failed ? 'failed' : 'generating');
