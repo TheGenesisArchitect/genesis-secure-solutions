@@ -14,7 +14,7 @@ import ffmpegPath from 'ffmpeg-static';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { BT709, VOICE_MASTER, ffmpeg, type Span } from '@/lib/unedit-media';
+import { BT709, VOICE_MASTER, ffmpeg, videoFrames, type Span } from '@/lib/unedit-media';
 import type { NewsData, NewsKind } from '@/lib/unedit-news';
 import type { Seg } from '@/lib/unedit-edit';
 import { frames } from '@/lib/unedit-media';
@@ -98,11 +98,7 @@ export function partsOf(segs: Seg[], PART_S: number): Part[] {
 }
 
 /** How many video frames a rendered file holds (a stream copy, nothing decoded); 0 when it has none or won't open. */
-export async function videoFrames(file: string, cwd?: string): Promise<number> {
-  const out = await ffmpeg(['-loglevel', 'info', '-i', file, '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'], cwd, 60_000).catch(() => '');
-  const all = [...out.matchAll(/frame=\s*(\d+)/g)];
-  return all.length ? Number(all[all.length - 1][1]) : 0;
-}
+export { videoFrames };
 /** A rendered piece is whole when it holds its n frames (one short is tolerated: the concat still lines up). */
 async function pieceOk(dir: string, file: string, n: number): Promise<boolean> {
   return (await videoFrames(file, dir)) >= Math.max(1, n - 1);

@@ -263,7 +263,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         if (proConfigured() && shots.length) {
           try {
             const base = await cut(false);
-            const basePath = `${dir(v)}/clips/${next.n}-base.mp4`;
+            // A new name per render: an overwritten name can be served from cache (stored blobs are cached up to a month).
+            const basePath = `${dir(v)}/clips/${next.n}-base-${Date.now()}.mp4`;
             await put(basePath, base.bytes, { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
             const cues = ((next.features as { cues?: Cue[] })?.cues ?? []);
             // An agency desk's clip carries the agency's crest, colors and end card (lib/desk.ts profile.brand), never Genovus's.
@@ -909,7 +910,8 @@ async function renderEpisodePartHere(id: string, k: number, origin: string): Pro
         });
       } else if (caps) await overlayPart(out.dir, [], [], v.episode_plan.size, 0, true).catch((e) => { left = `captions left out: ${e instanceof Error ? e.message : e}`; console.error(`[unedit] ${id} part ${k} ${left}`); });
       const path_ = partPath(v, k);
-      await put(path_, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
+      // Parts keep their name across re-renders, so they are cached only briefly (never an old part in the join).
+      await put(path_, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60, abortSignal: AbortSignal.timeout(180_000) });
       // The card's light copy of this part (lib/unedit-review.ts), made while the file is still here; a part without
       // one loses any older copy, so the review join can never show a stale part (the review worker remakes it).
       await makePartReview(out.file, path_).catch(async (e) => { console.error(`[unedit] ${id} part ${k} review copy: ${e instanceof Error ? e.message : e}`); await dropPartReview(path_); });

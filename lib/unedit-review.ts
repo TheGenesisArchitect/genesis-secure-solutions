@@ -30,7 +30,7 @@ async function exists(p: string): Promise<boolean> {
   return head(p).then(() => true, () => false);
 }
 async function upload(p: string, file: string): Promise<void> {
-  await put(p, await fs.readFile(file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, multipart: true, abortSignal: AbortSignal.timeout(300_000) });
+  await put(p, await fs.readFile(file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60, multipart: true, abortSignal: AbortSignal.timeout(300_000) });
 }
 
 /** The light copy of one episode part (video only; the soundtrack comes from the master at the join). `input` is a

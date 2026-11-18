@@ -297,12 +297,27 @@ export async function clipPieces(dir: string, url: string, spans: Span[], src: P
     const d = sp.to - sp.from, n = Math.max(1, Math.round(d * FPS));
     const at = ['-ss', sp.from.toFixed(3), '-t', d.toFixed(3)];
     // The picture is exactly round(d x 30) frames and the sound exactly d seconds, so pieces join without drifting.
-    await ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url, ...(opts.voice ? [...at, '-i', opts.voice, '-map', '0:v', '-map', '1:a'] : []),
+    const cut = () => ffmpeg(['-threads', '3', '-ss', sp.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url, ...(opts.voice ? [...at, '-i', opts.voice, '-map', '0:v', '-map', '1:a'] : []),
       '-vf', `${frame},setsar=1,fps=${FPS},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-af', `aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=0:${d.toFixed(4)}`,
       '-c:v', 'libx264', '-threads', '3', '-preset', 'veryfast', '-crf', '12', '-c:a', 'pcm_s16le', f], dir);
+    // A read of the recording can drop and still exit cleanly with no picture (a47f35a0 clip 2: a 49 s clip whose
+    // base held only its 6.7 s hook, so the speaker froze under the graphics). Each piece is counted; one retry.
+    await cut();
+    if ((await videoFrames(f, dir)) < Math.max(1, n - 1)) {
+      await cut();
+      const got = await videoFrames(f, dir);
+      if (got < Math.max(1, n - 1)) throw new Error(`clip piece ${i + 1} (${sp.from.toFixed(1)}-${sp.to.toFixed(1)} s) came out with ${got} of ${n} frames twice`);
+    }
     pieces.push(f);
   }
   await joinPieces(dir, pieces, out);
+}
+
+/** Frames in a file's first video stream (0 when it has none or can't be read). */
+export async function videoFrames(file: string, cwd?: string): Promise<number> {
+  const out = await ffmpeg(['-loglevel', 'info', '-i', file, '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'], cwd, 120_000).catch(() => '');
+  const all = [...out.matchAll(/frame=\s*(\d+)/g)];
+  return all.length ? Number(all[all.length - 1][1]) : 0;
 }
 
 /** Join intermediates (same format) in order, without re-encoding; the inputs are removed. */
@@ -334,6 +349,10 @@ export async function finishClip(dir: string, words: Word[], spans: Span[], opts
     input = ['-f', 'concat', '-safe', '0', '-protocol_whitelist', 'file,http,https,tcp,tls,crypto', '-i', 'groups.txt'];
   }
   await ffmpeg(['-y', ...input, '-filter_complex', fc.join(';'), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', ...(opts.sdr ? BT709 : []), '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], dir);
+  // The finished clip must be as long as its spans: a short one (a group or piece that lost its picture) would play
+  // a frozen speaker under 49 s of graphics. Measured, never assumed.
+  const want = Math.round(secs * FPS), got = await videoFrames(out, dir);
+  if (got < want * 0.98 - 2) throw new Error(`the cut came out ${(got / FPS).toFixed(1)} s long instead of ${secs.toFixed(1)} s`);
   return { file: path.join(dir, out), dir, secs };
 }
 
