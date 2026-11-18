@@ -1993,3 +1993,42 @@ button.chip{cursor:pointer}
 /* Long words and links never push the Newsroom wider than the screen. */
 .nr-col,.nr-hot-body,.nr-tile{overflow-wrap:anywhere}
 .nr-tile-src{max-width:100%;min-width:0}
+
+/* Social setup wizard (components/SocialWizard.tsx) */
+.social-wiz{display:grid;gap:14px}
+.social-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.social-card{display:grid;gap:8px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;color:var(--ink);font:inherit;cursor:pointer}
+.social-card:hover{border-color:var(--accent)}
+.social-card.connected{border-color:color-mix(in srgb,var(--done) 45%,transparent)}
+.social-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.social-card-go{font-weight:600;color:var(--link);font-size:14px}
+.social-cards.small .social-card{padding:12px}
+.social-more{font:700 14px var(--display);margin:6px 0 0}
+.social-flow{gap:16px}
+.social-flow-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.social-flow-head h2{margin:0 0 2px}
+.social-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.social-choice{display:grid;gap:6px;text-align:left;background:var(--raise);border:1px solid var(--line-2);border-radius:12px;padding:14px;color:var(--ink);font:inherit;cursor:pointer;text-decoration:none}
+.social-choice:hover:not(:disabled){border-color:var(--accent)}
+.social-stepper{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.social-stepper button{display:flex;align-items:center;gap:8px;background:var(--raise);border:1px solid var(--line);border-radius:999px;padding:6px 12px 6px 6px;color:var(--soft);font:500 13px var(--body);cursor:pointer}
+.social-stepper .dot{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sunk);font-size:12px}
+.social-stepper li.on button{border-color:var(--accent);color:var(--ink)}
+.social-stepper li.done .dot{background:var(--done);color:var(--on-done)}
+.social-step{display:grid;gap:10px;max-width:760px}
+.social-step h3{margin:0;font:800 18px var(--display)}
+.social-how{margin:0;padding-left:20px;display:grid;gap:6px}
+.social-facts{display:grid;gap:6px;background:var(--sunk);border-radius:10px;padding:10px}
+.social-facts>div{display:grid;grid-template-columns:90px 1fr auto;gap:8px;align-items:center;font-size:14px}
+.social-link{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.social-link label{display:grid;gap:4px;flex:1 1 280px}
+.social-link input,.social-copy input,.social-copy textarea,.social-staff input,.social-staff select{font:500 15px var(--body);color:var(--ink);background:var(--sunk);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+.social-copy{display:grid;gap:10px}
+.social-copy label{display:grid;gap:4px}
+.social-copy .bad{color:var(--bad)}
+.social-tick{display:flex;gap:8px;align-items:center;font-weight:600}
+.social-nav{gap:8px;flex-wrap:wrap;margin-top:6px}
+.social-mc{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.social-staff{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;border:1px dashed var(--line-2);border-radius:12px;padding:12px;font-size:13px}
+.social-staff label{display:grid;gap:4px}
+@media (max-width:600px){.social-facts>div{grid-template-columns:1fr auto}.social-facts>div .muted{grid-column:1/-1}}

@@ -8,6 +8,7 @@ import { Panel, Bar, Status, Empty, GATE_LABEL, date, dateTime } from '@/compone
 import { db } from '@/lib/supabase/server';
 import { liveSetup } from '@/lib/live-setup';
 import { welcomeData, etWhen, pastKickoff } from '@/lib/welcome';
+import { wizardData } from '@/lib/social-wizard';
 
 export const metadata = { title: 'Setup' };
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,7 @@ export default async function Setup({ params }: { params: Promise<{ slug: string
     welcomeData(ctx.tenant.tenantId, slug).catch(() => null),
     pastKickoff(ctx.tenant.tenantId).catch(() => null),
   ]);
+  const social = await wizardData(ctx.tenant.tenantId).catch(() => null);
   const g = gates ?? [];
   const cleared = g.filter((x) => x.status === 'cleared' || x.status === 'waived').length;
   const building = t?.stage !== 'care';
@@ -99,6 +101,15 @@ export default async function Setup({ params }: { params: Promise<{ slug: string
             </Panel>
           ) : null}
         </div>
+      ) : null}
+      {social && !live.social ? (
+        <Panel title="Social setup" sub="Facebook, Instagram and Google: link the ones you have, build the rest with us">
+          <Bar value={social.done} total={social.total} done={social.total > 0 && social.done === social.total} />
+          <ul className="setup-missing">{social.channels.filter((c) => c.core || (c.row.path && c.row.path !== 'skip')).map((c) => (
+            <li key={c.id}><b>{c.name}</b> · {({ new: 'Not started', progress: 'In progress', waiting: 'Waiting on Genovus', connected: 'Connected', skipped: 'Not now', carrier: 'Run by your carrier' } as const)[c.status]}</li>
+          ))}</ul>
+          <Link className="btn small primary" href={`/app/${slug}/social`} style={{ justifySelf: 'start' }}>{social.done ? 'Continue social setup' : 'Start social setup'}</Link>
+        </Panel>
       ) : null}
       {live.error && (live.welcome || live.social || !w) ? <div className="notice err">{live.error}</div> : null}
       <Panel title="Launch checklist" sub={g.length ? `${cleared} of ${g.length} cleared. Nothing goes public until every item is cleared.` : 'The items your site needs before it goes public'}>

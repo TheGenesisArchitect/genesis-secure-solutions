@@ -29,6 +29,7 @@ export function agencyNav(base: string, has: (k: string) => boolean, opts: { isO
         ...(has('visibility') ? [{ href: `${base}/visibility`, label: 'Visibility', icon: 'search' }] : []),
         ...(has('radar') ? [{ href: `${base}/radar`, label: 'Competitor Radar', icon: 'target' }] : []),
         { href: `${base}/setup`, label: 'Setup' },
+        { href: `${base}/social`, label: 'Social setup' },
         { href: `${base}/approvals`, label: 'Approvals', count: c.pending },
         { href: `${base}/care`, label: has('content') ? 'Care & content' : 'Monthly care', count: c.open },
         { href: `${base}/performance`, label: has('kpis') ? 'Performance & KPIs' : 'Performance' },
