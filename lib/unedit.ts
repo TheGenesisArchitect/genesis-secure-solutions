@@ -1100,6 +1100,15 @@ async function makeThumbs(v: Vlog, src: string) {
 }
 
 /** A thumbnail line as at most three short lines (one or two words each). */
+/** A clip's cover line: the punchy head of its title (before the first colon, comma or "then"), at most six words, so
+ *  it reads big on a phone ("Claimed vs established, then your plan" -> "Claimed vs established"). */
+function coverLine(title: string): string {
+  const t = title.replace(/\s+/g, ' ').trim();
+  const head = t.split(/\s*(?:[:,;—–]|\s-\s|\bthen\b)\s*/i)[0].trim();
+  const pick = head.split(' ').length >= 2 ? head : t;
+  // Six words at most (what thumbLines sets), so a six-word head is never cut mid-phrase.
+  return pick.split(' ').slice(0, 6).join(' ').replace(/[.,;:]+$/, '');
+}
 function thumbLines(text: string, max = 3): string[] {
   const w = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).slice(0, 6);
   if (w.length <= max) return w;
@@ -1182,7 +1191,9 @@ async function makeClipCovers(v: Vlog, src: string): Promise<string> {
       await ffmpeg(['-i', `s${k}.mp4`, '-i', m, '-filter_complex', `${matteFilter('1:v', 1920, 1080, 'mm')};[0:v][mm]alphamerge,format=rgba`, '-frames:v', '1', `cut${k}.png`], d);
       const cutPath = `${dir(v)}/thumbs/clip-${k}-cutout.png`;
       await put(cutPath, await fs.readFile(path.join(d, `cut${k}.png`)), { access: 'private', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
-      covers.push({ cutout: await presigned(cutPath, 60), lines: thumbLines(c.title || title, 4), topic });
+      const line = coverLine(c.title || title);
+      // The chip would only repeat a line that already names the topic.
+      covers.push({ cutout: await presigned(cutPath, 60), lines: thumbLines(line, 4), topic: line.toUpperCase() === topic ? '' : topic });
     }
     const mp4 = await renderOnSandbox('CoverSet', { covers }, { codec: 'h264', crf: 12 });
     await fs.writeFile(path.join(d, 'covers.mp4'), mp4);
