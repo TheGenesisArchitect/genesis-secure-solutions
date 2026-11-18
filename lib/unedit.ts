@@ -760,7 +760,14 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
       await release(v.id);
       return `Quality check: left out ${drops.length} graphic${drops.length === 1 ? '' : 's'}; rendering the episode again.`;
     }
-    const left = qa.issues.map(say);
+    // What code already knows goes in first: a part that left graphics or captions out (it recorded why), and a
+    // check that couldn't run. Neither may read as "passed" (a47f35a0 passed with part 2's graphics missing).
+    const { data: gapRows } = await dbx().from('unedit_episode_parts').select('k, error').eq('vlog_id', v.id).eq('status', 'done').not('error', 'is', null);
+    const left = [
+      ...(gapRows ?? []).map((p) => `part ${Number(p.k) + 1}: ${String(p.error).split(':')[0]}`),
+      ...(qa.failed ? [`the check didn't run (${qa.failed})`] : []),
+      ...qa.issues.map(say),
+    ];
     plan = { ...plan, graphics: { ...g, qa: { at: new Date().toISOString(), ok: !left.length, issues: left, fixed: fixedBefore, cents: qa.cents + (g.qa?.cents ?? 0) } } };
     await log('episode-qa', v.id, { checked: qa.checked, issues: left.length, fixedBefore });
   }
