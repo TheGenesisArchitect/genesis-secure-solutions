@@ -102,7 +102,7 @@ function ChannelFlow({ slug, c, data, staff, run, pending, close }: { slug: stri
   if (!r.path || r.path === 'skip') {
     return (
       <div className="panel social-flow">{header}
-        <h3>Do you already have a {c.name}?</h3>
+        <h3>Do you already have {/^[AEIOU]/.test(c.name) ? 'an' : 'a'} {c.name}?</h3>
         <div className="social-choices">
           <Choice title="Yes, I have one" text="Paste the link, give us access, connect it to Metricool. About 5 minutes." onClick={() => run(socialChoose(slug, c.id, 'have'))} disabled={pending} />
           {c.canCreate
