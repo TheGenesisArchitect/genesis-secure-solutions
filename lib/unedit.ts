@@ -534,8 +534,13 @@ function clipSpans(v: Vlog, c: Clip): Span[] {
   const edited = v.edit ? within(raw, v.edit.keep) : [];
   return edited.length ? edited : raw;
 }
-/** 8K decodes slowly on a function (a 56 s clip did not finish inside 800 s): past 15 s of 8K footage, fan out. */
-const needsFanout = (v: Vlog, spans: Span[]) => Math.max(Number(v.width ?? 0), Number(v.height ?? 0)) > 4000 && spans.reduce((a, s) => a + (s.to - s.from), 0) > 15;
+/** Large frames decode slowly on a function (a 56 s clip did not finish inside 800 s): past 15 s of footage, fan out to
+ *  parallel group workers. 8K always; so does any recording past about 6 megapixels (a47f35a0, a 3000x2160 browser
+ *  capture at 44 Mbps, decoded at 1-5 min per 15 s: its 56 s clip 2 ran out of time on one function, 2026-11-18). */
+const needsFanout = (v: Vlog, spans: Span[]) => {
+  const w = Number(v.width ?? 0), h = Number(v.height ?? 0);
+  return (Math.max(w, h) > 4000 || w * h > 6_000_000) && spans.reduce((a, s) => a + (s.to - s.from), 0) > 15;
+};
 const groupPaths = (v: Vlog, c: Clip, spans: Span[], look: unknown) => {
   const key = createHash('sha256').update(JSON.stringify({ spans, look, voice: isEnhanced(v.audio_blob) })).digest('hex').slice(0, 12);
   return clipGroups(spans).map((_, g) => `${dir(v)}/clips/${c.n}-${key}-g${g}.mkv`);
