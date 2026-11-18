@@ -5,7 +5,8 @@ import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 const OUT = 'C:/Users/mrbee/Projects/genesis-secure-solutions/public/brand/genovus';
 const jobs = [
-  ['cover.html', 1640, 624, 'genovus-facebook-cover.png'],
+  ['cover.html', 1640, 624, 'genovus-facebook-cover-v1.png'],
+  ['cover-intelliware.html', 1640, 624, 'genovus-facebook-cover.png'],
 ];
 const port = 9447;
 const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${path.resolve('chrome-kit')}`, 'about:blank'], { stdio: 'ignore' });
