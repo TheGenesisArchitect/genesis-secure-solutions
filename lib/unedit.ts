@@ -283,6 +283,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         await release(v.id); // the route kicks the next clip right away, in a fresh function
         return `Rendered clip ${next.n}${made.pro ? ' (Unedit Pro)' : ''}.`;
       }
+      // The clips' vertical covers (once per clip render; a failure is recorded and never blocks review).
+      console.info(`[unedit] ${v.id} ${await makeClipCovers(v, src).catch((e) => `covers: ${e instanceof Error ? e.message : e}`)}`);
       if (!v.thumbs?.length) {
         await makeThumbs(v, src);
       }
@@ -1134,6 +1136,60 @@ async function brandedThumbs(v: Vlog, src: string, t: number, pre: string, lines
   } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
 }
 
+/** Vertical covers for the clips (Instagram Reels, Facebook Reels, YouTube Shorts take a custom cover; until
+ *  2026-11-18 they went out with none, so each network picked a frame). Each clip's speaker is cut out from a face
+ *  shot of that clip, framed and graded like the episode, and every cover renders in one sandbox call (CoverSet in
+ *  Genovus Motion: the clip's hook line over the speaker, all of it inside the 3:4 window the Instagram grid shows).
+ *  A clip whose cover can't be made posts with a face frame of the clip as its cover instead (coverMs). */
+async function makeClipCovers(v: Vlog, src: string): Promise<string> {
+  if (!proConfigured() || process.env.UNEDIT_CLIP_COVERS === 'off') return 'covers off';
+  const { data } = await dbx().from('unedit_clips').select('id, n, title, status, blob_path, features').eq('vlog_id', v.id).in('status', ['ready', 'approved']).order('n');
+  type Row = { id: string; n: number; title: string; status: string; blob_path: string | null; features: { cover?: { path?: string; of: string; error?: string }; shots?: Shot[] } | null };
+  const todo = ((data ?? []) as Row[]).filter((c) => c.blob_path && c.features?.cover?.of !== c.blob_path);
+  if (!todo.length) return 'covers current';
+  await sweepTmp();
+  const d = await fs.mkdtemp(path.join(os.tmpdir(), 'unedit-covers-'));
+  try {
+    const src2 = { width: Number(v.width ?? 1920), height: Number(v.height ?? 1080) };
+    const fr = v.look && v.episode_plan ? framing(v.look.face, src2, v.episode_plan.size, FILL.medium) : null;
+    const pre = v.look ? [fr ? `crop=${fr.w}:${fr.h}:${fr.x}:${fr.y}` : '', v.look.sdr, gradeFilter(v.look.grade)].filter(Boolean).join(',') : '';
+    const title = String(v.episode?.title ?? v.title ?? '');
+    const topic = title.split(/[:\-–—|]/)[0].trim().split(/\s+/).slice(0, 3).join(' ').toUpperCase().slice(0, 26);
+    const covers: { cutout: string; lines: string[]; topic: string }[] = [];
+    for (const c of todo) {
+      // The middle of the clip's first face shot (the hook's opening, by design a face), else a second in.
+      const face = (c.features?.shots ?? []).find((x) => x.layout === 'face');
+      const t = face ? (face.s + face.e) / 2 : Number((c as unknown as { start_s?: number }).start_s ?? 0) + 1;
+      const k = c.n;
+      await ffmpeg(['-ss', Math.max(0, t - 0.1).toFixed(3), '-t', '0.5', '-i', src, '-vf', `${pre ? `${pre},` : ''}scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps=30,format=yuv420p`, '-an', '-c:v', 'libx264', '-crf', '12', `s${k}.mp4`], d);
+      const m = await matte(path.join(d, `s${k}.mp4`), 0, 0.5, d, `m${k}`);
+      await ffmpeg(['-i', `s${k}.mp4`, '-i', m, '-filter_complex', `${matteFilter('1:v', 1920, 1080, 'mm')};[0:v][mm]alphamerge,format=rgba`, '-frames:v', '1', `cut${k}.png`], d);
+      const cutPath = `${dir(v)}/thumbs/clip-${k}-cutout.png`;
+      await put(cutPath, await fs.readFile(path.join(d, `cut${k}.png`)), { access: 'private', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+      covers.push({ cutout: await presigned(cutPath, 60), lines: thumbLines(c.title || title, 4), topic });
+    }
+    const mp4 = await renderOnSandbox('CoverSet', { covers }, { codec: 'h264', crf: 12 });
+    await fs.writeFile(path.join(d, 'covers.mp4'), mp4);
+    for (const [i, c] of todo.entries()) {
+      await ffmpeg(['-i', 'covers.mp4', '-vf', `select=eq(n\\,${i})`, '-frames:v', '1', '-q:v', '2', '-pix_fmt', 'yuvj420p', `c${i}.jpg`], d);
+      // A new name per render: covers are fetched by outside services, and an overwritten name can be served from cache.
+      const p = `${dir(v)}/thumbs/clip-${c.n}-cover-${Date.now()}.jpg`;
+      await put(p, await fs.readFile(path.join(d, `c${i}.jpg`)), { access: 'private', contentType: 'image/jpeg', addRandomSuffix: false });
+      const { data: now } = await dbx().from('unedit_clips').select('blob_path, features').eq('id', c.id).single();
+      if (now?.blob_path === c.blob_path) await dbx().from('unedit_clips').update({ features: { ...((now.features as object) ?? {}), cover: { path: p, of: c.blob_path } } }).eq('id', c.id);
+    }
+    return `covers for clip${todo.length === 1 ? '' : 's'} ${todo.map((c) => c.n).join(', ')}`;
+  } catch (e) {
+    // Recorded so the step doesn't retry forever; the posts fall back to a face frame of the clip.
+    const why = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+    for (const c of todo) {
+      const { data: now } = await dbx().from('unedit_clips').select('blob_path, features').eq('id', c.id).single();
+      if (now?.blob_path === c.blob_path) await dbx().from('unedit_clips').update({ features: { ...((now.features as object) ?? {}), cover: { of: c.blob_path, error: why } } }).eq('id', c.id);
+    }
+    return `covers failed (${why}); the posts use a face frame instead`;
+  } finally { await fs.rm(d, { recursive: true, force: true }).catch(() => {}); }
+}
+
 // ---- the card's taps ------------------------------------------------------------------------------------------
 type Tap =
   | { tool: 'approve_clip' | 'drop_clip' | 'reopen_clip'; clip: string }
@@ -1513,8 +1569,12 @@ export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: numb
     out.skipped.push('Metricool is not connected');
     return out;
   }
-  const { data: cs } = await dbx().from('unedit_clips').select('id, blob_path').eq('vlog_id', v.id);
+  const { data: cs } = await dbx().from('unedit_clips').select('id, blob_path, features').eq('vlog_id', v.id);
   const clipPath = new Map((cs ?? []).map((c) => [c.id as string, c.blob_path as string | null]));
+  // Each clip's vertical cover (makeClipCovers) when it was made for this render of the clip, else a face frame of it.
+  type CF = { cover?: { path?: string; of: string }; shots?: Shot[] } | null;
+  const clipCover = new Map((cs ?? []).map((c) => { const f = c.features as CF; return [c.id as string, f?.cover?.path && f.cover.of === c.blob_path ? f.cover.path : null]; }));
+  const clipFaceMs = new Map((cs ?? []).map((c) => { const sh = (c.features as CF)?.shots ?? []; const i = sh.findIndex((x) => x.layout === 'face'); const at = i < 0 ? 1 : sh.slice(0, i).reduce((a, x) => a + (x.e - x.s), 0) + (sh[i].e - sh[i].s) / 2; return [c.id as string, at * 1000]; }));
   const thumb = v.thumbs?.[v.thumb_pick ?? 0]?.blob;
   const mins = 6 * 24 * 60;
   for (const p of posts) {
@@ -1533,7 +1593,12 @@ export async function distribute(v: Vlog, only?: string[]): Promise<{ sent: numb
 Narrated by an AI voice.` : p.body, title: p.title ?? undefined, mediaUrl: await presigned(media, mins), when,
       vertical: p.kind !== 'video', aiGenerated: Boolean(v.faceless), format: p.platform === 'youtube' ? undefined : 'reel',
       // A link that answers HEAD as well as GET (lib/unedit-share.ts): storage links refuse HEAD, so YouTube never got it.
-      thumbnailUrl: p.kind === 'video' && thumb ? thumbLink(thumb, mins) ?? await presigned(thumb, mins) : undefined,
+      // Every post carries a cover: the full video its chosen thumbnail, each clip its vertical cover (or a face frame).
+      ...(await (async () => {
+        const img = p.clip_id ? clipCover.get(p.clip_id) : p.kind === 'video' ? thumb : null;
+        if (img) return { thumbnailUrl: thumbLink(img, mins) ?? await presigned(img, mins) };
+        return p.clip_id ? { coverMs: clipFaceMs.get(p.clip_id) ?? 1000 } : {};
+      })()),
     });
     // A timeout may still have created the post: look for it before calling it failed (never schedule twice).
     const found = !r.ok && /timeout|aborted/i.test(r.error) ? await findPostLike(blog, p.platform, p.body, when).catch(() => null) : null;

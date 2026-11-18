@@ -151198,6 +151198,25 @@ const ThumbLab = ({ variant, cutout, frame, lines, accent = lines.length - 1, ki
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 64, bottom: 48 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Mark, { size: 28 }) })
   ] });
 };
+const ClipCover = ({ cutout, lines, accent = lines.length - 1, topic }) => {
+  const longest = Math.max(4, ...lines.map((x) => x.length));
+  const size = Math.min(170, Math.floor(940 / (0.6 * longest)));
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "radial-gradient(70% 45% at 50% 78%, rgba(255,106,31,0.6), rgba(255,106,31,0.1) 55%, transparent 72%), linear-gradient(180deg, #0b0c10 35%, #1a0d07)" }, children: [
+    cutout ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: src(cutout), style: { position: "absolute", left: "50%", bottom: 0, height: 1180, transform: "translateX(-50%)", filter: "drop-shadow(0 0 3px rgba(255,140,60,0.9)) drop-shadow(0 -10px 44px rgba(255,106,31,0.55)) contrast(1.06) saturate(1.05)" } }) : null,
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: "linear-gradient(180deg, rgba(11,12,16,0.92) 0%, rgba(11,12,16,0.7) 33%, rgba(11,12,16,0) 50%)" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 72, top: 270 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Mark, { size: 44 }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 66, right: 66, top: 360 }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { width: 120, height: 10, borderRadius: 5, background: "#ff6a1f", marginBottom: 26 } }),
+      lines.map((l, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 900, fontSize: size, lineHeight: 0.9, letterSpacing: "-0.035em", textTransform: "uppercase", color: i === accent ? "#ff7a1a" : "#fbf7f0", textShadow: "0 8px 34px rgba(0,0,0,0.65)" }, children: l }, i))
+    ] }),
+    topic ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", right: 72, top: 262, maxWidth: 560, padding: "12px 22px", borderRadius: 999, background: "#fbf7f0", color: "#16130f", fontFamily: HF.mono, fontWeight: 700, fontSize: 26, letterSpacing: "0.12em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, children: topic }) : null
+  ] });
+};
+const CoverSet = ({ covers }) => {
+  const f = (0,esm.useCurrentFrame)();
+  const c = covers[Math.min(covers.length - 1, f)];
+  return c ? /* @__PURE__ */ (0,jsx_runtime.jsx)(ClipCover, { ...c }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: "#0b0c10" } });
+};
 const ThumbSet = (p) => {
   const f = (0,esm.useCurrentFrame)();
   const variant = ["signal", "newsroom", "documentary"][Math.min(2, f)];
@@ -151217,7 +151236,8 @@ const empty = { src: "", secs: 1, words: [], shots: [{ s: 0, e: 1, layout: "face
 const ProRoot = () => /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
   /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditPro", component: UneditPro, calculateMetadata: calculateProMetadata, durationInFrames: 30, fps: 30, width: 1080, height: 1920, defaultProps: empty }),
   /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditEpisodeCues", component: UneditEpisodeCues, calculateMetadata: calculateEpisodeCuesMetadata, durationInFrames: 30, fps: 30, width: 2560, height: 1440, defaultProps: emptyEp }),
-  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "ThumbSet", component: ThumbSet, durationInFrames: 3, fps: 30, width: 1280, height: 720, defaultProps: emptyThumbs })
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "ThumbSet", component: ThumbSet, durationInFrames: 3, fps: 30, width: 1280, height: 720, defaultProps: emptyThumbs }),
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "CoverSet", component: CoverSet, calculateMetadata: ({ props }) => ({ durationInFrames: Math.max(1, props.covers.length) }), durationInFrames: 1, fps: 30, width: 1080, height: 1920, defaultProps: { covers: [] } })
 ] });
 
 ;// ./src/pro/index.ts

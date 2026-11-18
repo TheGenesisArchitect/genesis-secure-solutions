@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PostPlan, type Planning } from '@/components/studio/PostPlan';
 
-export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; /** the master, when src is the light review copy */ full?: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
+export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; /** the master, when src is the light review copy */ full?: string | null; /** the vertical cover the posts carry */ cover?: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
 export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null; scheduled_at?: string | null };
 /** The show packages (data/unedit-stylebook.ts), as the card offers them. */
 const SHOW_PACKAGES = [
@@ -159,6 +159,7 @@ export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; c
                 <div className="ue-clip-video">
                   {c.src && !['rendering', 'redo'].includes(c.status) ? <StableVideo src={c.src} /> : <div className="ue-blank"><span className="take-spin" />{c.status === 'redo' ? 'Redoing…' : 'Cutting…'}</div>}
                   {c.full && !['rendering', 'redo'].includes(c.status) ? <a className="muted" href={c.full} target="_blank" rel="noreferrer">Full quality</a> : null}
+                  {c.cover && !['rendering', 'redo'].includes(c.status) ? <a href={c.cover} target="_blank" rel="noreferrer" title="The cover Reels, Facebook and Shorts show" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src={c.cover} alt={`Cover for clip ${c.n}`} style={{ width: 54, height: 96, objectFit: 'cover', borderRadius: 6 }} /><span className="muted">Cover</span></a> : null}
                 </div>
                 <div className="ue-clip-body">
                   <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>

@@ -61,8 +61,10 @@ export const metricoolLive = () => (process.env.METRICOOL_MODE ?? '').trim() ===
  *  Studio sends: an Instagram Reel, and a Facebook Reel when vertical, else a post. */
 export type McFormat = 'post' | 'story' | 'reel';
 /** YouTube (Unedit): the full video as a 'video', clips as a 'short'; a title is required. thumbnailUrl sets the
- *  video's cover (Metricool fetches it; YouTube shows it once the channel is verified). */
-export type McPostIn = { blogId: string; network: 'instagram' | 'facebook' | 'youtube'; text: string; mediaUrl: string; when: Date; vertical: boolean; aiGenerated: boolean; format?: McFormat; title?: string; thumbnailUrl?: string };
+ *  video's cover (Metricool fetches it): YouTube videos and Shorts (shown once the channel is verified, and for Shorts
+ *  once YouTube enables custom Shorts covers on the channel), Instagram Reels and Facebook Reels. */
+export type McPostIn = { blogId: string; network: 'instagram' | 'facebook' | 'youtube'; text: string; mediaUrl: string; when: Date; vertical: boolean; aiGenerated: boolean; format?: McFormat; title?: string; thumbnailUrl?: string;
+  /** Instead of thumbnailUrl: the moment of the video (ms) Metricool uses as its cover (Reels, Shorts, Facebook Reels). */ coverMs?: number };
 const TYPE: Record<McFormat, string> = { post: 'POST', story: 'STORY', reel: 'REEL' };
 const NY = (d: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(' ', 'T');
 
@@ -80,7 +82,7 @@ export async function schedulePost(p: McPostIn): Promise<McResult<{ id: number; 
     ...(p.network === 'instagram' ? { instagramData: { type: TYPE[format], autoPublish: live, ...(format === 'reel' ? { showReelOnFeed: true } : {}), isAiGenerated: p.aiGenerated } } : {}),
     ...(p.network === 'facebook' ? { facebookData: { type: TYPE[format], ...(p.title && format !== 'story' ? { title: p.title } : {}) } } : {}),
     ...(p.network === 'youtube' ? { youtubeData: { title: (p.title || p.text).slice(0, 100), type: p.vertical ? 'short' : 'video', privacy: 'public', madeForKids: false, isAiGeneratedContent: p.aiGenerated } } : {}),
-    ...(p.thumbnailUrl ? { videoThumbnailUrl: p.thumbnailUrl } : {}),
+    ...(p.thumbnailUrl ? { videoThumbnailUrl: p.thumbnailUrl } : p.coverMs != null ? { videoCoverMilliseconds: Math.max(0, Math.round(p.coverMs)) } : {}),
   };
   // Metricool copies the video while the request is open (saveExternalMediaFiles): a full episode takes well over the
   // usual 20 s, so scheduling gets 4 minutes (2026-11-16: the long-form and a reel timed out at 20 s).
