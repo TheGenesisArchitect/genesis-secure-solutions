@@ -47,6 +47,7 @@ export type EpGraphic = { T: number; D: number; kind: 'title' | 'lower' | 'chapt
 /** The reel renders in chunks of about REEL_CHUNK_S seconds (one sandbox render each, inside its time limit). */
 export type ReelChunk = { from: number; to: number; path?: string };
 export type Graphics = { items: EpGraphic[]; reels?: ReelChunk[]; error?: string | null; chapters?: string;
+  /** Rounds of the reel render that left a chunk unrendered (finished chunks are kept; only the rest render again). */ reelTries?: number;
   /** The show package and style-book version it was styled with; `base` is the unstyled plan, so the card can restyle. */
   pkg?: string; stylebook?: string; /** plan the graphics fresh in the next step */ replan?: boolean; base?: Omit<EpGraphic, 'style' | 'layer' | 'off'>[]; notes?: string[]; gl?: boolean;
   /** Chapter changes on the edited timeline: the footage gets a zoom-blur punch there. */ cuts?: number[];
@@ -94,6 +95,17 @@ export function partsOf(segs: Seg[], PART_S: number): Part[] {
   }
   close();
   return parts;
+}
+
+/** How many video frames a rendered file holds (a stream copy, nothing decoded); 0 when it has none or won't open. */
+export async function videoFrames(file: string, cwd?: string): Promise<number> {
+  const out = await ffmpeg(['-loglevel', 'info', '-i', file, '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'], cwd, 60_000).catch(() => '');
+  const all = [...out.matchAll(/frame=\s*(\d+)/g)];
+  return all.length ? Number(all[all.length - 1][1]) : 0;
+}
+/** A rendered piece is whole when it holds its n frames (one short is tolerated: the concat still lines up). */
+async function pieceOk(dir: string, file: string, n: number): Promise<boolean> {
+  return (await videoFrames(file, dir)) >= Math.max(1, n - 1);
 }
 
 const cropF = (c: Crop) => `crop=${c.w}:${c.h}:${c.x}:${c.y}`;
@@ -171,11 +183,24 @@ export async function renderPart(url: string, part: Part, crops: Crop[], plan: P
     // is fixed first, a source a frame short holds its last frame, and the count is capped.
     const n = Math.max(1, Math.round(d * FPS));
     // A piece kept by an earlier try of this part (killed for time) is reused: each try picks up where the last stopped.
+    // A kept piece is checked before it is reused: an empty one (ffmpeg once wrote a 261-byte file with no frames and
+    // exited cleanly, a47f35a0 2026-11-17) was reused by every retry, so the part could never finish.
     const kept = cache ? await cache.get(i).catch(() => null) : null;
-    if (kept) { await fs.writeFile(path.join(dir, out), kept); shots.push(out); continue; }
-    await ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url,
+    if (kept) {
+      await fs.writeFile(path.join(dir, out), kept);
+      if (await pieceOk(dir, out, n)) { shots.push(out); continue; }
+      console.error(`[unedit] part ${part.k} piece ${i}: the kept piece was incomplete; rendering it again`);
+    }
+    const render = () => ffmpeg(['-threads', '2', '-filter_threads', '2', '-ss', s.from.toFixed(3), '-t', (d + 0.1).toFixed(3), '-i', url,
       '-vf', `${move ? `fps=${FPS},${cropF(crops[ci])},${move},setsar=1,${look}` : `${cropF(crops[ci])},scale=${W}:${H}:flags=lanczos,setsar=1,fps=${FPS},${look}`},tpad=stop_mode=clone:stop=3,format=yuv420p`, '-frames:v', String(n), '-an',
       '-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', ...BT709, '-g', String(GOP), '-video_track_timescale', '15360', out], dir, 600_000);
+    await render();
+    // Reading the source over the network can end early without an error: check the frames, try once more, and never
+    // keep a piece that came out short.
+    if (!(await pieceOk(dir, out, n))) {
+      await render();
+      if (!(await pieceOk(dir, out, n))) throw new Error(`piece ${i + 1} (${s.from.toFixed(2)}-${s.to.toFixed(2)} s) came out without its frames twice`);
+    }
     if (cache) await cache.put(i, await fs.readFile(path.join(dir, out))).catch(() => {});
     shots.push(out);
   }

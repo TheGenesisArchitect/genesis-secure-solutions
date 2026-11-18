@@ -33,15 +33,43 @@ export async function presigned(pathname: string, mins = 120): Promise<string> {
   return (await presignUrl(tok, { operation: 'get', pathname, access: 'private', validUntil: until })).presignedUrl;
 }
 
+/** libass asks Fontconfig for a config the server image doesn't have. It still finds our fonts through fontsdir, but
+ *  every run printed 'Fontconfig error: Cannot load default config file', which buried the real error. A minimal
+ *  config (fonts come from fontsdir, a cache in /tmp) quiets it. */
+let fontconf: Promise<void> | null = null;
+function ensureFontconfig(): Promise<void> {
+  if (process.env.FONTCONFIG_FILE) return Promise.resolve();
+  fontconf ??= (async () => {
+    const f = path.join(os.tmpdir(), 'genovus-fonts.conf');
+    await fs.writeFile(f, `<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><cachedir>${path.join(os.tmpdir(), 'genovus-fontcache')}</cachedir></fontconfig>`);
+    process.env.FONTCONFIG_FILE = f;
+  })().catch(() => {});
+  return fontconf;
+}
+/** Free space in /tmp, in MB (null when it can't be read). */
+export async function tmpFreeMB(): Promise<number | null> {
+  const st = await fs.statfs(os.tmpdir()).catch(() => null);
+  return st ? Math.round((Number(st.bavail) * Number(st.bsize)) / 1048576) : null;
+}
+/** ' (/tmp: N MB free)', for errors about disk. */
+async function tmpFree(): Promise<string> {
+  const mb = await tmpFreeMB();
+  return mb != null ? ` (/tmp: ${mb} MB free)` : '';
+}
+const NOISE = /^(Fontconfig (error|warning)|\s*$)/;
 export async function ffmpeg(args: string[], cwd?: string, timeoutMs = 600_000): Promise<string> {
+  await ensureFontconfig();
   try {
     const { stderr } = await run(String(ffmpegPath), ['-nostdin', '-y', '-hide_banner', '-loglevel', 'error', ...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs });
     return String(stderr);
   } catch (e) {
-    const err = e as { stderr?: string; message?: string; signal?: string | null; code?: number | string };
-    // A killed ffmpeg prints nothing: say so first (production stores the first 400 characters), not the command line.
-    if (!String(err.stderr ?? '').trim()) throw new Error(`ffmpeg ${err.signal ? `was killed (${err.signal}${err.signal === 'SIGKILL' ? ', most likely out of memory' : ''})` : `stopped with code ${err.code ?? '?'} and no message`}`);
-    throw new Error(`ffmpeg: ${String(err.stderr).trim().split('\n').slice(-3).join(' ').slice(0, 300)}`);
+    const err = e as { stderr?: string; message?: string; signal?: string | null; code?: number | string; killed?: boolean };
+    const said = String(err.stderr ?? '').split('\n').filter((l) => !NOISE.test(l)).slice(-3).join(' ').trim();
+    // A killed ffmpeg is reported as killed first, whatever it printed before (production stores the first 400
+    // characters): Fontconfig warnings had been passed off as the cause of a failure (2026-11-17).
+    if (err.signal) throw new Error(`ffmpeg was ${err.killed && err.signal === 'SIGTERM' ? `stopped at its ${Math.round(timeoutMs / 1000)} s limit` : `killed (${err.signal}${err.signal === 'SIGKILL' ? ', most likely out of memory' : ''})`}${said ? `: ${said.slice(0, 200)}` : ''}`);
+    if (!said) throw new Error(`ffmpeg stopped with code ${err.code ?? '?'} and no message (it may have run out of disk${await tmpFree()})`);
+    throw new Error(`ffmpeg: ${said.slice(0, 280)}${/No space left/i.test(said) ? await tmpFree() : ''}`);
   }
 }
 
@@ -337,8 +365,15 @@ export async function frames(url: string, at: number[], w = 1280, fast = false, 
     for (const [i, t] of at.entries()) {
       const f = path.join(dir, `f${i}.jpg`);
       // fast: the nearest keyframe after t (no decoding up to the exact frame), for sampling large recordings.
-      await ffmpeg([...(fast ? ['-skip_frame', 'nokey'] : []), '-ss', Math.max(0, t).toFixed(2), '-i', url, '-frames:v', '1', '-vf', `${pre ? `${pre},` : ''}scale=${w}:-2`, '-q:v', '3', f], undefined, 90_000);
-      out.push(await fs.readFile(f));
+      const grab = (at: number, quick: boolean) => ffmpeg([...(quick ? ['-skip_frame', 'nokey'] : []), '-ss', Math.max(0, at).toFixed(2), '-i', url, '-frames:v', '1', '-vf', `${pre ? `${pre},` : ''}scale=${w}:-2`, '-q:v', '3', f], undefined, 90_000);
+      await grab(t, fast);
+      // ffmpeg exits cleanly without writing a still when the seek lands past the last keyframe or the end (a47f35a0
+      // stopped on f7.jpg, 2026-11-17): try a second earlier, decoding exactly, then fall back to a neighbouring still.
+      let buf: Buffer | null = await fs.readFile(f).catch(() => null);
+      if (!buf) { await grab(t - 1, false).catch(() => {}); buf = await fs.readFile(f).catch(() => null); }
+      if (!buf) buf = out[out.length - 1] ?? null;
+      if (!buf) throw new Error(`Couldn't take a still at ${t.toFixed(1)} s.`);
+      out.push(buf);
     }
     return out;
   } finally { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); }

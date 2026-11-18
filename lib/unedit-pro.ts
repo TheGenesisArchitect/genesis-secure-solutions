@@ -116,8 +116,11 @@ export async function renderPro(props: ProProps): Promise<Buffer> {
 export async function renderOnSandbox(compositionId: string, inputProps: Record<string, unknown>, out: { codec: 'h264' | 'vp8'; crf?: number; alpha?: boolean; frameRange?: [number, number]; gl?: boolean }): Promise<Buffer> {
   // ESM-only package: loaded on demand, so a server bundle that requires its externals still works.
   const { addBundleToSandbox, createSandbox, renderMediaOnVercel } = await import('@remotion/vercel');
-  const sandbox = await createSandbox({ timeoutInMilliseconds: 13 * 60_000 });
+  // Every stage names itself in the error: a bare 'Status code 410 is not ok' (2026-11-17) didn't say which call failed.
+  let stage = 'creating the sandbox';
+  const sandbox = await createSandbox({ timeoutInMilliseconds: 13 * 60_000 }).catch((e) => { throw new Error(`${stage}: ${e instanceof Error ? e.message : e}`); });
   try {
+    stage = 'uploading the bundle';
     // addBundleToSandbox makes the bundle's subfolders but not its root (@remotion/vercel 4.0.533).
     await sandbox.mkDir('remotion-bundle').catch(() => {});
     const bundleDir = path.join(process.cwd(), 'remotion/unedit-pro');
@@ -127,6 +130,7 @@ export async function renderOnSandbox(compositionId: string, inputProps: Record<
     // copy has it, else a valid empty one (it only improves error stack traces).
     const map = await fs.readFile(path.join(bundleDir, 'bundle.js.map')).catch(() => Buffer.from('{"version":3,"sources":[],"names":[],"mappings":""}'));
     await sandbox.writeFiles([{ path: 'remotion-bundle/bundle.js.map', content: map }]);
+    stage = 'rendering';
     const { sandboxFilePath } = await renderMediaOnVercel({
       sandbox, compositionId, inputProps, codec: out.codec, crf: out.crf ?? null, timeoutInMilliseconds: 8 * 60_000,
       ...(out.alpha ? { pixelFormat: 'yuva420p' as const, imageFormat: 'png' as const } : {}),
@@ -138,9 +142,12 @@ export async function renderOnSandbox(compositionId: string, inputProps: Record<
       // otherwise places almost none on still graphics).
       ...(out.codec === 'vp8' ? { outputFile: '/tmp/video.webm', muted: true, gopSize: 30 } : {}),
     });
+    stage = 'reading the video back';
     const bytes = await sandbox.readFileToBuffer({ path: sandboxFilePath }, { signal: AbortSignal.timeout(180_000) });
     if (!bytes?.length) throw new Error('The render finished without a video file.');
     return bytes;
+  } catch (e) {
+    throw new Error(`${stage}: ${e instanceof Error ? e.message : e}`);
   } finally {
     await sandbox.stop().catch(() => {});
   }

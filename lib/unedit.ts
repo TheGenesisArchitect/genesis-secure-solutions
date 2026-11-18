@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adminDb } from '@/lib/supabase/admin';
 import { siteOrigin } from '@/lib/cron';
-import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, ffmpeg, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
+import { clipGroups, clipPieces, episodeCaptionsAss, extractAudio, ffmpeg, finishClip, fontsDir, frames, presigned, sweepTmp, probe, renderClip, tmpFreeMB, toSdr, type Probe, type Span, type Word } from '@/lib/unedit-media';
 import { costCents, defaultProvider, transcribe, type Provider } from '@/lib/unedit-transcribe';
 import { directEpisode, pickStills, planVlog, redoClip, sentences, type Chapter, type Pick } from '@/lib/unedit-moments';
 import { LOOKS, renderThumb } from '@/lib/unedit-thumb';
@@ -666,20 +666,29 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
       }
       const brollLink = async (x: EpGraphic) => (x.broll?.path ? presigned(x.broll.path, 120) : x.kind === 'article' && x.news?.image?.startsWith('studio/') ? presigned(x.news.image, 120) : null);
       const items = await Promise.all(g.items.map(async (x) => ({ at: x.off ?? 0, dur: x.D, kind: x.kind, text: x.text, sub: x.sub, n: x.n, cue: x.cue, style: x.style, accent: x.accent, maxW: x.maxW, place: x.place, ...(x.kind === 'article' ? { bubble: x.bubble ? (x.bubble.mode === 'cutout' ? 'cutout' : true) : false } : {}), news: x.news, media: await brollLink(x) })));
-      const done = await Promise.all(todo.map(async (i) => {
+      // Each chunk stands alone: one sandbox that fails (a 410 from an expired sandbox, 2026-11-17) no longer throws
+      // away the chunks that finished. Those are kept; the rest render again next step, up to REEL_TRIES rounds.
+      const settled = await Promise.allSettled(todo.map(async (i) => {
         const r = g.reels![i];
         const bytes = await renderOnSandbox('UneditEpisodeCues', { width: size.width, height: size.height, items }, { codec: 'vp8', alpha: true, gl: Boolean(g.gl), frameRange: [Math.round(r.from * 30), Math.max(Math.round(r.from * 30), Math.round(r.to * 30) - 1)] });
         const path = `${dir(v)}/episode/graphics-${i}-${Date.now()}.webm`;
         await put(path, bytes, { access: 'private', contentType: 'video/webm', addRandomSuffix: false, allowOverwrite: true, multipart: true });
         return { i, path, bytes: bytes.length };
       }));
+      const done = settled.flatMap((x) => (x.status === 'fulfilled' ? [x.value] : []));
+      const why = settled.flatMap((x, n) => (x.status === 'rejected' ? [`chunk ${todo[n] + 1}: ${x.reason instanceof Error ? x.reason.message : String(x.reason)}`] : []));
+      for (const w of why) console.error(`[unedit] ${v.id} episode graphics ${w}`);
       const reels = g.reels.map((x, i) => ({ ...x, path: done.find((d) => d.i === i)?.path ?? x.path }));
       // Re-read the plan so nothing written meanwhile is lost (the parts only read it).
       const { data: cur } = await dbx().from('unedit_vlogs').select('episode_plan').eq('id', v.id).single();
       const ep = (cur?.episode_plan ?? v.episode_plan) as EpisodePlan;
-      await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics: { ...ep.graphics!, reels } } }).eq('id', v.id);
-      await log('episode-graphics', v.id, { chunks: todo.length, of: g.reels.length, ms: Date.now() - t0, bytes: done.reduce((a, d) => a + d.bytes, 0) });
+      const tries = (g.reelTries ?? 0) + (why.length ? 1 : 0);
+      const error = why.length && tries >= REEL_TRIES ? `the graphics didn't render (${why[0]})`.slice(0, 300) : null;
+      await dbx().from('unedit_vlogs').update({ episode_plan: { ...ep, graphics: { ...ep.graphics!, reels, reelTries: tries, ...(error ? { error } : {}) } } }).eq('id', v.id);
+      await log('episode-graphics', v.id, { chunks: done.length, failed: why.length, of: g.reels.length, ms: Date.now() - t0, bytes: done.reduce((a, d) => a + d.bytes, 0), ...(why.length ? { why: why[0].slice(0, 200) } : {}) });
       await release(v.id);
+      if (error) return `The episode's graphics didn't render after ${tries} tries (${why[0]}); the episode continues without them.`;
+      if (why.length) return `Rendered ${done.length} of ${todo.length} graphics chunks; ${why.length} will render again (${why[0]}).`;
       return `Rendered the episode's graphics (${todo.length} chunk${todo.length === 1 ? '' : 's'} side by side).`;
     } catch (e) {
       const why = (e instanceof Error ? e.message : String(e)).slice(0, 300);
@@ -763,7 +772,33 @@ async function episodeStep(v: Vlog, origin: string): Promise<string> {
 
 /** A part worker (POST /api/studio/unedit/[id]/part/[k]): claim the part, frame each shot on the speaker, render,
  *  store. The last part to finish kicks the recording's next step. A part that fails PART_TRIES times stops the job. */
+/** Fluid compute sends concurrent requests to one instance, and its /tmp (~500 MB) is shared: two 4K parts on one
+ *  instance ran out of disk (2026-11-17). Each part reserves the disk it will need (about three copies of its
+ *  picture: the pieces, the joined part, the part with graphics); a part that doesn't fit beside the ones already
+ *  running here is left untouched (no try spent) and the step starts it again within a minute or two. A part alone
+ *  on an instance always runs. */
+let reservedMB = 0;
 export async function renderEpisodePart(id: string, k: number, origin: string): Promise<string> {
+  const [{ data: row }, { data: vr }] = await Promise.all([
+    dbx().from('unedit_episode_parts').select('segs').eq('vlog_id', id).eq('k', k).maybeSingle(),
+    dbx().from('unedit_vlogs').select('episode_plan').eq('id', id).maybeSingle(),
+  ]);
+  const size = (vr?.episode_plan as EpisodePlan | null)?.size;
+  const secs = ((row?.segs ?? []) as Part['segs']).reduce((a, s) => a + (s.to - s.from), 0);
+  const need = partDiskMB(secs, size);
+  if (reservedMB > 0) {
+    const free = await tmpFreeMB();
+    if (free != null && reservedMB + need > free) return `Part ${k + 1} waits for disk on this instance (${need} MB needed, ${free} MB free, ${reservedMB} MB held by parts running here).`;
+  }
+  reservedMB += need;
+  try { return await renderEpisodePartHere(id, k, origin); } finally { reservedMB -= need; }
+}
+/** The disk a part needs while it renders, in MB: ~5 MB a second at 3000x2160 (CRF 19), three copies, plus room. */
+export function partDiskMB(secs: number, size?: { width: number; height: number } | null): number {
+  const px = (size?.width ?? 3840) * (size?.height ?? 2160);
+  return Math.ceil(3 * secs * (px / 1.3e6)) + 40;
+}
+async function renderEpisodePartHere(id: string, k: number, origin: string): Promise<string> {
   const now = new Date().toISOString();
   const { data: claimed } = await dbx().from('unedit_episode_parts')
     .update({ status: 'running', lease_until: new Date(Date.now() + PART_LEASE_MIN * 60_000).toISOString() })
@@ -838,18 +873,25 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
         return `Part ${k + 1}'s picture is stored; it waits for the graphics.`;
       }
       // Word-by-word captions for this part (burned in on the same encode as the graphics).
-      const caps = CAPTIONS_ON() ? await writePartCaptions(v, out.dir, p0, out.secs, g && !g.error ? g.items : []).catch((e) => { console.error(`[unedit] ${id} part ${k} captions: ${e instanceof Error ? e.message : e}`); return false; }) : false;
+      // Anything this part had to go without is kept on its row (status done, error set) and shown on the card.
+      let left: string | null = null;
+      const caps = CAPTIONS_ON() ? await writePartCaptions(v, out.dir, p0, out.secs, g && !g.error ? g.items : []).catch((e) => { left = `captions left out: ${e instanceof Error ? e.message : e}`; console.error(`[unedit] ${id} part ${k} ${left}`); return false; }) : false;
       // The graphics reel's stretches for this part's place in the episode.
       if (g?.reels?.length && g.reels.every((r) => r.path) && !g.error && g.items.length) {
         const overlays = partOverlays(g.items, g.reels, p0, p0 + out.secs);
         const urls = await Promise.all(g.reels.map((r) => presigned(r.path!, 120)));
         // Text behind the speaker only on a first try and while the part has time for it (a retry, or a slow part,
         // lays those graphics in front instead). The budget counts from when the overlay starts.
-        if (overlays.length || caps) await overlayPart(out.dir, urls, overlays, v.episode_plan.size, tries === 1 ? Math.min(t0 + CUTOUT_BUDGET_MS, Date.now() + CUTOUT_ALONE_MS) : 0, caps).catch((e) => console.error(`[unedit] ${id} part ${k} graphics: ${e instanceof Error ? e.message : e}`));
-      } else if (caps) await overlayPart(out.dir, [], [], v.episode_plan.size, 0, true).catch((e) => console.error(`[unedit] ${id} part ${k} captions: ${e instanceof Error ? e.message : e}`));
+        if (overlays.length || caps) await overlayPart(out.dir, urls, overlays, v.episode_plan.size, tries === 1 ? Math.min(t0 + CUTOUT_BUDGET_MS, Date.now() + CUTOUT_ALONE_MS) : 0, caps).catch(async (e) => {
+          left = `graphics${caps ? ' and captions' : ''} left out: ${e instanceof Error ? e.message : e}`;
+          console.error(`[unedit] ${id} part ${k} ${left}`);
+          // The captions alone are worth a second pass: a part should never lose both to one graphic that won't lay.
+          if (caps) await overlayPart(out.dir, [], [], v.episode_plan!.size, 0, true).then(() => { left = `graphics left out: ${e instanceof Error ? e.message : e}`; }, () => {});
+        });
+      } else if (caps) await overlayPart(out.dir, [], [], v.episode_plan.size, 0, true).catch((e) => { left = `captions left out: ${e instanceof Error ? e.message : e}`; console.error(`[unedit] ${id} part ${k} ${left}`); });
       const path_ = partPath(v, k);
       await put(path_, await fs.readFile(out.file), { access: 'private', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true, abortSignal: AbortSignal.timeout(180_000) });
-      await dbx().from('unedit_episode_parts').update({ status: 'done', blob_path: path_, secs: Math.round(out.secs * 100) / 100, ms: Date.now() - t0, error: null, lease_until: null }).eq('vlog_id', id).eq('k', k);
+      await dbx().from('unedit_episode_parts').update({ status: 'done', blob_path: path_, secs: Math.round(out.secs * 100) / 100, ms: Date.now() - t0, error: left ? String(left).slice(0, 400) : null, lease_until: null }).eq('vlog_id', id).eq('k', k);
     } finally { await fs.rm(out.dir, { recursive: true, force: true }).catch(() => {}); }
     const { count } = await dbx().from('unedit_episode_parts').select('k', { count: 'exact', head: true }).eq('vlog_id', id).neq('status', 'done');
     if (!count) { await release(id); await kick(origin, id); }
@@ -864,6 +906,8 @@ export async function renderEpisodePart(id: string, k: number, origin: string): 
 }
 
 // ---- B-roll ----------------------------------------------------------------------------------------------------
+/** Rounds of the graphics reel render before the episode goes on without graphics. */
+const REEL_TRIES = 3;
 const BROLL_ON = () => process.env.UNEDIT_BROLL !== 'off';
 const BROLL_CENTS = 80; // Veo 3.1 Fast through Runway: 10 credits a second, 8 s (the only length at 1080p)
 
@@ -1197,7 +1241,7 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       if (!vlog.episode_plan || !gr?.items.some((x) => x.kind === 'article' && x.bubble)) return 'This episode has no article cut-ins with the speaker.';
       const items = gr.items.map((x) => (x.kind === 'article' && x.bubble ? { ...x, bubble: { ...x.bubble, mode } } : x));
       await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
-      const graphics = { ...gr, items, articleMode: mode, error: null, qa: undefined, reels: gr.reels?.map((x) => ({ from: x.from, to: x.to })) };
+      const graphics = { ...gr, items, articleMode: mode, error: null, reelTries: 0, qa: undefined, reels: gr.reels?.map((x) => ({ from: x.from, to: x.to })) };
       await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
       await log('article-mode', id, { mode });
       await kick(origin, id);
@@ -1236,7 +1280,7 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       if (vlog.episode_plan && !vlog.episode_plan.error && gr?.error && gr.items.length) {
         // The episode finished without its graphics: render the reel again and lay it over every part.
         await dbx().from('unedit_episode_parts').update({ status: 'todo', attempts: 0, error: null, lease_until: null, blob_path: null }).eq('vlog_id', id);
-        const graphics = { ...gr, error: null, reels: gr.reels?.map((r) => ({ from: r.from, to: r.to })) };
+        const graphics = { ...gr, error: null, reelTries: 0, reels: gr.reels?.map((r) => ({ from: r.from, to: r.to })) };
         await dbx().from('unedit_vlogs').update({ episode_plan: { ...vlog.episode_plan, graphics }, episode_path: null, stage: 'rendering', stage_at: new Date().toISOString(), lease_until: null }).eq('id', id);
         await log('retry-episode', id, { graphics: true });
         await kick(origin, id);

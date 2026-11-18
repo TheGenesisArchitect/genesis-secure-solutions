@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 3160
+/***/ 1324
 (__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) {
 
 
@@ -151150,17 +151150,74 @@ const UneditEpisodeCues = ({ items }) => {
   }) });
 };
 
+;// ./src/ThumbLab.tsx
+
+
+
+const src = (x) => /^https?:\/\//.test(x) ? x : (0,esm.staticFile)(x);
+
+const Mark = ({ size = 34, light = true }) => /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: size * 0.3, fontFamily: HF.wide, fontWeight: 800, fontSize: size * 0.62, letterSpacing: "0.08em", color: light ? "#f7f3ec" : "#16130f" }, children: [
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: (0,esm.staticFile)("brand/genovus-egg.svg"), style: { width: size * 0.8, height: size } }),
+  "GENOVUS"
+] });
+const ThumbLab = ({ variant, cutout, frame, lines, accent = lines.length - 1, kicker, topic, article }) => {
+  if (variant === "signal") return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "radial-gradient(55% 75% at 72% 48%, rgba(255,106,31,0.55), rgba(255,106,31,0.08) 55%, transparent 70%), linear-gradient(120deg, #0b0c10 40%, #1a0d07)" }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: src(cutout), style: { position: "absolute", right: -330, bottom: -60, height: 860, filter: "drop-shadow(0 0 2px rgba(255,140,60,0.9)) drop-shadow(-14px 0 34px rgba(255,106,31,0.55)) contrast(1.06) saturate(1.05)" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 64, top: 52 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Mark, {}) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 60, top: 170, width: 560 }, children: lines.map((l, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 900, fontSize: Math.min(118, Math.floor(520 / (0.62 * Math.max(4, ...lines.map((x) => x.length))))), lineHeight: 0.92, letterSpacing: "-0.035em", textTransform: "uppercase", color: i === accent ? "#ff7a1a" : "#fbf7f0", textShadow: "0 6px 30px rgba(0,0,0,0.6)" }, children: l }, i)) }),
+    topic ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 64, bottom: 58, padding: "12px 22px", borderRadius: 999, background: "#fbf7f0", color: "#16130f", fontFamily: HF.mono, fontWeight: 700, fontSize: 26, letterSpacing: "0.12em" }, children: topic }) : null
+  ] });
+  if (variant === "newsroom") return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "#0b0c10" }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: src(frame), style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "blur(18px) brightness(0.32) saturate(0.8)" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: "radial-gradient(60% 80% at 80% 60%, rgba(255,106,31,0.35), transparent 65%)" } }),
+    article ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 56, top: 150, width: 600, borderRadius: 20, overflow: "hidden", background: "#f7f3ec", boxShadow: "0 30px 70px rgba(0,0,0,0.6)", transform: "rotate(-4deg)" }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { height: 40, background: "#e9e3d8", display: "flex", alignItems: "center", gap: 8, padding: "0 16px" }, children: ["#ff5f57", "#febc2e", "#28c840"].map((c) => /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 12, height: 12, borderRadius: 99, background: c } }, c)) }),
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { padding: "26px 34px 34px" }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontWeight: 700, fontSize: 20, letterSpacing: "0.14em", color: "#c2410c", textTransform: "uppercase" }, children: article.publisher }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10, fontFamily: HF.serif, fontSize: 50, lineHeight: 1.04, color: "#16130f" }, children: article.headline }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 16, height: 14, width: "78%", borderRadius: 4, background: "rgba(255,122,26,0.45)" } }),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 10, height: 14, width: "62%", borderRadius: 4, background: "rgba(0,0,0,0.12)" } })
+      ] })
+    ] }) : null,
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: src(cutout), style: { position: "absolute", right: -330, bottom: -40, height: 800, filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.6))" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 56, top: 48, padding: "10px 20px", borderRadius: 8, background: "#ff6a1f", color: "#1b0900", fontFamily: HF.wide, fontWeight: 800, fontSize: 30, letterSpacing: "0.06em" }, children: kicker ?? "WHAT WE KNOW" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 60, bottom: 46, width: 760 }, children: lines.map((l, i) => /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { fontFamily: HF.geist, fontWeight: 900, fontSize: 84, lineHeight: 0.95, letterSpacing: "-0.03em", textTransform: "uppercase", color: i === accent ? "#ff7a1a" : "#fbf7f0", textShadow: "0 6px 26px rgba(0,0,0,0.7)" }, children: [
+      l,
+      i < lines.length - 1 ? " " : ""
+    ] }, i)) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", right: 40, top: 44 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Mark, { size: 28 }) })
+  ] });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: "#0b0c10" }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: src(frame), style: { position: "absolute", left: 300, top: -120, width: 1500, filter: "contrast(1.08) saturate(0.85) brightness(1.04)" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: "linear-gradient(90deg, rgba(8,8,10,0.92) 0%, rgba(8,8,10,0.75) 34%, rgba(8,8,10,0) 62%), radial-gradient(120% 90% at 70% 40%, transparent 50%, rgba(0,0,0,0.55))" } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 64, top: 190, width: 560 }, children: [
+      kicker ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontSize: 24, letterSpacing: "0.2em", color: "rgba(255,255,255,0.7)", textTransform: "uppercase" }, children: kicker }) : null,
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 18, fontFamily: HF.serif, fontStyle: "italic", fontSize: 150, lineHeight: 0.95, color: "#fbf7f0" }, children: lines.join(" ") }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 20, width: 180, height: 8, borderRadius: 4, background: "#ff6a1f" } })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 64, bottom: 48 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Mark, { size: 28 }) })
+  ] });
+};
+const ThumbSet = (p) => {
+  const f = (0,esm.useCurrentFrame)();
+  const variant = ["signal", "newsroom", "documentary"][Math.min(2, f)];
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(ThumbLab, { variant, cutout: p.cutout, frame: p.frame, ...p[variant] });
+};
+
 ;// ./src/pro/Root.tsx
 
 
 
 
 
+
 const emptyEp = { width: 2560, height: 1440, items: [] };
+const emptyThumbs = { cutout: "", frame: "", signal: { lines: [] }, newsroom: { lines: [] }, documentary: { lines: [] } };
 const empty = { src: "", secs: 1, words: [], shots: [{ s: 0, e: 1, layout: "face" }] };
 const ProRoot = () => /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
   /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditPro", component: UneditPro, calculateMetadata: calculateProMetadata, durationInFrames: 30, fps: 30, width: 1080, height: 1920, defaultProps: empty }),
-  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditEpisodeCues", component: UneditEpisodeCues, calculateMetadata: calculateEpisodeCuesMetadata, durationInFrames: 30, fps: 30, width: 2560, height: 1440, defaultProps: emptyEp })
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "UneditEpisodeCues", component: UneditEpisodeCues, calculateMetadata: calculateEpisodeCuesMetadata, durationInFrames: 30, fps: 30, width: 2560, height: 1440, defaultProps: emptyEp }),
+  /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Composition, { id: "ThumbSet", component: ThumbSet, durationInFrames: 3, fps: 30, width: 1280, height: 720, defaultProps: emptyThumbs })
 ] });
 
 ;// ./src/pro/index.ts
@@ -171426,7 +171483,7 @@ var NoReactInternals = {
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
 /******/ 	__webpack_require__(3999);
-/******/ 	__webpack_require__(3160);
+/******/ 	__webpack_require__(1324);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

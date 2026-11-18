@@ -26,7 +26,7 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
   const [{ data: cs }, { data: ps }, { data: parts }] = await Promise.all([
     supabase.from('unedit_clips').select('*').eq('vlog_id', id).order('n'),
     supabase.from('unedit_posts').select('*').eq('vlog_id', id).order('created_at'),
-    supabase.from('unedit_episode_parts').select('status').eq('vlog_id', id),
+    supabase.from('unedit_episode_parts').select('k, status, error').eq('vlog_id', id),
   ]);
   const clips = (cs ?? []) as Clip[];
   const link = (p: string | null) => (p ? presigned(p, 180).catch(() => null) : Promise.resolve(null));
@@ -45,6 +45,8 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
       pkg: vlog.episode_plan.graphics?.pkg ?? 'classic', qa: vlog.episode_plan.graphics?.qa ?? null,
       newsNotes: (vlog.episode_plan.graphics?.notes ?? []).filter((n) => /^(source|quote|timeline|ticker|globe|B-roll) /.test(n)),
       parts: (parts ?? []).length, done: (parts ?? []).filter((x) => x.status === 'done').length,
+      // Parts that finished without something (graphics or captions), so nobody approves a gap they can't see.
+      gaps: (parts ?? []).filter((x) => x.status === 'done' && x.error).map((x) => `part ${Number(x.k) + 1}: ${String(x.error).split(':')[0]}`),
       cuts: vlog.edit.cuts.reduce<Record<string, number>>((a, c) => ({ ...a, [c.why]: (a[c.why] ?? 0) + 1 }), {}),
     } : null, episode: vlog.episode ?? {}, thumbs, thumbPick: vlog.thumb_pick, live: metricoolLive(), approvedAt: vlog.approved_at,
     sources: sheetText(vlog.sources),
