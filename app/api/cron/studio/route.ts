@@ -11,6 +11,7 @@ import { kickFinish } from '@/lib/studio-finish';
 import { syncPosted } from '@/lib/studio-distribute';
 import { kick, runnable, sweepDuePosts, syncUneditPosts } from '@/lib/unedit';
 import { kickReview, reviewDue } from '@/lib/unedit-review';
+import { runVoiceJobs } from '@/lib/studio-voice-jobs';
 import season from '@/data/studio-season1.json';
 import castData from '@/data/studio-cast.json';
 import libraryCatalog from '@/data/screen-library.json';
@@ -61,6 +62,9 @@ export async function GET(req: Request) {
     return { due, kicked: ids.length, reviews: reviews.length, posts: await syncUneditPosts() };
   })().catch((e) => ({ error: e instanceof Error ? e.message : 'unedit failed' }));
   if (!generationConfigured()) return Response.json({ sync, runway, production, posted, unedit, skipped: 'no Gemini key' });
+  // Voice jobs (lib/studio-voice-jobs.ts): scripts staff queued, voiced a few lines per tick with the Studio key.
+  const voice = await runVoiceJobs().catch((e) => ({ error: e instanceof Error ? e.message : 'voice jobs failed' }));
+  if ('voiced' in voice && (voice.voiced || voice.failed)) console.info(`[voice-jobs] ${JSON.stringify(voice)}`);
   // Running takes (and fresh queued ones); takes waiting for quota are retried below, so they never crowd this list.
   const { data: running } = await db.from('studio_takes').select('id').not('model', 'like', 'runway:%').or('status.eq.running,and(status.eq.queued,params->>waiting_since.is.null)').order('created_at').limit(10);
   const results: Record<string, number> = {};
@@ -70,5 +74,5 @@ export async function GET(req: Request) {
   }
   // Start queued takes as the Veo rate limits allow (and quota backstop retries when due).
   const queue = await drainVeoQueue();
-  return Response.json({ sync, runway, production, posted, unedit, checked: running?.length ?? 0, results, queue });
+  return Response.json({ sync, runway, production, posted, unedit, voice, checked: running?.length ?? 0, results, queue });
 }
