@@ -1,7 +1,7 @@
 // Verify the Footage Desk's rules (lib/unedit-footage.ts) without network or spend: which licences are taken, what a
 // footage plan may ask for, and which candidates count as on topic.
 //   npx tsx --conditions=react-server scripts/verify-footage.mts
-const { commonsLicense, checkPlan, onTopic } = await import('../lib/unedit-footage');
+const { commonsLicense, checkPlan, onTopic, namesPerson } = await import('../lib/unedit-footage');
 let fails = 0;
 const ok = (c: unknown, what: string, extra = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${what}${extra ? `  (${extra})` : ''}`); if (!c) fails++; };
 const M = (code: string, short: string) => ({ License: { value: code }, LicenseShortName: { value: short } });
@@ -36,6 +36,16 @@ ok(onTopic(C('trading screens', ['stock', 'market', 'finance']), 'stock market s
 ok(!onTopic(C('Chinese Fishing nets', [], 'commons'), 'stock exchange'), 'Commons answering "stock exchange" with fishing nets is refused');
 ok(!onTopic(C('New York Stock Exchange', [], 'commons', 854), 'stock exchange'), 'a Commons clip under 1280 wide is refused');
 ok(onTopic(C('server room corridor', ['servers']), 'data center servers'), 'plural and singular match (servers ↔ server)');
+
+// People (house desk): identity from the source's own text, only people the story names, never on an agency desk.
+ok(namesPerson('Jensen huang stanford 2026-04-30 008 (cropped)', 'Jensen Huang'), 'a file whose title names the person counts');
+ok(!namesPerson('NVIDIA CEO speaks at Computex', 'Jensen Huang'), 'a file that does not name the person is refused (never picked by face)');
+ok(!namesPerson('Jensen Ackles at Comic-Con', 'Jensen Huang'), 'a first name alone is not the person');
+const story = ['Jensen', 'Huang', 'Colette', 'Kress', 'Nvidia', 'SEC'];
+const ppl = checkPlan([{ i: 1, person: 'Jensen Huang' }, { i: 2, person: 'Jensen Huang' }, { i: 3, person: 'Lisa Su' }, { i: 4, person: 'Colette Kress' }], ids, story, true);
+ok(ppl.length === 2 && ppl[0]?.person === 'Jensen Huang' && ppl[1]?.person === 'Colette Kress', 'people the story names are shown; the same person twice in a row and anyone the story does not name are refused', ppl.map((p) => p?.person).join(', '));
+ok(checkPlan([{ i: 1, person: 'Jensen Huang' }], ids, story, false).length === 0, 'an agency desk (people off) never shows a person');
+ok(checkPlan([{ i: 1, person: 'Huang' }], ids, story, true).length === 0, 'a single name is not enough to pick a person');
 
 console.log(fails ? `\n${fails} FAILED` : '\nall footage checks passed');
 process.exit(fails ? 1 : 0);

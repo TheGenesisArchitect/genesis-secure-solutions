@@ -46,7 +46,7 @@ import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proBrand, proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
 import { footageFor, footageOn, planFootage } from '@/lib/unedit-footage';
-import { alignToScript, facelessProps, FACELESS_END_SECS, type FacelessClaim, type ScriptLine } from '@/lib/unedit-faceless-pro';
+import { alignToScript, facelessProps, FACELESS_END_SECS, type FacelessClaim, type FacelessMedia, type ScriptLine } from '@/lib/unedit-faceless-pro';
 import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 import { campaignPosts, nowTimes, planPosts, postKey, recommend, LEAD_MIN, type Busy, type PostMode, type Rhythm, type Signal } from '@/lib/unedit-plan';
 
@@ -138,16 +138,18 @@ export async function claim(id: string): Promise<Vlog | null> {
 // only lands while the recording has no error (a step reporting its own error still lands).
 /** Real footage for a faceless clip's lines (lib/unedit-footage.ts), keyed by shot index, as links the sandbox can
  *  read, with each clip's credit. Off unless UNEDIT_FOOTAGE=on; any failure leaves the clip as cards (never stops it). */
-async function facelessFootage(v: Vlog, shots: Shot[], words: Word[]): Promise<Map<number, { src: string; credit: string | null }>> {
-  const out = new Map<number, { src: string; credit: string | null }>();
+async function facelessFootage(v: Vlog, shots: Shot[], words: Word[]): Promise<Map<number, FacelessMedia>> {
+  const out = new Map<number, FacelessMedia>();
   if (!footageOn() || !shots.length) return out;
   try {
     const lines = shots.map((sh, i) => ({ i, text: words.slice(sh.w0, sh.w1 + 1).map((w) => w.w).join(' ') }));
-    const { plan, cents } = await planFootage(lines, v.title ?? '');
+    // Public figures only on the house desk: an agency's clips (its own brand) stay without people.
+    const people = !proBrand((await deskById(v.tenant_id)).profile);
+    const { plan, cents } = await planFootage(lines, v.title ?? '', people);
     await spend(v.id, cents, 'footage plan (Claude)');
     const { got, cents: looked, rejected } = await footageFor(v.tenant_id, plan, new Map(shots.map((sh, i) => [i, sh.e - sh.s])));
     if (looked) await spend(v.id, looked, 'footage look-check (Claude)');
-    for (const [i, f] of got) out.set(i, { src: await presigned(f.blob_path, 120), credit: f.credit });
+    for (const [i, f] of got) out.set(i, { src: await presigned(f.blob_path, 120), credit: f.credit, kind: f.kind, name: f.person });
     await log('footage', v.id, { planned: plan.length, placed: got.size, clips: [...got.values()].map((f) => `${f.source}:${f.title.slice(0, 40)} (${f.license_note})`), rejected });
   } catch (e) { console.error(`[unedit] ${v.id} footage skipped: ${e instanceof Error ? e.message : e}`); }
   return out;

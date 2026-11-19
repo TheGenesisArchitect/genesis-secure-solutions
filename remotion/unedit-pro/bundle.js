@@ -155970,26 +155970,30 @@ function Hook({ b, kicker }) {
   ] });
 }
 function Statement({ b, words }) {
+  var _a;
   const t = useSec();
   const toks = (b.text ?? "").split(" ");
   const inBeat = words.filter((w) => w.s >= b.s - 0.3 && w.s < b.e + 0.1);
   const said = toks.map((_, i) => {
-    var _a;
-    return ((_a = inBeat[i]) == null ? void 0 : _a.s) ?? b.s + i * 0.3;
+    var _a2;
+    return ((_a2 = inBeat[i]) == null ? void 0 : _a2.s) ?? b.s + i * 0.3;
   });
   const size = toks.length > 22 ? 72 : toks.length > 14 ? 86 : 104;
   const lt = t - b.s, grow = tw(lt, 0, Math.max(0.6, b.e - b.s - 0.3), E.sineInOut);
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { ...box(), paddingLeft: 34 }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, top: "50%", width: 8, height: `${mix(10, 46, grow)}%`, transform: "translateY(-50%)", borderRadius: 4, background: `linear-gradient(${HF.orange}, ${HF.deep})`, boxShadow: "0 0 30px rgba(244,90,27,0.5)" } }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(Kinetic, { text: b.text ?? "", size, accent: b.accent, t: lt, at: 0, step: 0.025, said: said.map((x) => x - b.s) }),
-    b.who ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginTop: 44, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 14, padding: "14px 24px", borderRadius: 999, background: "rgba(7,8,12,0.7)", border: "1px solid rgba(255,255,255,0.16)", opacity: tw(lt, 0.4, 0.4) }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 12, height: 12, borderRadius: 6, background: HF.orange } }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { fontFamily: HF.mono, fontSize: 30, letterSpacing: "0.12em", textTransform: "uppercase", color: OBS.cream }, children: [
-        "Source \xB7 ",
-        b.who
-      ] })
-    ] }) : null
-  ] });
+  return (
+    // Over a person's photo the words sit low, above the name plate, so the face stays clear.
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { ...((_a = b.media) == null ? void 0 : _a.kind) === "photo" ? { ...box(960, 1420), justifyContent: "flex-end" } : box(), paddingLeft: 34 }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, top: "50%", width: 8, height: `${mix(10, 46, grow)}%`, transform: "translateY(-50%)", borderRadius: 4, background: `linear-gradient(${HF.orange}, ${HF.deep})`, boxShadow: "0 0 30px rgba(244,90,27,0.5)" } }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(Kinetic, { text: b.text ?? "", size, accent: b.accent, t: lt, at: 0, step: 0.025, said: said.map((x) => x - b.s) }),
+      b.who ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginTop: 44, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 14, padding: "14px 24px", borderRadius: 999, background: "rgba(7,8,12,0.7)", border: "1px solid rgba(255,255,255,0.16)", opacity: tw(lt, 0.4, 0.4) }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 12, height: 12, borderRadius: 6, background: HF.orange } }),
+        /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { fontFamily: HF.mono, fontSize: 30, letterSpacing: "0.12em", textTransform: "uppercase", color: OBS.cream }, children: [
+          "Source \xB7 ",
+          b.who
+        ] })
+      ] }) : null
+    ] })
+  );
 }
 function Word({ b }) {
   const t = useSec() - b.s;
@@ -156164,11 +156168,7 @@ function UneditFaceless_EndCard({ end }) {
   const a = tw(local, 0.05, 0.5, E.expoOut), c = tw(local, 0.35, 0.5, E.p3Out);
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { alignItems: "center", justifyContent: "center", background: "rgba(7,8,12,0.55)" }, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 46, marginTop: -120 }, children: [
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 800, fontSize: 104, letterSpacing: "-0.04em", color: OBS.cream, textAlign: "center", lineHeight: 1.02, opacity: a, transform: `translateY(${(1 - a) * 30}px)` }, children: end.line }),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { padding: "24px 46px", borderRadius: 999, background: `linear-gradient(90deg, ${HF.deep}, ${HF.orange})`, fontFamily: HF.geist, fontWeight: 800, fontSize: 48, color: "#fff", opacity: c, transform: `scale(${mix(0.85, 1, c)})`, boxShadow: "0 20px 60px rgba(244,90,27,0.45)" }, children: [
-      end.cta,
-      " \xB7 ",
-      end.site
-    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { padding: "24px 46px", borderRadius: 999, background: `linear-gradient(90deg, ${HF.deep}, ${HF.orange})`, fontFamily: HF.geist, fontWeight: 800, fontSize: 48, color: "#fff", opacity: c, transform: `scale(${mix(0.85, 1, c)})`, boxShadow: "0 20px 60px rgba(244,90,27,0.45)" }, children: end.site ? `${end.cta} \xB7 ${end.site}` : end.cta }),
     /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginTop: 40, display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { ...mono(22), opacity: tw(local, 0.8, 0.4) }, children: "Made with" }),
       local >= 0.95 ? /* @__PURE__ */ (0,jsx_runtime.jsx)(UneditLockup, { height: 120, t: local - 0.95 }) : /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { height: 120 } })
@@ -156201,9 +156201,15 @@ function Footage({ b }) {
   const lt = (0,esm.useCurrentFrame)() / FACELESS_FPS, d = b.e - b.s;
   const inP = tw(lt, 0, 0.3, E.p3Out), out = tw(lt, d, 0.26, E.p2In);
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { opacity: inP * (1 - out), overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: b.media.src, muted: true, style: { width: "100%", height: "100%", objectFit: "cover", transform: `scale(${mix(1.04, 1.12, Math.min(1, lt / Math.max(1, d)))})` } }),
+    b.media.kind === "photo" ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Img, { src: b.media.src, style: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 22%", transform: `scale(${mix(1.06, 1.18, Math.min(1, lt / Math.max(1, d)))})`, transformOrigin: "50% 30%" } }) : /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: b.media.src, muted: true, style: { width: "100%", height: "100%", objectFit: "cover", transform: `scale(${mix(1.04, 1.12, Math.min(1, lt / Math.max(1, d)))})` } }),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: "linear-gradient(180deg, rgba(7,8,12,0.78) 0%, rgba(7,8,12,0.35) 32%, rgba(7,8,12,0.45) 62%, rgba(7,8,12,0.85) 100%)" } }),
-    b.media.credit ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 60, bottom: 250, fontFamily: HF.mono, fontSize: 22, letterSpacing: "0.08em", color: "rgba(247,243,236,0.75)" }, children: b.media.credit }) : null
+    b.media.name ? (
+      // The public figure's name plate (the name comes from the source's own description), with its credit under it.
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "absolute", left: 60, bottom: 300, display: "flex", flexDirection: "column", gap: 10, opacity: tw(lt, 0.35, 0.4), transform: `translateX(${(1 - tw(lt, 0.35, 0.5, E.p3Out)) * -30}px)` }, children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "flex", alignItems: "center", gap: 16, padding: "14px 26px", borderRadius: 12, background: "rgba(7,8,12,0.82)", borderLeft: `8px solid ${HF.orange}` }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontFamily: HF.geist, fontWeight: 800, fontSize: 46, color: OBS.cream, letterSpacing: "-0.02em" }, children: b.media.name }) }),
+        b.media.credit ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontSize: 21, letterSpacing: "0.06em", color: "rgba(247,243,236,0.72)" }, children: b.media.credit }) : null
+      ] })
+    ) : b.media.credit ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 60, bottom: 250, fontFamily: HF.mono, fontSize: 22, letterSpacing: "0.08em", color: "rgba(247,243,236,0.75)" }, children: b.media.credit }) : null
   ] });
 }
 function BeatFrame({ b, children }) {
@@ -156211,7 +156217,7 @@ function BeatFrame({ b, children }) {
   const inP = tw(t, b.s, 0.25, E.p3Out), out = tw(t, b.e, 0.25, E.p2In);
   return /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { opacity: inP * (1 - out), transform: `translateY(${(1 - inP) * 24}px)` }, children });
 }
-const UneditFaceless = ({ src, secs, words, beats, kicker = "The story, explained", subject = "", sfx = true, end = { line: "Get the full story", cta: "Free strategy session", site: "genovus.io" } }) => {
+const UneditFaceless = ({ src, secs, words, beats, kicker = "The story, explained", subject = "", sfx = true, end = { line: "Get the full story", cta: "Link in bio", site: "" } }) => {
   const f = (0,esm.useCurrentFrame)();
   const t = f / FACELESS_FPS;
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { background: OBS.ink }, children: [

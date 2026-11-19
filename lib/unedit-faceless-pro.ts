@@ -10,7 +10,8 @@
 //   quote / timeline / source / scene   the sources sheet's lines, on the sentence where their words are said; an
 //              article shows as a document labelled SUMMARY (the sheet's words, not the source's); a source chip is a
 //              statement with "Source · outlet" under it. Only a quote beat carries verbatim words.
-// A beat never shows a person's photo or likeness: people appear as text only.
+// People: on the house desk, licensed photos/video of the public figures a line is about (lib/unedit-footage.ts),
+// with a name plate; otherwise people appear as text only.
 import 'server-only';
 import { wordsForSpans, type Span, type Word } from '@/lib/unedit-media';
 import type { Shot } from '@/lib/unedit-shots';
@@ -25,8 +26,10 @@ export type FBeat = {
   confirmed?: string[]; unconfirmed?: { text: string; who: string }[];
   scene?: { type: string; title: string; facts: string[]; who: string };
   /** real footage under the beat (lib/unedit-footage.ts): a link the renderer reads, and its on-screen credit if any */
-  media?: { src: string; credit: string | null };
+  media?: FacelessMedia;
 };
+/** Footage under a beat: video or a still photo, its credit, and the public figure's name plate when it shows one. */
+export type FacelessMedia = { src: string; credit: string | null; kind?: 'video' | 'photo'; name?: string | null };
 export type FacelessProps = {
   src: string; secs: number; words: { w: string; s: number; e: number; a?: boolean }[]; beats: FBeat[];
   kicker: string; subject: string; sfx: boolean; gl: boolean;
@@ -73,7 +76,7 @@ export function verdictOf(claims: FacelessClaim[], said: string): { confirmed: s
 }
 
 /** The composition's props: the clip's shots moved onto its own timeline as beats, sheet lines placed on their words. */
-export function facelessProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], opts: { title: string; sheet: NewsEntry[]; claims: FacelessClaim[]; kicker?: string; footage?: Map<number, { src: string; credit: string | null }> }): FacelessProps {
+export function facelessProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], opts: { title: string; sheet: NewsEntry[]; claims: FacelessClaim[]; kicker?: string; footage?: Map<number, FacelessMedia> }): FacelessProps {
   const marks = new Set(accents);
   const timed = wordsForSpans(words.map((w, i) => (marks.has(i) ? { ...w, a: true } : w)), spans);
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
@@ -140,7 +143,8 @@ export function facelessProps(src: string, words: Word[], spans: Span[], shots: 
   return {
     src, secs, words: timed, beats: out, kicker: opts.kicker ?? 'The story, explained', subject: subjectOf(words.filter((w) => spans.some((sp) => w.s >= sp.from && w.e <= sp.to))), sfx: process.env.UNEDIT_SFX !== 'off',
     gl: out.some((b) => b.scene?.type === 'assembly'),
-    end: { line: 'Get the full story', cta: 'Free strategy session', site: 'genovus.io' },
+    // Edutainment, not a pitch (operator 2026-11-19): the close points to the sources and more at the link in bio.
+    end: { line: 'Get the full story', cta: 'Link in bio', site: '' },
   };
 }
 
