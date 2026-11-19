@@ -155994,7 +155994,7 @@ function Statement({ b, words }) {
 function Word({ b }) {
   const t = useSec() - b.s;
   const p = tw(t, 0, 0.55, E.backOut(1.4));
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { ...box(), alignItems: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 800, fontSize: Math.min(250, 1600 / Math.max(4, (b.accent ?? "").length)), letterSpacing: "-0.05em", color: HF.orange, textTransform: "uppercase", transform: `scale(${mix(0.6, 1, p)})`, opacity: Math.min(1, p * 1.5), textShadow: "0 0 60px rgba(244,90,27,0.35)" }, children: (b.accent ?? "").replace(/[.,!?;:]+$/, "") }) });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { ...box(), alignItems: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 800, fontSize: Math.min(250, 1250 / Math.max(4, (b.accent ?? "").replace(/[.,!?;:]+$/, "").length)), whiteSpace: "nowrap", letterSpacing: "-0.05em", color: HF.orange, textTransform: "uppercase", transform: `scale(${mix(0.6, 1, p)})`, opacity: Math.min(1, p * 1.5), textShadow: "0 0 60px rgba(244,90,27,0.35)" }, children: (b.accent ?? "").replace(/[.,!?;:]+$/, "") }) });
 }
 function NumberBeat({ b }) {
   const t = useSec() - b.s;
