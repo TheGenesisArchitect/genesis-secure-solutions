@@ -41,10 +41,26 @@ async function tts(text: string, voice: string, style: string | null): Promise<B
   throw new Error(lastErr);
 }
 
-/** One line in an original prebuilt voice, as WAV (faceless narration, lib/unedit-faceless.ts). */
+/** One line in an original prebuilt voice, as WAV. `style` is a delivery direction for character lines only; the
+ *  model can read a direction aloud, so narration never sends one (use narrate()). */
 export function speak(text: string, voice: string, style: string | null = null): Promise<Buffer> {
   if (!VOICES.includes(voice)) throw new Error(`Unknown voice ${voice}.`);
   return tts(text, voice, style);
+}
+
+/** Seconds of audio in a 16-bit mono WAV. */
+export const wavSecs = (wav: Buffer) => (wav.length - 44) / 2 / wav.readUInt32LE(24);
+/** Longer than a slow narrator (~1.9 words a second) plus slack means the voice said more than the line. */
+export const tooLong = (text: string, secs: number) => secs > text.split(/\s+/).filter(Boolean).length / 1.9 + 2.5;
+
+/** Narration (faceless videos, voice jobs): only the words are sent, never a direction, and a take that runs far longer
+ *  than its words allow is voiced once more, then refused, so an explainer never says anything that isn't its script. */
+export async function narrate(text: string, voice: string): Promise<Buffer> {
+  if (!VOICES.includes(voice)) throw new Error(`Unknown voice ${voice}.`);
+  let wav = await tts(text, voice, null);
+  if (tooLong(text, wavSecs(wav))) wav = await tts(text, voice, null);
+  if (tooLong(text, wavSecs(wav))) throw new Error(`The voice ran ${wavSecs(wav).toFixed(1)} s for a ${text.split(/\s+/).length}-word line (it said more than the line).`);
+  return wav;
 }
 
 /** Voice one reserved clip and store it. */

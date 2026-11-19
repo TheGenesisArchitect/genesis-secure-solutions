@@ -5,22 +5,15 @@
 import 'server-only';
 import { put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
-import { speak, VOICES } from '@/lib/studio-voice';
+import { narrate, VOICES } from '@/lib/studio-voice';
 
 export type VoiceLine = { id: string; text: string };
 export type VoiceJob = { id: string; title: string; voice: string; style: string | null; lines: VoiceLine[]; results: Record<string, { path: string; secs: number }>; status: string; error: string | null; created_at: string; done_at: string | null };
 
-const MAX_LINES = 40, MAX_CHARS = 900, BUDGET_MS = 35_000, MAX_STYLE = 80;
-/** The longest a line may reasonably run when spoken (a slow narrator is ~2 words a second). Longer means the voice
- *  read something besides the line, usually the delivery direction. */
-const tooLong = (text: string, secs: number) => secs > text.split(/\s+/).filter(Boolean).length / 1.9 + 2.5;
-
-/** Voice one line; if it runs far longer than its words allow, once more without the direction, then give up. */
-async function voiceLine(text: string, voice: string, style: string | null) {
-  let r = trimWav(await speak(text, voice, style));
-  if (tooLong(text, r.secs) && style) r = trimWav(await speak(text, voice, null));
-  if (tooLong(text, r.secs)) throw new Error(`The voice ran ${r.secs.toFixed(1)} s for a ${text.split(/\s+/).length}-word line (it read more than the line).`);
-  return r;
+const MAX_LINES = 40, MAX_CHARS = 900, BUDGET_MS = 35_000;
+/** Voice one line: words only (lib/studio-voice.ts narrate), trimmed of leading and trailing silence. */
+async function voiceLine(text: string, voice: string) {
+  return trimWav(await narrate(text, voice));
 }
 
 /** Check a job before it's queued: known voice, sensible ids, lines short enough to voice in one call. */
@@ -30,7 +23,7 @@ export function checkJob(j: { title?: unknown; voice?: unknown; style?: unknown;
   const voice = typeof j.voice === 'string' && j.voice ? j.voice : 'Charon';
   if (!VOICES.includes(voice)) return `Unknown voice ${voice}.`;
   const style = typeof j.style === 'string' && j.style.trim() ? j.style.trim() : null;
-  if (style && style.length > MAX_STYLE) return `Keep the delivery direction short (under ${MAX_STYLE} characters, like "calmly, like a documentary narrator"); a long one gets read aloud.`;
+  if (style) return 'Voice jobs take the words only: a delivery direction can be read aloud. Pick the voice for the tone instead.';
   if (!Array.isArray(j.lines) || !j.lines.length) return 'Add at least one line.';
   if (j.lines.length > MAX_LINES) return `At most ${MAX_LINES} lines per job.`;
   const seen = new Set<string>(), lines: VoiceLine[] = [];
@@ -73,7 +66,7 @@ export async function runVoiceJobs(): Promise<{ voiced: number; done: number; fa
       for (const l of j.lines) {
         if (results[l.id]) continue;
         if (Date.now() - t0 > BUDGET_MS) break;
-        const { wav, secs } = await voiceLine(l.text, j.voice, j.style);
+        const { wav, secs } = await voiceLine(l.text, j.voice);
         const path = `studio/voice/${j.id}/${l.id}.wav`;
         await put(path, wav, { access: 'private', contentType: 'audio/wav', addRandomSuffix: false, allowOverwrite: true });
         results[l.id] = { path, secs };

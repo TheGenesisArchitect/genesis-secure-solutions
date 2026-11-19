@@ -35,7 +35,7 @@ try {
   ok(typeof checkJob({ title: 'x', voice: 'Morgan Freeman', lines: [{ id: 'a', text: 'hi' }] }) === 'string', 'an unknown voice is refused');
   ok(typeof checkJob({ title: 'x', lines: [{ id: 'a', text: 'hi' }, { id: 'a', text: 'yo' }] }) === 'string', 'a repeated line id is refused');
   ok(typeof checkJob({ title: 'x', lines: [{ id: '../etc', text: 'hi' }] }) === 'string', 'a line id that could escape its folder is refused');
-  const good = checkJob({ title: 'Verify voice jobs', style: 'like a calm narrator', lines: [{ id: 'hook', text: 'One.' }, { id: 'close', text: 'Two.' }, { id: 'tail', text: 'Three.' }] });
+  const good = checkJob({ title: 'Verify voice jobs', lines: [{ id: 'hook', text: 'One.' }, { id: 'close', text: 'Two.' }, { id: 'tail', text: 'Three.' }] });
   ok(typeof good !== 'string', 'a good job passes the checks');
   if (typeof good === 'string') throw new Error(good);
   const desk = await deskFor(null);
@@ -45,7 +45,7 @@ try {
   // Other queued jobs on preview aren't ours; the worker takes them in order, so ours must be the oldest open job or alone.
   const r1 = await runVoiceJobs();
   ok(r1.voiced >= 3 && calls >= 3, 'the cron voices the job’s lines', JSON.stringify(r1));
-  ok(lastBody.includes('like a calm narrator') && lastBody.includes('Charon'), 'the style and the default voice reach Gemini');
+  ok(lastBody.includes('Charon') && !/Say this/.test(lastBody) && JSON.parse(lastBody).contents[0].parts[0].text === 'Three.', 'only the words and the default voice reach Gemini (no direction to read aloud)');
   const { data: done } = await db.from('studio_voice_jobs').select('*').eq('id', j.id).single();
   ok(done.status === 'done' && done.done_at && !done.lease_until, 'the job is marked done and its lease released', done.status);
   const secs = done.results.hook?.secs;
@@ -75,19 +75,19 @@ try {
   ok(f!.status === 'failed' && /outage/.test(f!.error ?? ''), 'a voicing error fails the job with the reason', `${f!.status}: ${f!.error}`);
   ok(r4.failed === 1, 'the cron reports the failure', JSON.stringify(r4));
   // The voice reading the direction aloud: a 20 s take for a two-word line is retried without it, then refused.
-  ok(typeof checkJob({ title: 'x', style: 'like a calm, confident documentary narrator: clear, warm, unhurried, with a lift on numbers', lines: [{ id: 'a', text: 'hi' }] }) === 'string', 'a long delivery direction is refused before queueing');
+  ok(typeof checkJob({ title: 'x', style: 'calmly', lines: [{ id: 'a', text: 'hi' }] }) === 'string', 'a delivery direction is refused before queueing (it can be read aloud)');
   longNext = 1;
   const { data: j5 } = await db.from('studio_voice_jobs').insert({ tenant_id: desk.id, created_by: 'verify', ...good, title: 'Verify retry', lines: [{ id: 'r', text: 'Two words.' }] }).select('id').single();
   ids.push(j5!.id);
   const b5 = calls; await runVoiceJobs();
   const { data: g5 } = await db.from('studio_voice_jobs').select('status, results').eq('id', j5!.id).single();
-  ok(calls - b5 === 2 && g5!.status === 'done' && g5!.results.r.secs < 1.3, 'a take far longer than its line is retried without the direction', `${calls - b5} calls, ${g5!.results.r?.secs} s`);
+  ok(calls - b5 === 2 && g5!.status === 'done' && g5!.results.r.secs < 1.3, 'a take far longer than its line is voiced once more', `${calls - b5} calls, ${g5!.results.r?.secs} s`);
   longNext = 2;
   const { data: j6 } = await db.from('studio_voice_jobs').insert({ tenant_id: desk.id, created_by: 'verify', ...good, title: 'Verify too long', lines: [{ id: 'q', text: 'Two words.' }] }).select('id').single();
   ids.push(j6!.id);
   await runVoiceJobs();
   const { data: g6 } = await db.from('studio_voice_jobs').select('status, error').eq('id', j6!.id).single();
-  ok(g6!.status === 'failed' && /read more than the line/.test(g6!.error ?? ''), 'still too long fails with the reason', g6!.error ?? '');
+  ok(g6!.status === 'failed' && /said more than the line/.test(g6!.error ?? ''), 'still too long fails with the reason', g6!.error ?? '');
 } finally {
   const { data: rows } = await db.from('studio_voice_jobs').select('results').in('id', ids);
   const paths = (rows ?? []).flatMap((r) => Object.values((r.results ?? {}) as Record<string, { path: string }>).map((x) => x.path));

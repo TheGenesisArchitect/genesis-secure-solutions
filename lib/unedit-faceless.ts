@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { put } from '@vercel/blob';
 import { adminDb } from '@/lib/supabase/admin';
-import { speak } from '@/lib/studio-voice';
+import { narrate } from '@/lib/studio-voice';
 import { ffmpeg, sweepTmp } from '@/lib/unedit-media';
 import { parseSheet } from '@/lib/unedit-news';
 import { kick } from '@/lib/unedit';
@@ -23,7 +23,6 @@ export { FACELESS_VOICES } from '@/lib/faceless-voices';
 export type { FacelessState } from '@/lib/faceless-voices';
 export type FacelessLength = 'short' | 'full';
 
-const STYLE = 'as a confident, warm news explainer: clear and brisk, natural emphasis, never robotic';
 const LINE_CENTS = 1; // estimate per narrated line (Gemini text-to-speech)
 const SHORT_WORDS = 190;
 const GAP = 0.35;     // seconds of air between lines
@@ -77,7 +76,7 @@ export async function buildFaceless(tenant: string, productionId: string, origin
     for (let i = 0; i < lines.length; i += 3) {
       await Promise.all(lines.slice(i, i + 3).map(async (line, j) => {
         const k = i + j;
-        const wav = await speak(line, f.voice, STYLE);
+        const wav = await narrate(line, f.voice); // words only: a delivery direction can be read aloud
         await fs.writeFile(path.join(d, `r${k}.wav`), wav);
         await ffmpeg(['-i', `r${k}.wav`, '-af', `aresample=${RATE},apad=pad_dur=${GAP},aformat=channel_layouts=stereo`, '-ac', '2', '-c:a', 'pcm_s16le', `l${k}.wav`], d);
         await fs.rm(path.join(d, `r${k}.wav`), { force: true });
