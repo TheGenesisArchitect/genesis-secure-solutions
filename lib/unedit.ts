@@ -45,6 +45,7 @@ import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, pla
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proBrand, proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
+import { footageFor, footageOn, planFootage } from '@/lib/unedit-footage';
 import { alignToScript, facelessProps, FACELESS_END_SECS, type FacelessClaim, type ScriptLine } from '@/lib/unedit-faceless-pro';
 import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 import { campaignPosts, nowTimes, planPosts, postKey, recommend, LEAD_MIN, type Busy, type PostMode, type Rhythm, type Signal } from '@/lib/unedit-plan';
@@ -135,6 +136,23 @@ export async function claim(id: string): Promise<Vlog | null> {
 }
 // A step that finishes after someone stopped the recording (error set) must not move it forward again: a stage change
 // only lands while the recording has no error (a step reporting its own error still lands).
+/** Real footage for a faceless clip's lines (lib/unedit-footage.ts), keyed by shot index, as links the sandbox can
+ *  read, with each clip's credit. Off unless UNEDIT_FOOTAGE=on; any failure leaves the clip as cards (never stops it). */
+async function facelessFootage(v: Vlog, shots: Shot[], words: Word[]): Promise<Map<number, { src: string; credit: string | null }>> {
+  const out = new Map<number, { src: string; credit: string | null }>();
+  if (!footageOn() || !shots.length) return out;
+  try {
+    const lines = shots.map((sh, i) => ({ i, text: words.slice(sh.w0, sh.w1 + 1).map((w) => w.w).join(' ') }));
+    const { plan, cents } = await planFootage(lines, v.title ?? '');
+    await spend(v.id, cents, 'footage plan (Claude)');
+    const { got, cents: looked, rejected } = await footageFor(v.tenant_id, plan, new Map(shots.map((sh, i) => [i, sh.e - sh.s])));
+    if (looked) await spend(v.id, looked, 'footage look-check (Claude)');
+    for (const [i, f] of got) out.set(i, { src: await presigned(f.blob_path, 120), credit: f.credit });
+    await log('footage', v.id, { planned: plan.length, placed: got.size, clips: [...got.values()].map((f) => `${f.source}:${f.title.slice(0, 40)} (${f.license_note})`), rejected });
+  } catch (e) { console.error(`[unedit] ${v.id} footage skipped: ${e instanceof Error ? e.message : e}`); }
+  return out;
+}
+
 /** A faceless recording's story claims (its Newsroom package's story), for the verdict card. */
 async function facelessClaims(production: string): Promise<FacelessClaim[]> {
   const { data: p } = await dbx().from('newsroom_productions').select('story_id').eq('id', production).maybeSingle();
@@ -302,7 +320,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
             const brand = proBrand((await deskById(v.tenant_id)).profile);
             if (v.faceless) {
               // No speaker: every frame is a grounded graphic beat (lib/unedit-faceless-pro.ts), never the empty background.
-              const props = facelessProps(await presigned(basePath, 120), words, spans, shots, accents, { title: next.title, sheet: v.sources ?? [], claims: await facelessClaims(v.faceless.production) });
+              const footage = await facelessFootage(v, shots, words);
+              const props = facelessProps(await presigned(basePath, 120), words, spans, shots, accents, { title: next.title, sheet: v.sources ?? [], claims: await facelessClaims(v.faceless.production), footage });
               made = { bytes: await renderOnSandbox('UneditFaceless', props as unknown as Record<string, unknown>, { codec: 'h264', crf: 20, gl: props.gl }), secs: base.secs + FACELESS_END_SECS, pro: true };
             } else made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents, cues, brand)), secs: base.secs, pro: true };
           } catch (e) {

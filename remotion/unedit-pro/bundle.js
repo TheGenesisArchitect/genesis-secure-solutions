@@ -156197,6 +156197,15 @@ function BeatView({ b, words, kicker }) {
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(Statement, { b, words });
   }
 }
+function Footage({ b }) {
+  const lt = (0,esm.useCurrentFrame)() / FACELESS_FPS, d = b.e - b.s;
+  const inP = tw(lt, 0, 0.3, E.p3Out), out = tw(lt, d, 0.26, E.p2In);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { opacity: inP * (1 - out), overflow: "hidden" }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.OffthreadVideo, { src: b.media.src, muted: true, style: { width: "100%", height: "100%", objectFit: "cover", transform: `scale(${mix(1.04, 1.12, Math.min(1, lt / Math.max(1, d)))})` } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { background: "linear-gradient(180deg, rgba(7,8,12,0.78) 0%, rgba(7,8,12,0.35) 32%, rgba(7,8,12,0.45) 62%, rgba(7,8,12,0.85) 100%)" } }),
+    b.media.credit ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 60, bottom: 250, fontFamily: HF.mono, fontSize: 22, letterSpacing: "0.08em", color: "rgba(247,243,236,0.75)" }, children: b.media.credit }) : null
+  ] });
+}
 function BeatFrame({ b, children }) {
   const t = useSec();
   const inP = tw(t, b.s, 0.25, E.p3Out), out = tw(t, b.e, 0.25, E.p2In);
@@ -156209,6 +156218,7 @@ const UneditFaceless = ({ src, secs, words, beats, kicker = "The story, explaine
     /* @__PURE__ */ (0,jsx_runtime.jsx)(UneditFaceless_Bed, {}),
     t < secs ? /* @__PURE__ */ (0,jsx_runtime.jsx)(UneditFaceless_Ghost, { subject }) : null,
     src ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Audio, { src }) : null,
+    beats.map((b, i) => b.media ? /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: Math.max(0, Math.round(b.s * FACELESS_FPS)), durationInFrames: Math.max(1, Math.round((b.e - b.s + 0.26) * FACELESS_FPS)), children: /* @__PURE__ */ (0,jsx_runtime.jsx)(Footage, { b }) }, `f${i}`) : null),
     beats.map((b, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 0, durationInFrames: Math.round((secs + FACELESS_END) * FACELESS_FPS), children: t >= b.s - 0.02 && t < b.e + 0.26 ? /* @__PURE__ */ (0,jsx_runtime.jsx)(BeatFrame, { b, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(BeatView, { b, words, kicker }) }) : null }, i)),
     t < secs ? /* @__PURE__ */ (0,jsx_runtime.jsx)(Header, { kicker, secs }) : null,
     t < secs ? /* @__PURE__ */ (0,jsx_runtime.jsx)(UneditFaceless_Captions, { words, beats }) : null,

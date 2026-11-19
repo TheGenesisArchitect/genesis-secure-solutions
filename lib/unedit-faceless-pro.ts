@@ -24,6 +24,8 @@ export type FBeat = {
   items?: { date: string; text: string }[];
   confirmed?: string[]; unconfirmed?: { text: string; who: string }[];
   scene?: { type: string; title: string; facts: string[]; who: string };
+  /** real footage under the beat (lib/unedit-footage.ts): a link the renderer reads, and its on-screen credit if any */
+  media?: { src: string; credit: string | null };
 };
 export type FacelessProps = {
   src: string; secs: number; words: { w: string; s: number; e: number; a?: boolean }[]; beats: FBeat[];
@@ -71,7 +73,7 @@ export function verdictOf(claims: FacelessClaim[], said: string): { confirmed: s
 }
 
 /** The composition's props: the clip's shots moved onto its own timeline as beats, sheet lines placed on their words. */
-export function facelessProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], opts: { title: string; sheet: NewsEntry[]; claims: FacelessClaim[]; kicker?: string }): FacelessProps {
+export function facelessProps(src: string, words: Word[], spans: Span[], shots: Shot[], accents: number[], opts: { title: string; sheet: NewsEntry[]; claims: FacelessClaim[]; kicker?: string; footage?: Map<number, { src: string; credit: string | null }> }): FacelessProps {
   const marks = new Set(accents);
   const timed = wordsForSpans(words.map((w, i) => (marks.has(i) ? { ...w, a: true } : w)), spans);
   const secs = spans.reduce((a, s) => a + (s.to - s.from), 0);
@@ -118,6 +120,9 @@ export function facelessProps(src: string, words: Word[], spans: Span[], shots: 
       else if (en.kind === 'source') b = { s, e, kind: 'statement', text: sentence(sh), accent, who: en.text };
       else if (en.kind === 'scene' && en.scene) b = { s, e, kind: 'scene', scene: { type: en.scene, title: en.text, facts: en.facts ?? [], who: en.who ?? '' } };
     }
+    // Footage plays under a plain statement or word (never under a card that carries a fact, a quote or the source).
+    const f = opts.footage?.get(n);
+    if (f && n > 0 && (b.kind === 'statement' || b.kind === 'word')) b.media = f;
     beats.push(b);
   }
   if (beats[0]) beats[0].s = 0;
@@ -125,7 +130,7 @@ export function facelessProps(src: string, words: Word[], spans: Span[], shots: 
   for (let i = 0; i < beats.length; i++) {
     const b = beats[i];
     if ((b.kind === 'word' || b.kind === 'number') && b.e - b.s > 3.4) {
-      beats.splice(i + 1, 0, { s: b.s + 2.4, e: b.e, kind: 'statement', text: b.text, accent: b.accent });
+      beats.splice(i + 1, 0, { s: b.s + 2.4, e: b.e, kind: 'statement', text: b.text, accent: b.accent, ...(b.media ? { media: b.media } : {}) });
       b.e = b.s + 2.4;
     }
   }
