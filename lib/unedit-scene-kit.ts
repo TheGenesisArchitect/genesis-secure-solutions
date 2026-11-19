@@ -41,7 +41,7 @@ function num(s: string): Num | null {
   const digits = m[2].replace(/,/g, '');
   return { v: Number(digits), text: m[2], prefix: m[1] ?? '', suffix: m[3] ?? '', decimals: (digits.split('.')[1] ?? '').length };
 }
-/** "BenchCAD 2.1 Core: 62.6% → 82.5%" or "Input, per 1M tokens: $8". */
+/** "Engineering score: 61% → 79%" or "Input, per million tokens: $8". */
 export function parseFact(s: string): Fact | null {
   const m = s.trim().match(/^(.{1,60}?):\s*(.+)$/);
   if (!m) return null;

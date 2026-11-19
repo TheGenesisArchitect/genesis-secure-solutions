@@ -36,14 +36,18 @@ const reply = { scenes: [
   { type: 'lab', title: 'Faster science', facts: [], source: 'OpenAI', passage: 'Astra makes scientists dramatically faster at running experiments in the lab.', say: '', why: 'science' },
   // Not a scene we make.
   { type: 'driving', title: 'Roadster on a mountain road', facts: [], source: 'OpenAI', passage: 'We asked GPT‑6.2 Astra to visualize chassis dynamics of a car on a mountain road.', say: '', why: 'Driving simulation' },
+  // A unit written as digits the passage doesn't have ("1M" for "million"): left out, by design.
+  { type: 'model', title: 'GPT-6.2 Astra pricing', facts: ['Input, per 1M tokens: $8', 'Output, per 1M tokens: $40'], source: 'OpenAI', say: 'priced at eight dollars per million', why: 'API pricing',
+    passage: 'In the API, GPT‑6.2 Astra’s input and output token prices are 20% lower than GPT‑6 Astra’s, with a 60% discount on cached input ($8 for input, $0.40 for cached input, and $40 for output, all per million tokens).' },
   // A real passage, but the spoken words aren't in the script: kept, flagged.
   { type: 'cad', title: 'From reference photos to a lamp', facts: [], source: 'OpenAI',
     passage: 'The video follows the design from reference photos through CAD revisions to a physical lamp assembled by hand.', say: 'the Marina City towers lamp', why: 'From CAD to a paper lamp' },
 ] };
 
+let lastSystem = '';
 const server = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
-    const j = JSON.parse(body || '{}');
+    const j = JSON.parse(body || '{}'); lastSystem = j.system;
     ok(String(j.system ?? '').includes('Numbers shown only in charts or images are not in the text'), 'the prompt tells Helix chart-only numbers are out');
     ok(String(j.messages?.[0]?.content ?? '').includes('Mechanical design and assembly'), 'the prompt carries the article text');
     res.setHeader('content-type', 'application/json');
@@ -64,6 +68,8 @@ try {
   ok(r.notes.some((n) => /62\.6.*isn't in its passage/.test(n)), 'chart-only benchmark numbers are left out', r.notes.find((n) => n.includes('62.6')));
   ok(r.notes.some((n) => /Faster science.*word for word/.test(n)), 'a paraphrased passage is left out');
   ok(r.notes.some((n) => /"driving" isn't a scene we make/.test(n)), 'a type not on the list is left out');
+  ok(r.notes.some((n) => /GPT-6.2 Astra pricing.*1.*isn't in its passage/.test(n)), '"per 1M" when the article says "per million" is left out', r.notes.find((n) => n.includes('pricing')));
+  ok(String(lastSystem).includes('never "per 1M"') && !String(lastSystem).includes('62.6'), 'the prompt’s examples teach units in words and no chart numbers');
   const lamp = r.scenes.find((s) => s.title === 'From reference photos to a lamp');
   ok(lamp && !lamp.placeable && r.notes.some((n) => n.includes('From reference photos') && n.includes('spoken words')), 'a scene whose words aren\'t in the script is kept but flagged');
   ok(r.scenes.filter((s) => s.title !== 'From reference photos to a lamp').every((s) => s.placeable), 'the others can be placed on their spoken words');
