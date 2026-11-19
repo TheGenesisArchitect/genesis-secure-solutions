@@ -45,6 +45,7 @@ import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, pla
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proBrand, proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
+import { facelessProps, FACELESS_END_SECS, type FacelessClaim } from '@/lib/unedit-faceless-pro';
 import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 import { campaignPosts, nowTimes, planPosts, postKey, recommend, LEAD_MIN, type Busy, type PostMode, type Rhythm, type Signal } from '@/lib/unedit-plan';
 
@@ -132,7 +133,20 @@ export async function claim(id: string): Promise<Vlog | null> {
     .select('*');
   return (data?.[0] as Vlog | undefined) ?? null;
 }
-const release = (id: string, patch: Record<string, unknown> = {}) => dbx().from('unedit_vlogs').update({ lease_until: null, ...patch }).eq('id', id);
+// A step that finishes after someone stopped the recording (error set) must not move it forward again: a stage change
+// only lands while the recording has no error (a step reporting its own error still lands).
+/** A faceless recording's story claims (its Newsroom package's story), for the verdict card. */
+async function facelessClaims(production: string): Promise<FacelessClaim[]> {
+  const { data: p } = await dbx().from('newsroom_productions').select('story_id').eq('id', production).maybeSingle();
+  if (!p?.story_id) return [];
+  const { data } = await dbx().from('newsroom_claims').select('text, status, attribution, approved').eq('story_id', p.story_id);
+  return (data ?? []) as FacelessClaim[];
+}
+
+const release = (id: string, patch: Record<string, unknown> = {}) => {
+  const q = dbx().from('unedit_vlogs').update({ lease_until: null, ...patch }).eq('id', id);
+  return 'stage' in patch && !('error' in patch) ? q.is('error', null) : q;
+};
 const advance = (id: string, stage: Stage, patch: Record<string, unknown> = {}) => release(id, { stage, stage_at: new Date().toISOString(), attempts: 0, ...patch });
 
 /** Vlogs with a step to take: the cron kicks each one (the step route claims, so a double kick is harmless). */
@@ -202,7 +216,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
         }
         await log('dialogue-edit', subject, { drops: drops.length, fixes: clean.fixes.map((f) => `${f.from} → ${f.to}`), cents: clean.cents });
       } catch (e) { console.error(`[unedit] ${v.id} dialogue edit skipped: ${e instanceof Error ? e.message : e}`); }
-      const plan = await planVlog(words);
+      const plan = await planVlog(words, undefined, Boolean(v.faceless));
       await spend(v.id, plan.cents, 'clip plan (Claude)');
       if (!plan.clips.length) throw new Error(`No clip stood on its own${plan.dropped.length ? ` (${plan.dropped.slice(0, 3).join('; ')})` : ''}. Try a recording with a few clear points.`);
       await dbx().from('unedit_clips').delete().eq('vlog_id', v.id);
@@ -225,7 +239,7 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       for (const c of clips.filter((x) => x.status === 'redo')) {
         const words = await readWords(v);
         const { data: others } = await dbx().from('unedit_clips').select('start_s, end_s').eq('vlog_id', v.id).neq('id', c.id).neq('status', 'dropped');
-        const r = await redoClip(words, { title: c.title, from: Number(c.start_s), to: Number(c.end_s), note: c.note ?? '' }, (others ?? []).map((o) => ({ from: Number(o.start_s), to: Number(o.end_s) })));
+        const r = await redoClip(words, { title: c.title, from: Number(c.start_s), to: Number(c.end_s), note: c.note ?? '' }, (others ?? []).map((o) => ({ from: Number(o.start_s), to: Number(o.end_s) })), undefined, Boolean(v.faceless));
         await spend(v.id, r.cents, 'clip redo (Claude)');
         if (!r.pick) { await dbx().from('unedit_clips').update({ status: 'ready', error: `The redo didn't find a better moment${r.why ? `: ${r.why}` : ''}. The clip is unchanged.` }).eq('id', c.id); continue; }
         const row = clipRow(v, c.n, r.pick);
@@ -283,7 +297,11 @@ export async function step(v: Vlog, origin: string): Promise<string> {
             const cues = ((next.features as { cues?: Cue[] })?.cues ?? []);
             // An agency desk's clip carries the agency's crest, colors and end card (lib/desk.ts profile.brand), never Genovus's.
             const brand = proBrand((await deskById(v.tenant_id)).profile);
-            made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents, cues, brand)), secs: base.secs, pro: true };
+            if (v.faceless) {
+              // No speaker: every frame is a grounded graphic beat (lib/unedit-faceless-pro.ts), never the empty background.
+              const props = facelessProps(await presigned(basePath, 120), words, spans, shots, accents, { title: next.title, sheet: v.sources ?? [], claims: await facelessClaims(v.faceless.production) });
+              made = { bytes: await renderOnSandbox('UneditFaceless', props as unknown as Record<string, unknown>, { codec: 'h264', crf: 20, gl: props.gl }), secs: base.secs + FACELESS_END_SECS, pro: true };
+            } else made = { bytes: await renderPro(await proProps(await presigned(basePath, 120), words, spans, shots, accents, cues, brand)), secs: base.secs, pro: true };
           } catch (e) {
             console.error(`[unedit] ${v.id} clip ${next.n}: Unedit Pro fell back to the plain clip: ${e instanceof Error ? e.message : e}`);
             // Said on the card, never silent: this clip is the plain cut, and Redo tries the graphics again.

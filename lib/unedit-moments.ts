@@ -6,7 +6,7 @@
 import { jsonMatch } from '@/lib/json-reply';
 import 'server-only';
 import type { Word } from '@/lib/unedit-media';
-import { playOrder, screenCodes, screenMenu, SHOTS_RULES, toShots, type RawShot, type Shot } from '@/lib/unedit-shots';
+import { FACELESS_SHOTS_RULES, playOrder, screenCodes, screenMenu, SHOTS_RULES, toShots, type RawShot, type Shot } from '@/lib/unedit-shots';
 import { PACKAGES, stylebookPrompt, RULES as STYLE_RULES } from '@/data/unedit-stylebook';
 import { CUES_RULES, tagWords, taggedText, toCues, type Cue, type RawCue, type Tag } from '@/lib/unedit-cues';
 
@@ -40,9 +40,11 @@ export function sentences(words: Word[]): Sentence[] {
 
 const mmss = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 
-function prompt(ss: Sentence[], opts: { who: string; tagged?: (s: Sentence) => string; redo?: { title: string; from: number; to: number; note: string }; avoid?: { from: number; to: number }[] }) {
+function prompt(ss: Sentence[], opts: { who: string; tagged?: (s: Sentence) => string; redo?: { title: string; from: number; to: number; note: string }; avoid?: { from: number; to: number }[]; faceless?: boolean }) {
   const system = [
-    `You are the editor for ${opts.who}'s one-take vlogs. The video is real footage of a real person talking to camera.`,
+    opts.faceless
+      ? `You are the editor for ${opts.who}'s faceless explainers. There is no camera footage: an original narrator voice (AI, disclosed) reads a news explainer, and every frame the viewer sees is a graphic you plan. Clips must stop the scroll in the first two seconds and leave the viewer wanting the full story.`
+      : `You are the editor for ${opts.who}'s one-take vlogs. The video is real footage of a real person talking to camera.`,
     'You pick moments that work as stand-alone short clips (Instagram Reels, Facebook Reels, YouTube Shorts) and write the copy.',
     'A great clip: one idea, makes sense to someone who never saw the vlog, a strong first line, a clear payoff. 20 to 60 seconds.',
     'Hook: if the moment\'s most surprising or quotable sentence is not its first, name it as the hook; it plays first, then the moment from its start. The hook must be one or two sentences, inside the moment, under 8 seconds.',
@@ -50,10 +52,8 @@ function prompt(ss: Sentence[], opts: { who: string; tagged?: (s: Sentence) => s
     'Copy rules: plain, confident, in the speaker\'s voice. No guarantees, no prices or savings claims, no "best rates", no claims the speaker did not make. Hashtags only at the end of Instagram copy, at most 3.',
     'The thumbnail lines are for the full video: each 4 words or fewer, distinct from the title, drawn from the talk.',
     'False starts: where the speaker begins a sentence, stops, and says it again, list the abandoned words (copied exactly from the transcript, at least two words) in "false_starts", so the full video can cut them. Only clear restarts; never a sentence the speaker finished.',
-    SHOTS_RULES,
-    CUES_RULES,
-    `Screen codes (real Genovus screens):
-${screenMenu()}`,
+    ...(opts.faceless ? [FACELESS_SHOTS_RULES] : [SHOTS_RULES, CUES_RULES, `Screen codes (real Genovus screens):
+${screenMenu()}`]),
     'Return only JSON, no prose: {"clips":[{"from":<first sentence #>,"to":<last sentence #>,"hook":<sentence # or null>,"hook_to":<sentence # or null>,"title":"<6 words max>","caption":"<one line under 90 chars>","instagram":"<caption>","facebook":"<caption>","youtube":"<Shorts title under 90 chars>","hook_type":"question|claim|story|number|contrast","topic":"<2-4 words>","why":"<one line>","shots":[{"s":0,"layout":"face","accent":"","screen":null,"figure":null}],"cues":[{"w":"","s":0,"kind":"counter","text":""}]}],"episode":{"title":"<under 90 chars>","description":"<2-4 sentences>","tags":["..."]},"thumbs":["","",""],"false_starts":["<exact abandoned words>"]}',
   ].join('\n');
   const lines = ss.map((x) => `[${x.i} ${mmss(x.s)}–${mmss(x.e)}] ${opts.tagged ? opts.tagged(x) : x.text}`).join('\n');
@@ -82,7 +82,7 @@ type RawClip = { cues?: RawCue[]; from?: number; to?: number; hook?: number | nu
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
 /** Turn the model's sentence picks into timed clips, enforcing length, no overlap and the copy rules. */
-export function toPicks(raw: RawClip[], ss: Sentence[], taken: { from: number; to: number }[] = [], cueCtx?: { words: Word[]; tags: Tag[][] }): { picks: Pick[]; dropped: string[] } {
+export function toPicks(raw: RawClip[], ss: Sentence[], taken: { from: number; to: number }[] = [], cueCtx?: { words: Word[]; tags: Tag[][] }, faceless = false): { picks: Pick[]; dropped: string[] } {
   const picks: Pick[] = [];
   const dropped: string[] = [];
   for (const c of raw) {
@@ -101,7 +101,7 @@ export function toPicks(raw: RawClip[], ss: Sentence[], taken: { from: number; t
     const copy = { instagram: str(c.instagram, 2000), facebook: str(c.facebook, 2000), youtube: str(c.youtube, 95) || title };
     const caption = str(c.caption, 120);
     if ([title, caption, ...Object.values(copy)].some((t) => BANNED.test(t))) { dropped.push(`${title}: copy broke the wording rules`); continue; }
-    picks.push({ from, to, hookFrom, hookTo, title, caption, copy, features: { hook: str(c.hook_type, 20) || 'claim', topic: str(c.topic, 40), why: str(c.why, 160), at: Math.round((from / Math.max(1, ss[ss.length - 1].e)) * 100) / 100, shots: toShots(c.shots, ss, playOrder(ss, from, to, hookFrom, hookTo)), cues: cueCtx ? toCues(c.cues, ss, playOrder(ss, from, to, hookFrom, hookTo), cueCtx.words, cueCtx.tags, screenCodes()) : [] } });
+    picks.push({ from, to, hookFrom, hookTo, title, caption, copy, features: { hook: str(c.hook_type, 20) || 'claim', topic: str(c.topic, 40), why: str(c.why, 160), at: Math.round((from / Math.max(1, ss[ss.length - 1].e)) * 100) / 100, shots: toShots(c.shots, ss, playOrder(ss, from, to, hookFrom, hookTo), faceless), cues: cueCtx && !faceless ? toCues(c.cues, ss, playOrder(ss, from, to, hookFrom, hookTo), cueCtx.words, cueCtx.tags, screenCodes()) : [] } });
   }
   return { picks, dropped };
 }
@@ -114,14 +114,14 @@ function parse(text: string): { clips: RawClip[]; episode: { title?: string; des
 }
 
 /** Plan the whole vlog: clips, the full video's title and description, thumbnail lines. */
-export async function planVlog(words: Word[], who = 'Anthony at Genovus'): Promise<Plan> {
+export async function planVlog(words: Word[], who = 'Anthony at Genovus', faceless = false): Promise<Plan> {
   const ss = sentences(words);
   if (ss.length < 3) throw new Error('The transcript is too short to cut clips from.');
   const tags = tagWords(words);
-  const p = prompt(ss, { who, tagged: (s) => taggedText(words, tags, s.w0, s.w1) });
+  const p = prompt(ss, { who, tagged: (s) => taggedText(words, tags, s.w0, s.w1), faceless });
   const r = await claude(p.system, p.user);
   const j = parse(r.text);
-  const { picks, dropped } = toPicks(j.clips.slice(0, 6), ss, [], { words, tags });
+  const { picks, dropped } = toPicks(j.clips.slice(0, 6), ss, [], { words, tags }, faceless);
   const thumbs = j.thumbs.map((t) => str(t, 40)).filter((t) => t && t.split(/\s+/).length <= 5 && !BANNED.test(t)).slice(0, 3);
   return {
     clips: picks, dropped, cents: r.cents, falseStarts: j.falseStarts,
@@ -131,14 +131,14 @@ export async function planVlog(words: Word[], who = 'Anthony at Genovus'): Promi
 }
 
 /** Redo one clip from its note: a new or tightened moment that doesn't overlap the vlog's other clips. */
-export async function redoClip(words: Word[], clip: { title: string; from: number; to: number; note: string }, others: { from: number; to: number }[], who = 'Anthony at Genovus'): Promise<{ pick: Pick | null; why: string; cents: number }> {
+export async function redoClip(words: Word[], clip: { title: string; from: number; to: number; note: string }, others: { from: number; to: number }[], who = 'Anthony at Genovus', faceless = false): Promise<{ pick: Pick | null; why: string; cents: number }> {
   const ss = sentences(words);
   const idx = (t: number) => ss.findIndex((x) => x.e >= t - 0.2);
   const avoid = others.map((o) => ({ from: Math.max(0, idx(o.from)), to: Math.max(0, idx(o.to)) }));
   const tags = tagWords(words);
-  const p = prompt(ss, { who, tagged: (s) => taggedText(words, tags, s.w0, s.w1), redo: { title: clip.title, from: Math.max(0, idx(clip.from)), to: Math.max(0, idx(clip.to)), note: clip.note }, avoid });
+  const p = prompt(ss, { who, tagged: (s) => taggedText(words, tags, s.w0, s.w1), redo: { title: clip.title, from: Math.max(0, idx(clip.from)), to: Math.max(0, idx(clip.to)), note: clip.note }, avoid, faceless });
   const r = await claude(p.system, p.user);
-  const { picks, dropped } = toPicks(parse(r.text).clips.slice(0, 1), ss, others, { words, tags });
+  const { picks, dropped } = toPicks(parse(r.text).clips.slice(0, 1), ss, others, { words, tags }, faceless);
   return { pick: picks[0] ?? null, why: dropped[0] ?? '', cents: r.cents };
 }
 

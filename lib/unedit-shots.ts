@@ -6,7 +6,13 @@
 import library from '@/data/screen-library.json';
 
 export const LAYOUTS = ['face', 'card', 'screen', 'split', 'number', 'word'] as const;
-export type Layout = (typeof LAYOUTS)[number];
+/** A faceless recording (narration over a background) has no speaker: its shots come from this set instead, and a
+ *  speaker layout never survives. hook = the clip's claim, huge (always the first shot); statement = the sentence as
+ *  kinetic type; verdict = what is confirmed vs not (from the story's approved claims). The sources sheet adds quote,
+ *  timeline, source and scene shots where their words are said (lib/unedit-faceless-pro.ts). */
+export const FACELESS_LAYOUTS = ['number', 'word', 'statement', 'verdict'] as const;
+export const SPEAKER_LAYOUTS: readonly string[] = ['face', 'card', 'screen', 'split'];
+export type Layout = (typeof LAYOUTS)[number] | (typeof FACELESS_LAYOUTS)[number] | 'hook';
 /** Global word indexes (into the transcript) and seconds on the recording's timeline. */
 export type Shot = { w0: number; w1: number; s: number; e: number; layout: Layout; accent: number | null; screen: string | null; figure: string | null };
 export type RawShot = { s?: number; layout?: string; accent?: string; screen?: string | null; figure?: string | null };
@@ -34,8 +40,17 @@ export const SHOTS_RULES = [
   'Use card and word for opinions, feelings and punchlines; number only for a figure the speaker says word for word in that sentence. Change layout every one or two sentences, except a screen may hold while it is still being described. The first shot is always face. Never invent screen codes.',
 ].join('\n');
 
-/** Repair Claude's shots for one clip into code-checked shots over the sentences the clip plays. */
-export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: number[]): Shot[] {
+/** The prompt's "shots" instructions for a faceless recording: no speaker exists, every frame is a graphic. */
+export const FACELESS_SHOTS_RULES = [
+  'For every clip also write "shots": one entry per sentence the clip plays (its hook sentences too), in sentence order.',
+  `Each shot: {"s":<sentence #>,"layout":"${FACELESS_LAYOUTS.join('|')}","accent":"<ONE word copied exactly from that sentence: the number, name or verb that carries its point; never a filler word>","screen":null,"figure":"<a number or 1-3 words from the sentence for a big card, or null>"}.`,
+  'There is NO speaker on camera: a narrator voice reads over graphics, so every shot is a graphic. number = one big figure the sentence says word for word (needs "figure"). word = the accent word huge, kinetic. statement = the sentence itself as bold kinetic type, its key words lit. verdict = a "confirmed vs not confirmed" card, only for a sentence about what is or is not confirmed.',
+  'Vary the layout every sentence or two: a viewer should see something new every 2 to 3 seconds. The first shot is the hook card (code places it). Quotes, timelines and the article scenes are placed by code from the sources sheet where their words are said.',
+].join('\n');
+
+/** Repair Claude's shots for one clip into code-checked shots over the sentences the clip plays. A faceless clip
+ *  (no speaker) never keeps a speaker layout: its first shot is the hook card and anything else becomes a statement. */
+export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: number[], faceless = false): Shot[] {
   const bySentence = new Map<number, RawShot>();
   for (const r of Array.isArray(raw) ? raw : []) if (Number.isInteger(Number(r?.s))) bySentence.set(Number(r.s), r);
   const shots: Shot[] = [];
@@ -43,7 +58,8 @@ export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: numbe
     const sen = ss[i];
     if (!sen) continue;
     const r = bySentence.get(i) ?? {};
-    let layout: Layout = (LAYOUTS as readonly string[]).includes(String(r.layout)) ? (r.layout as Layout) : 'face';
+    const allowed: readonly string[] = faceless ? FACELESS_LAYOUTS : LAYOUTS;
+    let layout: Layout = allowed.includes(String(r.layout)) ? (r.layout as Layout) : faceless ? 'statement' : 'face';
     const screen = typeof r.screen === 'string' && SCREENS.has(r.screen) ? r.screen : null;
     // A figure is shown only if the speaker says all of it in this sentence ("three hours" never over "three minutes").
     const said = (f: string) => { const want = f.toLowerCase().split(/\s+/).map(norm).filter(Boolean); const have = new Set(sen.text.split(' ').map(norm)); return want.length > 0 && want.every((w) => have.has(w)); };
@@ -59,16 +75,19 @@ export function toShots(raw: RawShot[] | undefined, ss: Sentence[], order: numbe
       const j = toks.findIndex((t) => norm(t) === want);
       if (j >= 0 && sen.w0 + j <= sen.w1) accent = sen.w0 + j;
     }
-    if (layout === 'word' && accent == null) layout = 'card';
-    if (k === 0) layout = 'face';
-    const shot: Shot = { w0: sen.w0, w1: sen.w1, s: sen.s, e: sen.e, layout, accent, screen: layout === 'screen' || layout === 'split' ? screen : null, figure: layout === 'number' || layout === 'split' ? figure : null };
+    if (layout === 'word' && accent == null) layout = faceless ? 'statement' : 'card';
+    if (faceless && layout === 'number' && !figure) layout = 'statement';
+    if (k === 0) layout = faceless ? 'hook' : 'face';
+    if (faceless && SPEAKER_LAYOUTS.includes(layout)) layout = 'statement';
+    const shot: Shot = { w0: sen.w0, w1: sen.w1, s: sen.s, e: sen.e, layout, accent, screen: !faceless && (layout === 'screen' || layout === 'split') ? screen : null, figure: layout === 'number' || layout === 'split' ? figure : null };
     const prev = shots[shots.length - 1];
     // One huge word at a time: a word shot right after another becomes a card.
-    if (prev && shot.layout === 'word' && prev.layout === 'word') shot.layout = 'card';
+    const rest: Layout = faceless ? 'statement' : 'card';
+    if (prev && shot.layout === 'word' && prev.layout === 'word') shot.layout = rest;
     // Too short to read as its own shot: it keeps the previous layout (its accent word still counts).
     // A figure or a huge word belongs to the sentence that says it, so after one the short shot becomes a card.
     if (prev && shot.e - shot.s < MIN_SHOT_S) {
-      if (prev.layout === 'number' || prev.layout === 'word') { shot.layout = 'card'; shot.screen = null; shot.figure = null; }
+      if (prev.layout === 'number' || prev.layout === 'word' || prev.layout === 'hook') { shot.layout = rest; shot.screen = null; shot.figure = null; }
       else { shot.layout = prev.layout; shot.screen = prev.screen; shot.figure = prev.figure; }
     }
     shots.push(shot);
