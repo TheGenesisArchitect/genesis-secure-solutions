@@ -7,7 +7,9 @@
 //   statement  the sentence itself as bold kinetic type (never an empty frame)
 //   verdict    confirmed vs not confirmed, from the story's approved claims (confirmed = status 'confirmed'; not
 //              confirmed = reported, alleged or unsupported, each with who says it); a statement when there are none
-//   quote / timeline / source / scene   the sources sheet's lines, on the sentence where their words are said
+//   quote / timeline / source / scene   the sources sheet's lines, on the sentence where their words are said; an
+//              article shows as a document labelled SUMMARY (the sheet's words, not the source's); a source chip is a
+//              statement with "Source · outlet" under it. Only a quote beat carries verbatim words.
 // A beat never shows a person's photo or likeness: people appear as text only.
 import 'server-only';
 import { wordsForSpans, type Span, type Word } from '@/lib/unedit-media';
@@ -111,7 +113,9 @@ export function facelessProps(src: string, words: Word[], spans: Span[], shots: 
       else if (en.kind === 'timeline' && en.items?.length) b = { s, e, kind: 'timeline', text: en.title ?? en.text, items: en.items.slice(0, 4).map((x) => ({ date: x.date, text: x.text })) };
       // An article: its outlet, its own description and the site; a source chip: the outlet over the sentence it backs.
       else if (en.kind === 'article') b = { s, e, kind: 'source', who: en.title ?? en.who ?? '', text: en.text, when: [en.who, en.when].filter(Boolean).join(' · ') };
-      else if (en.kind === 'source') b = { s, e, kind: 'source', who: en.text, text: sentence(sh) };
+      // A source chip is the narrator's sentence with the outlet cited under it, never the sentence dressed as the
+      // outlet's own document (2026-11-19: an 8-K card read as a quote of the filing).
+      else if (en.kind === 'source') b = { s, e, kind: 'statement', text: sentence(sh), accent, who: en.text };
       else if (en.kind === 'scene' && en.scene) b = { s, e, kind: 'scene', scene: { type: en.scene, title: en.text, facts: en.facts ?? [], who: en.who ?? '' } };
     }
     beats.push(b);
@@ -136,3 +140,49 @@ export function facelessProps(src: string, words: Word[], spans: Span[], shots: 
 }
 
 export const FACELESS_END_SECS = END_SECS;
+
+/** One narrated line and where it sits in the faceless recording (seconds), stored at build time. */
+export type ScriptLine = { text: string; s: number; e: number };
+
+/** The transcript of a faceless recording, spelled as the script. The narrator reads the script word for word, so
+ *  speech-to-text only adds mistakes ("8-K" heard as "eight k"). Each line is aligned only with the words heard in its
+ *  own time window (a mismatch can't drift into the next line): matching words take the script's spelling and keep
+ *  their timing; a run that differs ("eight k" ↔ "8-K") becomes the script's tokens spread over the run's time;
+ *  script words the transcript missed get the gap they were said in; extra heard words are dropped. */
+export function alignToScript(words: Word[], lines: ScriptLine[]): Word[] {
+  if (!lines.length) return words;
+  const out: Word[] = [];
+  const key = (w: string) => norm(w).replace(/'/g, '');
+  const spread = (toks: string[], from: number, to: number, c?: number) => {
+    const d = Math.max(0.02 * toks.length, to - from) / toks.length;
+    toks.forEach((w, i) => out.push({ w, s: from + i * d, e: from + (i + 1) * d, ...(c != null ? { c } : {}) }));
+  };
+  let wi = 0;
+  for (const [k, ln] of lines.entries()) {
+    const toks = ln.text.split(/\s+/).filter(Boolean);
+    const until = k + 1 < lines.length ? lines[k + 1].s - 0.2 : Infinity;
+    const heard: Word[] = [];
+    while (wi < words.length && (words[wi].s + words[wi].e) / 2 < until) heard.push(words[wi++]);
+    if (!toks.length) continue;
+    if (!heard.length) { spread(toks, ln.s, ln.e); continue; }
+    // Longest common subsequence of the normalised tokens, then walk it.
+    const A = heard.map((w) => key(w.w)), B = toks.map(key), n = A.length, m = B.length;
+    const L = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] && A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    let i = 0, j = 0, ri = 0, rj = 0; // ri/rj: start of the current unmatched runs
+    let prevEnd = Math.min(ln.s, heard[0].s);
+    const flush = (nextStart: number) => {
+      const run = heard.slice(ri, i), tk = toks.slice(rj, j);
+      if (tk.length) run.length ? spread(tk, run[0].s, run[run.length - 1].e, run[0].c) : spread(tk, prevEnd, Math.max(prevEnd, nextStart));
+    };
+    while (i < n && j < m) {
+      if (A[i] && A[i] === B[j]) {
+        flush(heard[i].s);
+        out.push({ ...heard[i], w: toks[j] });
+        prevEnd = heard[i].e; i++; j++; ri = i; rj = j;
+      } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+    }
+    i = n; j = m; flush(Math.max(prevEnd, ln.e));
+  }
+  return out;
+}

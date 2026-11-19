@@ -155981,7 +155981,14 @@ function Statement({ b, words }) {
   const lt = t - b.s, grow = tw(lt, 0, Math.max(0.6, b.e - b.s - 0.3), E.sineInOut);
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { ...box(), paddingLeft: 34 }, children: [
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, top: "50%", width: 8, height: `${mix(10, 46, grow)}%`, transform: "translateY(-50%)", borderRadius: 4, background: `linear-gradient(${HF.orange}, ${HF.deep})`, boxShadow: "0 0 30px rgba(244,90,27,0.5)" } }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(Kinetic, { text: b.text ?? "", size, accent: b.accent, t: lt, at: 0, step: 0.025, said: said.map((x) => x - b.s) })
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(Kinetic, { text: b.text ?? "", size, accent: b.accent, t: lt, at: 0, step: 0.025, said: said.map((x) => x - b.s) }),
+    b.who ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginTop: 44, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 14, padding: "14px 24px", borderRadius: 999, background: "rgba(7,8,12,0.7)", border: "1px solid rgba(255,255,255,0.16)", opacity: tw(lt, 0.4, 0.4) }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 12, height: 12, borderRadius: 6, background: HF.orange } }),
+      /* @__PURE__ */ (0,jsx_runtime.jsxs)("span", { style: { fontFamily: HF.mono, fontSize: 30, letterSpacing: "0.12em", textTransform: "uppercase", color: OBS.cream }, children: [
+        "Source \xB7 ",
+        b.who
+      ] })
+    ] }) : null
   ] });
 }
 function Word({ b }) {
@@ -156080,14 +156087,14 @@ function UneditFaceless_Source({ b }) {
     /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", borderRadius: 18, padding: "54px 54px 64px", background: "linear-gradient(180deg, #FBF8F2, #EFE9DE)", boxShadow: "0 50px 120px -30px rgba(0,0,0,0.85), 0 0 0 1px rgba(0,0,0,0.05)", opacity: p, transform: `perspective(1600px) rotateX(${(1 - p) * 18}deg) rotate(${mix(-3, -1.2, p)}deg) translateY(${(1 - p) * 80}px)`, transformOrigin: "50% 100%" }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "3px solid #1b1d22", paddingBottom: 18 }, children: [
         /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontSize: 22, letterSpacing: "0.18em", color: "#1b1d22", textTransform: "uppercase", fontWeight: 600 }, children: b.who }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "flex", gap: 8 }, children: [0, 1, 2].map((i) => /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { width: 10, height: 10, borderRadius: 5, background: i === 0 ? HF.deep : "#c9c2b6" } }, i)) })
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.mono, fontSize: 22, letterSpacing: "0.16em", fontWeight: 600, color: "#fff", background: HF.deep, padding: "8px 14px", borderRadius: 6 }, children: "SUMMARY" })
       ] }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { margin: "26px 0 22px" }, children: [92, 78, 85].map(rule) }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: HF.geist, fontWeight: 700, fontSize: size, lineHeight: 1.22, color: "#14161b" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { backgroundImage: "linear-gradient(rgba(255,138,30,0.55), rgba(255,138,30,0.55))", backgroundRepeat: "no-repeat", backgroundSize: `${hl * 100}% 100%`, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone", padding: "0 4px" }, children: text }) }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { marginTop: 22 }, children: [70, 88].map(rule) }),
       b.when ? /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", right: 40, bottom: -34, padding: "12px 22px", border: `4px solid ${HF.deep}`, borderRadius: 10, color: HF.deep, fontFamily: HF.mono, fontWeight: 600, fontSize: 24, letterSpacing: "0.16em", textTransform: "uppercase", background: "rgba(251,248,242,0.92)", transform: `rotate(-6deg) scale(${mix(1.6, 1, stamp)})`, opacity: stamp }, children: b.when }) : null
     ] }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { ...mono(22), marginTop: 50, opacity: tw(t, 0.4, 0.4) }, children: "Source" })
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { ...mono(30), marginTop: 50, opacity: tw(t, 0.4, 0.4) }, children: "Our summary of this source" })
   ] });
 }
 function parseFact(f) {

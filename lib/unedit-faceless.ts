@@ -18,6 +18,7 @@ import { parseSheet } from '@/lib/unedit-news';
 import { kick } from '@/lib/unedit';
 import type { Production } from '@/lib/newsroom';
 import { FACELESS_VOICES, type FacelessState } from '@/lib/faceless-voices';
+import type { ScriptLine } from '@/lib/unedit-faceless-pro';
 
 export { FACELESS_VOICES } from '@/lib/faceless-voices';
 export type { FacelessState } from '@/lib/faceless-voices';
@@ -42,6 +43,18 @@ export function narration(p: Production, length: FacelessLength): string[] {
     out.push(l); n += w;
   }
   out.push(lines[lines.length - 1]); // the call to action
+  return out;
+}
+
+/** Each narrated line's start and end in the joined narration, from the padded line files (16-bit stereo at RATE). */
+export async function lineWindows(dir: string, files: string[], lines: string[]): Promise<ScriptLine[]> {
+  const out: ScriptLine[] = [];
+  let at = 0;
+  for (const [k, f] of files.entries()) {
+    const secs = ((await fs.stat(path.join(dir, f))).size - 44) / (RATE * 2 * 2);
+    out.push({ text: lines[k], s: Math.round(at * 100) / 100, e: Math.round((at + Math.max(0.1, secs - GAP)) * 100) / 100 });
+    at += secs;
+  }
   return out;
 }
 
@@ -86,6 +99,8 @@ export async function buildFaceless(tenant: string, productionId: string, origin
     await fs.writeFile(path.join(d, 'lines.txt'), files.map((x) => `file '${x}'`).join('\n'));
     await ffmpeg(['-f', 'concat', '-safe', '0', '-i', 'lines.txt', '-c', 'copy', 'voice.wav'], d);
     const secs = ((await fs.stat(path.join(d, 'voice.wav'))).size - 44) / (RATE * 2 * 2);
+    // Where each line sits (its audio, then GAP of air): the pipeline aligns the transcript to these (alignToScript).
+    const script = await lineWindows(d, files, lines);
     // 2. The picture: the Genovus moving background (a slow ink-and-ember gradient sweep with a vignette; no grain: grain on every frame made the file ~30x larger), 1080p30 SDR.
     const bed = `gradients=s=1920x1080:r=30:c0=0x0b0c10:c1=0x2a1206:c2=0x8a3a0e:c3=0x120a1e:x0=0:y0=0:x1=1920:y1=1080:nb_colors=4:speed=0.0012:d=${(secs + 0.5).toFixed(2)},vignette=PI/5,format=yuv420p`;
     await ffmpeg(['-f', 'lavfi', '-i', bed, '-i', 'voice.wav', '-map', '0:v', '-map', '1:a',
@@ -102,7 +117,7 @@ export async function buildFaceless(tenant: string, productionId: string, origin
     const { data: v, error } = await db().from('unedit_vlogs').insert({
       tenant_id: tenant, title, file_name: path.basename(blobPath), blob_path: blobPath, blob_url: blob.url, bytes: bytes.length,
       fingerprint: `${bytes.length}:${sha(bytes)}:${sha(`${productionId}:${f.voice}:${f.length}:${f.at}`)}`, created_by: by,
-      sources: entries.length ? entries : null, faceless: { voice: f.voice, production: productionId, length: f.length },
+      sources: entries.length ? entries : null, faceless: { voice: f.voice, production: productionId, length: f.length, script },
     }).select('id').single();
     if (error || !v) throw new Error(error?.message ?? 'The recording was not created.');
     await db().rpc('unedit_spend', { p_vlog: v.id, p_cents: lines.length * LINE_CENTS, p_what: `faceless narration, ${lines.length} lines (Gemini voice ${f.voice}, estimate)` });

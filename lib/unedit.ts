@@ -45,7 +45,7 @@ import { assemble, effectSounds, epTime, layReel, overlayPart, partOverlays, pla
 import { renderOnSandbox, screenLinks } from '@/lib/unedit-pro';
 import { qaEpisode } from '@/lib/unedit-qa';
 import { proBrand, proConfigured, proProps, renderPro } from '@/lib/unedit-pro';
-import { facelessProps, FACELESS_END_SECS, type FacelessClaim } from '@/lib/unedit-faceless-pro';
+import { alignToScript, facelessProps, FACELESS_END_SECS, type FacelessClaim, type ScriptLine } from '@/lib/unedit-faceless-pro';
 import { GENOVUS_BLOG_ID, findPostLike, metricoolConfigured, metricoolLive, postStatus, schedulePost } from '@/lib/metricool';
 import { campaignPosts, nowTimes, planPosts, postKey, recommend, LEAD_MIN, type Busy, type PostMode, type Rhythm, type Signal } from '@/lib/unedit-plan';
 
@@ -63,7 +63,7 @@ export type Vlog = {
   /** The scene plan Helix proposed from the article (lib/unedit-scenes.ts); approved scenes move onto the sheet. */
   scene_plan?: ScenePlan | null;
   /** Faceless (lib/unedit-faceless.ts): narration over the moving background; null on a real take. */
-  faceless?: { voice: string; production: string; length: string } | null;
+  faceless?: { voice: string; production: string; length: string; /** each narrated line and its time (alignToScript) */ script?: ScriptLine[] } | null;
   /** How the campaign was approved (lib/unedit-plan.ts); null before Approve. */
   post_plan?: { mode: PostMode; rhythm: Rhythm | null; why: string | null; by: string; at: string } | null;
 };
@@ -192,6 +192,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       // Voice enhancement runs alongside transcription (never fatal; the original sound stays when it can't run).
       const voicing = enhanceVoice(audioPath);
       const t = await transcribe(mp3, p.duration, provider, keyterms(v.sources, v.title ? [v.title] : []));
+      // A faceless narration is the script read word for word: captions and plans use the script's spelling ("8-K", not "eight k").
+      if (v.faceless?.script?.length) t.words = alignToScript(t.words, v.faceless.script);
       const vo = await voicing;
       if (vo.cents) await spend(v.id, vo.cents, 'voice enhancement (Runway voice isolation)');
       await log(vo.path ? 'voice-enhanced' : 'voice-not-enhanced', subject, vo.path ? { path: vo.path } : { why: vo.why });
@@ -206,7 +208,8 @@ export async function step(v: Vlog, origin: string): Promise<string> {
       // The dialogue editor first: misheard names fixed in the transcript (so every caption and plan reads them right)
       // and the take's restarts, repeats and stumbles marked to cut. A failure here never stops the recording.
       let drops: Drop[] = [];
-      try {
+      // Not on a faceless narration: it is the approved script, already spelled right, with no stumbles to cut.
+      if (!v.faceless) try {
         const clean = await cleanTake(words, { title: v.title ?? undefined, terms: keyterms(v.sources), sources: v.sources });
         await spend(v.id, clean.cents, 'dialogue edit (Claude)');
         drops = clean.drops;
