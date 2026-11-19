@@ -60,6 +60,7 @@ export default async function UneditOne({ params }: { params: Promise<{ id: stri
       cuts: vlog.edit.cuts.reduce<Record<string, number>>((a, c) => ({ ...a, [c.why]: (a[c.why] ?? 0) + 1 }), {}),
     } : null, episode: vlog.episode ?? {}, thumbs, thumbPick: vlog.thumb_pick, live: metricoolLive(), approvedAt: vlog.approved_at,
     sources: sheetText(vlog.sources),
+    scenePlan: vlog.scene_plan ?? null,
   };
   const cardClips: CardClip[] = clips.map((c, i) => ({ id: c.id, n: c.n, title: c.title, caption: c.caption, secs: c.secs != null ? Number(c.secs) : null, hook: c.hook_start_s != null, status: c.status, note: c.note, error: c.error, src: clipSrc[i], full: clipFull[i], cover: clipCover[i], copy: c.copy ?? {}, start: Number(c.start_s), end: Number(c.end_s) }));
   const nOf = new Map(clips.map((c) => [c.id, c.n]));

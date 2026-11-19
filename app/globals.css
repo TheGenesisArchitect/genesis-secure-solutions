@@ -1776,6 +1776,7 @@ button.chip{cursor:pointer}
 .nr-prod{display:flex;flex-direction:column;gap:10px}
 .nr-tabs{display:flex;flex-wrap:wrap;gap:6px}
 .nr-out{max-height:420px;overflow:auto;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px;line-height:1.5}
+.nr-out.scenes{max-height:none} /* the scene plan has its own cards and buttons: no box-in-a-box scroll */
 .nr-out p{margin:4px 0}
 .nr-out pre{white-space:pre-wrap;font-family:var(--body);margin:4px 0 10px}
 .nr-fact{margin-left:6px;font-family:var(--mono);font-size:10.5px;color:var(--accent-2)}

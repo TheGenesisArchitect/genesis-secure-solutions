@@ -7,6 +7,7 @@ import { deskFor } from '@/lib/desk';
 import { produce, researchBeat, researchDeeper, useForNextUpload } from '@/lib/newsroom';
 import { buildFaceless, startFaceless, type FacelessLength } from '@/lib/unedit-faceless';
 import { writeBrief } from '@/lib/newsroom-morning';
+import { approveProduction, planProduction } from '@/lib/unedit-scenes';
 import { sweepFree } from '@/lib/newsroom-feed';
 
 const UUID = /^[0-9a-f-]{36}$/;
@@ -62,6 +63,16 @@ export async function newsroomAction(b: Record<string, unknown>, by: string, ori
     case 'produce': {
       const r = await produce(tenant, id('story'), { angle: Number(b.angle ?? 0), formats: (Array.isArray(b.formats) ? b.formats : []).map(String), voiced: Boolean(b.voiced) }, by);
       return { id: r.id, say: `Your package is ready (${money(r.cents)}).${r.notes.length ? ` ${r.notes.length} sheet ${r.notes.length === 1 ? 'line was' : 'lines were'} left out.` : ''}` };
+    }
+    case 'draft_scenes': {
+      // The scene plan: Helix reads the story's article (or pasted text) against the script and proposes scenes;
+      // code checks every number against the article; nothing reaches the sheet until approve_scenes.
+      const plan = await planProduction(tenant, id('production'), { url: typeof b.url === 'string' ? b.url : undefined, text: typeof b.text === 'string' ? b.text.slice(0, 120_000) : undefined }, by);
+      return { say: plan.scenes.length ? `Helix proposes ${plan.scenes.length} ${plan.scenes.length === 1 ? 'scene' : 'scenes'} from the article (${money(plan.cents)}). Pick the ones to add to the sheet.${plan.notes.some((n) => n.startsWith('left out')) ? ` ${plan.notes.filter((n) => n.startsWith('left out')).length} didn’t pass the checks.` : ''}` : `No scene passed the checks this time (${money(plan.cents)}).${plan.notes.length ? ` ${plan.notes[0]}.` : ''}` };
+    }
+    case 'approve_scenes': {
+      const n = await approveProduction(tenant, id('production'), (Array.isArray(b.keep) ? b.keep : []).map(Number).filter(Number.isInteger));
+      return { say: `${n} ${n === 1 ? 'scene' : 'scenes'} added to the sources sheet. They go to the recording with the package.` };
     }
     case 'next_upload': {
       await useForNextUpload(tenant, id('production'));

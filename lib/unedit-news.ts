@@ -12,17 +12,23 @@
 //   article  | <spoken words> | <headline> | <publisher> | <date> | <url> | <passage> [| <image url>]
 //            (a cut to the article itself, the passage highlighted, the speaker in a corner bubble; built by the
 //            newsroom from the verified citation, never by a model)
+//   scene    | <spoken words> | <type> | <title> | <fact> ; <fact> (or - for none) | <source shown> [| <url>]
+//            (a purpose-built scene from the episode's article: model, bench, cad, lab or assembly; facts are
+//            "label: value" or "label: before → after"; drafted by Helix from the article, checked by code against
+//            the article's own words, added here only when a person approves the scene plan; lib/unedit-scenes.ts)
 // Items are split by " ; " with a space on both sides, so a ";" inside a line of text stays in the text.
 import type { Word } from '@/lib/unedit-media';
 import { findRun } from '@/lib/unedit-edit';
+import { SCENES, parseFact, type SceneType } from '@/lib/unedit-scene-kit';
 
-export type NewsKind = 'source' | 'quote' | 'timeline' | 'ticker' | 'globe' | 'article';
-export const NEWS_KINDS: readonly NewsKind[] = ['source', 'quote', 'timeline', 'ticker', 'globe', 'article'];
+export type NewsKind = 'source' | 'quote' | 'timeline' | 'ticker' | 'globe' | 'article' | 'scene';
+export const NEWS_KINDS: readonly NewsKind[] = ['source', 'quote', 'timeline', 'ticker', 'globe', 'article', 'scene'];
 export type GlobePhase = 'alone' | 'fall' | 'lit';
 export type NewsEntry = {
   kind: NewsKind; say: string; text: string; who?: string; when?: string; title?: string;
   items?: { date: string; text: string; say?: string }[]; crawl?: string[]; label?: string; phase?: GlobePhase;
   /** article: the page and its preview image (an outside link, or a stored copy's Blob path once planned). */ url?: string; image?: string;
+  /** scene: which scene and the facts it draws ("label: value" or "label: before → after"); who = the source shown. */ scene?: SceneType; facts?: string[];
 };
 /** What the reel draws for a newsroom item (Genovus Motion src/hf/news.tsx). */
 export type NewsData = { who?: string; when?: string; title?: string; items?: { date: string; text: string; t: number }[]; crawl?: string[]; desk?: string; label?: string; phase?: GlobePhase;
@@ -53,18 +59,28 @@ export function parseSheet(input: string | unknown[]): { entries: NewsEntry[]; e
         if (items.every(Boolean)) e = { kind, say: f[1], text: f[2], title: f[2], items: items as NonNullable<NewsEntry['items']> };
       } else if (kind === 'globe' && f.length >= 3 && ['alone', 'fall', 'lit'].includes(f[2].toLowerCase())) e = { kind, say: f[1], text: f[3] ?? '', phase: f[2].toLowerCase() as GlobePhase };
       else if (kind === 'ticker' && f.length >= 5) e = { kind, say: f[1], text: f[2], label: f[3], crawl: f[4].split(/\s+;\s+/).filter(Boolean) };
+      else if (kind === 'scene' && f.length >= 6 && SCENES[f[2].toLowerCase() as SceneType]) e = { kind, say: f[1], scene: f[2].toLowerCase() as SceneType, text: f[3], title: f[3], facts: f[4] === '-' ? [] : f[4].split(/\s+;\s+/).filter(Boolean), who: f[5], url: /^https?:\/\//.test(f[6] ?? '') ? f[6] : undefined };
       else if (kind === 'article' && f.length >= 7 && /^https?:\/\//.test(f[5])) e = { kind, say: f[1], title: f[2], who: f[3], when: f[4] && f[4] !== '-' ? f[4] : undefined, url: f[5], text: f[6], image: /^https:\/\//.test(f[7] ?? '') ? f[7] : undefined };
     } else if (row && typeof row === 'object') {
       const o = row as Record<string, unknown>;
       if (NEWS_KINDS.includes(o.kind as NewsKind) && o.say && (o.text || o.kind === 'globe')) e = { ...(o as unknown as NewsEntry), text: String(o.text ?? '') };
     }
-    if (!e) { errors.push(`line ${i + 1} isn't a source, quote, timeline, ticker, globe or article entry`); return; }
+    if (!e) { errors.push(`line ${i + 1} isn't a source, quote, timeline, ticker, globe, article or scene entry`); return; }
+    if (e.kind === 'scene') {
+      const def = SCENES[e.scene as SceneType], facts = e.facts ?? [];
+      if (!def) { errors.push(`line ${i + 1}: a scene's type is one of ${Object.keys(SCENES).join(', ')}`); return; }
+      const bad = facts.find((x) => !parseFact(x));
+      if (bad) { errors.push(`line ${i + 1}: "${bad}" isn't a "label: number" fact`); return; }
+      if (facts.length < def.facts.min || facts.length > def.facts.max || facts.some((x) => Boolean(parseFact(x)!.b) !== def.facts.pair)) { errors.push(`line ${i + 1}: a ${def.label.toLowerCase()} takes ${def.facts.min === def.facts.max ? def.facts.min : `${def.facts.min} to ${def.facts.max}`} ${def.facts.pair ? 'before → after' : 'single-number'} facts`); return; }
+      if (!e.who) { errors.push(`line ${i + 1}: a scene needs its source shown`); return; }
+    }
     if (e.kind === 'quote' && !e.who) { errors.push(`line ${i + 1}: a quote needs who said it`); return; }
     if (e.say.split(/\s+/).length < 2) { errors.push(`line ${i + 1}: give at least two spoken words to place it`); return; }
     entries.push({
       kind: e.kind, say: clip(e.say, 160), text: clip(e.text, e.kind === 'quote' ? 220 : 90), who: e.who ? clip(e.who, 60) : undefined, when: e.when ? clip(e.when, 30) : undefined,
       title: e.title ? clip(e.title, e.kind === 'article' ? 140 : 50) : undefined, label: e.label ? clip(e.label, 16) : undefined,
       ...(e.kind === 'article' ? { url: clip(e.url, 1000), image: e.image ? clip(e.image, 1000) : undefined, text: clip(e.text, 280) } : {}),
+      ...(e.kind === 'scene' ? { scene: e.scene, facts: (e.facts ?? []).slice(0, 5).map((x) => clip(x, 80)), title: clip(e.title ?? e.text, 80), url: e.url ? clip(e.url, 1000) : undefined } : {}),
       items: e.items?.slice(0, 5).map((x) => ({ date: clip(x.date, 16), text: clip(x.text, 70), say: x.say ? clip(x.say, 120) : undefined })),
       crawl: e.crawl?.slice(0, 8).map((x) => clip(x, 70)), phase: e.phase,
     });
@@ -92,6 +108,8 @@ export function placeNews(entries: NewsEntry[], words: Word[], epTime: (s: numbe
     const at = spokenAt(words, e.say);
     const T0 = at == null ? null : epTime(at);
     if (T0 == null) { notes.push(`${e.kind} "${e.text.slice(0, 40)}" not placed: "${e.say.slice(0, 40)}" isn't in the episode`); continue; }
+    // Scenes are placed but not drawn yet: their renders join the episode in the next step (lib/unedit-scenes.ts).
+    if (e.kind === 'scene') { notes.push(`scene "${e.text.slice(0, 40)}" lands at ${Math.floor(T0 / 60)}:${String(Math.floor(T0 % 60)).padStart(2, '0')} (planned; scene renders aren't on episodes yet)`); continue; }
     const T = Math.max(0, T0 - (e.kind === 'source' ? 0.1 : 0.25));
     if (e.kind === 'source') items.push({ T, D: 4.5, kind: e.kind, text: e.text, news: {}, sound: 'tick' });
     else if (e.kind === 'quote') items.push({ T, D: Math.min(8, 3.6 + e.text.split(/\s+/).length * 0.22), kind: e.kind, text: e.text, news: { who: e.who, when: e.when }, sound: 'swish' });
@@ -124,6 +142,7 @@ export function sheetText(entries: NewsEntry[] | null | undefined): string {
     if (e.kind === 'quote') return `quote | ${e.say} | ${e.text} | ${e.who ?? ''}${e.when ? ` | ${e.when}` : ''}`;
     if (e.kind === 'ticker') return `ticker | ${e.say} | ${e.text} | ${e.label ?? 'Sourced'} | ${(e.crawl ?? []).join(' ; ')}`;
     if (e.kind === 'globe') return `globe | ${e.say} | ${e.phase ?? 'alone'}${e.text ? ` | ${e.text}` : ''}`;
+    if (e.kind === 'scene') return `scene | ${e.say} | ${e.scene} | ${e.title ?? e.text} | ${(e.facts ?? []).join(' ; ') || '-'} | ${e.who ?? ''}${e.url ? ` | ${e.url}` : ''}`;
     if (e.kind === 'article') return `article | ${e.say} | ${e.title ?? ''} | ${e.who ?? ''} | ${e.when ?? '-'} | ${e.url ?? ''} | ${e.text}${e.image ? ` | ${e.image}` : ''}`;
     return `timeline | ${e.say} | ${e.title ?? e.text} | ${(e.items ?? []).map((x) => `${x.date}: ${x.text}${x.say ? ` @ ${x.say}` : ''}`).join(' ; ')}`;
   }).join('\n');

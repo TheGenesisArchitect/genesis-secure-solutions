@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PostPlan, type Planning } from '@/components/studio/PostPlan';
+import { ScenePlan } from '@/components/studio/ScenePlan';
+import type { ScenePlan as ScenePlanData } from '@/lib/unedit-scene-kit';
 
 export type CardClip = { id: string; n: number; title: string; caption: string; secs: number | null; hook: boolean; status: string; note: string | null; error: string | null; src: string | null; /** the master, when src is the light review copy */ full?: string | null; /** the vertical cover the posts carry */ cover?: string | null; copy: { instagram?: string; facebook?: string; youtube?: string }; start: number; end: number };
 export type CardPost = { id: string; platform: string; kind: string; title: string | null; clip: number | null; status: string; mc_status: string | null; mc_error: string | null; posted_url: string | null; scheduled_at?: string | null };
@@ -15,7 +17,8 @@ const SHOW_PACKAGES = [
   { id: 'kinetic', label: 'Agency kinetic' }, { id: 'classic', label: 'Classic' },
 ];
 export type CardVlog = { id: string; title: string; stage: string; error: string | null; provider: string | null; words: number | null; duration: number | null; bytes: number; cost: number; source: string | null; /** the master, when source is the light review copy */ sourceFull?: string | null; polish: { secs: number; removed: number; ready: boolean; error: string | null; parts: number; done: number; gaps?: string[]; cuts: Record<string, number>; graphics: number; graphicsError: string | null; chapters: boolean; pkg: string | null; qa: { ok: boolean; issues: string[]; fixed: number } | null; newsNotes?: string[] } | null; episode: { title?: string; description?: string; dropped?: string[] }; thumbs: { src: string; text: string; look: string }[]; thumbPick: number | null; live: boolean; approvedAt: string | null;
-  /** Newsroom: the approved sources sheet as text (lib/unedit-news.ts format). */ sources?: string };
+  /** Newsroom: the approved sources sheet as text (lib/unedit-news.ts format). */ sources?: string;
+  /** The scene plan Helix proposed from the article (lib/unedit-scenes.ts). */ scenePlan?: ScenePlanData | null };
 
 /** A player that keeps its link while it shows the same file. The card refreshes itself (every 20 s, every 4 s while
  *  something renders) and every refresh signs a fresh link to the same video; a changed src makes the browser drop its
@@ -146,6 +149,10 @@ export function UneditCard({ vlog, clips, posts, planning }: { vlog: CardVlog; c
             </>
           ) : null}
           <LongForm posts={posts} ready={review && (!vlog.polish || vlog.polish.ready || Boolean(vlog.polish.error))} busy={busy === 'longform'} onPost={() => send({ tool: 'post_longform' }, 'longform')} />
+          <ScenePlan plan={vlog.scenePlan ?? null} before={false} disabled={['publishing', 'published'].includes(vlog.stage) || !vlog.words}
+            busy={busy === 'scenes-draft' ? 'draft' : busy === 'scenes-approve' ? 'approve' : null}
+            onDraft={(a) => { void send({ tool: 'draft_scenes', ...a }, 'scenes-draft'); }}
+            onApprove={(keep) => { void send({ tool: 'approve_scenes', keep }, 'scenes-approve'); }} />
           <SourcesSheet value={vlog.sources ?? ''} notes={vlog.polish?.newsNotes ?? []} disabled={busy === 'sources' || ['publishing', 'published'].includes(vlog.stage)} onSave={(sheet) => send({ tool: 'set_sources', sheet }, 'sources')} />
         </div>
       </section>

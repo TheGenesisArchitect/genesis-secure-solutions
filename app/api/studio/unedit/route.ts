@@ -7,7 +7,8 @@ import { calendarText, cancelPosts, movePosts } from '@/lib/unedit-helix';
 import { deskFor } from '@/lib/desk';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Drafting a scene plan reads a long article with Claude (about a minute); everything else answers in seconds.
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const supabase = await db();

@@ -58,14 +58,14 @@ async function spentToday(tenant: string): Promise<number> {
   return (data ?? []).reduce((a, r) => a + (r.cost_cents ?? 0), 0);
 }
 /** Refuse a run that would pass the daily newsroom cap or the monthly Studio cap (estimate in cents). */
-async function guard(tenant: string, estimate: number): Promise<void> {
+export async function guard(tenant: string, estimate: number): Promise<void> {
   const s = await settings(tenant);
   const today = await spentToday(tenant);
   if (today + estimate > s.daily_cap_cents) throw new Error(`That would pass today's newsroom cap ($${(today / 100).toFixed(2)} of $${(s.daily_cap_cents / 100).toFixed(2)} used).`);
   const [{ data: spent }, { data: b }] = await Promise.all([db().rpc('studio_spent_cents'), db().from('studio_budget').select('monthly_cap_cents').maybeSingle()]);
   if (b?.monthly_cap_cents != null && Number(spent ?? 0) + estimate > b.monthly_cap_cents) throw new Error(`That would pass the monthly Studio budget ($${(Number(spent ?? 0) / 100).toFixed(2)} of $${(b.monthly_cap_cents / 100).toFixed(2)} used).`);
 }
-export async function record(tenant: string, run: { kind: 'wire' | 'deeper' | 'produce' | 'brief'; beat?: string | null; story_id?: string | null; searches?: number; cost_cents: number; stories?: number; error?: string | null; by: string | null }) {
+export async function record(tenant: string, run: { kind: 'wire' | 'deeper' | 'produce' | 'brief' | 'scenes'; beat?: string | null; story_id?: string | null; searches?: number; cost_cents: number; stories?: number; error?: string | null; by: string | null }) {
   await db().from('newsroom_runs').insert({ tenant_id: tenant, kind: run.kind, beat: run.beat ?? null, story_id: run.story_id ?? null, searches: run.searches ?? 0, cost_cents: Math.max(0, Math.round(run.cost_cents)), stories: run.stories ?? 0, error: run.error ?? null, created_by: run.by });
 }
 

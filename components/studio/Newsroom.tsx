@@ -5,11 +5,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FACELESS_VOICES, type FacelessState } from '@/lib/faceless-voices';
+import { ScenePlan } from '@/components/studio/ScenePlan';
+import type { ScenePlan as ScenePlanData } from '@/lib/unedit-scene-kit';
 
 export type NrClaim = { id: string; text: string; status: string; attribution: string | null; denial: string | null; source_title: string | null; source_url: string; cited_text: string | null; verified: boolean; approved: boolean };
 export type NrStory = { id: string; beat: string; sub: string | null; headline: string; source: string; url: string; published_on: string | null; thumb: string | null; why: string | null; fit: number | null; status: string; angles: { title: string; line: string }[]; chosen: number | null; build: string[]; voiced: boolean; created_at: string; claims: NrClaim[] };
 export type NrProduction = { id: string; story_id: string; angle: string; formats: string[]; next_upload: boolean; vlog_id: string | null; cost: number; created_at: string; faceless: FacelessState | null;
-  outputs: { script?: { part: string; lines: { say: string; source: string }[] }[]; teleprompter?: string; sheet?: string; sheetNotes?: string[]; broll?: { shot: string; why: string; kind: string }[]; article?: { title: string; markdown: string }; social?: { linkedin?: string; x?: string[]; newsletter?: string }; titles?: string[]; check?: { passed: boolean; issues: { where: string; rule: string; match: string; why: string }[] } } };
+  outputs: { script?: { part: string; lines: { say: string; source: string }[] }[]; teleprompter?: string; sheet?: string; sheetNotes?: string[]; broll?: { shot: string; why: string; kind: string }[]; article?: { title: string; markdown: string }; social?: { linkedin?: string; x?: string[]; newsletter?: string }; titles?: string[]; check?: { passed: boolean; issues: { where: string; rule: string; match: string; why: string }[] }; scenePlan?: ScenePlanData | null } };
 type Beat = { id: string; label: string; brief: string; subs?: string[] };
 
 const toast = (r: { ok?: string; err?: string }) => window.dispatchEvent(new CustomEvent('genovus:toast', { detail: { ...r, at: Date.now() } }));
@@ -293,14 +295,18 @@ export function Newsroom({ desk, stories, productions, beats, voice, spentToday,
                   </div>
                 ) : null}
                 <div className="nr-tabs" role="tablist">
-                  {[['script', 'Script'], ['tele', 'Teleprompter'], ['sheet', 'Sources sheet'], ['broll', 'B-roll'], ['article', 'Article'], ['social', 'Posts']].filter(([k]) => (k !== 'article' || prod.outputs.article) && (k !== 'social' || prod.outputs.social)).map(([k, l]) => (
+                  {[['script', 'Script'], ['tele', 'Teleprompter'], ['sheet', 'Sources sheet'], ['scenes', 'Scenes'], ['broll', 'B-roll'], ['article', 'Article'], ['social', 'Posts']].filter(([k]) => (k !== 'article' || prod.outputs.article) && (k !== 'social' || prod.outputs.social)).map(([k, l]) => (
                     <button type="button" role="tab" aria-selected={tab === k} key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
                   ))}
                 </div>
-                <div className="nr-out">
+                <div className={`nr-out${tab === 'scenes' ? ' scenes' : ''}`}>
                   {tab === 'script' ? (prod.outputs.script ?? []).map((p, i) => <div key={i}><b>{p.part}</b>{p.lines.map((l, j) => <p key={j}>{l.say}{l.source ? <span className="nr-fact">{l.source}</span> : null}</p>)}</div>) : null}
                   {tab === 'tele' ? <pre>{prod.outputs.teleprompter}</pre> : null}
                   {tab === 'sheet' ? <><pre>{prod.outputs.sheet || 'No on-screen facts placed.'}</pre>{prod.outputs.sheetNotes?.length ? <p className="muted nr-small">{prod.outputs.sheetNotes.join('; ')}</p> : null}</> : null}
+                  {tab === 'scenes' ? <ScenePlan plan={prod.outputs.scenePlan ?? null} defaultUrl={story.url} before disabled={Boolean(prod.vlog_id)}
+                    busy={busy === 'scenes-draft' ? 'draft' : busy === 'scenes-approve' ? 'approve' : null}
+                    onDraft={(a) => { void send({ tool: 'draft_scenes', production: prod.id, ...a }, 'scenes-draft'); }}
+                    onApprove={(keep) => { void send({ tool: 'approve_scenes', production: prod.id, keep }, 'scenes-approve'); }} /> : null}
                   {tab === 'broll' ? (prod.outputs.broll ?? []).map((b, i) => <p key={i}><b>{b.shot}</b> <span className="muted">· {b.kind === 'illustration' ? 'illustration (labelled)' : b.kind === 'screen' ? 'screen' : 'you film it'} · {b.why}</span></p>) : null}
                   {tab === 'article' && prod.outputs.article ? <><b>{prod.outputs.article.title}</b><pre>{prod.outputs.article.markdown}</pre></> : null}
                   {tab === 'social' && prod.outputs.social ? <><b>LinkedIn</b><pre>{prod.outputs.social.linkedin}</pre><b>X thread</b><pre>{(prod.outputs.social.x ?? []).join('\n\n')}</pre><b>Newsletter</b><pre>{prod.outputs.social.newsletter}</pre></> : null}

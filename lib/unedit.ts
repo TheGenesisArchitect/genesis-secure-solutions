@@ -31,7 +31,8 @@ import { checkAll } from '@/lib/agency-copy';
 import { enhanceVoice, isEnhanced } from '@/lib/unedit-voice';
 import { makePartReview, dropPartReview } from '@/lib/unedit-review';
 import { FILL, NEUTRAL, studioLight, analyzeLook, episodeSize, framing, gradeFilter, sampleTimes, type Box, type Look } from '@/lib/unedit-look';
-import { parseSheet, placeNews, type NewsEntry } from '@/lib/unedit-news';
+import { parseSheet, placeNews, sheetText, type NewsEntry } from '@/lib/unedit-news';
+import { planRecording, withScenes, type ScenePlan } from '@/lib/unedit-scenes';
 import { musicBed } from '@/lib/unedit-music';
 import { claimForUpload } from '@/lib/newsroom';
 import { CREDIT_CENTS, runwayConfigured, runwayRoutedVideo, runwayTask, runwayTextVideo } from '@/lib/runway';
@@ -58,6 +59,8 @@ export type Vlog = {
   audio_blob: string | null; edit: Edit | null; look: Look | null; episode_plan: EpisodePlan | null; episode_path: string | null;
   /** Newsroom: the approved sources sheet (lib/unedit-news.ts); null on ordinary recordings. */
   sources?: NewsEntry[] | null;
+  /** The scene plan Helix proposed from the article (lib/unedit-scenes.ts); approved scenes move onto the sheet. */
+  scene_plan?: ScenePlan | null;
   /** Faceless (lib/unedit-faceless.ts): narration over the moving background; null on a real take. */
   faceless?: { voice: string; production: string; length: string } | null;
   /** How the campaign was approved (lib/unedit-plan.ts); null before Approve. */
@@ -1231,6 +1234,8 @@ type Tap =
   | { tool: 'set_article_mode'; mode: 'bubble' | 'cutout' }
   | { tool: 'set_package'; pkg: string }
   | { tool: 'set_sources'; sheet: string }
+  | { tool: 'draft_scenes'; url?: string; text?: string }
+  | { tool: 'approve_scenes'; keep: number[] }
   | { tool: 'drop_graphic'; kind: string; text: string; T: number }
   | { tool: 'approve'; mode?: PostMode; rhythm?: Rhythm; at?: Record<string, string> }
   | { tool: 'move_post'; post: string; at: string }
@@ -1338,6 +1343,24 @@ export async function tap(id: string, t: Tap, by: string, origin: string): Promi
       }
       await log('set-sources', id, { entries: entries.length, by });
       return `${entries.length} sourced ${entries.length === 1 ? 'item' : 'items'} saved${replan ? '; replanning the episode’s graphics' : '; they go on the episode when it’s polished'}.`;
+    }
+    case 'draft_scenes': {
+      // The scene plan from the episode's article, checked against the article and this recording's own words.
+      if (vlog.stage === 'published' || vlog.stage === 'publishing') throw new Error('This campaign is already approved.');
+      if (!vlog.transcript_blob) throw new Error('Wait until the recording is transcribed.');
+      const said = (await readWords(vlog)).map((w) => w.w).join(' ');
+      const plan = await planRecording(vlog.tenant_id, { id, title: vlog.title, sources: vlog.sources ?? null }, said, { url: t.url, text: typeof t.text === 'string' ? t.text.slice(0, 120_000) : undefined }, by);
+      await dbx().from('unedit_vlogs').update({ scene_plan: plan }).eq('id', id);
+      await log('draft-scenes', id, { scenes: plan.scenes.length, cents: plan.cents, by });
+      return plan.scenes.length ? `Helix proposes ${plan.scenes.length} ${plan.scenes.length === 1 ? 'scene' : 'scenes'} from the article. Pick the ones to add.` : `No scene passed the checks this time.${plan.notes.length ? ` ${plan.notes[0]}.` : ''}`;
+    }
+    case 'approve_scenes': {
+      // Approved scenes become scene lines on the sheet, saved through set_sources (parse, replan, notes).
+      if (!vlog.scene_plan) throw new Error('Draft the scene plan first.');
+      const { entries, added } = withScenes(vlog.sources, vlog.scene_plan, (Array.isArray(t.keep) ? t.keep : []).map(Number).filter(Number.isInteger));
+      const say = await tap(id, { tool: 'set_sources', sheet: sheetText(entries) }, by, origin);
+      await dbx().from('unedit_vlogs').update({ scene_plan: { ...vlog.scene_plan, approved: { keep: t.keep, at: new Date().toISOString() } } }).eq('id', id);
+      return `${added} ${added === 1 ? 'scene' : 'scenes'} on the sheet. ${say}`;
     }
     case 'set_article_mode': {
       // Article cut-ins: the speaker in a corner bubble, or cut out and standing beside the article. The reel and the
