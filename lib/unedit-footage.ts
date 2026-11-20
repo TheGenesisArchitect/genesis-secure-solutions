@@ -175,7 +175,8 @@ export async function acquire(tenant: string, c: Candidate, query: string, spent
     // or on /tmp (an 8K-era lesson: memory and disk run out long before the step's time does).
     // NASA and Commons videos open (and close) on title slates: logos, names, phone numbers (2026-11-19). Take the
     // middle. Pixabay clips are single shots, taken from the start.
-    const dur = (await probe(c.file_url)).duration;
+    // The source's own length when it gives one (Commons refuses a probe without our client name).
+    const dur = c.secs || (await probe(c.file_url)).duration;
     if (!dur) throw new Error('source unreadable');
     const from = c.source === 'pixabay' || dur < 8 ? 0 : Math.min(dur * 0.33, Math.max(0, dur - MAX_SECS - 2));
     await ffmpeg(['-user_agent', UA, '-ss', from.toFixed(2), '-i', c.file_url, '-t', String(MAX_SECS), '-an', '-vf', "scale='min(1920,iw)':-2,fps=30", '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', 'out.mp4'], d, 300_000);
@@ -231,7 +232,9 @@ Return only JSON: {"ok":true|false,"why":"<under 12 words>"}.`;
 const LOOK_RULES = `You check stock footage before it goes under a news explainer. You see three frames from one clip.
 Reject it if ANY frame shows: a logo, brand mark or product branding that can be read; a title slate, caption, lower
 third, watermark, phone number or other overlaid text; a person whose face could be recognised (backs of heads, hands
-and distant silhouettes are fine); anything graphic or unsafe; or if it does not plausibly show the search.
+and distant silhouettes are fine); anything graphic or unsafe; or if it is clearly unrelated to the search.
+Judge the topic loosely: this is mood B-roll under a sentence, so it only needs to fit the search's subject and feel
+(hands typing fits "documents on a desk"; a busy office fits "empty office"). Do not reject for missing details.
 Return only JSON: {"ok":true|false,"why":"<under 12 words>"}.`;
 
 /** Claude's look at three frames of a stored clip (cents for the call). Unreadable answers count as a rejection. */
@@ -241,7 +244,7 @@ export async function lookCheck(frames: Buffer[], query: string, person?: string
   const base = (process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com').replace(/\/$/, '');
   const r = await fetch(`${base}/v1/messages`, {
     method: 'POST', headers: { 'x-api-key': k, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, signal: AbortSignal.timeout(90_000),
-    body: JSON.stringify({ model: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim(), max_tokens: 200, system: person ? PEOPLE_LOOK : LOOK_RULES,
+    body: JSON.stringify({ model: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5').trim(), max_tokens: 300, system: person ? PEOPLE_LOOK : LOOK_RULES,
       messages: [{ role: 'user', content: [{ type: 'text', text: person ? `Shown as: ${person}` : `Search: "${query}"` }, ...frames.map((b) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b.toString('base64') } }))] }] }),
   });
   const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number }; error?: { message?: string } };
@@ -319,7 +322,7 @@ export function onTopic(c: Candidate, query: string): boolean {
 }
 
 /** Pick and store footage for planned lines, inside a time budget (the clip's render shares the step): three lines at
- *  a time, the source asked for then Pixabay, at most two candidates each, every one on topic, long enough for its
+ *  a time, the source asked for then Pixabay, at most four candidates each, every one on topic, long enough for its
  *  line and not already used in this clip. When the budget runs out, the lines without footage stay cards. */
 export async function footageFor(tenant: string, plan: FootagePlan[], need: Map<number, number>, budgetMs = 110_000): Promise<{ got: Map<number, Footage>; cents: number; rejected: string[] }> {
   const got = new Map<number, Footage>(), used = new Set<string>(), spent = { cents: 0 }, rejected: string[] = [];
@@ -329,7 +332,7 @@ export async function footageFor(tenant: string, plan: FootagePlan[], need: Map<
       const n = need.get(p.i) ?? 3;
       const cands = (await search(tenant, src, p.query).catch(() => [] as Candidate[]))
         .filter((c) => (p.person ? c.person === p.person : onTopic(c, p.query)) && !used.has(c.page_url) && (c.secs === 0 || c.secs >= Math.min(MAX_SECS, n + 0.3)));
-      for (const c of cands.slice(0, 2)) {
+      for (const c of cands.slice(0, 4)) {
         if (Date.now() > until) { rejected.push(`line ${p.i}: out of time`); return; }
         used.add(c.page_url);
         try { got.set(p.i, await acquire(tenant, c, p.query, spent, n)); return; }
