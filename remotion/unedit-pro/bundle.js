@@ -155970,7 +155970,7 @@ function Hook({ b, kicker }) {
   ] });
 }
 function Statement({ b, words }) {
-  var _a;
+  var _a, _b;
   const t = useSec();
   const toks = (b.text ?? "").split(" ");
   const inBeat = words.filter((w) => w.s >= b.s - 0.3 && w.s < b.e + 0.1);
@@ -155981,8 +155981,8 @@ function Statement({ b, words }) {
   const size = toks.length > 22 ? 72 : toks.length > 14 ? 86 : 104;
   const lt = t - b.s, grow = tw(lt, 0, Math.max(0.6, b.e - b.s - 0.3), E.sineInOut);
   return (
-    // Over a person's photo the words sit low, above the name plate, so the face stays clear.
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { ...((_a = b.media) == null ? void 0 : _a.kind) === "photo" ? { ...box(960, 1420), justifyContent: "flex-end" } : box(), paddingLeft: 34 }, children: [
+    // Over a person (photo, or video with a name plate) the words sit low, above the name plate, so the face stays clear.
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { ...((_a = b.media) == null ? void 0 : _a.kind) === "photo" || ((_b = b.media) == null ? void 0 : _b.name) ? { ...box(960, 1420), justifyContent: "flex-end" } : box(), paddingLeft: 34 }, children: [
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", left: 0, top: "50%", width: 8, height: `${mix(10, 46, grow)}%`, transform: "translateY(-50%)", borderRadius: 4, background: `linear-gradient(${HF.orange}, ${HF.deep})`, boxShadow: "0 0 30px rgba(244,90,27,0.5)" } }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)(Kinetic, { text: b.text ?? "", size, accent: b.accent, t: lt, at: 0, step: 0.025, said: said.map((x) => x - b.s) }),
       b.who ? /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { marginTop: 44, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 14, padding: "14px 24px", borderRadius: 999, background: "rgba(7,8,12,0.7)", border: "1px solid rgba(255,255,255,0.16)", opacity: tw(lt, 0.4, 0.4) }, children: [
