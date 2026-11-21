@@ -71,6 +71,22 @@ export default async function ConsoleHome({ searchParams }: { searchParams: Prom
         <Tile label="Open gates" value={<span className="num">{gatesOpen}</span>} hint="Photo rights, carrier approval, access…" />
       </div>
 
+      <Panel
+        title="Hero film"
+        sub="Meet Helix · 52 s · the Genovus Intelliware story, for prospects, partners and investors"
+        actions={<a className="btn small" href="/film/hero.mp4" target="_blank" rel="noopener">Open full screen ↗</a>}
+      >
+        <video
+          controls
+          playsInline
+          preload="none"
+          poster="/film/hero-poster.jpg"
+          src="/film/hero.mp4"
+          aria-label="Meet Helix, the Genovus hero film"
+          style={{ display: 'block', width: '100%', maxWidth: 760, aspectRatio: '16 / 9', borderRadius: 12, background: '#0b0c10' }}
+        />
+      </Panel>
+
       <Panel title="Pipeline" sub="Every client by lifecycle stage" actions={<Link className="btn small" href={'/console/pipeline' + (samples ? '?samples=1' : '')}>Open pipeline</Link>}>
         <div className="chain">
           {STAGES.map((s) => (
