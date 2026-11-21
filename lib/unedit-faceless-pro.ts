@@ -123,9 +123,10 @@ export function facelessProps(src: string, words: Word[], spans: Span[], shots: 
       else if (en.kind === 'source') b = { s, e, kind: 'statement', text: sentence(sh), accent, who: en.text };
       else if (en.kind === 'scene' && en.scene) b = { s, e, kind: 'scene', scene: { type: en.scene, title: en.text, facts: en.facts ?? [], who: en.who ?? '' } };
     }
-    // Footage plays under a plain statement or word (never under a card that carries a fact, a quote or the source).
+    // Footage plays under the opening card and under a plain statement or word (never under a card that carries a
+    // fact, a quote or the source).
     const f = opts.footage?.get(n);
-    if (f && n > 0 && (b.kind === 'statement' || b.kind === 'word')) b.media = f;
+    if (f && (n === 0 || b.kind === 'statement' || b.kind === 'word')) b.media = f;
     beats.push(b);
   }
   if (beats[0]) beats[0].s = 0;

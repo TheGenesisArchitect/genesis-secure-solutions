@@ -223,16 +223,16 @@ async function acquirePhoto(tenant: string, c: Candidate, query: string, spent: 
 }
 
 const PEOPLE_LOOK = `You check a licensed photo or video of a public figure before it appears in a news explainer, with
-the person's name on screen. You do NOT identify anyone from their face; the name comes from the source. Reject it if
-ANY frame shows: a watermark, title slate, caption or other overlaid text; a readable product or brand logo as the main
-subject; a child; anything graphic, private (home, family) or demeaning; no single clear main subject; or it is not a
-photo of a person at all. A plain conference backdrop or name badge is fine.
+the person's name on screen. You do NOT identify anyone from their face; the name comes from the source. This is
+news: stages, banners, logos, flags, other officials and crowds around the person are all fine. Reject it only if ANY
+frame shows: a watermark, title slate or burned-in caption; a child as the subject; anything graphic or demeaning; or
+no person at all.
 Return only JSON: {"ok":true|false,"why":"<under 12 words>"}.`;
 
 const LOOK_RULES = `You check stock footage before it goes under a news explainer. You see three frames from one clip.
-Reject it if ANY frame shows: a logo, brand mark or product branding that can be read; a title slate, caption, lower
-third, watermark, phone number or other overlaid text; a person whose face could be recognised (backs of heads, hands
-and distant silhouettes are fine); anything graphic or unsafe; or if it is clearly unrelated to the search.
+People, faces, crowds and everyday logos are fine: real life makes the story. Reject it only if ANY frame shows: a
+title slate, burned-in caption, lower third, watermark or phone number; a child as the subject; anything graphic or
+unsafe; or if it is clearly unrelated to the search.
 Judge the topic loosely: this is mood B-roll under a sentence, so it only needs to fit the search's subject and feel
 (hands typing fits "documents on a desk"; a busy office fits "empty office"). Do not reject for missing details.
 Return only JSON: {"ok":true|false,"why":"<under 12 words>"}.`;
@@ -261,19 +261,18 @@ const PLAN_RULES = `You choose real stock footage for a faceless news explainer,
 For each line return either null (a text card says it better: numbers, quotes, verdicts, the call to action, abstract
 claims) or {"i":<line #>,"query":"<2-5 word visual search>","source":"pixabay|nasa|commons"}.
 Rules:
-- Search for what can be FILMED: places, buildings, objects, screens, documents, machines, markets, cities, nature.
-- NEVER a person's name, a public figure, a face, or a crowd as the subject. NEVER a company or brand name or logo.
-  "Jensen Huang resigned" -> "empty corporate office" ; "Nvidia chips" -> "computer chip macro".
-- pixabay: everyday, business, technology, finance, city. nasa: space, rockets, Earth from orbit, labs, aviation.
-  commons: public landmarks and buildings (e.g. "US Capitol building", "Wall Street"). Never a name used in the story.
-- Footage on at most about half the lines, never on the first line, and never on two lines in a row with the same query.
+- Make it vivid and specific: people at work, crowds, trading floors, screens, products, places, machines, cities.
+- pixabay: everyday life, people, business, technology, finance, city (generic searches; never a person's name).
+  nasa: space, rockets, Earth from orbit, labs, aviation. commons: named companies, products, landmarks and buildings
+  from the story ("Nvidia headquarters", "Nvidia GPU", "Wall Street").
+- Footage on most lines, the first line too (it opens the clip), never on two lines in a row with the same query.
 Return only JSON: {"plan":[...]}.`;
 
 const PEOPLE_RULES = `
 PEOPLE (this desk shows public figures): when a line is about a named public figure at the centre of the story (an
 executive, official, founder, investor), return {"i":<line #>,"person":"<their full name as in the story>"} instead of
-a query: real people make the story. At most 3 person lines per clip, never two in a row for the same person. Never a
-private person, a victim, a child, or anyone in a story about a crime, death or tragedy.`;
+a query: real people make the story. Use them generously, up to 6 per clip, never two in a row for the same person.
+Never a private person, a victim or a child.`;
 
 /** Claude's footage plan for a clip's sentences (cents for the call). Lines it can't use come back null. */
 export async function planFootage(lines: { i: number; text: string }[], title: string, people = false): Promise<{ plan: FootagePlan[]; cents: number }> {
@@ -293,12 +292,12 @@ export function checkPlan(raw: unknown[], ids: number[], names: string[] = [], p
   for (const x of raw as { i?: unknown; query?: unknown; source?: unknown; person?: unknown }[]) {
     if (!x || typeof x !== 'object') continue;
     const i = Number(x.i);
-    if (!ids.includes(i) || i === ids[0]) continue;
+    if (!ids.includes(i)) continue;
     // A person: only on a desk that shows people, only someone the story itself names (every part of the name),
-    // at most 3 a clip, never the same person on two lines in a row.
+    // at most 6 a clip, never the same person on two lines in a row.
     if (x.person != null) {
       const person = clip(x.person, 60), parts = person.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2);
-      if (!people || parts.length < 2 || !parts.every((w) => named.has(w)) || persons >= 3 || last === `person:${person}`) continue;
+      if (!people || parts.length < 2 || !parts.every((w) => named.has(w)) || persons >= 6 || last === `person:${person}`) continue;
       out.push({ i, query: `person:${person}`, source: 'commons', person }); last = `person:${person}`; persons++;
       continue;
     }
@@ -306,7 +305,9 @@ export function checkPlan(raw: unknown[], ids: number[], names: string[] = [], p
     if (!query || !(source in SEARCH)) continue;
     if (query.split(' ').length > 6 || query === last) continue;
     const words = new Set(query.split(/[^\p{L}\p{N}]+/u));
-    if (names.some((n) => n && words.has(n.toLowerCase()))) continue;
+    // Stock libraries never get a name from the story (a stranger must not stand in for the person); Commons may
+    // search named companies, products and places.
+    if (source !== 'commons' && names.some((n) => n && words.has(n.toLowerCase()))) continue;
     out.push({ i, query, source }); last = query;
   }
   return out;

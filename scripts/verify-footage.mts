@@ -23,10 +23,11 @@ const plan = checkPlan([
   { i: 4, query: 'jensen huang on stage', source: 'commons' },
   { i: 9, query: 'stock market', source: 'pixabay' },
 ], ids, ['Jensen', 'Huang', 'Nvidia']);
-ok(!plan.some((p) => p?.i === 0), 'never footage on the first line (the hook card)');
+ok(plan.some((p) => p?.i === 0), 'footage may open the clip (the first line)');
 ok(plan.filter((p) => p?.query === 'empty corporate office').length === 1, 'the same search is never used on two lines in a row');
 ok(!plan.some((p) => p?.i === 3), 'an unknown source (e.g. youtube) is refused');
-ok(!plan.some((p) => p?.i === 4), 'a search naming a person or company in the story is refused');
+ok(plan.some((p) => p?.i === 4), 'Commons may search a name from the story (companies, products, places)');
+ok(checkPlan([{ i: 1, query: 'jensen huang on stage', source: 'pixabay' }], ids, ['Jensen', 'Huang']).length === 0, 'a stock library never searches a name from the story (no stand-in strangers)');
 ok(!plan.some((p) => p?.i === 9), 'a line that is not in the clip is refused');
 const word = checkPlan([{ i: 1, query: 'cyber security office', source: 'pixabay' }, { i: 2, query: 'cloud platform servers', source: 'pixabay' }], ids, ['SEC', 'Form']);
 ok(word.length === 2, 'names match whole words only ("SEC" does not refuse "security", "Form" does not refuse "platform")', word.map((p) => p?.query).join(', '));
