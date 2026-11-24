@@ -23,6 +23,7 @@ if (!t) t = must(await db.from('tenants').insert({ slug: SLUG, name: 'Test Socia
 else must(await db.from('tenants').update({ stage: 'build', plan: 'growth', is_sample: false, metricool_connect_url: null }).eq('id', t.id), 'update tenant');
 must(await db.from('social_setup').delete().eq('tenant_id', t.id), 'clear social');
 must(await db.from('care_requests').delete().eq('tenant_id', t.id), 'clear care');
+must(await db.from('outbox').delete().eq('tenant_id', t.id).eq('template', 'team_push'), 'clear team alerts');
 const { data: last } = await db.from('agent_records').select('version').eq('tenant_id', t.id).order('version', { ascending: false }).limit(1).maybeSingle();
 await db.from('agent_records').update({ is_current: false }).eq('tenant_id', t.id);
 must(await db.from('agent_records').insert({ tenant_id: t.id, version: (last?.version ?? 0) + 1, is_current: true, data: { agencyName: 'Test Social Agency', carrier: 'GEICO', city: 'Valdosta', state: 'GA', phone: '(229) 555-0100', address: '1 Main St', intake: { hours: 'Mon–Fri 9–5' } }, note: 'verify' }), 'record');
@@ -122,6 +123,11 @@ await shot('5-instagram-copy');
 await click('/^Approve this wording$/'); check(await waitFor(/Approved\. You can create/), 'instagram: wording approved');
 check(!!(await row('instagram'))?.copy_ok_at, 'instagram: approval stored');
 await click('/^Next$/'); await sleep(800); await shot('6-instagram-step');
+
+// The agency's own steps alert the Genovus team's devices (outbox team_push): Facebook link + access sent, Instagram wording.
+{ const { data: al } = await db.from('outbox').select('data').eq('tenant_id', t.id).eq('template', 'team_push');
+  const titles = (al ?? []).map((r) => r.data.title).join(' | ');
+  check(/Facebook link added/.test(titles) && /Facebook access sent/.test(titles) && /Instagram wording approved/.test(titles) && (al ?? []).every((r) => r.data.url === `/app/${SLUG}/social`), `team alerts queued for the agency's link, access and approval (${titles || 'none'})`); }
 
 // Phone width and the Setup panel.
 await click('/All channels/'); await sleep(800); await shot('7-cards-phone', 390);

@@ -17,7 +17,16 @@ const STEP_ID = /^[a-z0-9-]{1,40}$/;
 async function who(slug: string) {
   const { tenant, asStaff, viewer } = await requireTenant(String(slug).slice(0, 80));
   if (tenant.isSample && !asStaff) return { err: 'This is the sample agency: nothing here is saved.' } as const;
-  return { tenantId: tenant.tenantId, asStaff, label: viewer.staff?.name ?? viewer.email ?? 'agency' } as const;
+  return { tenantId: tenant.tenantId, slug: tenant.slug, agency: tenant.name, asStaff, label: viewer.staff?.name ?? viewer.email ?? 'agency' } as const;
+}
+
+const NAME: Record<WizardChannel, string> = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', linkedin: 'LinkedIn', youtube: 'YouTube', tiktok: 'TikTok', nextdoor: 'Nextdoor' };
+/** The agency did something the Genovus team acts on (a link, "I sent access", approved wording, a help call): an
+ *  alert on the team's devices (outbox team_push), tap to open their Social setup. Staff's own clicks never alert. */
+async function tellTeam(w: { tenantId: string; slug: string; agency: string; asStaff: boolean; label: string }, channel: WizardChannel, title: string, body: string) {
+  if (w.asStaff) return;
+  await adminDb().from('outbox').insert({ tenant_id: w.tenantId, to_email: 'push', template: 'team_push',
+    data: { title: `${w.agency} · ${NAME[channel]} ${title}`.slice(0, 120), body: `${body} (by ${w.label})`.slice(0, 240), url: `/app/${w.slug}/social`, tag: `social-${w.tenantId.slice(0, 8)}-${channel}` } });
 }
 
 async function upsert(tenantId: string, channel: WizardChannel, patch: Record<string, unknown>, action: string, label: string) {
@@ -45,6 +54,7 @@ export async function socialLink(slug: string, channel: string, raw: string): Pr
   if (!c.ok) return { err: c.error };
   const e = await upsert(w.tenantId, channel, { link: c.url }, 'link', w.label);
   if (e) return { err: e };
+  await tellTeam(w, channel, 'link added', c.url);
   const field = INTAKE_FIELD[channel];
   if (field) {
     const a = adminDb();
@@ -82,7 +92,9 @@ export async function socialCopy(slug: string, channel: string, copy: Record<str
   }
   if (w.asStaff && approve) return { err: 'The agency approves its own wording. Save it, and they approve it here.' };
   const e = await upsert(w.tenantId, channel, { copy: clean, ...(approve ? { copy_ok_at: new Date().toISOString(), copy_ok_by: w.label } : { copy_ok_at: null, copy_ok_by: null }) }, approve ? 'copy.approve' : 'copy.save', w.label);
-  return e ? { err: e } : done(slug, approve ? 'Approved. You can create your profile now.' : 'Saved.');
+  if (e) return { err: e };
+  if (approve) await tellTeam(w, channel, 'wording approved', 'They approved the profile wording.');
+  return done(slug, approve ? 'Approved. You can create your profile now.' : 'Saved.');
 }
 
 /** The agency's side: "I sent access" / "I connected it in Metricool". */
@@ -93,7 +105,9 @@ export async function socialSent(slug: string, channel: string, what: 'access' |
   const cur = (data as Record<string, string> | null)?.[what];
   if (cur === 'granted' || cur === 'connected') return done(slug, 'Already confirmed by Genovus.');
   const e = await upsert(w.tenantId, channel, { [what]: 'sent', [`${what}_at`]: new Date().toISOString() }, `${what}.sent`, w.label);
-  return e ? { err: e } : done(slug, 'Thanks. Genovus confirms it on our side, usually within one business day.');
+  if (e) return { err: e };
+  await tellTeam(w, channel, what === 'access' ? 'access sent' : 'Metricool connected', what === 'access' ? 'They sent partner access. Confirm it in the business portfolio.' : 'They connected it in Metricool. Confirm it shows in their brand.');
+  return done(slug, 'Thanks. Genovus confirms it on our side, usually within one business day.');
 }
 
 /** Staff only: what Genovus can see on its side. */
@@ -132,11 +146,12 @@ export async function socialConnectUrl(slug: string, url: string): Promise<Socia
 export async function socialHelp(slug: string, channel: string, step: string): Promise<SocialResult> {
   const w = await who(slug); if ('err' in w) return { err: w.err };
   if (!isChannel(channel)) return { err: 'Unknown channel.' };
-  const name = { facebook: 'Facebook', instagram: 'Instagram', google: 'Google', linkedin: 'LinkedIn', youtube: 'YouTube', tiktok: 'TikTok', nextdoor: 'Nextdoor' }[channel];
+  const name = NAME[channel];
   const title = `Social setup help: ${name}`;
   const detail = `Asked from Social setup by ${w.label}${step ? ` on the step “${String(step).slice(0, 120)}”` : ''}. Book a short screen-share call and finish this step together.`;
   const { error } = await (await db()).rpc('create_care_request', { p_tenant: w.tenantId, p_kind: 'support', p_title: title, p_detail: detail });
   if (error) return { err: 'We couldn’t send that. Reply to any Genovus email and we’ll set up the call.' };
+  await tellTeam(w, channel, 'help call asked', step ? `On the step “${String(step).slice(0, 100)}”. Book a short screen-share.` : 'Book a short screen-share.');
   revalidatePath(`/app/${slug}/care`);
   return { ok: 'Got it. The Genovus team will reach out to book a short call, and we’ll finish this step together.' };
 }
