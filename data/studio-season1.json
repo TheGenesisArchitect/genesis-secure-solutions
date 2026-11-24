@@ -3304,6 +3304,352 @@
           ]
         }
       ]
+    },
+    {
+      "code": "gjk-hero1",
+      "kind": "teaser",
+      "sort": 0,
+      "title": "Genovus Just Knows · Hero Film",
+      "runtime_s": 72,
+      "format": "original",
+      "cut_family": "extended",
+      "logline": "A workplace mockumentary. Marcus, Tasha and Julian sit down for interviews about the week a new agency called with a new office, nothing built and two weeks to launch, and the real Genovus screens prove every word. Julian closes: Genovus Just Knows.",
+      "script": "Cast shots only: the interviews and B-roll are generated here. The real screens, Helix's voice, the score, the lower thirds and the 3D wordmark are built in Genovus Motion (Remotion + HyperFrames). Treatment v2: claude.ai artifact 5k1KYqsVn7zt8F3hYjjfE6.",
+      "music": "Built in Genovus Motion: light documentary pulse; ducked under every line; holds its breath before the Yes.",
+      "thumb": "Julian in the interview chair, mid-deadpan, golden egg glowing softly in the background, title space at the bottom.",
+      "shots": [
+        {
+          "n": 10,
+          "shot_code": "HERO_SH010",
+          "beat": 1,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:00–0:04",
+          "description": "Cold open: Marcus in the interview chair. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Marcus in the interview chair, leaning forward with his elbows on his knees, says one line with a dry, knowing look.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [
+            {
+              "who": "MARCUS01",
+              "text": "Every agency that calls us says the same thing."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, slight handheld drift"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @MARCUS01 in the interview chair, leaning forward with his elbows on his knees, says one line with a dry, knowing look.",
+          "direction": {
+            "acting": "Dry and knowing, a man who has heard it a hundred times",
+            "camera": "Interview, medium close-up, slight handheld drift",
+            "read": "MARCUS: [dry, knowing] Every agency that calls us says the same thing."
+          }
+        },
+        {
+          "n": 20,
+          "shot_code": "HERO_SH020",
+          "beat": 1,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:04–0:07",
+          "description": "Hard cut: Tasha, two words. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Tasha in the interview chair, arms folded, says two words flatly and holds a slow, unimpressed blink.",
+          "cast_codes": [
+            "TASHA01"
+          ],
+          "lines": [
+            {
+              "who": "TASHA01",
+              "text": "Twelve apps."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, snap-zoom in at the end"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @TASHA01 in the interview chair, arms folded, says two words flatly and holds a slow, unimpressed blink.",
+          "direction": {
+            "acting": "Deadpan, a slow blink after the line",
+            "camera": "Interview, medium close-up, snap-zoom in at the end",
+            "read": "TASHA: [flat, a slow blink] Twelve apps."
+          }
+        },
+        {
+          "n": 30,
+          "shot_code": "HERO_SH030",
+          "beat": 1,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:07–0:10",
+          "description": "Hard cut: Julian, deadpan. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Julian in the interview chair, adjusts his glasses and says one line completely deadpan, no smile.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "None of them talk."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, locked off"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @JULIAN01 in the interview chair, adjusts his glasses and says one line completely deadpan, no smile.",
+          "direction": {
+            "acting": "Bone-dry deadpan, no smile",
+            "camera": "Interview, medium close-up, locked off",
+            "read": "JULIAN: [deadpan] None of them talk."
+          }
+        },
+        {
+          "n": 40,
+          "shot_code": "HERO_SH040",
+          "beat": 2,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:10–0:15",
+          "description": "B-roll: Marcus's phone lights up on a busy desk. Mockumentary B-roll, handheld. Close on a phone face up on a busy desk beside a coffee cup; the screen lights up with a notification (no legible text). Rack focus to Marcus behind it at his workstation, who glances at the phone and does a slow double take.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [],
+          "log": {
+            "camera": "Handheld B-roll, rack focus from the phone to Marcus"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Keep the subject in the center third so a vertical crop works. Close on a phone face up on a busy desk beside a coffee cup; the screen lights up with a notification (no legible text). Rack focus to @MARCUS01 behind it at his workstation, who glances at the phone and does a slow double take.",
+          "direction": {
+            "acting": "No line: he glances, then does a slow double take",
+            "camera": "Handheld B-roll, rack focus from the phone to Marcus",
+            "read": "[sound design] phone buzz on wood"
+          }
+        },
+        {
+          "n": 50,
+          "shot_code": "HERO_SH050",
+          "beat": 2,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:15–0:21",
+          "description": "Interview: Marcus took the call. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Marcus in the interview chair counts the problems on his fingers, then says the last word and holds a long, nervous look just off the lens.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [
+            {
+              "who": "MARCUS01",
+              "text": "Brooks Family Insurance. New office, two weeks, nothing built. And I said... sure."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, hold on the nervous beat"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @MARCUS01 in the interview chair counts the problems on his fingers, then says the last word and holds a long, nervous look just off the lens.",
+          "direction": {
+            "acting": "Matter-of-fact, then a long nervous beat after “sure”",
+            "camera": "Interview, medium close-up, hold on the nervous beat",
+            "read": "MARCUS: [matter-of-fact] Brooks Family Insurance. [beat] New office, two weeks, nothing built. [beat] And I said... [nervous] sure."
+          }
+        },
+        {
+          "n": 60,
+          "shot_code": "HERO_SH060",
+          "beat": 3,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:21–0:27",
+          "description": "Interview: Julian, the skeptic. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Julian in the interview chair, one leg crossed, speaks with measured dryness and a tiny shrug on the last line.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "I'm skeptical of everything. It's in my job description. So I asked Helix."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, slow push-in"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @JULIAN01 in the interview chair, one leg crossed, speaks with measured dryness and a tiny shrug on the last line.",
+          "direction": {
+            "acting": "Measured and dry, the professional skeptic",
+            "camera": "Interview, medium close-up, slow push-in",
+            "read": "JULIAN: [measured, dry] I'm skeptical of everything. [beat] It's in my job description. [beat] So I asked Helix."
+          }
+        },
+        {
+          "n": 70,
+          "shot_code": "HERO_SH070",
+          "beat": 4,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:27–0:33",
+          "description": "Interview: Tasha, over the screens. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Tasha in the interview chair, animated, counts three things on her fingers, then sits back with a small amazed smile.",
+          "cast_codes": [
+            "TASHA01"
+          ],
+          "lines": [
+            {
+              "who": "TASHA01",
+              "text": "It already knew her lines, her hours, her people. Nobody had to explain anything twice."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, gentle drift"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @TASHA01 in the interview chair, animated, counts three things on her fingers, then sits back with a small amazed smile.",
+          "direction": {
+            "acting": "Warm, a little amazed, counting on her fingers",
+            "camera": "Interview, medium close-up, gentle drift",
+            "read": "TASHA: [warm, a little amazed] It already knew her lines, her hours, her people. [beat] Nobody had to explain anything twice."
+          }
+        },
+        {
+          "n": 80,
+          "shot_code": "HERO_SH080",
+          "beat": 5,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:33–0:39",
+          "description": "Interview: Marcus, the yes. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Marcus in the interview chair, impressed, then puts a hand on his chest, genuinely touched.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [
+            {
+              "who": "MARCUS01",
+              "text": "It won't send a thing until I say yes. Honestly? Nobody's ever asked my opinion that much."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, slow push-in on the second line"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @MARCUS01 in the interview chair, impressed, then puts a hand on his chest, genuinely touched.",
+          "direction": {
+            "acting": "Impressed, then quietly touched, a hand on his chest",
+            "camera": "Interview, medium close-up, slow push-in on the second line",
+            "read": "MARCUS: [impressed] It won't send a thing until I say yes. [beat] Honestly? [touched] Nobody's ever asked my opinion that much."
+          }
+        },
+        {
+          "n": 90,
+          "shot_code": "HERO_SH090",
+          "beat": 6,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:39–0:44",
+          "description": "Interview: Tasha, the payoff. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Tasha in the interview chair widens her hands on each phrase, then taps her temple with a confident smile.",
+          "cast_codes": [
+            "TASHA01"
+          ],
+          "lines": [
+            {
+              "who": "TASHA01",
+              "text": "One office, ten offices, the whole enterprise. Same brain."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, locked off"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @TASHA01 in the interview chair widens her hands on each phrase, then taps her temple with a confident smile.",
+          "direction": {
+            "acting": "Building and confident, a small tap to her temple on “same brain”",
+            "camera": "Interview, medium close-up, locked off",
+            "read": "TASHA: [building, confident] One office, ten offices, the whole enterprise. [beat] Same brain."
+          }
+        },
+        {
+          "n": 100,
+          "shot_code": "HERO_SH100",
+          "beat": 6,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:44–0:49",
+          "description": "Interview: Julian, the turn. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Julian in the interview chair says a line deadpan, pauses for a long beat, then lets the faintest smile through.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "I'm still skeptical. Of everything else."
+            }
+          ],
+          "log": {
+            "camera": "Interview, medium close-up, hold on the beat"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @JULIAN01 in the interview chair says a line deadpan, pauses for a long beat, then lets the faintest smile through.",
+          "direction": {
+            "acting": "Deadpan, a long beat, then the faintest smile",
+            "camera": "Interview, medium close-up, hold on the beat",
+            "read": "JULIAN: [deadpan] I'm still skeptical. [long beat] [the faintest smile] Of everything else."
+          }
+        },
+        {
+          "n": 110,
+          "shot_code": "HERO_SH110",
+          "beat": 7,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:49–0:53",
+          "description": "Julian breaks the frame to the lens. Mockumentary interview: seated off-center, medium close-up, talking to an unseen interviewer just off the lens, the GENOVUS office soft behind. Julian in the interview chair turns his eyes from the unseen interviewer straight into the lens and says three words with quiet certainty.",
+          "cast_codes": [
+            "JULIAN01"
+          ],
+          "lines": [
+            {
+              "who": "JULIAN01",
+              "text": "Genovus Just Knows."
+            }
+          ],
+          "log": {
+            "camera": "Breaks the interview frame: turns from the interviewer to look straight down the lens"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Interview setup: the subject sits off-center in a chair, framed medium close-up, and talks to an unseen interviewer just off the lens. Keep the face in the center third so a vertical crop works. @JULIAN01 in the interview chair turns his eyes from the unseen interviewer straight into the lens and says three words with quiet certainty.",
+          "direction": {
+            "acting": "Quiet certainty, a knowing look",
+            "camera": "Breaks the interview frame: turns from the interviewer to look straight down the lens",
+            "read": "JULIAN: [quiet, certain] Genovus Just Knows."
+          }
+        },
+        {
+          "n": 120,
+          "shot_code": "HERO_SH120",
+          "beat": 7,
+          "shot_kind": "signature",
+          "tool": "runway",
+          "tier": "hero",
+          "timing": "0:53–0:58",
+          "description": "Tag: Marcus in the background, on the phone. Mockumentary B-roll, handheld. Wide shot of the office, an empty interview chair in the foreground. Marcus walks through the background on his phone, nodding and smiling, getting happier on each word.",
+          "cast_codes": [
+            "MARCUS01"
+          ],
+          "lines": [
+            {
+              "who": "MARCUS01",
+              "text": "Yes. Yes. Yes."
+            }
+          ],
+          "log": {
+            "camera": "Wide, locked off; he walks through the background, out of focus at first"
+          },
+          "prompt": "Widescreen 16:9 documentary look, like a workplace mockumentary: handheld with a subtle drift, natural light with warm amber practicals, deep charcoal shadows and restrained orange accents, shallow depth of field. GENOVUS headquarters, a working studio office with a strategy table, workstations and plants, softly out of focus behind the subject. No legible text on any screen or paper, no logos. Keep the subject in the center third so a vertical crop works. Wide shot of the office, an empty interview chair in the foreground. @MARCUS01 walks through the background on his phone, nodding and smiling, getting happier on each word.",
+          "direction": {
+            "acting": "Delighted, a little happier on every yes",
+            "camera": "Wide, locked off; he walks through the background, out of focus at first",
+            "read": "MARCUS (background, on the phone): [delighted] Yes. [beat] Yes. [beat] [even happier] Yes."
+          }
+        }
+      ]
     }
   ],
   "posts": {
