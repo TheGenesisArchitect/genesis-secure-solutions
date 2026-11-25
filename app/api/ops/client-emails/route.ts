@@ -5,14 +5,14 @@
 // (GENOVUS_OPS_ACTOR, also where tests go unless test_to is given).
 //   GET    ?slug=<client>[&delivery=1]  recent client emails: status, send time, sent time, error, Resend id
 //                                        (delivery=1 also asks Resend for each sent one's last event)
-//   POST   { slug, kind: "site_review" | "note" | "lifetime", dry?, ...fields }   dry renders only; otherwise schedules
+//   POST   { slug, kind: "site_review" | "note" | "lifetime" | "social", dry?, ...fields }   dry renders only; otherwise schedules
 //          fields as the panel's form: to, cc, when (Eastern "YYYY-MM-DDTHH:MM"), intent: "test", subject,
 //          note, site, card, agency, sender, copy, copy_help, item: [...], help_<key>, reply, next | body (note)
 //          | note, agency, sender, first (lifetime: rate, savings and features come from the agency's lifetime record)
 //   DELETE ?id=<outbox id>               cancel one that hasn't gone out
 import { timingSafeEqual } from 'node:crypto';
 import { adminDb } from '@/lib/supabase/admin';
-import { scheduleNote, scheduleSiteReview, scheduleLifetime, cancelClientEmail, listClientEmails, type Actor } from '@/lib/client-email-core';
+import { scheduleNote, scheduleSiteReview, scheduleLifetime, scheduleSocial, cancelClientEmail, listClientEmails, type Actor } from '@/lib/client-email-core';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,8 +69,8 @@ export async function POST(req: Request) {
   }
   const who = actor(typeof body.test_to === 'string' ? body.test_to : undefined);
   const dry = body.dry === true;
-  const r = body.kind === 'note' ? await scheduleNote(f, who, dry) : body.kind === 'site_review' ? await scheduleSiteReview(f, who, dry) : body.kind === 'lifetime' ? await scheduleLifetime(f, who, dry) : null;
-  if (!r) return json({ error: 'kind is site_review, note or lifetime' }, 400);
+  const r = body.kind === 'note' ? await scheduleNote(f, who, dry) : body.kind === 'site_review' ? await scheduleSiteReview(f, who, dry) : body.kind === 'social' ? await scheduleSocial(f, who, dry) : body.kind === 'lifetime' ? await scheduleLifetime(f, who, dry) : null;
+  if (!r) return json({ error: 'kind is site_review, note, lifetime or social' }, 400);
   return r.ok ? json(r) : json({ error: r.error }, 422);
 }
 

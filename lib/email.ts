@@ -5,6 +5,7 @@ import 'server-only';
 import { meetingIcs, meetingWhen } from './meeting-ics';
 import { siteReviewEmail, type SiteReview } from './email-site-review';
 import { lifetimeEmail, type LifetimeEmail } from './email-lifetime';
+import { socialSetupEmail, type SocialSetupEmail } from './email-social-setup';
 
 // The Vercel variable was created as RESEND_GENOVOUS_API_KEY; RESEND_API_KEY is accepted too.
 const RESEND_KEY = () => process.env.RESEND_API_KEY || process.env.RESEND_GENOVOUS_API_KEY || '';
@@ -295,6 +296,11 @@ export function outboxEmail(template: string, to: string, data: Record<string, s
       return { to, cc: String(data.cc ?? '').split(',').map((s) => s.trim()).filter(Boolean), subject: data.subject || r.subject, html: r.html, text: r.text, replyTo: data.reply_to || undefined };
     }
     // "Growth is yours for life" (lib/email-lifetime.ts): the founding-client thank-you, scheduled like a client email.
+    // "Let's finish connecting your profiles" (lib/email-social-setup.ts): each channel's next step, and how posting works.
+    case 'social_setup': {
+      const r = socialSetupEmail(JSON.parse(data.social) as SocialSetupEmail, origin);
+      return { to, cc: String(data.cc ?? '').split(',').map((s) => s.trim()).filter(Boolean), subject: data.subject || r.subject, html: r.html, text: r.text, replyTo: data.reply_to || undefined };
+    }
     case 'lifetime_growth': {
       const r = lifetimeEmail(JSON.parse(data.lifetime) as LifetimeEmail, origin);
       return { to, cc: String(data.cc ?? '').split(',').map((s) => s.trim()).filter(Boolean), subject: data.subject || r.subject, html: r.html, text: r.text, replyTo: data.reply_to || undefined };

@@ -25,7 +25,7 @@ const emails = (s: string) => s.split(/[,;\s]+/).map((e) => e.trim().toLowerCase
 export const etLabel = (d: Date | string) => new Date(d).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 const no = (error: string): CoreResult => ({ ok: false, error });
 /** Every template a client email can use (listing and canceling cover all of them). */
-const CLIENT_TEMPLATES = ['client_update', 'site_review', 'lifetime_growth'];
+const CLIENT_TEMPLATES = ['client_update', 'site_review', 'lifetime_growth', 'social_setup'];
 
 /** Recipients and send time, shared by both kinds. A test goes only to the actor, now. */
 function envelope(f: FormData, actor: Actor): { error: string } | { test: boolean; first: string; copy: string[]; sendAt: Date } {
@@ -55,7 +55,7 @@ async function tenantOf(id: string) {
 }
 
 /** Queue it (or, dry, just render it): one outbox row, its audit entry, and the message the caller shows. */
-async function queue(t: { id: string; name: string }, template: 'client_update' | 'site_review' | 'lifetime_growth', data: Record<string, string>, env: { test: boolean; first: string; copy: string[]; sendAt: Date }, actor: Actor, dry: boolean, extra: Record<string, unknown> = {}): Promise<CoreResult> {
+async function queue(t: { id: string; name: string }, template: 'client_update' | 'site_review' | 'lifetime_growth' | 'social_setup', data: Record<string, string>, env: { test: boolean; first: string; copy: string[]; sendAt: Date }, actor: Actor, dry: boolean, extra: Record<string, unknown> = {}): Promise<CoreResult> {
   const origin = process.env.APP_ORIGIN || 'https://genovus.io';
   const full = { ...data, cc: env.copy.join(', '), by: actor.label, test: env.test ? 'true' : '' };
   const mail = outboxEmail(template, env.first, full, origin);
@@ -65,7 +65,7 @@ async function queue(t: { id: string; name: string }, template: 'client_update' 
   const admin = adminDb();
   const { data: row, error } = await admin.from('outbox').insert({
     tenant_id: t.id, to_email: env.first, template, send_after: env.sendAt.toISOString(), data: full,
-    dedupe_key: `${template === 'site_review' ? 'site-review' : template === 'lifetime_growth' ? 'lifetime' : 'client-email'}:${t.id}:${crypto.randomUUID()}`,
+    dedupe_key: `${template === 'site_review' ? 'site-review' : template === 'lifetime_growth' ? 'lifetime' : template === 'social_setup' ? 'social-setup' : 'client-email'}:${t.id}:${crypto.randomUUID()}`,
   }).select('id').single();
   if (error) return no(error.message);
   await admin.from('audit_events').insert({ tenant_id: t.id, actor: actor.id, actor_label: actor.label, action: env.test ? 'client_email.test' : 'client_email.scheduled', subject: mail.subject, after: { outbox: row.id, template, to: env.first, cc: env.copy, send_after: env.sendAt.toISOString(), ...extra }, prev_hash: '', hash: '' });
@@ -128,6 +128,61 @@ export async function scheduleSiteReview(f: FormData, actor: Actor, dry = false)
   // A ticked item that's already answered is left out: say so, so nobody wonders where it went.
   const skipped = [...picked].filter((k) => w.status.items.find((i) => i.key === k)?.done);
   return res.ok && skipped.length ? { ...res, message: `${res.message} Left out (already answered): ${skipped.join(', ')}.` } : res;
+}
+
+/** "Let's finish connecting your profiles" (lib/email-social-setup.ts): built from the agency's live Social setup
+ *  status, each open channel with its next step and a button to it, and how posting works once connected. */
+export async function scheduleSocial(f: FormData, actor: Actor, dry = false): Promise<CoreResult> {
+  const note = String(f.get('note') ?? '').replace(/\r\n/g, '\n').trim().slice(0, 4000);
+  if (!note) return no('Write a short note.');
+  if (PLACEHOLDER.test(note + str(f, 'subject', 200))) return no(`The email still has a placeholder: ${(note + str(f, 'subject', 200)).match(PLACEHOLDER)![0]}`);
+  const env = envelope(f, actor);
+  if ('error' in env) return no(env.error);
+  const t = await tenantOf(str(f, 'tenant', 64));
+  if (!t) return no('Client not found.');
+  if (t.is_sample && !env.test) return no('This is a sample client: send yourself a test instead.');
+  const admin = adminDb();
+  const { count: members } = await admin.from('memberships').select('user_id', { count: 'exact', head: true }).eq('tenant_id', t.id);
+  if (!env.test && !dry && !members) return no('Invite the client to their dashboard first (People panel): every button in this email opens it.');
+  const [{ wizardData }, { welcomeData }] = await Promise.all([import('./social-wizard'), import('./welcome')]);
+  const [d, w] = await Promise.all([wizardData(t.id), welcomeData(t.id, t.slug)]);
+  const origin = process.env.APP_ORIGIN || 'https://genovus.io';
+  const socialUrl = `${origin}/app/${t.slug}/social`;
+  const short = (h: string[]) => h.slice(0, 3).map((x) => x.length > 220 ? `${x.slice(0, 217)}…` : x);
+  const { socialSetupEmail } = await import('./email-social-setup');
+  type Row = import('./email-social-setup').SocialRow;
+  const confirming = 'You’ve done your part. Genovus confirms it on our side, usually within one business day.';
+  const rows: Row[] = d.channels.filter((c) => (c.core || c.row.path) && c.status !== 'skipped').map((c): Row => {
+    const r = c.row, url = `${socialUrl}?c=${c.id}`;
+    if (c.status === 'connected') return { name: c.name, state: 'done' };
+    if (c.status === 'carrier') return { name: c.name, state: 'carrier' };
+    if (c.status === 'waiting') return { name: c.name, state: 'waiting', next: confirming };
+    // Not started: the whole Google path at a glance (the Social setup page takes them through it one step at a time).
+    if (c.id === 'google' && !r.google_owner) return { name: c.name, state: 'next', url, next: 'Set up your Google Business Profile: about 15 minutes, plus Google’s check',
+      how: ['Tell us who runs your listing today. Search your office on Google Maps; if your carrier runs it, choose “My carrier does” and we leave it alone.',
+        'Claim it, or create it at business.google.com/add, then finish the verification Google offers (some take a few days; we keep going meanwhile).',
+        'Match your name, address, phone and hours to your website, and paste the description we wrote to Google’s rules.',
+        'Add Genovus as a Manager (you stay the Owner), so we can post updates and answer reviews.',
+        'Connect it in your Metricool brand, so your approved posts go out on Google too.'] };
+    if (!r.path) return { name: c.name, state: 'next', url, next: `Tell us whether you already have ${c.id === 'google' ? 'a listing' : 'a profile'}`, how: ['Choose “I have one” and paste the link, or “Set it up with Genovus”.', 'We guide the rest one short step at a time.'] };
+    const steps = r.path === 'create' ? [...c.createSteps, ...c.tailSteps] : c.tailSteps;
+    const open = steps.find((s) => !(s.kind === 'copy' ? r.copy_ok_at : s.kind === 'link' ? r.link : s.kind === 'access' ? r.access !== 'none' : s.kind === 'metricool' ? r.metricool !== 'none' : r.steps.includes(s.id)));
+    if (!open) return { name: c.name, state: 'waiting', next: confirming };
+    const net = c.id === 'google' ? 'Google Business Profile' : c.name.split(' ')[0];
+    const how = open.kind === 'metricool' && d.connectUrl ? ['Open this step and choose Connect. It opens your Metricool brand.', `Pick ${net} and sign in to it there. You never share a password with us.`, 'Come back and choose “I connected it”.'] : short(open.how);
+    return { name: c.name, state: 'next', url, next: open.title, how };
+  });
+  const posting = [
+    'Genovus drafts your posts in your agency’s look and voice, inside your lines of business and your carrier’s rules.',
+    'You approve each one on your dashboard with one tap. Nothing goes out without your yes.',
+    'Metricool publishes them to Facebook, Instagram and Google at the best times, and your monthly report shows how they did.',
+  ];
+  const social = {
+    first: str(f, 'first', 40) || w.first, agency: str(f, 'agency', 120) || String(w.record.agencyName ?? '') || t.name, note, socialUrl,
+    done: d.done, total: d.total, rows, posting, address: await (await import('./consult-followups')).postalAddress(), sender: str(f, 'sender', 60) || undefined,
+  };
+  const subject = str(f, 'subject', 200) || socialSetupEmail(social, origin).subject;
+  return queue(t, 'social_setup', { subject: env.test ? `[Test] ${subject}` : subject, social: JSON.stringify(social) }, env, actor, dry, { rows: rows.map((r) => `${r.name}: ${r.state}`) });
 }
 
 export async function cancelClientEmail(id: number, tenantId: string | null, actor: Actor): Promise<CoreResult> {
